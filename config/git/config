@@ -7,4 +7,4 @@ email = patryk.seweryn@digica.com
 [includeIf "gitdir:~/personal-apps/"]
 	path=~/.config/git/personal
 [help]
-	autocorrect = immediate
+	autocorrect = prompt
