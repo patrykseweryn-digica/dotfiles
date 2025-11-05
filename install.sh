@@ -124,7 +124,6 @@ main() {
     install_uv
     install_zsh
     install_oh_my_zsh
-    install_vim
 
     # Setup dotfile configurations
     setup_dotfiles
