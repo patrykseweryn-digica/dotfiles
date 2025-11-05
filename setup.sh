@@ -17,9 +17,6 @@ else
     RC_FILE="$HOME/.zshrc"
 fi
 
-if [ -f "$RC_FILE" ] && ! grep -q "source.*aliases.sh" "$RC_FILE"; then
-    echo "source $PWD/aliases.sh" >>"$RC_FILE"
-fi
 # Load variables from config file
 if [ -f "$PWD/config.sh" ]; then
     source "$PWD/config.sh"
@@ -28,6 +25,6 @@ else
     exit 1
 fi
 # Source aliases
-source "$PWD/aliases.sh"
+source "$PWD/.aliases"
 # Setup SSH key
 "$PWD/ssh.sh" "$EMAIL"
