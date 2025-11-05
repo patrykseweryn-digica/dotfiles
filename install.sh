@@ -80,7 +80,7 @@ link_file() {
     echo "[INFO] Linked $target_path -> $source_path"
 }
 
-for module in "${DOTFILES_DIR}/install.d"/*.sh; do
+for module in "${DOTFILES_DIR}/bootstrap.d"/*.sh; do
     if [ -f "$module" ]; then
         source "$module"
     fi
