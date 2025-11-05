@@ -56,37 +56,44 @@ install_zsh() {
         zsh --version
         echo "[INFO] zsh installed successfully"
 
-        # Try to change default shell to zsh (no sudo required typically)
+        # Try to change default shell to zsh; allow password prompt if required
+        CHSH_OK=0
         if [ "$(basename "$SHELL")" != "zsh" ]; then
             ZSH_PATH="$(command -v zsh || true)"
             if [ -n "$ZSH_PATH" ]; then
-                echo "[INFO] Attempting to set default shell to zsh..."
-                if chsh -s "$ZSH_PATH" "$USER" >/dev/null 2>&1 || chsh -s "$ZSH_PATH" >/dev/null 2>&1; then
+                echo "[INFO] Attempting to set default shell to zsh (you may be prompted for your password)..."
+                if chsh -s "$ZSH_PATH" "$USER"; then
                     echo "[INFO] Default shell changed to zsh"
+                    CHSH_OK=1
+                elif chsh -s "$ZSH_PATH"; then
+                    echo "[INFO] Default shell changed to zsh"
+                    CHSH_OK=1
                 else
-                    echo "[WARN] Could not change default shell via chsh (may require password or admin)."
+                    echo "[WARN] Could not change default shell via chsh."
                 fi
             fi
         fi
 
-        # Ensure SSH sessions auto-start zsh even if default shell couldn't be changed
-        AUTO_MARKER="# Auto-start zsh for SSH sessions (dotfiles)"
-        AUTO_SNIPPET="${AUTO_MARKER}
+        # Ensure SSH sessions auto-start zsh if default shell wasn't changed
+        if [ "${CHSH_OK}" -ne 1 ]; then
+            AUTO_MARKER="# Auto-start zsh for SSH sessions (dotfiles)"
+            AUTO_SNIPPET="${AUTO_MARKER}
 if [ -n \"$SSH_CONNECTION\" ] && [ -z \"$ZSH_VERSION\" ] && command -v zsh >/dev/null 2>&1; then
   exec zsh -l
 fi"
 
-        for f in "$HOME/.profile" "$HOME/.bashrc"; do
-            if [ -f "$f" ]; then
-                if ! grep -q "Auto-start zsh for SSH sessions (dotfiles)" "$f"; then
-                    printf '\n%s\n' "$AUTO_SNIPPET" >>"$f"
-                    echo "[INFO] Added auto-zsh SSH snippet to $f"
+            for f in "$HOME/.profile" "$HOME/.bashrc"; do
+                if [ -f "$f" ]; then
+                    if ! grep -q "Auto-start zsh for SSH sessions (dotfiles)" "$f"; then
+                        printf '\n%s\n' "$AUTO_SNIPPET" >>"$f"
+                        echo "[INFO] Added auto-zsh SSH snippet to $f"
+                    fi
+                else
+                    printf '%s\n' "$AUTO_SNIPPET" >>"$f"
+                    echo "[INFO] Created $f with auto-zsh SSH snippet"
                 fi
-            else
-                printf '%s\n' "$AUTO_SNIPPET" >>"$f"
-                echo "[INFO] Created $f with auto-zsh SSH snippet"
-            fi
-        done
+            done
+        fi
     else
         echo "[ERROR] Failed to install zsh" >&2
         return 1
