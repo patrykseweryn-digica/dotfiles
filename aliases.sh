@@ -8,7 +8,7 @@ alias timestamp="date +%s"
 alias version="commit 'version'"
 
 # Directories
-DOTFILES=${DOTFILES:-"$HOME/apps/dotfiles"}
+DOTFILES=${DOTFILES:-"$HOME/dotfiles"}
 alias library="cd $HOME/.local/share"
 alias projects="cd $HOME/apps"
 alias dotfiles="cd $DOTFILES"
