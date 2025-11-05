@@ -1,10 +1,9 @@
 # This is Git's per-user configuration file.
 [user]
-# Please adapt and uncomment the following lines:
 name = Patryk Seweryn
 email = patryk.seweryn@digica.com
 
-[includeIf "gitdir:~/personal-apps/"]
-	path=~/.config/git/personal
+[includeIf "gitdir:~/apps/personal/"]
+	path=~/.config/git/config-personal
 [help]
 	autocorrect = prompt
