@@ -134,4 +134,4 @@ export NVM_DIR="$HOME/.nvm"
 export PATH="/home/pseweryn/.local/bin:$PATH"
 
 # Python startup file (set at the end to override any other settings)
-export PYTHONSTARTUP="${DOTFILES:-$HOME/dotfiles}/pythonrc.py"
+export PYTHONSTARTUP="${HOME}/.pythonrc.py"
