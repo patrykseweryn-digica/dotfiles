@@ -23,57 +23,58 @@ install_oh_my_zsh() {
     ZSH_CUSTOM="${ZSH_CUSTOM:-${HOME}/.oh-my-zsh/custom}"
 
     # zsh-autosuggestions
-    if [ ! -d "${ZSH_CUSTOM}/plugins/zsh-autosuggestions" ]; then
+    if [ ! -d "${ZSH_CUSTOM:-${ZSH:-~/.oh-my-zsh}/custom}/plugins/zsh-autosuggestions" ]; then
         log_info "Installing zsh-autosuggestions plugin..."
-        git clone https://github.com/zsh-users/zsh-autosuggestions "${ZSH_CUSTOM}/plugins/zsh-autosuggestions"
+        git clone https://github.com/zsh-users/zsh-autosuggestions $ZSH_CUSTOM/plugins/zsh-autosuggestions
     else
         log_info "zsh-autosuggestions already installed"
     fi
 
     # zsh-syntax-highlighting
-    if [ ! -d "${ZSH_CUSTOM}/plugins/zsh-syntax-highlighting" ]; then
+    if [ ! -d "${ZSH_CUSTOM:-${ZSH:-~/.oh-my-zsh}/custom}/plugins/zsh-syntax-highlighting" ]; then
         log_info "Installing zsh-syntax-highlighting plugin..."
-        git clone https://github.com/zsh-users/zsh-syntax-highlighting.git "${ZSH_CUSTOM}/plugins/zsh-syntax-highlighting"
+        git clone https://github.com/zsh-users/zsh-syntax-highlighting.git $ZSH_CUSTOM/plugins/zsh-syntax-highlighting
     else
         log_info "zsh-syntax-highlighting already installed"
     fi
 
     # zsh-completions
-    if [ ! -d "${ZSH_CUSTOM}/plugins/zsh-completions" ]; then
+    if [ ! -d "${ZSH_CUSTOM:-${ZSH:-~/.oh-my-zsh}/custom}/plugins/zsh-completions" ]; then
         log_info "Installing zsh-completions plugin..."
-        git clone https://github.com/zsh-users/zsh-completions "${ZSH_CUSTOM}/plugins/zsh-completions"
+        git clone https://github.com/zsh-users/zsh-completions.git \
+            ${ZSH_CUSTOM:-${ZSH:-~/.oh-my-zsh}/custom}/plugins/zsh-completions
     else
         log_info "zsh-completions already installed"
     fi
 
     # fzf-tab
-    if [ ! -d "${ZSH_CUSTOM}/plugins/fzf-tab" ]; then
+    if [ ! -d "${ZSH_CUSTOM:-${ZSH:-~/.oh-my-zsh}/custom}/plugins/fzf-tab" ]; then
         log_info "Installing fzf-tab plugin..."
-        git clone https://github.com/Aloxaf/fzf-tab "${ZSH_CUSTOM}/plugins/fzf-tab"
+        git clone https://github.com/Aloxaf/fzf-tab $ZSH_CUSTOM/plugins/fzf-tab
     else
         log_info "fzf-tab already installed"
     fi
 
     # zsh-bat
-    if [ ! -d "${ZSH_CUSTOM}/plugins/zsh-bat" ]; then
+    if [ ! -d "${ZSH_CUSTOM:-${ZSH:-~/.oh-my-zsh}/custom}/plugins/zsh-bat" ]; then
         log_info "Installing zsh-bat plugin..."
-        git clone https://github.com/fdellwing/zsh-bat.git "${ZSH_CUSTOM}/plugins/zsh-bat"
+        git clone https://github.com/fdellwing/zsh-bat.git $ZSH_CUSTOM/plugins/zsh-bat
     else
         log_info "zsh-bat already installed"
     fi
 
     # you-should-use
-    if [ ! -d "${ZSH_CUSTOM}/plugins/you-should-use" ]; then
+    if [ ! -d "${ZSH_CUSTOM:-${ZSH:-~/.oh-my-zsh}/custom}/plugins/you-should-use" ]; then
         log_info "Installing you-should-use plugin..."
-        git clone https://github.com/MichaelAquilina/zsh-you-should-use.git "${ZSH_CUSTOM}/plugins/you-should-use"
+        git clone https://github.com/MichaelAquilina/zsh-you-should-use.git $ZSH_CUSTOM/plugins/you-should-use
     else
         log_info "you-should-use already installed"
     fi
 
     # Install Powerlevel10k theme
-    if [ ! -d "${ZSH_CUSTOM}/themes/powerlevel10k" ]; then
+    if [ ! -d "${ZSH_CUSTOM:-${ZSH:-~/.oh-my-zsh}/custom}/themes/powerlevel10k" ]; then
         log_info "Installing Powerlevel10k theme..."
-        git clone --depth=1 https://github.com/romkatv/powerlevel10k.git "${ZSH_CUSTOM}/themes/powerlevel10k"
+        git clone --depth=1 https://github.com/romkatv/powerlevel10k.git $ZSH_CUSTOM/themes/powerlevel10k
     else
         log_info "Powerlevel10k already installed"
     fi
