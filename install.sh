@@ -5,12 +5,6 @@ set -eu
 # Enable command tracing
 set -x
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
-
 # Detect if sudo is available
 HAS_SUDO=false
 if command -v sudo >/dev/null 2>&1 && sudo -n true 2>/dev/null; then
@@ -30,18 +24,6 @@ if [[ ":$PATH:" != *":${BIN_DIR}:"* ]]; then
     export PATH="${BIN_DIR}:${PATH}"
 fi
 
-log_info() {
-    echo -e "${GREEN}[INFO]${NC} $1"
-}
-
-log_warn() {
-    echo -e "${YELLOW}[WARN]${NC} $1"
-}
-
-log_error() {
-    echo -e "${RED}[ERROR]${NC} $1"
-}
-
 check_installed() {
     if command -v "$1" >/dev/null 2>&1; then
         return 0
@@ -52,6 +34,52 @@ check_installed() {
 # Source installation modules
 DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+OVERWRITE=false
+
+usage() {
+    echo "Usage: $0 [--force]"
+    echo
+    echo "  --force, -f    Overwrite existing dotfiles"
+}
+
+parse_args() {
+    while [ $# -gt 0 ]; do
+        case "$1" in
+        -f | --force)
+            OVERWRITE=true
+            ;;
+        -h | --help)
+            usage
+            exit 0
+            ;;
+        *)
+            echo "ERROR: Unknown option: $1" >&2
+            usage >&2
+            exit 1
+            ;;
+        esac
+        shift
+    done
+}
+
+link_file() {
+    local source_path="$1"
+    local target_path="$2"
+
+    if [ -e "$target_path" ] || [ -L "$target_path" ]; then
+        if [ "$OVERWRITE" = true ]; then
+            echo "[INFO] Overwriting $target_path"
+            rm -rf "$target_path"
+        else
+            echo "[INFO] Skipping $target_path; already exists (use --force to overwrite)"
+            return
+        fi
+    fi
+
+    ln -s "$source_path" "$target_path"
+    echo "[INFO] Linked $target_path -> $source_path"
+}
+
 for module in "${DOTFILES_DIR}/install.d"/*.sh; do
     if [ -f "$module" ]; then
         source "$module"
@@ -60,74 +88,59 @@ done
 
 # Setup and link configuration files
 setup_dotfiles() {
-    log_info "Setting up dotfile configurations..."
+    echo "[INFO] Setting up dotfile configurations..."
 
     # Ensure config directory exists
-    mkdir -p ~/.config
+    mkdir -p "${HOME}/.config"
 
-    # Link Git config if it doesn't exist
-    if [ ! -e ~/.config/git ]; then
-        ln -s "$DOTFILES_DIR/config/git" ~/.config/git
-        log_info "Linked Git configuration"
-    else
-        log_info "Git configuration already exists"
-    fi
+    # Link Git config
+    link_file "$DOTFILES_DIR/config/git" "${HOME}/.config/git"
 
-    # Link Python startup file if it doesn't exist
-    if [ ! -e ~/.pythonrc.py ]; then
-        ln -s "$DOTFILES_DIR/pythonrc.py" ~/.pythonrc.py
-        log_info "Linked Python startup file"
-    else
-        log_info "Python startup file already exists"
-    fi
+    # Link Python startup file
+    link_file "$DOTFILES_DIR/pythonrc.py" "${HOME}/.pythonrc.py"
 
-    # Link .zshrc if it doesn't exist
-    if [ ! -e ~/.zshrc ]; then
-        ln -s "$DOTFILES_DIR/.zshrc" ~/.zshrc
-        log_info "Linked .zshrc configuration"
-    else
-        log_info ".zshrc already exists"
-    fi
+    # Link .zshrc
+    link_file "$DOTFILES_DIR/.zshrc" "${HOME}/.zshrc"
 
-    # Link .p10k.zsh if it doesn't exist
-    if [ ! -e ~/.p10k.zsh ]; then
-        ln -s "$DOTFILES_DIR/.p10k.zsh" ~/.p10k.zsh
-        log_info "Linked Powerlevel10k configuration"
-    else
-        log_info ".p10k.zsh already exists"
-    fi
+    # Link .p10k.zsh
+    link_file "$DOTFILES_DIR/.p10k.zsh" "${HOME}/.p10k.zsh"
 
     # Load variables from config file
     if [ -f "$DOTFILES_DIR/config.sh" ]; then
         source "$DOTFILES_DIR/config.sh"
-        log_info "Loaded configuration from config.sh"
+        echo "[INFO] Loaded configuration from config.sh"
     else
-        log_error "config.sh file not found in $DOTFILES_DIR"
+        echo "ERROR: config.sh file not found in $DOTFILES_DIR" >&2
         exit 1
     fi
 
     # Source aliases
     if [ -f "$DOTFILES_DIR/.aliases" ]; then
         source "$DOTFILES_DIR/.aliases"
-        log_info "Loaded aliases"
+        echo "[INFO] Loaded aliases"
     else
-        log_warn "Aliases file not found"
+        echo "[WARN] Aliases file not found"
     fi
 
     # Setup SSH key
     if [ -f "$DOTFILES_DIR/ssh.sh" ]; then
-        log_info "Setting up SSH key..."
+        echo "[INFO] Setting up SSH key..."
         "$DOTFILES_DIR/ssh.sh" "$EMAIL"
     else
-        log_warn "ssh.sh script not found"
+        echo "[WARN] ssh.sh script not found"
     fi
 }
 
 # Main installation flow
 main() {
-    log_info "Starting dotfiles installation..."
-    log_info "Sudo available: ${HAS_SUDO}"
-    log_info "Install directory: ${INSTALL_DIR}"
+    parse_args "$@"
+
+    echo "[INFO] Starting dotfiles installation..."
+    echo "[INFO] Sudo available: ${HAS_SUDO}"
+    echo "[INFO] Install directory: ${INSTALL_DIR}"
+    if [ "$OVERWRITE" = true ]; then
+        echo "[INFO] Existing dotfiles will be overwritten"
+    fi
 
     # Install tools
     install_uv
@@ -138,8 +151,8 @@ main() {
     # Setup dotfile configurations
     setup_dotfiles
 
-    log_info "Installation complete!"
-    log_info "Please restart your shell or run: source ~/.zshrc"
+    echo "[INFO] Installation complete!"
+    echo "[INFO] Please restart your shell or run: source ~/.zshrc"
 }
 
 main "$@"
