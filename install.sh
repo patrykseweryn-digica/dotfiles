@@ -2,8 +2,6 @@
 
 # Enable shell script strictness
 set -eu
-# Enable command tracing
-set -x
 
 # Detect if sudo is available
 HAS_SUDO=false
@@ -35,11 +33,13 @@ check_installed() {
 DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 OVERWRITE=false
+DEBUG=false
 
 usage() {
-    echo "Usage: $0 [--force]"
+    echo "Usage: $0 [--force] [--debug]"
     echo
     echo "  --force, -f    Overwrite existing dotfiles"
+    echo "  --debug        Enable verbose shell tracing"
 }
 
 parse_args() {
@@ -134,6 +134,10 @@ setup_dotfiles() {
 # Main installation flow
 main() {
     parse_args "$@"
+
+    if [ "$DEBUG" = true ]; then
+        set -x
+    fi
 
     echo "[INFO] Starting dotfiles installation..."
     echo "[INFO] Sudo available: ${HAS_SUDO}"

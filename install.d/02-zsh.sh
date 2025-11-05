@@ -1,16 +1,16 @@
 #!/bin/bash
 
 install_zsh() {
-    log_info "Checking zsh installation..."
+    echo "[INFO] Checking zsh installation..."
 
     if check_installed zsh; then
-        log_info "zsh is already installed"
+        echo "[INFO] zsh is already installed"
         zsh --version
         return 0
     fi
 
     if [ "$HAS_SUDO" = true ]; then
-        log_info "Installing zsh via package manager..."
+        echo "[INFO] Installing zsh via package manager..."
 
         # Detect package manager and install
         if command -v apt-get >/dev/null 2>&1; then
@@ -24,11 +24,11 @@ install_zsh() {
         elif command -v brew >/dev/null 2>&1; then
             brew install zsh
         else
-            log_error "No supported package manager found"
+            echo "[ERROR] No supported package manager found" >&2
             return 1
         fi
     else
-        log_warn "No sudo access. Installing zsh from source to ${OPT_DIR}/zsh..."
+        echo "[WARN] No sudo access. Installing zsh from source to ${OPT_DIR}/zsh..."
 
         # Download and build zsh from source
         ZSH_VERSION="5.9"
@@ -49,23 +49,23 @@ install_zsh() {
         cd "${DOTFILES_DIR}"
         rm -rf "${ZSH_TMP}"
 
-        log_info "zsh compiled and installed to ${OPT_DIR}/zsh"
+        echo "[INFO] zsh compiled and installed to ${OPT_DIR}/zsh"
     fi
 
     # Verify installation
     if check_installed zsh; then
         zsh --version
-        log_info "zsh installed successfully"
+        echo "[INFO] zsh installed successfully"
 
         # Change default shell if possible
         if [ "$HAS_SUDO" = true ] && [ "$(basename "$SHELL")" != "zsh" ]; then
-            log_info "Setting zsh as default shell..."
+            echo "[INFO] Setting zsh as default shell..."
             chsh -s "$(which zsh)"
         else
-            log_warn "Cannot change default shell without sudo. You can manually change it or run 'zsh' to start it."
+            echo "[WARN] Cannot change default shell without sudo. You can manually change it or run 'zsh' to start it."
         fi
     else
-        log_error "Failed to install zsh"
+        echo "[ERROR] Failed to install zsh" >&2
         return 1
     fi
 }
