@@ -31,6 +31,47 @@ check_installed() {
 
 # Source installation modules
 DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ENV_TEMPLATE="${DOTFILES_DIR}/.env.example"
+ENV_FILE="${DOTFILES_DIR}/.env"
+
+ensure_env_file() {
+    if [ ! -f "$ENV_TEMPLATE" ]; then
+        echo "[ERROR] Missing environment template at $ENV_TEMPLATE" >&2
+        exit 1
+    fi
+
+    if [ ! -f "$ENV_FILE" ]; then
+        cp "$ENV_TEMPLATE" "$ENV_FILE"
+        echo "[INFO] Created $ENV_FILE from template"
+    fi
+}
+
+load_env() {
+    ensure_env_file
+
+    if [ ! -f "$ENV_FILE" ]; then
+        echo "[ERROR] Environment file $ENV_FILE not found" >&2
+        exit 1
+    fi
+
+    set -a
+    # shellcheck disable=SC1090
+    . "$ENV_FILE"
+    set +a
+
+    if [ -z "${EMAIL:-}" ]; then
+        echo "[ERROR] EMAIL is not set in $ENV_FILE" >&2
+        exit 1
+    fi
+
+    if [ -z "${EDITOR:-}" ]; then
+        EDITOR="vim"
+    fi
+
+    export EMAIL
+    export EDITOR
+    echo "[INFO] Loaded environment from $ENV_FILE"
+}
 
 OVERWRITE=false
 DEBUG=false
@@ -47,6 +88,9 @@ parse_args() {
         case "$1" in
         -f | --force)
             OVERWRITE=true
+            ;;
+        --debug)
+            DEBUG=true
             ;;
         -h | --help)
             usage
@@ -80,6 +124,8 @@ link_file() {
     echo "[INFO] Linked $target_path -> $source_path"
 }
 
+ensure_env_file
+
 for module in "${DOTFILES_DIR}/bootstrap.d"/*.sh; do
     if [ -f "$module" ]; then
         source "$module"
@@ -105,14 +151,7 @@ setup_dotfiles() {
     # Link .p10k.zsh
     link_file "$DOTFILES_DIR/.p10k.zsh" "${HOME}/.p10k.zsh"
 
-    # Load variables from config file
-    if [ -f "$DOTFILES_DIR/config.sh" ]; then
-        source "$DOTFILES_DIR/config.sh"
-        echo "[INFO] Loaded configuration from config.sh"
-    else
-        echo "ERROR: config.sh file not found in $DOTFILES_DIR" >&2
-        exit 1
-    fi
+    echo "[INFO] Using environment variables defined in $ENV_FILE"
 
     # Source aliases
     if [ -f "$DOTFILES_DIR/.aliases" ]; then
@@ -138,6 +177,8 @@ main() {
     if [ "$DEBUG" = true ]; then
         set -x
     fi
+
+    load_env
 
     echo "[INFO] Starting dotfiles installation..."
     echo "[INFO] Sudo available: ${HAS_SUDO}"
