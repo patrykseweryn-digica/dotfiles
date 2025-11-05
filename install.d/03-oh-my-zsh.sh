@@ -54,21 +54,28 @@ install_oh_my_zsh() {
         log_info "fzf-tab already installed"
     fi
 
-    # Update .zshrc with plugins if not already configured
-    RC_FILE="${HOME}/.zshrc"
-    if [ -f "$RC_FILE" ]; then
-        # Check if plugins line exists and update it
-        if grep -q "^plugins=(" "$RC_FILE"; then
-            if ! grep -q "zsh-autosuggestions" "$RC_FILE"; then
-                log_info "Updating plugins in .zshrc..."
-                # Backup original
-                cp "$RC_FILE" "${RC_FILE}.backup"
+    # zsh-bat
+    if [ ! -d "${ZSH_CUSTOM}/plugins/zsh-bat" ]; then
+        log_info "Installing zsh-bat plugin..."
+        git clone https://github.com/fdellwing/zsh-bat.git "${ZSH_CUSTOM}/plugins/zsh-bat"
+    else
+        log_info "zsh-bat already installed"
+    fi
 
-                # Replace plugins line with recommended setup
-                sed -i 's/^plugins=(.*/plugins=(git zsh-autosuggestions zsh-syntax-highlighting zsh-completions fzf-tab)/' "$RC_FILE"
-                log_info "Updated plugins in .zshrc (backup saved to .zshrc.backup)"
-            fi
-        fi
+    # you-should-use
+    if [ ! -d "${ZSH_CUSTOM}/plugins/you-should-use" ]; then
+        log_info "Installing you-should-use plugin..."
+        git clone https://github.com/MichaelAquilina/zsh-you-should-use.git "${ZSH_CUSTOM}/plugins/you-should-use"
+    else
+        log_info "you-should-use already installed"
+    fi
+
+    # Install Powerlevel10k theme
+    if [ ! -d "${ZSH_CUSTOM}/themes/powerlevel10k" ]; then
+        log_info "Installing Powerlevel10k theme..."
+        git clone --depth=1 https://github.com/romkatv/powerlevel10k.git "${ZSH_CUSTOM}/themes/powerlevel10k"
+    else
+        log_info "Powerlevel10k already installed"
     fi
 
     log_info "Oh My Zsh and plugins installation complete"
