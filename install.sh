@@ -133,6 +133,7 @@ main() {
     install_uv
     install_zsh
     install_oh_my_zsh
+    install_pipx
 
     # Setup dotfile configurations
     setup_dotfiles
