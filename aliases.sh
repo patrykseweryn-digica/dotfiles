@@ -8,9 +8,10 @@ alias timestamp="date +%s"
 alias version="commit 'version'"
 
 # Directories
-alias dotfiles="cd $DOTFILES"
+DOTFILES=${DOTFILES:-"$HOME/apps/dotfiles"}
 alias library="cd $HOME/.local/share"
 alias projects="cd $HOME/apps"
+alias dotfiles="cd $DOTFILES"
 alias sites="cd $HOME/Herd"
 
 # JS
