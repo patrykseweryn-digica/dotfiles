@@ -127,5 +127,8 @@ export NVM_DIR="$HOME/.nvm"
 # To customize prompt, run `p10k configure` or edit ~/.p10k.zsh.
 [[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
 
+# Source aliases
+[[ ! -f ~/dotfiles/.aliases ]] || source ~/dotfiles/.aliases
+
 # Local binaries
 export PATH="/home/pseweryn/.local/bin:$PATH"
