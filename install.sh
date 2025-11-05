@@ -2,6 +2,8 @@
 
 # Enable shell script strictness
 set -eu
+# Enable command tracing
+set -x
 
 # Colors for output
 RED='\033[0;31m'
@@ -56,6 +58,62 @@ for module in "${DOTFILES_DIR}/install.d"/*.sh; do
     fi
 done
 
+# Setup and link configuration files
+setup_dotfiles() {
+    log_info "Setting up dotfile configurations..."
+
+    # Ensure config directory exists
+    mkdir -p ~/.config
+
+    # Link Git config if it doesn't exist
+    if [ ! -e ~/.config/git ]; then
+        ln -s "$DOTFILES_DIR/config/git" ~/.config/git
+        log_info "Linked Git configuration"
+    else
+        log_info "Git configuration already exists"
+    fi
+
+    # Link Python startup file if it doesn't exist
+    if [ ! -e ~/.pythonrc.py ]; then
+        ln -s "$DOTFILES_DIR/pythonrc.py" ~/.pythonrc.py
+        log_info "Linked Python startup file"
+    else
+        log_info "Python startup file already exists"
+    fi
+
+    # Determine RC file location
+    if [ ! -z "${ZDOTDIR:-}" ]; then
+        RC_FILE="$ZDOTDIR/.zshrc"
+    else
+        RC_FILE="$HOME/.zshrc"
+    fi
+
+    # Load variables from config file
+    if [ -f "$DOTFILES_DIR/config.sh" ]; then
+        source "$DOTFILES_DIR/config.sh"
+        log_info "Loaded configuration from config.sh"
+    else
+        log_error "config.sh file not found in $DOTFILES_DIR"
+        exit 1
+    fi
+
+    # Source aliases
+    if [ -f "$DOTFILES_DIR/.aliases" ]; then
+        source "$DOTFILES_DIR/.aliases"
+        log_info "Loaded aliases"
+    else
+        log_warn "Aliases file not found"
+    fi
+
+    # Setup SSH key
+    if [ -f "$DOTFILES_DIR/ssh.sh" ]; then
+        log_info "Setting up SSH key..."
+        "$DOTFILES_DIR/ssh.sh" "$EMAIL"
+    else
+        log_warn "ssh.sh script not found"
+    fi
+}
+
 # Main installation flow
 main() {
     log_info "Starting dotfiles installation..."
@@ -67,6 +125,9 @@ main() {
     install_zsh
     install_oh_my_zsh
     install_vim
+
+    # Setup dotfile configurations
+    setup_dotfiles
 
     log_info "Installation complete!"
     log_info "Make sure ${BIN_DIR} is in your PATH"
