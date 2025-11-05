@@ -76,22 +76,20 @@ install_zsh() {
 
         # Ensure SSH sessions auto-start zsh if default shell wasn't changed
         if [ "${CHSH_OK}" -ne 1 ]; then
-            AUTO_MARKER="# Auto-start zsh for SSH sessions (dotfiles)"
-            AUTO_SNIPPET="${AUTO_MARKER}
-if [ -n \"$SSH_CONNECTION\" ] && [ -z \"$ZSH_VERSION\" ] && command -v zsh >/dev/null 2>&1; then
-  exec zsh -l
-fi"
-
+            AUTO_MARKER="Auto-start zsh for SSH sessions (dotfiles)"
             for f in "$HOME/.profile" "$HOME/.bashrc"; do
-                if [ -f "$f" ]; then
-                    if ! grep -q "Auto-start zsh for SSH sessions (dotfiles)" "$f"; then
-                        printf '\n%s\n' "$AUTO_SNIPPET" >>"$f"
-                        echo "[INFO] Added auto-zsh SSH snippet to $f"
-                    fi
-                else
-                    printf '%s\n' "$AUTO_SNIPPET" >>"$f"
-                    echo "[INFO] Created $f with auto-zsh SSH snippet"
+                if [ -f "$f" ] && grep -q "$AUTO_MARKER" "$f"; then
+                    continue
                 fi
+                {
+                    cat <<'EOF'
+# Auto-start zsh for SSH sessions (dotfiles)
+if [ -n "$SSH_CONNECTION" ] && [ -z "$ZSH_VERSION" ] && command -v zsh >/dev/null 2>&1; then
+  exec zsh -l
+fi
+EOF
+                } >>"$f"
+                echo "[INFO] Added auto-zsh SSH snippet to $f"
             done
         fi
     else
