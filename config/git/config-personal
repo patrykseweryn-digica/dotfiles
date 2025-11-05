@@ -2,4 +2,4 @@
 	email=patryk.seweryn@gmail.com
 	name=Patryk Seweryn
 [core]
-	sshCommand = ssh -i ~/.ssh/personal_id_rsa
+	sshCommand = ssh -i ~/.ssh/id_ed25519_personal
