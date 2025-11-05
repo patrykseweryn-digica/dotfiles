@@ -81,11 +81,20 @@ setup_dotfiles() {
         log_info "Python startup file already exists"
     fi
 
-    # Determine RC file location
-    if [ ! -z "${ZDOTDIR:-}" ]; then
-        RC_FILE="$ZDOTDIR/.zshrc"
+    # Link .zshrc if it doesn't exist
+    if [ ! -e ~/.zshrc ]; then
+        ln -s "$DOTFILES_DIR/.zshrc" ~/.zshrc
+        log_info "Linked .zshrc configuration"
     else
-        RC_FILE="$HOME/.zshrc"
+        log_info ".zshrc already exists"
+    fi
+
+    # Link .p10k.zsh if it doesn't exist
+    if [ ! -e ~/.p10k.zsh ]; then
+        ln -s "$DOTFILES_DIR/.p10k.zsh" ~/.p10k.zsh
+        log_info "Linked Powerlevel10k configuration"
+    else
+        log_info ".p10k.zsh already exists"
     fi
 
     # Load variables from config file
@@ -129,16 +138,7 @@ main() {
     setup_dotfiles
 
     log_info "Installation complete!"
-    log_info "Make sure ${BIN_DIR} is in your PATH"
-
-    # Add PATH to shell config if needed
-    RC_FILE="${HOME}/.zshrc"
-    if [ -f "$RC_FILE" ] && ! grep -q "export PATH=\"${BIN_DIR}:\$PATH\"" "$RC_FILE"; then
-        echo "" >>"$RC_FILE"
-        echo "# Local binaries" >>"$RC_FILE"
-        echo "export PATH=\"${BIN_DIR}:\$PATH\"" >>"$RC_FILE"
-        log_info "Added ${BIN_DIR} to PATH in ${RC_FILE}"
-    fi
+    log_info "Please restart your shell or run: source ~/.zshrc"
 }
 
 main "$@"
