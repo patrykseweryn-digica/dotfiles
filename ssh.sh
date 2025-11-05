@@ -1,5 +1,11 @@
 #!/bin/sh
 
+# Check if SSH key already exists
+if [ -f ~/.ssh/id_ed25519 ]; then
+    echo "SSH key already exists. Skipping SSH key generation."
+    exit 0
+fi
+
 echo "Generating a new SSH key for GitHub..."
 
 # Generating a new SSH key
