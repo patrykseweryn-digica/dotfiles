@@ -3,7 +3,6 @@
 
 import sys
 import os
-import math
 import datetime as dt
 import pprint
 from pathlib import Path
