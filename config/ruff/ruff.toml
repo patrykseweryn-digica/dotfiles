@@ -1,0 +1,13 @@
+# RUFF DEFAULTS
+
+lint.extend-select = [
+    "E", # Pycodestyle errors
+    "W", # Pycodestyle warnings (style issues)
+    "I", # Isort errors
+    "N", # PEP8 Naming: Naming convention
+]
+
+lint.ignore = [
+    "E501", # Line too long
+    "D1",   # Pydocstyle - missing docstring
+]
