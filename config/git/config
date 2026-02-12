@@ -7,6 +7,12 @@ email = patryk.seweryn@digica.com
 	path=~/.config/git/config-personal
 [core]
 	excludesFile = ~/.config/git/ignore
+	pager = delta
+[interactive]
+	diffFilter = delta --color-only
+[delta]
+	navigate = true
+	side-by-side = true
 [init]
 	defaultBranch = main
 [pull]
