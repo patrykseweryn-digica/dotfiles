@@ -6,10 +6,14 @@ check_installed() {
 
 # Download a binary from a GitHub release tarball/zip and install to BIN_DIR.
 # Usage: install_github_binary <owner/repo> <tag> <archive_pattern> <binary_name_in_archive> [installed_name]
-# archive_pattern: filename pattern with {tag} placeholder, e.g. "fd-{tag}-x86_64-unknown-linux-gnu.tar.gz"
+# archive_pattern: filename pattern with {tag} and/or {tag_no_v} placeholders
+#   {tag}      = full tag, e.g. "v0.59.0"
+#   {tag_no_v} = tag without leading 'v', e.g. "0.59.0"
 install_github_binary() {
     local repo="$1" tag="$2" pattern="$3" binary="$4" name="${5:-$4}"
+    local tag_no_v="${tag#v}"
     local archive="${pattern//\{tag\}/$tag}"
+    archive="${archive//\{tag_no_v\}/$tag_no_v}"
     local url="https://github.com/${repo}/releases/download/${tag}/${archive}"
     local tmp_dir
 
