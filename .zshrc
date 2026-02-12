@@ -139,3 +139,6 @@ export PATH="${HOME}/.local/bin:${HOME}/.cargo/bin:$PATH"
 
 # Python startup file (set at the end to override any other settings)
 export PYTHONSTARTUP="${HOME}/.pythonrc.py"
+
+# Local per-machine overrides (not tracked in dotfiles)
+[[ ! -f ~/.zshrc.local ]] || source ~/.zshrc.local
