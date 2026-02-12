@@ -5,5 +5,11 @@ email = patryk.seweryn@digica.com
 
 [includeIf "gitdir:~/apps/personal/"]
 	path=~/.config/git/config-personal
+[core]
+	excludesFile = ~/.config/git/ignore
+[init]
+	defaultBranch = main
+[pull]
+	rebase = true
 [help]
 	autocorrect = prompt
