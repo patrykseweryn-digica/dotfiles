@@ -20,7 +20,7 @@ install_github_binary() {
     tmp_dir="$(mktemp -d)"
 
     echo "[INFO] Downloading ${name} from ${url}..."
-    if ! curl -fsSL "$url" -o "${tmp_dir}/${archive}"; then
+    if ! curl -fsSL --connect-timeout 10 --max-time 120 "$url" -o "${tmp_dir}/${archive}"; then
         echo "[WARN] Failed to download ${name}" >&2
         rm -rf "$tmp_dir"
         return 1
