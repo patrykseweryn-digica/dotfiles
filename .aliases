@@ -12,7 +12,6 @@ DOTFILES=${DOTFILES:-"$HOME/dotfiles"}
 alias library="cd $HOME/.local/share"
 alias projects="cd $HOME/apps"
 alias dotfiles="cd $DOTFILES"
-alias sites="cd $HOME/Herd"
 
 # JS
 alias nfresh="rm -rf node_modules/ package-lock.json && npm install"
@@ -28,7 +27,7 @@ alias gc="git checkout"
 alias gl="git log --oneline --decorate --color"
 alias amend="git add . && git commit --amend --no-edit"
 alias commit="git add . && git commit -m"
-alias diff="git diff"
+alias gdiff="git diff"
 alias force="git push --force-with-lease"
 alias nuke="git clean -df && git reset --hard"
 alias pop="git stash pop"
