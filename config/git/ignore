@@ -22,3 +22,14 @@
 
 # Log files created by default by the nohup command
 nohup.out
+
+# Secrets and credentials
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+*.crt
+*.p12
+
+**/.claude/settings.local.json

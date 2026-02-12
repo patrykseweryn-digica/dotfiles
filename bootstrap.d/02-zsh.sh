@@ -1,5 +1,82 @@
 #!/bin/bash
 
+install_zsh_from_package_manager() {
+    if command -v apt-get >/dev/null 2>&1; then
+        sudo apt-get update && sudo apt-get install -y zsh
+    elif command -v yum >/dev/null 2>&1; then
+        sudo yum install -y zsh
+    elif command -v dnf >/dev/null 2>&1; then
+        sudo dnf install -y zsh
+    elif command -v pacman >/dev/null 2>&1; then
+        sudo pacman -S --noconfirm zsh
+    elif command -v brew >/dev/null 2>&1; then
+        brew install zsh
+    else
+        echo "[ERROR] No supported package manager found" >&2
+        return 1
+    fi
+}
+
+install_zsh_from_source() {
+    echo "[WARN] No sudo access. Installing zsh from source to ${OPT_DIR}/zsh..."
+
+    local zsh_version="5.9"
+    local zsh_tmp="/tmp/zsh-${zsh_version}"
+
+    cd /tmp || return 1
+    curl -L "https://sourceforge.net/projects/zsh/files/zsh/${zsh_version}/zsh-${zsh_version}.tar.xz/download" -o "zsh-${zsh_version}.tar.xz"
+    tar -xf "zsh-${zsh_version}.tar.xz"
+    cd "zsh-${zsh_version}" || return 1
+
+    ./configure --prefix="${OPT_DIR}/zsh"
+    make
+    make install
+
+    ln -sf "${OPT_DIR}/zsh/bin/zsh" "${BIN_DIR}/zsh"
+
+    cd "${DOTFILES_DIR}" || return 1
+    rm -rf "${zsh_tmp}"
+
+    echo "[INFO] zsh compiled and installed to ${OPT_DIR}/zsh"
+}
+
+set_default_shell() {
+    if [ "$(basename "$SHELL")" = "zsh" ]; then
+        return 0
+    fi
+
+    local zsh_path
+    zsh_path="$(command -v zsh || true)"
+    if [ -z "$zsh_path" ]; then
+        return 1
+    fi
+
+    echo "[INFO] Attempting to set default shell to zsh (you may be prompted for your password)..."
+    if chsh -s "$zsh_path" "$USER" 2>/dev/null || chsh -s "$zsh_path" 2>/dev/null; then
+        echo "[INFO] Default shell changed to zsh"
+        return 0
+    fi
+
+    echo "[WARN] Could not change default shell via chsh."
+    return 1
+}
+
+add_ssh_auto_zsh_snippet() {
+    local marker="Auto-start zsh for SSH sessions (dotfiles)"
+    for f in "$HOME/.profile" "$HOME/.bashrc"; do
+        if [ -f "$f" ] && grep -q "$marker" "$f"; then
+            continue
+        fi
+        cat <<'EOF' >>"$f"
+# Auto-start zsh for SSH sessions (dotfiles)
+if [ -n "$SSH_CONNECTION" ] && [ -z "$ZSH_VERSION" ] && command -v zsh >/dev/null 2>&1; then
+  exec zsh -l
+fi
+EOF
+        echo "[INFO] Added auto-zsh SSH snippet to $f"
+    done
+}
+
 install_zsh() {
     echo "[INFO] Checking zsh installation..."
 
@@ -9,91 +86,21 @@ install_zsh() {
     else
         if [ "$HAS_SUDO" = true ]; then
             echo "[INFO] Installing zsh via package manager..."
-
-            # Detect package manager and install
-            if command -v apt-get >/dev/null 2>&1; then
-                sudo apt-get update && sudo apt-get install -y zsh
-            elif command -v yum >/dev/null 2>&1; then
-                sudo yum install -y zsh
-            elif command -v dnf >/dev/null 2>&1; then
-                sudo dnf install -y zsh
-            elif command -v pacman >/dev/null 2>&1; then
-                sudo pacman -S --noconfirm zsh
-            elif command -v brew >/dev/null 2>&1; then
-                brew install zsh
-            else
-                echo "[ERROR] No supported package manager found" >&2
-                return 1
-            fi
+            install_zsh_from_package_manager
         else
-            echo "[WARN] No sudo access. Installing zsh from source to ${OPT_DIR}/zsh..."
-
-            # Download and build zsh from source
-            ZSH_VERSION="5.9"
-            ZSH_TMP="/tmp/zsh-${ZSH_VERSION}"
-
-            cd /tmp
-            curl -L "https://sourceforge.net/projects/zsh/files/zsh/${ZSH_VERSION}/zsh-${ZSH_VERSION}.tar.xz/download" -o "zsh-${ZSH_VERSION}.tar.xz"
-            tar -xf "zsh-${ZSH_VERSION}.tar.xz"
-            cd "zsh-${ZSH_VERSION}"
-
-            ./configure --prefix="${OPT_DIR}/zsh"
-            make
-            make install
-
-            # Create symlink in bin directory
-            ln -sf "${OPT_DIR}/zsh/bin/zsh" "${BIN_DIR}/zsh"
-
-            cd "${DOTFILES_DIR}"
-            rm -rf "${ZSH_TMP}"
-
-            echo "[INFO] zsh compiled and installed to ${OPT_DIR}/zsh"
+            install_zsh_from_source
         fi
     fi
 
-    # Verify installation
-    if check_installed zsh; then
-        zsh --version
-        echo "[INFO] zsh installed successfully"
-
-        # Try to change default shell to zsh; allow password prompt if required
-        CHSH_OK=0
-        if [ "$(basename "$SHELL")" != "zsh" ]; then
-            ZSH_PATH="$(command -v zsh || true)"
-            if [ -n "$ZSH_PATH" ]; then
-                echo "[INFO] Attempting to set default shell to zsh (you may be prompted for your password)..."
-                if chsh -s "$ZSH_PATH" "$USER"; then
-                    echo "[INFO] Default shell changed to zsh"
-                    CHSH_OK=1
-                elif chsh -s "$ZSH_PATH"; then
-                    echo "[INFO] Default shell changed to zsh"
-                    CHSH_OK=1
-                else
-                    echo "[WARN] Could not change default shell via chsh."
-                fi
-            fi
-        fi
-
-        # Ensure SSH sessions auto-start zsh if default shell wasn't changed
-        if [ "${CHSH_OK}" -ne 1 ]; then
-            AUTO_MARKER="Auto-start zsh for SSH sessions (dotfiles)"
-            for f in "$HOME/.profile" "$HOME/.bashrc"; do
-                if [ -f "$f" ] && grep -q "$AUTO_MARKER" "$f"; then
-                    continue
-                fi
-                {
-                    cat <<'EOF'
-# Auto-start zsh for SSH sessions (dotfiles)
-if [ -n "$SSH_CONNECTION" ] && [ -z "$ZSH_VERSION" ] && command -v zsh >/dev/null 2>&1; then
-  exec zsh -l
-fi
-EOF
-                } >>"$f"
-                echo "[INFO] Added auto-zsh SSH snippet to $f"
-            done
-        fi
-    else
+    if ! check_installed zsh; then
         echo "[ERROR] Failed to install zsh" >&2
         return 1
+    fi
+
+    zsh --version
+    echo "[INFO] zsh installed successfully"
+
+    if ! set_default_shell; then
+        add_ssh_auto_zsh_snippet
     fi
 }

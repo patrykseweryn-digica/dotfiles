@@ -9,26 +9,25 @@ install_pipx() {
         return 0
     fi
 
-    # Install pipx using pip (user installation, no sudo needed)
-    echo "[INFO] Installing pipx via pip..."
-
-    if python3 -m pip install --user pipx; then
-        echo "[INFO] pipx installed successfully"
-
-        # Ensure pipx binaries are in PATH
-        python3 -m pipx ensurepath
-
-        # Add to PATH for current session
-        export PATH="${HOME}/.local/bin:${PATH}"
-
-        # Verify installation
-        if command -v pipx >/dev/null 2>&1; then
-            pipx --version
-        else
-            echo "[WARN] pipx installed but not found in PATH. Restart your shell or run: python3 -m pipx ensurepath"
-        fi
+    # Prefer uv, fall back to pip
+    if check_installed uv; then
+        echo "[INFO] Installing pipx via uv..."
+        uv tool install pipx
+    elif python3 -m pip --version >/dev/null 2>&1; then
+        echo "[INFO] Installing pipx via pip..."
+        python3 -m pip install --user pipx
     else
-        echo "[ERROR] Failed to install pipx" >&2
+        echo "[ERROR] Neither uv nor pip available to install pipx" >&2
         return 1
+    fi
+
+    # Ensure pipx binaries are in PATH
+    if check_installed pipx; then
+        pipx ensurepath
+        export PATH="${HOME}/.local/bin:${PATH}"
+        pipx --version
+        echo "[INFO] pipx installed successfully"
+    else
+        echo "[WARN] pipx installed but not found in PATH. Restart your shell."
     fi
 }

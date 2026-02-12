@@ -22,13 +22,6 @@ if [[ ":$PATH:" != *":${BIN_DIR}:"* ]]; then
     export PATH="${BIN_DIR}:${PATH}"
 fi
 
-check_installed() {
-    if command -v "$1" >/dev/null 2>&1; then
-        return 0
-    fi
-    return 1
-}
-
 # Source installation modules
 DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENV_TEMPLATE="${DOTFILES_DIR}/.env.example"
@@ -128,6 +121,7 @@ ensure_env_file
 
 for module in "${DOTFILES_DIR}/bootstrap.d"/*.sh; do
     if [ -f "$module" ]; then
+        # shellcheck source=/dev/null
         source "$module"
     fi
 done
@@ -192,9 +186,16 @@ main() {
     install_zsh
     install_oh_my_zsh
     install_pipx
+    install_tools
 
     # Setup dotfile configurations
     setup_dotfiles
+
+    # Setup pre-commit hooks
+    if check_installed pre-commit; then
+        echo "[INFO] Installing pre-commit hooks..."
+        pre-commit install -c "${DOTFILES_DIR}/.pre-commit-config.yaml"
+    fi
 
     echo "[INFO] Installation complete!"
     echo "[INFO] Please restart your shell or run: source ~/.zshrc"
