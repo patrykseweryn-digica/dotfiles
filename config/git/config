@@ -17,5 +17,19 @@ email = patryk.seweryn@digica.com
 	defaultBranch = main
 [pull]
 	rebase = true
+[merge]
+	conflictstyle = zdiff3
+[diff]
+	algorithm = histogram
+[push]
+	autoSetupRemote = true
+[rebase]
+	autoStash = true
+[rerere]
+	enabled = true
+[branch]
+	sort = -committerdate
+[fetch]
+	prune = true
 [help]
 	autocorrect = prompt
