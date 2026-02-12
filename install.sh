@@ -193,6 +193,7 @@ main() {
     install_oh_my_zsh
     install_pipx
     install_tools
+    install_fonts
 
     # Setup dotfile configurations
     setup_dotfiles
