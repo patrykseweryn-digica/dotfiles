@@ -131,7 +131,7 @@ export NVM_DIR="$HOME/.nvm"
 [[ ! -f ~/dotfiles/.aliases ]] || source ~/dotfiles/.aliases
 
 # Local binaries
-export PATH="/home/pseweryn/.local/bin:$PATH"
+export PATH="${HOME}/.local/bin:${HOME}/.cargo/bin:$PATH"
 
 # Python startup file (set at the end to override any other settings)
 export PYTHONSTARTUP="${HOME}/.pythonrc.py"
