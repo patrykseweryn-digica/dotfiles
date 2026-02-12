@@ -19,15 +19,6 @@ install_uv() {
         # Add cargo bin to PATH for current session
         export PATH="${HOME}/.cargo/bin:${PATH}"
 
-        # Add to shell config if not already there
-        RC_FILE="${HOME}/.zshrc"
-        if [ -f "$RC_FILE" ] && ! grep -q 'export PATH="${HOME}/.cargo/bin:\$PATH"' "$RC_FILE"; then
-            echo "" >>"$RC_FILE"
-            echo "# Rust/uv binaries" >>"$RC_FILE"
-            echo 'export PATH="${HOME}/.cargo/bin:$PATH"' >>"$RC_FILE"
-        fi
-
-        # Verify installation
         if command -v uv >/dev/null 2>&1; then
             uv --version
         else
