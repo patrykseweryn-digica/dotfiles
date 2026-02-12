@@ -93,6 +93,9 @@ plugins=(
 )
 source $ZSH/oh-my-zsh.sh
 
+# SSH host completion from ~/.ssh/config
+zstyle ':completion:*:(ssh|scp|sftp):*' hosts $(awk '/^Host / && !/\*/ {print $2}' ~/.ssh/config)
+
 # zoxide (smart cd, replaces z plugin)
 eval "$(zoxide init zsh)"
 export NVM_DIR="$HOME/.nvm"
