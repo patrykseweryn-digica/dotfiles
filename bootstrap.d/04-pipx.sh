@@ -21,10 +21,11 @@ install_pipx() {
         return 1
     fi
 
-    # Ensure pipx binaries are in PATH
-    if check_installed pipx; then
+    # Ensure fresh install takes priority over broken system pipx
+    export PATH="${HOME}/.local/bin:${PATH}"
+
+    if pipx --version >/dev/null 2>&1; then
         pipx ensurepath
-        export PATH="${HOME}/.local/bin:${PATH}"
         pipx --version
         echo "[INFO] pipx installed successfully"
     else
