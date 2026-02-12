@@ -70,9 +70,10 @@ OVERWRITE=false
 DEBUG=false
 
 usage() {
-    echo "Usage: $0 [--force] [--debug]"
+    echo "Usage: $0 [--force] [--sudo] [--debug]"
     echo
     echo "  --force, -f    Overwrite existing dotfiles"
+    echo "  --sudo, -s     Force enable sudo (skip auto-detection)"
     echo "  --debug        Enable verbose shell tracing"
 }
 
@@ -81,6 +82,9 @@ parse_args() {
         case "$1" in
         -f | --force)
             OVERWRITE=true
+            ;;
+        -s | --sudo)
+            HAS_SUDO=true
             ;;
         --debug)
             DEBUG=true
@@ -156,6 +160,19 @@ setup_dotfiles() {
     link_file "$DOTFILES_DIR/config/Code/settings.json" "${HOME}/.config/Code/User/settings.json"
     link_file "$DOTFILES_DIR/config/Code/keybindings.json" "${HOME}/.config/Code/User/keybindings.json"
 
+    # Link Neovim config
+    link_file "$DOTFILES_DIR/config/nvim" "${HOME}/.config/nvim"
+
+    # Link Ruff config
+    link_file "$DOTFILES_DIR/config/ruff" "${HOME}/.config/ruff"
+
+    # Link GitHub CLI config (file only, not dir - to preserve hosts.yml with auth tokens)
+    mkdir -p "${HOME}/.config/gh"
+    link_file "$DOTFILES_DIR/config/gh/config.yml" "${HOME}/.config/gh/config.yml"
+
+    # Link .bashrc
+    link_file "$DOTFILES_DIR/.bashrc" "${HOME}/.bashrc"
+
     echo "[INFO] Using environment variables defined in $ENV_FILE"
 
     # Source aliases
@@ -199,6 +216,7 @@ main() {
     install_pipx
     install_tools
     install_fonts
+    install_nvm
 
     # Setup dotfile configurations
     setup_dotfiles
