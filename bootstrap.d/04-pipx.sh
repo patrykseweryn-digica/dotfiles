@@ -3,7 +3,7 @@
 install_pipx() {
     echo "[INFO] Installing pipx..."
 
-    if check_installed pipx; then
+    if pipx --version >/dev/null 2>&1; then
         echo "[INFO] pipx is already installed"
         pipx --version
         return 0
