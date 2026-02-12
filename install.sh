@@ -145,6 +145,9 @@ setup_dotfiles() {
     # Link .p10k.zsh
     link_file "$DOTFILES_DIR/.p10k.zsh" "${HOME}/.p10k.zsh"
 
+    # Link .tmux.conf
+    link_file "$DOTFILES_DIR/.tmux.conf" "${HOME}/.tmux.conf"
+
     echo "[INFO] Using environment variables defined in $ENV_FILE"
 
     # Source aliases
