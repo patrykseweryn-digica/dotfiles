@@ -1,0 +1,124 @@
+[
+    {
+        "key": "ctrl+shift+up",
+        "command": "workbench.action.terminal.resizePaneUp",
+        "when": "{   \"key\": \"ctrl+shift+up\",   \"command\": \"workbench.action.terminal.scrollUp\",   \"when\": \"terminalFocus && terminalHasBeenCreated && !terminalAltBufferActive || terminalFocus && terminalProcessSupported && !terminalAltBufferActive\" }"
+    },
+    {
+        "key": "ctrl+shift+down",
+        "command": "workbench.action.terminal.resizePaneDown",
+        "when": "{   \"key\": \"ctrl+shift+up\",   \"command\": \"workbench.action.terminal.scrollUp\",   \"when\": \"terminalFocus && terminalHasBeenCreated && !terminalAltBufferActive || terminalFocus && terminalProcessSupported && !terminalAltBufferActive\" }"
+    },
+    {
+        "key": "ctrl+shift+down",
+        "command": "-workbench.action.terminal.scrollDown",
+        "when": "terminalFocus && terminalHasBeenCreated && !terminalAltBufferActive || terminalFocus && terminalProcessSupported && !terminalAltBufferActive"
+    },
+    {
+        "key": "ctrl+shift+up",
+        "command": "-workbench.action.terminal.scrollUp",
+        "when": "terminalFocus && terminalHasBeenCreated && !terminalAltBufferActive || terminalFocus && terminalProcessSupported && !terminalAltBufferActive"
+    },
+    {
+        "key": "shift+alt+down",
+        "command": "editor.action.copyLinesDownAction",
+        "when": "editorTextFocus && !editorReadonly"
+    },
+    {
+        "key": "ctrl+shift+alt+down",
+        "command": "-editor.action.copyLinesDownAction",
+        "when": "editorTextFocus && !editorReadonly"
+    },
+    {
+        "key": "shift+alt+up",
+        "command": "editor.action.copyLinesUpAction",
+        "when": "editorTextFocus && !editorReadonly"
+    },
+    {
+        "key": "ctrl+shift+alt+up",
+        "command": "-editor.action.copyLinesUpAction",
+        "when": "editorTextFocus && !editorReadonly"
+    },
+    {
+        "key": "ctrl+j",
+        "command": "-workbench.action.togglePanel"
+    },
+    {
+        "key": "ctrl+j",
+        "command": "editor.emmet.action.balanceOut",
+        "when": "editorFocus"
+    },
+    {
+        "key": "ctrl+m",
+        "command": "-editor.action.toggleTabFocusMode"
+    },
+    {
+        "key": "ctrl+m",
+        "command": "editor.emmet.action.wrapWithAbbreviation",
+        "when": "editorFocus"
+    },
+    {
+        "key": "ctrl+shift+down",
+        "command": "editor.action.insertCursorBelow",
+        "when": "editorFocus"
+    },
+    {
+        "key": "ctrl+shift+down",
+        "command": "-editor.action.insertCursorBelow",
+        "when": "editorTextFocus"
+    },
+    {
+        "key": "ctrl+shift+up",
+        "command": "editor.action.insertCursorAbove",
+        "when": "editorFocus"
+    },
+    {
+        "key": "ctrl+shift+up",
+        "command": "-editor.action.insertCursorAbove",
+        "when": "editorTextFocus"
+    },
+    {
+        "key": "ctrl+enter",
+        "command": "-github.copilot.generate",
+        "when": "editorTextFocus && github.copilot.activated && !inInteractiveInput && !interactiveEditorFocused"
+    },
+    {
+        "key": "ctrl+shift+5",
+        "command": "editor.emmet.action.matchTag"
+    },
+    {
+        "command": "merge-conflict.next",
+        "when": "editorTextFocus",
+        "key": "alt+m down"
+    },
+    {
+        "command": "merge-conflict.previous",
+        "when": "editorTextFocus",
+        "key": "alt+m up"
+    },
+    {
+        "command": "merge-conflict.accept.selection",
+        "when": "editorTextFocus",
+        "key": "alt+m enter"
+    },
+    {
+        "command": "merge-conflict.accept.current",
+        "when": "editorTextFocus",
+        "key": "alt+m 1"
+    },
+    {
+        "command": "merge-conflict.accept.incoming",
+        "when": "editorTextFocus",
+        "key": "alt+m 2"
+    },
+    {
+        "command": "merge-conflict.accept.both",
+        "when": "editorTextFocus",
+        "key": "alt+m 3"
+    },
+    {
+        "key": "ctrl+shift+r",
+        "command": "-workbench.view.extension.thunder-client",
+        "when": "viewContainer.workbench.view.extension.thunder-client.enabled"
+    }
+]
