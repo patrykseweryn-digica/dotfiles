@@ -52,7 +52,7 @@ set_default_shell() {
     fi
 
     echo "[INFO] Attempting to set default shell to zsh (you may be prompted for your password)..."
-    if chsh -s "$zsh_path" "$USER" 2>/dev/null || chsh -s "$zsh_path" 2>/dev/null; then
+    if chsh -s "$zsh_path" "$USER" </dev/null 2>/dev/null || chsh -s "$zsh_path" </dev/null 2>/dev/null; then
         echo "[INFO] Default shell changed to zsh"
         return 0
     fi
