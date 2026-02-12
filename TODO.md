@@ -34,6 +34,19 @@
 
 - [x] zsh-completions - 300+ dodatkowych uzupelnien tab
 
+## Czcionki
+
+- [x] JetBrains Mono Nerd Font - domyslna czcionka terminala (wymagana przez p10k)
+- [x] FiraCode - czcionka programistyczna z ligaturami
+- [x] Source Code Pro - czcionka Adobe
+- [x] Auto-konfiguracja czcionki w GNOME Terminal
+
+## VSCode
+
+- [x] settings.json - przenosne ustawienia (formattery, czcionki, editor, terminal)
+- [x] keybindings.json - custom skroty (emmet, merge conflicts, copy lines)
+- [x] Symlinki w install.sh
+
 ## Inne
 
 - [ ] `.env.example` - zamienic prawdziwy email na placeholder
