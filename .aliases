@@ -4,8 +4,8 @@ alias reloadshell="exec $SHELL"
 alias reloaddns="sudo systemd-resolve --flush-caches"
 if command -v eza >/dev/null 2>&1; then
     alias ls="eza"
-    alias ll="eza -alh --group-directories-first --icons"
-    alias tree="eza --tree --icons"
+    alias ll="eza -alh --group-directories-first"
+    alias tree="eza --tree"
 else
     alias ll="ls -AhlF --color=auto --group-directories-first"
 fi
