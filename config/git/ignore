@@ -2,6 +2,7 @@
 !.vscode/settings.json
 
 # Python
+__pycache__/
 *.pyc
 .tox
 .venv
