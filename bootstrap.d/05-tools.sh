@@ -19,7 +19,7 @@ install_tools() {
             echo "[WARN] Could not install fzf: no supported package manager"
         fi
     else
-        echo "[WARN] Skipping fzf (no sudo). Install manually: https://github.com/junegunn/fzf#installation"
+        install_github_binary "junegunn/fzf" "v0.67.0" "fzf-{tag_no_v}-linux_amd64.tar.gz" "fzf" || true
     fi
 
     # bat (required by zsh-bat plugin)
@@ -42,7 +42,7 @@ install_tools() {
             echo "[WARN] Could not install bat: no supported package manager"
         fi
     else
-        echo "[WARN] Skipping bat (no sudo). Install manually: https://github.com/sharkdp/bat#installation"
+        install_github_binary "sharkdp/bat" "v0.26.1" "bat-{tag}-x86_64-unknown-linux-gnu.tar.gz" "bat" || true
     fi
 
     # ripgrep (fast grep replacement)
@@ -61,7 +61,7 @@ install_tools() {
             echo "[WARN] Could not install ripgrep: no supported package manager"
         fi
     else
-        echo "[WARN] Skipping ripgrep (no sudo). Install manually: https://github.com/BurntSushi/ripgrep#installation"
+        install_github_binary "BurntSushi/ripgrep" "15.1.0" "ripgrep-{tag}-x86_64-unknown-linux-musl.tar.gz" "rg" || true
     fi
 
     # fd (fast find replacement)
