@@ -2,7 +2,13 @@
 alias copyssh="xclip -selection clipboard < $HOME/.ssh/id_ed25519.pub"
 alias reloadshell="exec $SHELL"
 alias reloaddns="sudo systemd-resolve --flush-caches"
-alias ll="ls -AhlF --color=auto --group-directories-first"
+if command -v eza >/dev/null 2>&1; then
+    alias ls="eza"
+    alias ll="eza -alh --group-directories-first --icons"
+    alias tree="eza --tree --icons"
+else
+    alias ll="ls -AhlF --color=auto --group-directories-first"
+fi
 alias shrug="echo '¯\_(ツ)_/¯' | wl-copy"
 alias timestamp="date +%s"
 alias version="commit 'version'"
