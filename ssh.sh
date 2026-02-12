@@ -27,9 +27,19 @@ if ! eval "$(ssh-agent -s)"; then
     exit 1
 fi
 
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SSH_SRC="$SCRIPT_DIR/config/ssh/config"
+
 mkdir -p ~/.ssh
 touch ~/.ssh/config
-cat "$PWD/config/ssh/config" >>~/.ssh/config
+
+if ! grep -qF "# dotfiles-managed" ~/.ssh/config; then
+    printf '\n# dotfiles-managed\n' >>~/.ssh/config
+    cat "$SSH_SRC" >>~/.ssh/config
+    echo "[INFO] Appended SSH config from $SSH_SRC"
+else
+    echo "[INFO] SSH config already contains dotfiles entries, skipping"
+fi
 
 # Use macOS Keychain flag if on macOS, plain ssh-add otherwise
 if [ "$(uname)" = "Darwin" ]; then
