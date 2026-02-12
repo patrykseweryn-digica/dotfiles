@@ -151,6 +151,11 @@ setup_dotfiles() {
     # Link .vimrc
     link_file "$DOTFILES_DIR/.vimrc" "${HOME}/.vimrc"
 
+    # Link VSCode settings
+    mkdir -p "${HOME}/.config/Code/User"
+    link_file "$DOTFILES_DIR/config/Code/settings.json" "${HOME}/.config/Code/User/settings.json"
+    link_file "$DOTFILES_DIR/config/Code/keybindings.json" "${HOME}/.config/Code/User/keybindings.json"
+
     echo "[INFO] Using environment variables defined in $ENV_FILE"
 
     # Source aliases
