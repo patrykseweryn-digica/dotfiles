@@ -163,6 +163,14 @@ install_tools() {
         install_github_binary "jesseduffield/lazygit" "v0.59.0" "lazygit_{tag_no_v}_Linux_x86_64.tar.gz" "lazygit" || true
     fi
 
+    # tpm (tmux plugin manager)
+    if [ -d "${HOME}/.tmux/plugins/tpm" ]; then
+        echo "[INFO] tpm is already installed"
+    else
+        echo "[INFO] Installing tpm..."
+        git clone https://github.com/tmux-plugins/tpm "${HOME}/.tmux/plugins/tpm" --depth=1 || echo "[WARN] Failed to install tpm"
+    fi
+
     # pre-commit (via uv)
     if check_installed pre-commit; then
         echo "[INFO] pre-commit is already installed"
