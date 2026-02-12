@@ -57,11 +57,17 @@ load_env() {
         exit 1
     fi
 
+    if [ -z "${WORK_EMAIL:-}" ]; then
+        echo "[ERROR] WORK_EMAIL is not set in $ENV_FILE" >&2
+        exit 1
+    fi
+
     if [ -z "${EDITOR:-}" ]; then
         EDITOR="vim"
     fi
 
     export EMAIL
+    export WORK_EMAIL
     export EDITOR
     echo "[INFO] Loaded environment from $ENV_FILE"
 }
@@ -186,7 +192,7 @@ setup_dotfiles() {
     # Setup SSH key
     if [ -f "$DOTFILES_DIR/ssh.sh" ]; then
         echo "[INFO] Setting up SSH key..."
-        "$DOTFILES_DIR/ssh.sh" "$EMAIL"
+        "$DOTFILES_DIR/ssh.sh" "$EMAIL" "$WORK_EMAIL"
     else
         echo "[WARN] ssh.sh script not found"
     fi

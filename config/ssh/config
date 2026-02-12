@@ -1,6 +1,17 @@
 Host *
-    IdentityFile ~/.ssh/id_ed25519
     AddKeysToAgent yes
+
+# Personal GitHub account
+Host github-personal
+    HostName github.com
+    User git
+    IdentityFile ~/.ssh/id_ed25519
+
+# Work GitHub account
+Host github-work
+    HostName github.com
+    User git
+    IdentityFile ~/.ssh/id_ed25519_work
 
 Host gpu1
     HostName 10.10.10.41
