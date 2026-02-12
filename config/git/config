@@ -18,7 +18,7 @@ email = patryk.seweryn@digica.com
 [pull]
 	rebase = true
 [merge]
-	conflictstyle = zdiff3
+	conflictstyle = diff3
 [diff]
 	algorithm = histogram
 [push]
