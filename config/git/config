@@ -1,12 +1,16 @@
 # This is Git's per-user configuration file.
 [user]
-name = Patryk Seweryn
-email = patryk.seweryn@digica.com
+	name = Patryk Seweryn
+	email = patryk.seweryn@gmail.com
+
+[includeIf "gitdir:~/apps/digica/"]
+	path = ~/.config/git/config-work
 
 [includeIf "gitdir:~/apps/personal/"]
-	path=~/.config/git/config-personal
+	path = ~/.config/git/config-personal
 [core]
 	excludesFile = ~/.config/git/ignore
+	editor = vim
 	pager = delta
 [interactive]
 	diffFilter = delta --color-only
@@ -19,8 +23,14 @@ email = patryk.seweryn@digica.com
 	rebase = true
 [merge]
 	conflictstyle = diff3
+[alias]
+	lol = log --graph --decorate --pretty=oneline --all --abbrev-commit
+	ac = !git add -A && git commit -m
 [diff]
 	algorithm = histogram
+	tool = vscode
+[difftool "vscode"]
+	cmd = code --wait --diff \"$LOCAL\" \"$REMOTE\"
 [push]
 	autoSetupRemote = true
 [rebase]
@@ -31,5 +41,16 @@ email = patryk.seweryn@digica.com
 	sort = -committerdate
 [fetch]
 	prune = true
+[credential]
+	helper = store
+[filter "lfs"]
+	clean = git-lfs clean -- %f
+	smudge = git-lfs smudge -- %f
+	process = git-lfs filter-process
+	required = true
+[pager]
+	branch = false
+[color]
+	ui = auto
 [help]
 	autocorrect = prompt
