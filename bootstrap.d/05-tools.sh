@@ -125,6 +125,44 @@ install_tools() {
         echo "[WARN] Skipping zoxide. Install manually: https://github.com/ajeetdsouza/zoxide#installation"
     fi
 
+    # tealdeer (tldr - practical command examples)
+    if check_installed tldr; then
+        echo "[INFO] tealdeer is already installed"
+    elif [ "$HAS_SUDO" = true ]; then
+        if command -v apt-get >/dev/null 2>&1; then
+            sudo apt-get install -y tealdeer
+        elif command -v dnf >/dev/null 2>&1; then
+            sudo dnf install -y tealdeer
+        elif command -v pacman >/dev/null 2>&1; then
+            sudo pacman -S --noconfirm tealdeer
+        elif command -v brew >/dev/null 2>&1; then
+            brew install tealdeer
+        else
+            echo "[WARN] Could not install tealdeer: no supported package manager"
+        fi
+    else
+        install_github_binary "tealdeer-rs/tealdeer" "v1.8.1" "tealdeer-linux-x86_64-musl" "tealdeer-linux-x86_64-musl" "tldr" || true
+    fi
+    # Update tldr cache if freshly installed
+    if check_installed tldr; then
+        tldr --update 2>/dev/null || true
+    fi
+
+    # lazygit (TUI for git)
+    if check_installed lazygit; then
+        echo "[INFO] lazygit is already installed"
+    elif [ "$HAS_SUDO" = true ]; then
+        if command -v pacman >/dev/null 2>&1; then
+            sudo pacman -S --noconfirm lazygit
+        elif command -v brew >/dev/null 2>&1; then
+            brew install lazygit
+        else
+            install_github_binary "jesseduffield/lazygit" "v0.59.0" "lazygit_{tag_no_v}_Linux_x86_64.tar.gz" "lazygit" || true
+        fi
+    else
+        install_github_binary "jesseduffield/lazygit" "v0.59.0" "lazygit_{tag_no_v}_Linux_x86_64.tar.gz" "lazygit" || true
+    fi
+
     # pre-commit (via uv)
     if check_installed pre-commit; then
         echo "[INFO] pre-commit is already installed"
