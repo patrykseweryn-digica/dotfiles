@@ -148,6 +148,9 @@ setup_dotfiles() {
     # Link .tmux.conf
     link_file "$DOTFILES_DIR/.tmux.conf" "${HOME}/.tmux.conf"
 
+    # Link .vimrc
+    link_file "$DOTFILES_DIR/.vimrc" "${HOME}/.vimrc"
+
     echo "[INFO] Using environment variables defined in $ENV_FILE"
 
     # Source aliases
