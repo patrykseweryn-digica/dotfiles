@@ -65,7 +65,7 @@
   "claudeCode.useTerminal": true,
   "diffEditor.renderSideBySide": false,
   "editor.folding": true,
-  "editor.fontFamily": "'JetBrains Mono', 'Fira Code', 'Source Code Pro', monospace",
+  "editor.fontFamily": "'Monaspace Neon', 'Cascadia Code', 'JetBrains Mono Nerd Font', 'Fira Code', 'Source Code Pro', monospace",
   "editor.formatOnSave": true,
   "editor.inlineSuggest.edits.showCollapsed": true,
   "editor.linkedEditing": true,
@@ -165,7 +165,7 @@
     "vscode-insiders",
     "docker-desktop"
   ],
-  "terminal.integrated.fontFamily": "'JetBrains Mono', 'Fira Code', 'Source Code Pro', monospace",
+  "terminal.integrated.fontFamily": "'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Iosevka', 'Monaspace Neon', 'Source Code Pro', monospace",
   "terminal.integrated.fontSize": 15,
   "terminal.integrated.shellIntegration.decorationsEnabled": "never",
   "terminal.integrated.shellIntegration.enabled": true,
