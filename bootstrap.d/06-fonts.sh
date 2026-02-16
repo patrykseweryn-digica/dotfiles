@@ -54,6 +54,30 @@ install_fonts() {
             "https://github.com/adobe-fonts/source-code-pro/releases/download/2.042R-u%2F1.062R-i%2F1.026R-vf/TTF-source-code-pro-2.042R-u_1.062R-i.zip"
     fi
 
+    # Cascadia Code (Microsoft, with Mono variant without ligatures)
+    if fc-list 2>/dev/null | grep -qi "Cascadia"; then
+        echo "[INFO] Cascadia Code is already installed"
+    else
+        install_font "Cascadia Code" \
+            "https://github.com/microsoft/cascadia-code/releases/download/v2407.24/CascadiaCode-2407.24.zip"
+    fi
+
+    # Iosevka (ultra-configurable, narrow monospace)
+    if fc-list 2>/dev/null | grep -qi "Iosevka"; then
+        echo "[INFO] Iosevka is already installed"
+    else
+        install_font "Iosevka" \
+            "https://github.com/be5invis/Iosevka/releases/download/v34.1.0/PkgTTF-Iosevka-34.1.0.zip"
+    fi
+
+    # Monaspace (GitHub, 5 stylistic variants with texture healing)
+    if fc-list 2>/dev/null | grep -qi "Monaspace"; then
+        echo "[INFO] Monaspace is already installed"
+    else
+        install_font "Monaspace" \
+            "https://github.com/githubnext/monaspace/releases/download/v1.301/monaspace-static-v1.301.zip"
+    fi
+
     # Rebuild font cache
     if command -v fc-cache >/dev/null 2>&1; then
         echo "[INFO] Rebuilding font cache..."
