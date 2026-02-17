@@ -179,6 +179,16 @@ setup_dotfiles() {
     # Link .bashrc
     link_file "$DOTFILES_DIR/.bashrc" "${HOME}/.bashrc"
 
+    # Link Claude Code config
+    mkdir -p "${HOME}/.claude/plugins"
+    mkdir -p "${HOME}/.claude/output-styles"
+    link_file "$DOTFILES_DIR/config/claude/CLAUDE.md" "${HOME}/.claude/CLAUDE.md"
+    link_file "$DOTFILES_DIR/config/claude/settings.json" "${HOME}/.claude/settings.json"
+    link_file "$DOTFILES_DIR/config/claude/statusline-command.sh" "${HOME}/.claude/statusline-command.sh"
+    link_file "$DOTFILES_DIR/config/claude/plugins/installed_plugins.json" "${HOME}/.claude/plugins/installed_plugins.json"
+    link_file "$DOTFILES_DIR/config/claude/output-styles" "${HOME}/.claude/output-styles"
+    link_file "$DOTFILES_DIR/config/claude/skills" "${HOME}/.claude/skills"
+
     echo "[INFO] Using environment variables defined in $ENV_FILE"
 
     # Source aliases
