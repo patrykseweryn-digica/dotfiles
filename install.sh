@@ -180,14 +180,23 @@ setup_dotfiles() {
     link_file "$DOTFILES_DIR/.bashrc" "${HOME}/.bashrc"
 
     # Link Claude Code config
-    mkdir -p "${HOME}/.claude/plugins"
-    mkdir -p "${HOME}/.claude/output-styles"
+    mkdir -p "${HOME}/.claude/plugins" "${HOME}/.claude/output-styles" "${HOME}/.claude/skills"
     link_file "$DOTFILES_DIR/config/claude/CLAUDE.md" "${HOME}/.claude/CLAUDE.md"
     link_file "$DOTFILES_DIR/config/claude/settings.json" "${HOME}/.claude/settings.json"
     link_file "$DOTFILES_DIR/config/claude/statusline-command.sh" "${HOME}/.claude/statusline-command.sh"
     link_file "$DOTFILES_DIR/config/claude/plugins/installed_plugins.json" "${HOME}/.claude/plugins/installed_plugins.json"
     link_file "$DOTFILES_DIR/config/claude/output-styles" "${HOME}/.claude/output-styles"
-    link_file "$DOTFILES_DIR/config/claude/skills" "${HOME}/.claude/skills"
+    link_file "$DOTFILES_DIR/config/claude/agents" "${HOME}/.claude/agents"
+
+    # Link each skill directory individually (needed because last30days is a submodule)
+    for skill_dir in "$DOTFILES_DIR/config/claude/skills"/*/; do
+        skill_name="$(basename "$skill_dir")"
+        link_file "$skill_dir" "${HOME}/.claude/skills/${skill_name}"
+    done
+    # Link .skill compiled files
+    for skill_file in "$DOTFILES_DIR/config/claude/skills"/*.skill; do
+        [ -f "$skill_file" ] && link_file "$skill_file" "${HOME}/.claude/skills/$(basename "$skill_file")"
+    done
 
     echo "[INFO] Using environment variables defined in $ENV_FILE"
 
