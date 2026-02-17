@@ -13,46 +13,40 @@ Host github-work
     User git
     IdentityFile ~/.ssh/id_ed25519_work
 
+Host gpu1 gpu2 gpu3 gpu4 gpu5 gpu6 gpu7 gpu8 gpu9 hercules atlas
+    User pseweryn
+    IdentityFile ~/.ssh/id_ed25519_work
+    IdentitiesOnly yes
+
 Host gpu1
     HostName 10.10.10.41
-    User pseweryn
 
 Host gpu2
     HostName 10.10.10.42
-    User pseweryn
 
 Host gpu3
     HostName 10.10.10.43
-    User pseweryn
 
 Host gpu4
     HostName 10.10.10.44
-    User pseweryn
 
 Host gpu5
     HostName 10.10.10.45
-    User pseweryn
 
 Host gpu6
     HostName 10.10.10.46
-    User pseweryn
 
 Host gpu7
     HostName 10.10.10.47
-    User pseweryn
 
 Host gpu8
     HostName 10.10.10.48
-    User pseweryn
 
 Host gpu9
     HostName 10.10.10.49
-    User pseweryn
 
 Host hercules
     HostName 10.10.10.51
-    User pseweryn
 
 Host atlas
     HostName 10.10.10.52
-    User pseweryn

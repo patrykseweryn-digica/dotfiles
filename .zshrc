@@ -145,3 +145,10 @@ export PYTHONSTARTUP="${HOME}/.pythonrc.py"
 
 # Local per-machine overrides (not tracked in dotfiles)
 [[ ! -f ~/.zshrc.local ]] || source ~/.zshrc.local
+
+# bun completions
+[ -s "/home/pseweryn/.bun/_bun" ] && source "/home/pseweryn/.bun/_bun"
+
+# bun
+export BUN_INSTALL="$HOME/.bun"
+export PATH="$BUN_INSTALL/bin:$PATH"

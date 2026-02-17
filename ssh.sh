@@ -49,15 +49,31 @@ else
     ssh-add ~/.ssh/id_ed25519_work
 fi
 
-# Append SSH config if not already managed
+# Manage SSH config section between start/end markers
 touch ~/.ssh/config
 
-if ! grep -qF "# dotfiles-managed" ~/.ssh/config; then
-    printf '\n# dotfiles-managed\n' >>~/.ssh/config
-    cat "$SSH_SRC" >>~/.ssh/config
-    echo "[INFO] Appended SSH config from $SSH_SRC"
+START_MARKER="# dotfiles-managed-start"
+END_MARKER="# dotfiles-managed-end"
+
+MANAGED_BLOCK="${START_MARKER}
+$(cat "$SSH_SRC")
+${END_MARKER}"
+
+if grep -qF "$START_MARKER" ~/.ssh/config; then
+    # Replace existing managed section
+    tmp="$(mktemp)"
+    awk -v start="$START_MARKER" -v end="$END_MARKER" -v block="$MANAGED_BLOCK" '
+        $0 == start { print block; skip=1; next }
+        $0 == end { skip=0; next }
+        !skip { print }
+    ' ~/.ssh/config > "$tmp"
+    mv "$tmp" ~/.ssh/config
+    chmod 600 ~/.ssh/config
+    echo "[INFO] Updated SSH config managed section"
 else
-    echo "[INFO] SSH config already contains dotfiles entries, skipping"
+    # Append managed section
+    printf '\n%s\n' "$MANAGED_BLOCK" >>~/.ssh/config
+    echo "[INFO] Appended SSH config from $SSH_SRC"
 fi
 
 echo ""
