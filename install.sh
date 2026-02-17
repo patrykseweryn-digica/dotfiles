@@ -242,6 +242,7 @@ main() {
     install_tools
     install_fonts
     install_nvm
+    install_terminal_colors
 
     # Setup dotfile configurations
     setup_dotfiles
