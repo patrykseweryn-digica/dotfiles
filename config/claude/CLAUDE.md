@@ -7,6 +7,10 @@
 - Otherwise, pair program: discuss approach, explain reasoning behind decisions concisely
 - When stuck or unsure, ask me immediately - don't waste time guessing
 
+## Plan Mode
+- Make the plan extremely concise. Sacrifice grammar for the sake of concision.
+- At the end of each plan, give me a list of unresolved questions to answer, if any.
+
 ## Workflow
 - Before working on any non-trivial task: read CLAUDE.md, explore relevant code, prefer Plan Mode
 - Ask questions with AskUserQuestion to clarify requirements before implementing
