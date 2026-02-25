@@ -4,30 +4,30 @@
     "frontend-design@claude-plugins-official": [
       {
         "scope": "user",
-        "installPath": "/home/pseweryn/.claude/plugins/cache/claude-plugins-official/frontend-design/2cd88e7947b7",
-        "version": "2cd88e7947b7",
+        "installPath": "/home/pseweryn/.claude/plugins/cache/claude-plugins-official/frontend-design/55b58ec6e564",
+        "version": "55b58ec6e564",
         "installedAt": "2026-02-04T18:15:50.752Z",
-        "lastUpdated": "2026-02-07T10:12:46.125Z",
+        "lastUpdated": "2026-02-25T08:58:02.467Z",
         "gitCommitSha": "27d2b86d72da27c64585150857cee8472ad47abb"
       }
     ],
     "context7@claude-plugins-official": [
       {
         "scope": "user",
-        "installPath": "/home/pseweryn/.claude/plugins/cache/claude-plugins-official/context7/2cd88e7947b7",
-        "version": "2cd88e7947b7",
+        "installPath": "/home/pseweryn/.claude/plugins/cache/claude-plugins-official/context7/55b58ec6e564",
+        "version": "55b58ec6e564",
         "installedAt": "2026-02-04T18:15:59.701Z",
-        "lastUpdated": "2026-02-07T10:12:46.127Z",
+        "lastUpdated": "2026-02-25T08:58:02.464Z",
         "gitCommitSha": "27d2b86d72da27c64585150857cee8472ad47abb"
       }
     ],
     "code-review@claude-plugins-official": [
       {
         "scope": "user",
-        "installPath": "/home/pseweryn/.claude/plugins/cache/claude-plugins-official/code-review/2cd88e7947b7",
-        "version": "2cd88e7947b7",
+        "installPath": "/home/pseweryn/.claude/plugins/cache/claude-plugins-official/code-review/55b58ec6e564",
+        "version": "55b58ec6e564",
         "installedAt": "2026-02-04T18:16:05.053Z",
-        "lastUpdated": "2026-02-07T10:12:46.130Z",
+        "lastUpdated": "2026-02-25T08:58:02.465Z",
         "gitCommitSha": "27d2b86d72da27c64585150857cee8472ad47abb"
       }
     ],
@@ -74,10 +74,10 @@
     "superpowers@claude-plugins-official": [
       {
         "scope": "user",
-        "installPath": "/home/pseweryn/.claude/plugins/cache/claude-plugins-official/superpowers/4.3.0",
-        "version": "4.3.0",
+        "installPath": "/home/pseweryn/.claude/plugins/cache/claude-plugins-official/superpowers/4.3.1",
+        "version": "4.3.1",
         "installedAt": "2026-02-05T08:21:33.398Z",
-        "lastUpdated": "2026-02-12T20:35:14.070Z",
+        "lastUpdated": "2026-02-23T09:20:07.967Z",
         "gitCommitSha": "06b92f36820f38175b2ed6ff3f8df45157d54731"
       }
     ],
@@ -94,20 +94,20 @@
     "feature-dev@claude-plugins-official": [
       {
         "scope": "user",
-        "installPath": "/home/pseweryn/.claude/plugins/cache/claude-plugins-official/feature-dev/2cd88e7947b7",
-        "version": "2cd88e7947b7",
+        "installPath": "/home/pseweryn/.claude/plugins/cache/claude-plugins-official/feature-dev/55b58ec6e564",
+        "version": "55b58ec6e564",
         "installedAt": "2026-02-12T17:46:32.880Z",
-        "lastUpdated": "2026-02-12T17:46:32.880Z",
+        "lastUpdated": "2026-02-25T08:58:02.468Z",
         "gitCommitSha": "2cd88e7947b7382e045666abee790c7f55f669f3"
       }
     ],
     "ralph-loop@claude-plugins-official": [
       {
         "scope": "user",
-        "installPath": "/home/pseweryn/.claude/plugins/cache/claude-plugins-official/ralph-loop/2cd88e7947b7",
-        "version": "2cd88e7947b7",
+        "installPath": "/home/pseweryn/.claude/plugins/cache/claude-plugins-official/ralph-loop/55b58ec6e564",
+        "version": "55b58ec6e564",
         "installedAt": "2026-02-12T17:46:38.026Z",
-        "lastUpdated": "2026-02-12T17:46:38.026Z",
+        "lastUpdated": "2026-02-25T08:58:02.469Z",
         "gitCommitSha": "2cd88e7947b7382e045666abee790c7f55f669f3"
       }
     ],
