@@ -143,6 +143,12 @@ export PATH="${HOME}/.local/bin:${HOME}/.cargo/bin:$PATH"
 # Python startup file (set at the end to override any other settings)
 export PYTHONSTARTUP="${HOME}/.pythonrc.py"
 
+# Project templates
+new-project-digica() {
+  local name="${1?Usage: new-project-digica <project-name>}"
+  uvx copier copy --trust gh:patrykseweryn-digica/python-repo-template "$name"
+}
+
 # Local per-machine overrides (not tracked in dotfiles)
 [[ ! -f ~/.zshrc.local ]] || source ~/.zshrc.local
 
