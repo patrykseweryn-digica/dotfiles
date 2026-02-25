@@ -53,3 +53,6 @@
 ## Environment
 - OS: Linux (Ubuntu) - keep all commands Linux-compatible
 - IDE: VS Code
+
+## Git
+- When committing code, you're forbidden to add any information that it was co-authored by Claude models
