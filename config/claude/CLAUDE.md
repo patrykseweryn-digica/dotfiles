@@ -55,4 +55,4 @@
 - IDE: VS Code
 
 ## Git
-- When committing code, you're forbidden to add any information that it was co-authored by Claude models
+- When committing files, it is forbidden to add any information, that it was co-authored by Claude, or any other LLM.
