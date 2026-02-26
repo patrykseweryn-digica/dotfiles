@@ -1,13 +1,13 @@
 ---
 name: flashcards
-description: Generate learning flashcards from text, files, or URLs. Use when user wants to create flashcards, study cards, quiz questions, or learning materials. Applies Wozniak's 20 rules of knowledge formulation - cards form self-contained learning paths ordered basics→advanced.
-argument-hint: "[content or file path or URL] [--count N] [--pages 1-10]"
+description: Generate ultra-atomic learning flashcards from text, files, or URLs. Use when user wants to create flashcards, study cards, quiz questions, or learning materials. Applies Wozniak's 20 rules of knowledge formulation - cards form self-contained learning paths ordered basics→advanced. Each card tests exactly one fact with short answers (5-15 words).
+argument-hint: "[content or file path or URL] [--depth low|medium|high] [--pages 1-10]"
 allowed-tools: Read, WebFetch, AskUserQuestion
 ---
 
 # Flashcard Generator
 
-Generate high-quality flashcards as self-contained learning paths using Wozniak's knowledge formulation principles.
+Generate ultra-atomic flashcards as self-contained learning paths using Wozniak's knowledge formulation principles. Each card = one fact. More simple cards > fewer complex ones.
 
 ## Input Detection
 
@@ -22,9 +22,8 @@ Detect input type:
 | Type | Tier | Purpose |
 |------|------|---------|
 | **Atomic** | Foundational | Single fact/definition. Q: What is X? |
-| **Cloze** | Foundational/Intermediate | Fill-in-the-blank. `{{blanked term}}` in sentence |
 | **Conceptual** | Intermediate | Why/how something works. Q: Why does X...? |
-| **Comparison** | Intermediate | Distinguish similar concepts. Q: How does X differ from Y? |
+| **Comparison** | Intermediate | Distinguish exactly TWO similar concepts. Q: How does X differ from Y? Never compare 3+ items — decompose into pairwise. |
 | **Reverse** | Any | Same fact, opposite direction. Active: "What does X do?" → Passive: "What achieves Y?" |
 | **Application** | Advanced | Realistic scenario. Q: How would you use X to...? |
 | **Synthesis** | Advanced | Decision-making. Q: When would you choose X over Y? |
@@ -35,7 +34,7 @@ Detect input type:
 
 1. Parse input (detect type, fetch content if needed)
 2. Identify key concepts using 80/20 filter
-3. **Decompose lists/sets**: any enumeration in source must be broken into individual atomic cards - never present a list as a single card
+3. **Aggressive decomposition**: any concept with multiple facets → multiple cards. "X has 3 parts: A, B, C" → at minimum 3 cards (one per part) + optionally "how many parts does X have?" Comparisons like "X vs Y vs Z" → separate cards per item + pairwise difference cards. Never compare more than 2 items on one card.
 4. **Order basics→advanced**: arrange concepts so foundational ones come first - cards should work as a self-contained learning path even for someone encountering the material for the first time
 5. **Detect interference**: flag concepts that are similar and could be confused with each other
 6. **Assign priorities**: P1 (must-know), P2 (should-know), P3 (nice-to-know)
@@ -48,7 +47,7 @@ Found N concepts, ordered basics→advanced:
 
 1. **[Concept A]** (P1) - X cards
    - atomic: definition of A
-   - cloze: key property of A
+   - atomic: key property of A
    - reverse: what produces A
 
 2. **[Concept B]** (P1) - X cards
@@ -60,7 +59,7 @@ Found N concepts, ordered basics→advanced:
    - requires: Concept A
    - application: using C in [context]
 
-**Total: ~N cards (P1: X, P2: Y, P3: Z)**
+**Depth: medium | ~N cards (P1: X, P2: Y, P3: Z)**
 
 Proceed? Or adjust?
 ```
@@ -83,6 +82,7 @@ After approval, generate cards following quality rules below. Output JSON:
       "priority": "P1",
       "question": "What is [concept]?",
       "answer": "Concise definition.",
+      "explanation": "Optional 1-3 sentence elaboration of the answer — context, why it works, or common traps.",
       "context": "[Topic area]",
       "source_detail": "Section 2.1",
       "mnemonic": "Think of X as...",
@@ -90,15 +90,6 @@ After approval, generate cards following quality rules below. Output JSON:
     },
     {
       "id": 2,
-      "tier": "foundational",
-      "type": "cloze",
-      "priority": "P1",
-      "cloze_text": "The primary function of X is {{doing Y}} which enables Z.",
-      "context": "[Topic area]",
-      "related": [1]
-    },
-    {
-      "id": 3,
       "tier": "foundational",
       "type": "reverse",
       "priority": "P1",
@@ -121,11 +112,11 @@ After approval, generate cards following quality rules below. Output JSON:
 |-------|----------|-------------|
 | `id` | yes | Sequential, in learning-path order |
 | `tier` | yes | foundational / intermediate / advanced |
-| `type` | yes | atomic / cloze / conceptual / comparison / reverse / application / synthesis |
+| `type` | yes | atomic / conceptual / comparison / reverse / application / synthesis |
 | `priority` | yes | P1 (must-know) / P2 (should-know) / P3 (nice-to-know) |
-| `question` | yes* | The question (*not used for cloze type) |
-| `answer` | yes* | The answer (*not used for cloze type) |
-| `cloze_text` | cloze only | Sentence with `{{blanked term}}` |
+| `question` | yes | The question |
+| `answer` | yes | The answer (target: 5-15 words, max: ~20 words). If the answer enumerates multiple distinct items (e.g. listing all values of a property), format as HTML: `"<ul><li>item1</li><li>item2</li><li>item3</li></ul>"`. Do NOT use this format when a comma-separated phrase reads naturally as a single unit. |
+| `explanation` | optional | 1–3 sentence elaboration of the answer: background context, mechanism, or common pitfall |
 | `context` | when ambiguous | `[Topic]` tag to disambiguate (e.g. `[Networking]`, `[Python]`) |
 | `source_detail` | when available | Section/heading reference from source material |
 | `mnemonic` | for abstract concepts | Imagery hint, analogy, or mnemonic device |
@@ -135,33 +126,75 @@ After approval, generate cards following quality rules below. Output JSON:
 
 ### P1 Rules - always enforce
 
-1. **Atomic**: one concept per card, no compound questions
-2. **No sets/enumerations**: never put a list in one card. Decompose into individual atomic or cloze cards. If source says "3 types of X: A, B, C" → create separate cards for each type
-3. **Combat interference**: when two concepts are similar (terms, dates, processes), add distinguishing context, contrastive examples, or explicit comparison cards. Ask: "Could a learner confuse this with another card?"
-4. **Redundancy for key concepts**: for P1 items, generate both active ("What does X do?") and passive/reverse ("What achieves Y?") cards - same fact, different angles
-5. **Wording optimization**: reduce every card to its most compact, elegant form. Every word must earn its place. Like simplifying a math equation - remove everything that doesn't add meaning
-6. **Vivid framing**: use surprising facts, real consequences ("What happens if X fails?"), dramatic examples. Engage emotions - a card that makes you feel something is easier to remember
-7. **Basics-first ordering**: card IDs reflect learning order. Foundational cards come before cards that depend on them. The card sequence should work as a standalone learning path
+1. **Ultra-atomic**: one FACT per card, not one concept. If the answer contains "and", a comma-separated list, or multiple sentences → split into separate cards. Target answer: 5-15 words. Hard max: ~20 words. If you need more words, the card is testing too much.
+2. **Aggressive decomposition**: any concept with multiple facets → multiple cards. "X has 3 parts: A, B, C" → at minimum 3 cards (one per part) + optionally "how many parts does X have?" Never present a list as a single card. Never compare more than 2 items on one card — decompose into pairwise comparisons.
+3. **Split test**: before finalizing any card, ask: "Does this answer contain two facts that could be tested independently?" If yes → split. "X does A, and also B" is always two cards.
+4. **Answer brevity**: strip every answer to minimum viable words. No filler phrases ("It is used to...", "This refers to...", "The mechanism that..."). Prefer fragments over full sentences. Not "The cascade is the mechanism CSS uses to resolve conflicts" but "CSS's conflict-resolution mechanism."
+5. **Combat interference**: when two concepts are similar (terms, dates, processes), add distinguishing context, contrastive examples, or explicit comparison cards. Ask: "Could a learner confuse this with another card?"
+6. **Redundancy for key concepts**: for P1 items, generate both active ("What does X do?") and passive/reverse ("What achieves Y?") cards - same fact, different angles
+7. **Vivid framing**: use surprising facts, real consequences ("What happens if X fails?"), dramatic examples. Engage emotions - a card that makes you feel something is easier to remember
+8. **Basics-first ordering**: card IDs reflect learning order. Foundational cards come before cards that depend on them. The card sequence should work as a standalone learning path
 
 ### P2 Rules - apply when natural
 
-8. **Cloze preference**: for definitions and factual statements, prefer cloze format over plain Q&A when the fill-in-the-blank feels natural
 9. **Imagery/mnemonics**: for abstract or hard-to-visualize concepts, add a `mnemonic` field with an analogy, visual image, or memory device
-10. **Context cues**: add `context` tag when the question would be ambiguous without topic context
-11. **Source references**: include `source_detail` with section/heading when the source material has clear structure
+10. **Explanations**: generate `explanation` for foundational/conceptual cards where the answer alone could be opaque; skip for reverse/application cards where the answer is self-sufficient
+11. **Context cues**: add `context` tag when the question would be ambiguous without topic context
+12. **Source references**: include `source_detail` with section/heading when the source material has clear structure
 
 ### P3 Rules - occasional use
 
-12. **Date stamping**: for volatile/time-sensitive knowledge (tech versions, statistics, policies), prepend "As of [year]:" to the answer
-13. **Recall over recognition**: questions force active recall, never multiple choice
+13. **Date stamping**: for volatile/time-sensitive knowledge (tech versions, statistics, policies), prepend "As of [year]:" to the answer
+14. **Recall over recognition**: questions force active recall, never multiple choice
 
-## Default Card Count
+## Atomicity Examples
 
-- Short content (<500 words): 5-10 cards
-- Medium content (500-2000 words): 12-20 cards
-- Long content (>2000 words): 20-35 cards
-- User can override with `--count N`
-- Counts are higher than plain Q&A because redundancy (reverse cards) and list decomposition increase card count
+### BAD: Multi-fact answer
+Q: What is the CSS cascade?
+A: The mechanism CSS uses to resolve conflicts when multiple rules target the same element. It checks importance (!important), then specificity, then source order (last wins).
+
+### GOOD: Decomposed into atomic cards
+1. Q: What does the CSS cascade do? → A: Resolves conflicts when multiple rules target the same element.
+2. Q: How many cascade resolution steps are there? → A: Three.
+3. Q: What does the cascade check first? → A: Importance (!important declarations).
+4. Q: What does the cascade check after importance? → A: Specificity.
+5. Q: What is the cascade's final tiebreaker? → A: Source order — last rule wins.
+
+### BAD: Packed 4-way comparison
+Q: inherit vs initial vs revert vs unset?
+A: inherit copies parent value, initial resets to spec default, revert rolls back to user-agent style, unset acts as inherit for inherited props and initial for others.
+
+### GOOD: One card per value + pairwise comparisons
+1. Q: What does `inherit` do? → A: Copies the parent element's computed value.
+2. Q: What does `initial` do? → A: Resets to the CSS spec default.
+3. Q: What does `revert` do? → A: Rolls back to the browser's default stylesheet.
+4. Q: What does `unset` do on inherited properties? → A: Acts as `inherit`.
+5. Q: What does `unset` do on non-inherited properties? → A: Acts as `initial`.
+6. Q: How does `initial` differ from `revert`? → A: `initial` = spec default; `revert` = browser default.
+
+### BAD: Hidden multi-concept
+Q: What scoring system determines which CSS selector wins?
+A: The 4-slot specificity system: (inline, ID, class, element). Higher slots always outrank lower — one ID beats any number of classes.
+
+### GOOD: One slot per card
+1. Q: How many slots does CSS specificity have? → A: Four.
+2. Q: What is specificity slot 1 (highest)? → A: Inline styles.
+3. Q: What is specificity slot 2? → A: ID selectors.
+4. Q: What is specificity slot 3? → A: Classes, attributes, pseudo-classes.
+5. Q: What is specificity slot 4 (lowest)? → A: Elements, pseudo-elements.
+6. Q: Can many class selectors outrank one ID? → A: No — a higher slot always beats any count in lower slots.
+
+## Depth Levels
+
+User selects depth with `--depth low|medium|high` (default: medium).
+
+| Depth | Coverage | Reverse cards |
+|-------|----------|---------------|
+| **low** | P1 concepts only. Minimum viable coverage. | Only for the most critical P1 facts |
+| **medium** | P1 + P2 concepts. Comparison cards where interference risk exists. | Yes for P1 facts |
+| **high** | All priorities. Multiple angles per P1 fact. Mnemonics for abstract concepts. Thorough interference coverage. | Yes for P1 + P2 facts |
+
+Claude decides actual card count based on content complexity and depth. No fixed ranges — a simple topic at medium might produce 8 cards; a dense topic at medium might produce 40. Depth controls coverage and redundancy, not an arbitrary number.
 
 ## Example Interaction
 
@@ -175,23 +208,24 @@ Found 4 concepts from "React Hooks Guide", ordered basics→advanced:
 
 1. **useState** (P1) - 4 cards
    - atomic: what useState returns
-   - cloze: useState syntax
+   - atomic: useState syntax
    - reverse: how to add state to a function component
    - application: managing form input state
 
 2. **useEffect** (P1) - 5 cards
    ⚠️ Similar to useState lifecycle - cards include disambiguation
    - atomic: what useEffect does
-   - cloze: dependency array syntax
+   - atomic: dependency array syntax
    - conceptual: why effects run after render
    - comparison: useEffect vs componentDidMount/didUpdate
    - reverse: how to run code on mount only
 
-3. **Rules of Hooks** (P1) - 3 cards
+3. **Rules of Hooks** (P1) - 4 cards
    - requires: useState, useEffect
-   - atomic: the two rules
-   - conceptual: why top-level only (consequence framing)
-   - cloze: where hooks can/cannot be called
+   - atomic: how many rules of hooks exist
+   - atomic: rule 1 — top-level only
+   - atomic: rule 2 — React functions only
+   - conceptual: why top-level only
 
 4. **Custom Hooks** (P2) - 3 cards
    - requires: useState, useEffect, Rules of Hooks
@@ -199,7 +233,7 @@ Found 4 concepts from "React Hooks Guide", ordered basics→advanced:
    - application: extracting reusable stateful logic
    - reverse: what pattern extracts shared hook logic
 
-**Total: ~15 cards (P1: 12, P2: 3, P3: 0)**
+**Depth: medium | ~16 cards (P1: 13, P2: 3, P3: 0)**
 
 Proceed? Or adjust?
 ```
@@ -207,3 +241,11 @@ Proceed? Or adjust?
 **User**: "proceed" or "more on useEffect" or "make Rules of Hooks P2"
 
 **Phase 2**: Generate and output JSON with all fields populated
+
+### Phase 2 Validation (before outputting JSON)
+
+Before writing the final JSON, run this guard check:
+
+1. **Answer presence**: every card where `type` ≠ `"cloze"` MUST have a non-empty `answer` field. If any card is missing `answer`, generate the answer before outputting — never output a card without one.
+2. **Cloze completeness**: every card where `type` = `"cloze"` MUST have a non-empty `cloze_text` field with at least one `{{...}}` blank.
+3. **Report**: if any violations were found and fixed, append a brief note after the JSON block: `⚠️ Fixed N cards missing answers before output.`

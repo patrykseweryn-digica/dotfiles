@@ -15,143 +15,275 @@ except ImportError:
 
 
 def generate_id(seed: str) -> int:
-    """Generate a stable numeric ID from a string seed."""
     return int(hashlib.md5(seed.encode()).hexdigest()[:8], 16)
 
 
 def convert_backticks_to_html(text: str) -> str:
-    """Convert markdown backticks to HTML code tags."""
     return re.sub(r'`([^`]+)`', r'<code>\1</code>', text)
 
 
-def create_basic_model(deck_name: str) -> genanki.Model:
-    model_id = generate_id(f"model_v2_{deck_name}")
+CARD_CSS = '''
+@import url('https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@300;400;600&family=Source+Code+Pro&display=swap');
+
+*, *::before, *::after { box-sizing: border-box; }
+
+.card {
+    --bg: linear-gradient(135deg, #f5e6d0 0%, #e8d0b8 30%, #dcc8b0 60%, #e8dcc8 100%);
+    --card-bg: rgba(235, 225, 205, 0.85);
+    --card-border: rgba(235, 225, 205, 0.32);
+    --card-shadow: 0 8px 32px rgba(100, 80, 50, 0.1);
+    --text-q: #2a2018;
+    --text-a: #2e2418;
+    --meta-color: #8a7a64;
+    --sep: linear-gradient(to right, transparent, rgba(200, 180, 150, 0.4), transparent);
+    --code-bg: rgba(255, 255, 255, 0.3);
+    --code-text: #8a6530;
+    --code-border: rgba(200, 180, 150, 0.25);
+    --extra-color: #6a5c48;
+    --extra-border: rgba(235, 225, 205, 0.32);
+    --explanation-color: #7a6a58;
+    --glow: linear-gradient(to right, transparent 10%, rgba(255,255,255,0.5) 50%, transparent 90%);
+    font-family: 'Source Sans 3', -apple-system, BlinkMacSystemFont, sans-serif;
+    background:
+        radial-gradient(ellipse 60% 40% at 80% 10%, rgba(220, 180, 130, 0.35) 0%, transparent 70%),
+        radial-gradient(ellipse 50% 40% at 15% 90%, rgba(200, 160, 120, 0.25) 0%, transparent 70%),
+        linear-gradient(135deg, #f5e6d0 0%, #e8d0b8 30%, #dcc8b0 60%, #e8dcc8 100%);
+    padding: 12px;
+    margin: 0;
+    -webkit-font-smoothing: antialiased;
+    text-align: center;
+}
+
+/* Glass card container */
+.glass {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 16px;
+    padding: 18px;
+    box-shadow: var(--card-shadow);
+    position: relative;
+    overflow: hidden;
+    max-width: 560px;
+    width: 100%;
+    margin: 0 auto;
+    z-index: 1;
+}
+
+/* Backdrop blur for supporting browsers */
+@supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+    .glass {
+        background: rgba(235, 225, 205, 0.48);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+    }
+}
+
+/* Top edge glow */
+.glass::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: var(--glow);
+}
+
+.meta {
+    font-size: 11px;
+    font-weight: 300;
+    color: var(--meta-color);
+    margin-bottom: 12px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.question {
+    font-size: 18px;
+    font-weight: 600;
+    line-height: 1.4;
+    color: var(--text-q);
+    overflow-wrap: break-word;
+}
+
+.separator {
+    height: 1px;
+    background: var(--sep);
+    margin: 16px 0;
+    border: none;
+}
+
+.answer {
+    font-size: 19px;
+    font-weight: 500;
+    line-height: 1.5;
+    color: var(--text-a);
+    overflow-wrap: break-word;
+}
+
+code {
+    font-family: 'Source Code Pro', monospace;
+    font-size: 0.88em;
+    background: var(--code-bg);
+    color: var(--code-text);
+    padding: 3px 9px;
+    border-radius: 8px;
+    border: 1px solid var(--code-border);
+    word-break: break-all;
+}
+
+.answer ul {
+    display: inline-block;
+    margin: 6px 0 0 0;
+    padding-left: 20px;
+    text-align: left;
+}
+
+.answer li {
+    margin: 2px 0;
+}
+
+.extra {
+    display: inline-block;
+    font-style: italic;
+    font-size: 14px;
+    color: var(--extra-color);
+    opacity: 0.8;
+    margin-top: 16px;
+    line-height: 1.6;
+    padding-left: 18px;
+    border-left: 2px solid var(--extra-border);
+    text-align: left;
+}
+
+.explanation {
+    font-size: 17px;
+    font-weight: 400;
+    line-height: 1.6;
+    color: var(--explanation-color);
+    margin-top: 14px;
+    overflow-wrap: break-word;
+}
+
+/* ── Dark mode: AnkiDroid / AnkiMobile ── */
+.nightMode.card,
+.night_mode .card {
+    --card-bg: rgba(65, 58, 48, 0.85);
+    --card-border: rgba(105, 95, 75, 0.2);
+    --card-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+    --text-q: #dcd0b8;
+    --text-a: #d8ccb4;
+    --meta-color: #9a8a70;
+    --sep: linear-gradient(to right, transparent, rgba(150, 130, 100, 0.3), transparent);
+    --code-bg: rgba(85, 75, 55, 0.35);
+    --code-text: #d4c090;
+    --code-border: rgba(105, 95, 75, 0.2);
+    --extra-color: #a89880;
+    --extra-border: rgba(105, 95, 75, 0.2);
+    --explanation-color: #b0a080;
+    --glow: linear-gradient(to right, transparent 10%, rgba(255,255,255,0.08) 50%, transparent 90%);
+    background:
+        radial-gradient(ellipse 60% 40% at 80% 10%, rgba(100, 80, 50, 0.25) 0%, transparent 70%),
+        radial-gradient(ellipse 50% 40% at 15% 90%, rgba(80, 65, 40, 0.2) 0%, transparent 70%),
+        linear-gradient(135deg, #302a24 0%, #362e28 30%, #2e2822 60%, #342c26 100%);
+}
+
+.nightMode.card .glass,
+.night_mode .card .glass {
+    background: var(--card-bg);
+}
+
+@supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+    .nightMode.card .glass,
+    .night_mode .card .glass {
+        background: rgba(65, 58, 48, 0.5);
+    }
+}
+
+/* ── Dark mode: Anki Desktop ── */
+@media (prefers-color-scheme: dark) {
+    .card {
+        --card-bg: rgba(65, 58, 48, 0.85);
+        --card-border: rgba(105, 95, 75, 0.2);
+        --card-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+        --text-q: #dcd0b8;
+        --text-a: #d8ccb4;
+        --meta-color: #9a8a70;
+        --sep: linear-gradient(to right, transparent, rgba(150, 130, 100, 0.3), transparent);
+        --code-bg: rgba(85, 75, 55, 0.35);
+        --code-text: #d4c090;
+        --code-border: rgba(105, 95, 75, 0.2);
+        --extra-color: #a89880;
+        --extra-border: rgba(105, 95, 75, 0.2);
+        --explanation-color: #b0a080;
+        --glow: linear-gradient(to right, transparent 10%, rgba(255,255,255,0.08) 50%, transparent 90%);
+        background:
+            radial-gradient(ellipse 60% 40% at 80% 10%, rgba(100, 80, 50, 0.25) 0%, transparent 70%),
+            radial-gradient(ellipse 50% 40% at 15% 90%, rgba(80, 65, 40, 0.2) 0%, transparent 70%),
+            linear-gradient(135deg, #302a24 0%, #362e28 30%, #2e2822 60%, #342c26 100%);
+    }
+
+    .glass {
+        background: var(--card-bg);
+    }
+
+    @supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+        .glass {
+            background: rgba(65, 58, 48, 0.5);
+        }
+    }
+}
+'''
+
+FRONT_TEMPLATE = '''
+<div class="glass">
+{{#Meta}}<div class="meta">{{Meta}}</div>{{/Meta}}
+<div class="question">{{Question}}</div>
+</div>
+'''
+
+BACK_TEMPLATE = '''
+<div class="glass">
+{{#Meta}}<div class="meta">{{Meta}}</div>{{/Meta}}
+<div class="question">{{Question}}</div>
+<div class="separator"></div>
+<div class="answer">{{Answer}}</div>
+{{#Explanation}}<div class="explanation">{{Explanation}}</div>{{/Explanation}}
+{{#Extra}}<div class="extra">{{Extra}}</div>{{/Extra}}
+</div>
+'''
+
+
+def create_model(deck_name: str) -> genanki.Model:
+    model_id = generate_id(f"model_glass_v2_{deck_name}")
 
     return genanki.Model(
         model_id,
-        f'{deck_name} Basic',
+        f'{deck_name} Glass',
         fields=[
             {'name': 'Question'},
             {'name': 'Answer'},
             {'name': 'Meta'},
             {'name': 'Extra'},
+            {'name': 'Explanation'},
         ],
         templates=[{
             'name': 'Card 1',
-            'qfmt': '''
-<div class="question">{{Question}}</div>
-<div class="meta">{{Meta}}</div>
-''',
-            'afmt': '''
-{{FrontSide}}
-<hr id="answer">
-<div class="answer">{{Answer}}</div>
-{{#Extra}}<div class="extra">{{Extra}}</div>{{/Extra}}
-''',
+            'qfmt': FRONT_TEMPLATE,
+            'afmt': BACK_TEMPLATE,
         }],
         css=CARD_CSS)
-
-
-def create_cloze_model(deck_name: str) -> genanki.Model:
-    model_id = generate_id(f"cloze_v2_{deck_name}")
-
-    return genanki.Model(
-        model_id,
-        f'{deck_name} Cloze',
-        model_type=genanki.Model.CLOZE,
-        fields=[
-            {'name': 'Text'},
-            {'name': 'Meta'},
-            {'name': 'Extra'},
-        ],
-        templates=[{
-            'name': 'Cloze',
-            'qfmt': '''
-<div class="question">{{cloze:Text}}</div>
-<div class="meta">{{Meta}}</div>
-''',
-            'afmt': '''
-<div class="answer">{{cloze:Text}}</div>
-{{#Extra}}<div class="extra">{{Extra}}</div>{{/Extra}}
-<div class="meta">{{Meta}}</div>
-''',
-        }],
-        css=CARD_CSS)
-
-
-CARD_CSS = '''
-.card {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    font-size: 18px;
-    text-align: left;
-    color: #333;
-    background-color: #fff;
-    padding: 20px;
-    line-height: 1.5;
-}
-.question {
-    font-size: 20px;
-    font-weight: 500;
-    margin-bottom: 10px;
-}
-.answer { margin-top: 15px; }
-.meta {
-    font-size: 12px;
-    color: #888;
-    text-transform: capitalize;
-    margin-top: 8px;
-}
-.extra {
-    font-size: 14px;
-    color: #666;
-    font-style: italic;
-    margin-top: 10px;
-    padding: 8px 12px;
-    border-left: 3px solid #ddd;
-}
-code {
-    background: #f4f4f4;
-    padding: 2px 6px;
-    border-radius: 3px;
-    font-family: "SF Mono", Consolas, monospace;
-    font-size: 0.9em;
-}
-hr#answer {
-    border: none;
-    border-top: 1px solid #ddd;
-    margin: 15px 0;
-}
-'''
-
-
-def convert_cloze_syntax(text: str) -> str:
-    """Convert {{blanked term}} to Anki's {{c1::blanked term}} format."""
-    counter = [0]
-
-    def replacer(match):
-        counter[0] += 1
-        return f"{{{{c{counter[0]}::{match.group(1)}}}}}"
-
-    return re.sub(r'\{\{([^}]+)\}\}', replacer, text)
 
 
 def build_extra(card: dict) -> str:
-    """Build extra info string from mnemonic, context, source_detail."""
     parts = []
     if card.get('mnemonic'):
         parts.append(card['mnemonic'])
-    if card.get('source_detail'):
-        parts.append(f"Source: {card['source_detail']}")
     return ' | '.join(parts)
 
 
 def build_meta(card: dict) -> str:
-    tier = card.get('tier', '')
-    card_type = card.get('type', '')
-    priority = card.get('priority', '')
-    context = card.get('context', '')
-    parts = [p for p in [context, tier, card_type, priority] if p]
-    return ' · '.join(parts)
+    return card.get('context', '').strip('[] ')
 
 
 def build_tags(card: dict, topic: str) -> list[str]:
@@ -167,29 +299,19 @@ def build_tags(card: dict, topic: str) -> list[str]:
     return tags
 
 
-def create_note(basic_model, cloze_model, card: dict, topic: str) -> genanki.Note:
+def create_note(model, card: dict, topic: str) -> genanki.Note:
     meta = build_meta(card)
     extra = convert_backticks_to_html(build_extra(card))
     tags = build_tags(card, topic)
 
-    if card.get('type') == 'cloze' and card.get('cloze_text'):
-        cloze_text = convert_cloze_syntax(card['cloze_text'])
-        cloze_text = convert_backticks_to_html(cloze_text)
-        guid = genanki.guid_for(card['cloze_text'])
-        return genanki.Note(
-            model=cloze_model,
-            fields=[cloze_text, meta, extra],
-            tags=tags,
-            guid=guid,
-        )
-
     question = convert_backticks_to_html(card.get('question', ''))
     answer = convert_backticks_to_html(card.get('answer', ''))
+    explanation = convert_backticks_to_html(card.get('explanation', ''))
     guid = genanki.guid_for(card.get('question', f"card_{card.get('id', '')}"))
 
     return genanki.Note(
-        model=basic_model,
-        fields=[question, answer, meta, extra],
+        model=model,
+        fields=[question, answer, meta, extra, explanation],
         tags=tags,
         guid=guid,
     )
@@ -211,20 +333,13 @@ def convert_json_to_apkg(json_path: str, output_path: str | None = None, deck_na
     if not output_path:
         output_path = json_path.rsplit('.', 1)[0] + '.apkg'
 
-    basic_model = create_basic_model(deck_name)
-    cloze_model = create_cloze_model(deck_name)
+    model = create_model(deck_name)
     deck_id = generate_id(f"deck_{deck_name}")
     deck = genanki.Deck(deck_id, deck_name)
 
-    cloze_count = 0
-    basic_count = 0
     for card in cards:
-        note = create_note(basic_model, cloze_model, card, topic)
+        note = create_note(model, card, topic)
         deck.add_note(note)
-        if card.get('type') == 'cloze':
-            cloze_count += 1
-        else:
-            basic_count += 1
 
     package = genanki.Package(deck)
     package.write_to_file(output_path)
@@ -234,8 +349,7 @@ def convert_json_to_apkg(json_path: str, output_path: str | None = None, deck_na
     by_priority = stats.get('by_priority', {})
 
     print(f"Exported {len(cards)} cards to {output_path}")
-    print(f"  Basic: {basic_count}, Cloze: {cloze_count}")
-    print(f"\nDeck: {deck_name}")
+    print(f"Deck: {deck_name}")
     if by_tier:
         print(f"Tiers: {', '.join(f'{k}: {v}' for k, v in by_tier.items())}")
     if by_priority:
