@@ -1,0 +1,29 @@
+{
+  "skills": {
+    "tdd": { "repo": "mattpocock/skills", "path": "tdd" },
+    "write-a-skill": { "repo": "mattpocock/skills", "path": "write-a-skill" },
+    "design-an-interface": { "repo": "mattpocock/skills", "path": "design-an-interface" },
+    "setup-pre-commit": { "repo": "mattpocock/skills", "path": "setup-pre-commit" },
+    "git-guardrails-claude-code": { "repo": "mattpocock/skills", "path": "git-guardrails-claude-code" },
+    "request-refactor-plan": { "repo": "mattpocock/skills", "path": "request-refactor-plan" },
+    "find-skills": { "repo": "vercel-labs/skills", "path": "skills/find-skills" },
+    "prd-to-issues": { "repo": "mattpocock/skills", "path": "prd-to-issues" },
+    "scaffold-exercises": { "repo": "mattpocock/skills", "path": "scaffold-exercises" },
+    "write-a-prd": { "repo": "mattpocock/skills", "path": "write-a-prd" }
+  },
+  "plugins": [
+    "frontend-design@claude-plugins-official",
+    "context7@claude-plugins-official",
+    "code-review@claude-plugins-official",
+    "code-simplifier@claude-plugins-official",
+    "claude-md-management@claude-plugins-official",
+    "pyright-lsp@claude-plugins-official",
+    "superpowers@claude-plugins-official",
+    "typescript-lsp@claude-plugins-official",
+    "feature-dev@claude-plugins-official",
+    "ralph-loop@claude-plugins-official",
+    "claude-code-setup@claude-plugins-official",
+    "document-skills@anthropic-agent-skills",
+    "superpowers@superpowers-marketplace"
+  ]
+}
