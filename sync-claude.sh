@@ -77,6 +77,13 @@ cmd_install() {
         echo "[INFO] Linked skill: $name"
     done
 
+    # Remove broken symlink that prevents plugin installation
+    local plugins_json="${HOME}/.claude/plugins/installed_plugins.json"
+    if [ -L "$plugins_json" ] && [ ! -e "$plugins_json" ]; then
+        echo "[INFO] Removing broken symlink: $plugins_json"
+        rm "$plugins_json"
+    fi
+
     # Install plugins
     if ! command -v claude >/dev/null 2>&1; then
         echo "[WARN] claude CLI not found, skipping plugin installation"
