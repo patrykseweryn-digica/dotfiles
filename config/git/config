@@ -33,6 +33,7 @@
 	cmd = code --wait --diff \"$LOCAL\" \"$REMOTE\"
 [push]
 	autoSetupRemote = true
+	default = current
 [rebase]
 	autoStash = true
 [rerere]

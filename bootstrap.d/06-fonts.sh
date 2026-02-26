@@ -91,8 +91,8 @@ install_fonts() {
         if [ -n "$profile_id" ]; then
             local profile_path="org.gnome.Terminal.Legacy.Profile:/org/gnome/terminal/legacy/profiles:/:${profile_id}/"
             gsettings set "$profile_path" use-system-font false
-            gsettings set "$profile_path" font 'JetBrainsMono Nerd Font 11'
-            echo "[INFO] GNOME Terminal font set to JetBrains Mono Nerd Font 11"
+            gsettings set "$profile_path" font 'JetBrainsMono Nerd Font 16'
+            echo "[INFO] GNOME Terminal font set to JetBrains Mono Nerd Font 16"
         fi
     fi
 }

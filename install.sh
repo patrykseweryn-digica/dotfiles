@@ -184,7 +184,6 @@ setup_dotfiles() {
     link_file "$DOTFILES_DIR/config/claude/CLAUDE.md" "${HOME}/.claude/CLAUDE.md"
     link_file "$DOTFILES_DIR/config/claude/settings.json" "${HOME}/.claude/settings.json"
     link_file "$DOTFILES_DIR/config/claude/statusline-command.sh" "${HOME}/.claude/statusline-command.sh"
-    link_file "$DOTFILES_DIR/config/claude/plugins/installed_plugins.json" "${HOME}/.claude/plugins/installed_plugins.json"
     link_file "$DOTFILES_DIR/config/claude/output-styles" "${HOME}/.claude/output-styles"
     link_file "$DOTFILES_DIR/config/claude/agents" "${HOME}/.claude/agents"
 
@@ -197,6 +196,13 @@ setup_dotfiles() {
     for skill_file in "$DOTFILES_DIR/config/claude/skills"/*.skill; do
         [ -f "$skill_file" ] && link_file "$skill_file" "${HOME}/.claude/skills/$(basename "$skill_file")"
     done
+
+    # Sync marketplace skills and plugins from manifest
+    if [ -x "$DOTFILES_DIR/sync-claude.sh" ]; then
+        "$DOTFILES_DIR/sync-claude.sh" install
+    else
+        echo "[WARN] sync-claude.sh not found or not executable, skipping skill/plugin sync"
+    fi
 
     echo "[INFO] Using environment variables defined in $ENV_FILE"
 
