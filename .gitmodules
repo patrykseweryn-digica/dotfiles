@@ -1,3 +1,0 @@
-[submodule "config/claude/skills/last30days"]
-	path = config/claude/skills/last30days
-	url = https://github.com/mvanhorn/last30days-skill.git
