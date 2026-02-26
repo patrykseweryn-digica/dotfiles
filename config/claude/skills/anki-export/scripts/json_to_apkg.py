@@ -21,36 +21,65 @@ def generate_id(seed: str) -> int:
 
 def convert_backticks_to_html(text: str) -> str:
     """Convert markdown backticks to HTML code tags."""
-    # Convert inline code `code` to <code>code</code>
     return re.sub(r'`([^`]+)`', r'<code>\1</code>', text)
 
 
-def create_model(deck_name: str) -> genanki.Model:
-    """Create an Anki model with Question/Answer fields and tag display."""
-    model_id = generate_id(f"model_{deck_name}")
+def create_basic_model(deck_name: str) -> genanki.Model:
+    model_id = generate_id(f"model_v2_{deck_name}")
 
     return genanki.Model(
         model_id,
-        f'{deck_name} Model',
+        f'{deck_name} Basic',
         fields=[
             {'name': 'Question'},
             {'name': 'Answer'},
-            {'name': 'Tier'},
-            {'name': 'Type'},
+            {'name': 'Meta'},
+            {'name': 'Extra'},
         ],
         templates=[{
             'name': 'Card 1',
             'qfmt': '''
 <div class="question">{{Question}}</div>
-<div class="meta">{{Tier}} · {{Type}}</div>
+<div class="meta">{{Meta}}</div>
 ''',
             'afmt': '''
 {{FrontSide}}
 <hr id="answer">
 <div class="answer">{{Answer}}</div>
+{{#Extra}}<div class="extra">{{Extra}}</div>{{/Extra}}
 ''',
         }],
-        css='''
+        css=CARD_CSS)
+
+
+def create_cloze_model(deck_name: str) -> genanki.Model:
+    model_id = generate_id(f"cloze_v2_{deck_name}")
+
+    return genanki.Model(
+        model_id,
+        f'{deck_name} Cloze',
+        model_type=genanki.Model.CLOZE,
+        fields=[
+            {'name': 'Text'},
+            {'name': 'Meta'},
+            {'name': 'Extra'},
+        ],
+        templates=[{
+            'name': 'Cloze',
+            'qfmt': '''
+<div class="question">{{cloze:Text}}</div>
+<div class="meta">{{Meta}}</div>
+''',
+            'afmt': '''
+<div class="answer">{{cloze:Text}}</div>
+{{#Extra}}<div class="extra">{{Extra}}</div>{{/Extra}}
+<div class="meta">{{Meta}}</div>
+''',
+        }],
+        css=CARD_CSS)
+
+
+CARD_CSS = '''
 .card {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     font-size: 18px;
@@ -65,13 +94,20 @@ def create_model(deck_name: str) -> genanki.Model:
     font-weight: 500;
     margin-bottom: 10px;
 }
-.answer {
-    margin-top: 15px;
-}
+.answer { margin-top: 15px; }
 .meta {
     font-size: 12px;
     color: #888;
     text-transform: capitalize;
+    margin-top: 8px;
+}
+.extra {
+    font-size: 14px;
+    color: #666;
+    font-style: italic;
+    margin-top: 10px;
+    padding: 8px 12px;
+    border-left: 3px solid #ddd;
 }
 code {
     background: #f4f4f4;
@@ -85,38 +121,84 @@ hr#answer {
     border-top: 1px solid #ddd;
     margin: 15px 0;
 }
-''')
+'''
 
 
-def create_note(model: genanki.Model, card: dict, topic: str) -> genanki.Note:
-    """Create an Anki note from a flashcard card dict."""
-    question = convert_backticks_to_html(card['question'])
-    answer = convert_backticks_to_html(card['answer'])
-    tier = card.get('tier', 'unknown')
-    card_type = card.get('type', 'unknown')
+def convert_cloze_syntax(text: str) -> str:
+    """Convert {{blanked term}} to Anki's {{c1::blanked term}} format."""
+    counter = [0]
 
-    # Create tags
-    topic_tag = topic.replace(' ', '_')
-    tags = [f"tier::{tier}", f"type::{card_type}", f"topic::{topic_tag}"]
+    def replacer(match):
+        counter[0] += 1
+        return f"{{{{c{counter[0]}::{match.group(1)}}}}}"
 
-    # Generate stable GUID from question content
-    guid = genanki.guid_for(card['question'])
+    return re.sub(r'\{\{([^}]+)\}\}', replacer, text)
+
+
+def build_extra(card: dict) -> str:
+    """Build extra info string from mnemonic, context, source_detail."""
+    parts = []
+    if card.get('mnemonic'):
+        parts.append(card['mnemonic'])
+    if card.get('source_detail'):
+        parts.append(f"Source: {card['source_detail']}")
+    return ' | '.join(parts)
+
+
+def build_meta(card: dict) -> str:
+    tier = card.get('tier', '')
+    card_type = card.get('type', '')
+    priority = card.get('priority', '')
+    context = card.get('context', '')
+    parts = [p for p in [context, tier, card_type, priority] if p]
+    return ' · '.join(parts)
+
+
+def build_tags(card: dict, topic: str) -> list[str]:
+    topic_tag = topic.replace(' ', '_').replace('&', 'and')
+    tags = []
+    if card.get('tier'):
+        tags.append(f"tier::{card['tier']}")
+    if card.get('type'):
+        tags.append(f"type::{card['type']}")
+    if card.get('priority'):
+        tags.append(f"priority::{card['priority']}")
+    tags.append(f"topic::{topic_tag}")
+    return tags
+
+
+def create_note(basic_model, cloze_model, card: dict, topic: str) -> genanki.Note:
+    meta = build_meta(card)
+    extra = convert_backticks_to_html(build_extra(card))
+    tags = build_tags(card, topic)
+
+    if card.get('type') == 'cloze' and card.get('cloze_text'):
+        cloze_text = convert_cloze_syntax(card['cloze_text'])
+        cloze_text = convert_backticks_to_html(cloze_text)
+        guid = genanki.guid_for(card['cloze_text'])
+        return genanki.Note(
+            model=cloze_model,
+            fields=[cloze_text, meta, extra],
+            tags=tags,
+            guid=guid,
+        )
+
+    question = convert_backticks_to_html(card.get('question', ''))
+    answer = convert_backticks_to_html(card.get('answer', ''))
+    guid = genanki.guid_for(card.get('question', f"card_{card.get('id', '')}"))
 
     return genanki.Note(
-        model=model,
-        fields=[question, answer, tier, card_type],
+        model=basic_model,
+        fields=[question, answer, meta, extra],
         tags=tags,
-        guid=guid
+        guid=guid,
     )
 
 
 def convert_json_to_apkg(json_path: str, output_path: str | None = None, deck_name: str | None = None):
-    """Convert flashcard JSON file to Anki .apkg package."""
-    # Read JSON
     with open(json_path, 'r', encoding='utf-8') as f:
         data = json.load(f)
 
-    # Extract info
     topic = data.get('topic', 'Flashcards')
     cards = data.get('cards', [])
 
@@ -124,47 +206,47 @@ def convert_json_to_apkg(json_path: str, output_path: str | None = None, deck_na
         print("Error: No cards found in JSON file", file=sys.stderr)
         sys.exit(1)
 
-    # Use provided deck name or fall back to topic
     deck_name = deck_name or topic
 
-    # Determine output path
     if not output_path:
         output_path = json_path.rsplit('.', 1)[0] + '.apkg'
 
-    # Create model and deck
-    model = create_model(deck_name)
+    basic_model = create_basic_model(deck_name)
+    cloze_model = create_cloze_model(deck_name)
     deck_id = generate_id(f"deck_{deck_name}")
     deck = genanki.Deck(deck_id, deck_name)
 
-    # Add notes
+    cloze_count = 0
+    basic_count = 0
     for card in cards:
-        note = create_note(model, card, topic)
+        note = create_note(basic_model, cloze_model, card, topic)
         deck.add_note(note)
+        if card.get('type') == 'cloze':
+            cloze_count += 1
+        else:
+            basic_count += 1
 
-    # Export package
     package = genanki.Package(deck)
     package.write_to_file(output_path)
 
-    # Report stats
     stats = data.get('stats', {})
     by_tier = stats.get('by_tier', {})
-    by_type = stats.get('by_type', {})
+    by_priority = stats.get('by_priority', {})
 
     print(f"Exported {len(cards)} cards to {output_path}")
+    print(f"  Basic: {basic_count}, Cloze: {cloze_count}")
     print(f"\nDeck: {deck_name}")
     if by_tier:
-        tier_str = ", ".join(f"{k}: {v}" for k, v in by_tier.items())
-        print(f"Tiers: {tier_str}")
-    if by_type:
-        type_str = ", ".join(f"{k}: {v}" for k, v in by_type.items())
-        print(f"Types: {type_str}")
+        print(f"Tiers: {', '.join(f'{k}: {v}' for k, v in by_tier.items())}")
+    if by_priority:
+        print(f"Priority: {', '.join(f'{k}: {v}' for k, v in by_priority.items())}")
     print(f"\nTo import: Double-click {output_path} or use Anki → File → Import")
 
 
 def main():
     parser = argparse.ArgumentParser(description='Convert flashcard JSON to Anki .apkg')
     parser.add_argument('json_file', help='Path to flashcard JSON file')
-    parser.add_argument('--output', '-o', help='Output .apkg path (default: same as input with .apkg extension)')
+    parser.add_argument('--output', '-o', help='Output .apkg path')
     parser.add_argument('--deck', '-d', help='Deck name (default: topic from JSON)')
 
     args = parser.parse_args()
