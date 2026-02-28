@@ -38,6 +38,14 @@ install_fonts() {
             "https://github.com/ryanoasis/nerd-fonts/releases/download/v3.4.0/JetBrainsMono.zip"
     fi
 
+    # JetBrains Mono (clean monospace, no Nerd Font icons)
+    if fc-list 2>/dev/null | grep -i "JetBrains Mono" | grep -qvi "Nerd"; then
+        echo "[INFO] JetBrains Mono is already installed"
+    else
+        install_font "JetBrains Mono" \
+            "https://github.com/JetBrains/JetBrainsMono/releases/download/v2.304/JetBrainsMono-2.304.zip"
+    fi
+
     # FiraCode (programming font with ligatures)
     if fc-list 2>/dev/null | grep -qi "Fira Code"; then
         echo "[INFO] FiraCode is already installed"

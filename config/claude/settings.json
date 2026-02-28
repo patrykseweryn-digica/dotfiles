@@ -113,12 +113,10 @@
     "claude-md-management@claude-plugins-official": true,
     "document-skills@anthropic-agent-skills": true,
     "pyright-lsp@claude-plugins-official": true,
-    "superpowers@claude-plugins-official": true,
     "typescript-lsp@claude-plugins-official": true,
     "feature-dev@claude-plugins-official": true,
     "ralph-loop@claude-plugins-official": true,
-    "claude-code-setup@claude-plugins-official": true,
-    "superpowers@superpowers-marketplace": true
+    "claude-code-setup@claude-plugins-official": true
   },
   "defaultMode": "plan"
 }

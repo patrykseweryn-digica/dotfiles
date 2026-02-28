@@ -65,7 +65,7 @@
   "claudeCode.useTerminal": true,
   "diffEditor.renderSideBySide": false,
   "editor.folding": true,
-  "editor.fontFamily": "'Monaspace Neon', 'Cascadia Code', 'JetBrains Mono Nerd Font', 'Fira Code', 'Source Code Pro', monospace",
+  "editor.fontFamily": "'JetBrains Mono Light', 'Source Code Pro', 'Fira Code', 'JetBrains Mono Nerd Font', 'Cascadia Code', 'Monaspace Neon', monospace",
   "editor.formatOnSave": true,
   "editor.inlineSuggest.edits.showCollapsed": true,
   "editor.linkedEditing": true,
@@ -174,5 +174,6 @@
   "workbench.colorTheme": "Monokai",
   "workbench.iconTheme": "vscode-icons",
   "workbench.startupEditor": "none",
-  "accessibility.voice.keywordActivation": "chatInContext"
+  "accessibility.voice.keywordActivation": "chatInContext",
+  "editor.wordWrap": "on"
 }
