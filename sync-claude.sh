@@ -6,6 +6,7 @@ MANIFEST="${DOTFILES_DIR}/config/claude/claude-manifest.json"
 CACHE_DIR="${HOME}/.cache/claude-skill-repos"
 RESOLVED_DIR="${CACHE_DIR}/resolved"
 SKILLS_DIR="${HOME}/.claude/skills"
+CUSTOM_DIR="${DOTFILES_DIR}/config/claude/skills-custom"
 
 if ! command -v jq >/dev/null 2>&1; then
     echo "[ERROR] jq is required but not installed" >&2
@@ -153,6 +154,48 @@ cmd_import() {
     else
         echo "[INFO] No installed_plugins.json found, skipping plugin import"
     fi
+
+    # Import new custom skills (non-symlink dirs not in manifest)
+    for entry in "$SKILLS_DIR"/*/; do
+        [ -d "$entry" ] || continue
+        name="$(basename "$entry")"
+
+        # Skip symlinks (marketplace skills)
+        [ -L "${entry%/}" ] && continue
+
+        # Skip if already in skills-custom
+        [ -d "$CUSTOM_DIR/$name" ] && continue
+
+        # Skip if in manifest (marketplace skill resolved to dir)
+        if jq -e ".skills[\"$name\"]" "$MANIFEST" >/dev/null 2>&1; then
+            continue
+        fi
+
+        # Move to dotfiles, replace with symlink
+        cp -r "${entry%/}" "$CUSTOM_DIR/$name"
+        rm -rf "${entry%/}"
+        ln -s "$CUSTOM_DIR/$name" "${entry%/}"
+        echo "[INFO] Imported custom skill: $name"
+        changed=true
+    done
+
+    # Import new .skill files
+    for skill_file in "$SKILLS_DIR"/*.skill; do
+        [ -f "$skill_file" ] || continue
+        fname="$(basename "$skill_file")"
+
+        # Skip symlinks
+        [ -L "$skill_file" ] && continue
+
+        # Skip if already in skills-custom
+        [ -f "$CUSTOM_DIR/$fname" ] && continue
+
+        cp "$skill_file" "$CUSTOM_DIR/$fname"
+        rm "$skill_file"
+        ln -s "$CUSTOM_DIR/$fname" "$skill_file"
+        echo "[INFO] Imported custom skill file: $fname"
+        changed=true
+    done
 
     if [ "$changed" = true ]; then
         echo "[INFO] Manifest updated. Don't forget to commit and push."
