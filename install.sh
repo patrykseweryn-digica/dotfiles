@@ -187,13 +187,14 @@ setup_dotfiles() {
     link_file "$DOTFILES_DIR/config/claude/output-styles" "${HOME}/.claude/output-styles"
     link_file "$DOTFILES_DIR/config/claude/agents" "${HOME}/.claude/agents"
 
-    # Link each skill directory individually (needed because last30days is a submodule)
-    for skill_dir in "$DOTFILES_DIR/config/claude/skills"/*/; do
+    # Link custom skills from dotfiles
+    for skill_dir in "$DOTFILES_DIR/config/claude/skills-custom"/*/; do
+        [ -d "$skill_dir" ] || continue
         skill_name="$(basename "$skill_dir")"
         link_file "$skill_dir" "${HOME}/.claude/skills/${skill_name}"
     done
     # Link .skill compiled files
-    for skill_file in "$DOTFILES_DIR/config/claude/skills"/*.skill; do
+    for skill_file in "$DOTFILES_DIR/config/claude/skills-custom"/*.skill; do
         [ -f "$skill_file" ] && link_file "$skill_file" "${HOME}/.claude/skills/$(basename "$skill_file")"
     done
 
