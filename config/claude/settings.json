@@ -118,7 +118,9 @@
     "ralph-loop@claude-plugins-official": true,
     "claude-code-setup@claude-plugins-official": true,
     "superpowers@claude-plugins-official": true,
-    "superpowers@superpowers-marketplace": true
+    "superpowers@superpowers-marketplace": true,
+    "impeccable@impeccable": true
   },
-  "defaultMode": "plan"
+  "defaultMode": "plan",
+  "effortLevel": "high"
 }
