@@ -35,10 +35,14 @@ generate_key() {
 generate_key ~/.ssh/id_ed25519 "$PERSONAL_EMAIL" "personal"
 generate_key ~/.ssh/id_ed25519_work "$WORK_EMAIL" "work"
 
-# Start ssh-agent and add keys
-if ! eval "$(ssh-agent -s)"; then
-    echo "[ERROR] Failed to start ssh-agent" >&2
-    exit 1
+# Start ssh-agent if not already running
+if [ -z "${SSH_AUTH_SOCK:-}" ]; then
+    if ! eval "$(ssh-agent -s)"; then
+        echo "[ERROR] Failed to start ssh-agent" >&2
+        exit 1
+    fi
+else
+    echo "[INFO] Using existing ssh-agent"
 fi
 
 if [ "$(uname)" = "Darwin" ]; then
