@@ -247,15 +247,15 @@ main() {
     echo "[INFO] Starting dotfiles installation..."
     echo "[INFO] Sudo available: ${HAS_SUDO}"
     echo "[INFO] Install directory: ${INSTALL_DIR}"
-    # Install tools
-    install_uv
-    install_zsh
-    install_oh_my_zsh
-    install_pipx
-    install_tools
-    install_fonts
-    install_nvm
-    install_terminal_colors
+    # Install tools (continue on non-critical failures)
+    install_uv || echo "[WARN] uv installation had issues, continuing..."
+    install_zsh || { echo "[ERROR] zsh installation failed, aborting"; return 1; }
+    install_oh_my_zsh || echo "[WARN] Oh My Zsh installation had issues, continuing..."
+    install_pipx || echo "[WARN] pipx installation had issues, continuing..."
+    install_tools || echo "[WARN] Some tools failed to install, continuing..."
+    install_fonts || echo "[WARN] Font installation had issues, continuing..."
+    install_nvm || echo "[WARN] NVM installation had issues, continuing..."
+    install_terminal_colors || echo "[WARN] Terminal color setup had issues, continuing..."
 
     # Setup dotfile configurations
     setup_dotfiles
