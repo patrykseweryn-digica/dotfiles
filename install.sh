@@ -171,6 +171,9 @@ setup_dotfiles() {
     # Link .vimrc
     link_file "$DOTFILES_DIR/.vimrc" "${HOME}/.vimrc"
 
+    # Link .aliases
+    link_file "$DOTFILES_DIR/.aliases" "${HOME}/.aliases"
+
     # Link VSCode settings
     mkdir -p "${HOME}/.config/Code/User"
     link_file "$DOTFILES_DIR/config/Code/settings.json" "${HOME}/.config/Code/User/settings.json"
@@ -185,9 +188,6 @@ setup_dotfiles() {
     # Link GitHub CLI config (file only, not dir - to preserve hosts.yml with auth tokens)
     mkdir -p "${HOME}/.config/gh"
     link_file "$DOTFILES_DIR/config/gh/config.yml" "${HOME}/.config/gh/config.yml"
-
-    # Link .bashrc
-    link_file "$DOTFILES_DIR/.bashrc" "${HOME}/.bashrc"
 
     # Link Claude Code config
     mkdir -p "${HOME}/.claude/plugins" "${HOME}/.claude/output-styles" "${HOME}/.claude/skills"
