@@ -72,13 +72,11 @@ load_env() {
     echo "[INFO] Loaded environment from $ENV_FILE"
 }
 
-OVERWRITE=false
 DEBUG=false
 
 usage() {
-    echo "Usage: $0 [--force] [--sudo] [--debug]"
+    echo "Usage: $0 [--sudo] [--debug]"
     echo
-    echo "  --force, -f    Overwrite existing dotfiles"
     echo "  --sudo, -s     Force enable sudo (skip auto-detection)"
     echo "  --debug        Enable verbose shell tracing"
 }
@@ -86,9 +84,6 @@ usage() {
 parse_args() {
     while [ $# -gt 0 ]; do
         case "$1" in
-        -f | --force)
-            OVERWRITE=true
-            ;;
         -s | --sudo)
             HAS_SUDO=true
             ;;
@@ -112,15 +107,30 @@ parse_args() {
 link_file() {
     local source_path="$1"
     local target_path="$2"
+    local backup_dir="${HOME}/.dotfiles-backup"
 
+    # Already a correct symlink - nothing to do
+    if [ -L "$target_path" ] && [ "$(readlink "$target_path")" = "$source_path" ]; then
+        return
+    fi
+
+    # Target exists and is not our symlink - backup with drift warning
     if [ -e "$target_path" ] || [ -L "$target_path" ]; then
-        if [ "$OVERWRITE" = true ]; then
-            echo "[INFO] Overwriting $target_path"
-            rm -rf "$target_path"
+        mkdir -p "$backup_dir"
+        local backup_name
+        backup_name="$(basename "$target_path").$(date +%Y%m%d%H%M%S)"
+        cp -rP "$target_path" "${backup_dir}/${backup_name}"
+
+        # Drift warning: target differs from source
+        if [ -f "$target_path" ] && [ -f "$source_path" ] && ! diff -q "$source_path" "$target_path" >/dev/null 2>&1; then
+            echo "[WARN] $target_path differs from dotfiles source. Backed up to ${backup_dir}/${backup_name}"
+            echo "[WARN] Diff (source vs target):"
+            diff --color=auto "$source_path" "$target_path" | head -20 || true
         else
-            echo "[INFO] Skipping $target_path; already exists (use --force to overwrite)"
-            return
+            echo "[INFO] Backed up $target_path to ${backup_dir}/${backup_name}"
         fi
+
+        rm -rf "$target_path"
     fi
 
     ln -s "$source_path" "$target_path"
@@ -237,10 +247,6 @@ main() {
     echo "[INFO] Starting dotfiles installation..."
     echo "[INFO] Sudo available: ${HAS_SUDO}"
     echo "[INFO] Install directory: ${INSTALL_DIR}"
-    if [ "$OVERWRITE" = true ]; then
-        echo "[INFO] Existing dotfiles will be overwritten"
-    fi
-
     # Install tools
     install_uv
     install_zsh
