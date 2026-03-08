@@ -163,6 +163,25 @@ install_tools() {
         install_github_binary "jesseduffield/lazygit" "v0.59.0" "lazygit_{tag_no_v}_Linux_x86_64.tar.gz" "lazygit" || true
     fi
 
+    # jq (required by sync-claude.sh)
+    if check_installed jq; then
+        echo "[INFO] jq is already installed"
+    elif [ "$HAS_SUDO" = true ]; then
+        if command -v apt-get >/dev/null 2>&1; then
+            sudo apt-get install -y jq
+        elif command -v dnf >/dev/null 2>&1; then
+            sudo dnf install -y jq
+        elif command -v pacman >/dev/null 2>&1; then
+            sudo pacman -S --noconfirm jq
+        elif command -v brew >/dev/null 2>&1; then
+            brew install jq
+        else
+            echo "[WARN] Could not install jq: no supported package manager"
+        fi
+    else
+        install_github_binary "jqlang/jq" "jq-1.7.1" "jq-linux-amd64" "jq-linux-amd64" "jq" || true
+    fi
+
     # tpm (tmux plugin manager)
     if [ -d "${HOME}/.tmux/plugins/tpm" ]; then
         echo "[INFO] tpm is already installed"
