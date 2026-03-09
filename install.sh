@@ -266,6 +266,12 @@ main() {
         pre-commit install -c "${DOTFILES_DIR}/.pre-commit-config.yaml"
     fi
 
+    # Setup git hooks for dotfiles repo
+    if [ -f "$DOTFILES_DIR/hooks/post-merge" ]; then
+        mkdir -p "$DOTFILES_DIR/.git/hooks"
+        link_file "$DOTFILES_DIR/hooks/post-merge" "$DOTFILES_DIR/.git/hooks/post-merge"
+    fi
+
     echo "[INFO] Installation complete!"
     echo "[INFO] Please restart your shell or run: source ~/.zshrc"
 }

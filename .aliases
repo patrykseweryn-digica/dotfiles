@@ -46,8 +46,8 @@ alias unstage="git restore --staged ."
 alias wip="commit wip"
 
 # Git worktree helper — creates worktrees in .worktrees/ subdir
-gwta() {
-  local branch="${1?Usage: gwta <branch-name> [base-branch]}"
+gwa() {
+  local branch="${1?Usage: gwa <branch-name> [base-branch]}"
   local base="${2:-HEAD}"
   local dir=".worktrees/${branch}"
   mkdir -p .worktrees
