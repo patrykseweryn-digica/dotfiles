@@ -106,7 +106,6 @@
     "command": "bash /home/pseweryn/.claude/statusline-command.sh"
   },
   "enabledPlugins": {
-    "frontend-design@claude-plugins-official": true,
     "context7@claude-plugins-official": true,
     "code-review@claude-plugins-official": true,
     "code-simplifier@claude-plugins-official": true,
@@ -117,9 +116,13 @@
     "feature-dev@claude-plugins-official": true,
     "ralph-loop@claude-plugins-official": true,
     "claude-code-setup@claude-plugins-official": true,
-    "superpowers@superpowers-marketplace": true,
     "impeccable@impeccable": true,
-    "qmd@qmd": true
+    "qmd@qmd": true,
+    "playwright@claude-plugins-official": true,
+    "supabase@claude-plugins-official": true,
+    "figma@claude-plugins-official": true,
+    "superpowers@superpowers-marketplace": true,
+    "security-guidance@claude-code-plugins": true
   },
   "defaultMode": "acceptEdits",
   "effortLevel": "high"
