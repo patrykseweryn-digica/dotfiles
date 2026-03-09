@@ -48,6 +48,11 @@ export PATH="${HOME}/.local/bin:${HOME}/.cargo/bin:$PATH"
 export PYTHONSTARTUP="${HOME}/.pythonrc.py"
 
 # Project templates
+new-project() {
+  local name="${1?Usage: new-project <project-name>}"
+  uvx copier copy --trust gh:p-severin/python-repo-template "$name"
+}
+
 new-project-digica() {
   local name="${1?Usage: new-project-digica <project-name>}"
   uvx copier copy --trust gh:patrykseweryn-digica/python-repo-template "$name"
