@@ -101,28 +101,63 @@
       "Bash(reboot *)"
     ]
   },
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash $HOME/dotfiles/sync-claude.sh --quiet import"
+          }
+        ]
+      }
+    ]
+  },
   "statusLine": {
     "type": "command",
     "command": "bash /home/pseweryn/.claude/statusline-command.sh"
   },
   "enabledPlugins": {
+    "frontend-design@claude-plugins-official": true,
     "context7@claude-plugins-official": true,
     "code-review@claude-plugins-official": true,
     "code-simplifier@claude-plugins-official": true,
     "claude-md-management@claude-plugins-official": true,
-    "document-skills@anthropic-agent-skills": true,
     "pyright-lsp@claude-plugins-official": true,
+    "superpowers@claude-plugins-official": true,
     "typescript-lsp@claude-plugins-official": true,
     "feature-dev@claude-plugins-official": true,
     "ralph-loop@claude-plugins-official": true,
     "claude-code-setup@claude-plugins-official": true,
+    "document-skills@anthropic-agent-skills": true,
+    "superpowers@superpowers-marketplace": true,
     "impeccable@impeccable": true,
-    "qmd@qmd": true,
     "playwright@claude-plugins-official": true,
     "supabase@claude-plugins-official": true,
     "figma@claude-plugins-official": true,
-    "superpowers@superpowers-marketplace": true,
-    "security-guidance@claude-code-plugins": true
+    "security-guidance@claude-plugins-official": true,
+    "ui-ux-pro-max@ui-ux-pro-max-skill": true
+  },
+  "extraKnownMarketplaces": {
+    "impeccable": {
+      "source": {
+        "source": "github",
+        "repo": "pbakaus/impeccable"
+      }
+    },
+    "superpowers-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "obra/superpowers-marketplace"
+      }
+    },
+    "ui-ux-pro-max-skill": {
+      "source": {
+        "source": "github",
+        "repo": "nextlevelbuilder/ui-ux-pro-max-skill"
+      }
+    }
   },
   "defaultMode": "acceptEdits",
   "effortLevel": "high"

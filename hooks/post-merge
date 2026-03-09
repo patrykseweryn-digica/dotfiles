@@ -1,0 +1,6 @@
+#!/bin/bash
+# Auto-sync Claude Code plugins after git pull/merge
+DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+if [ -x "$DOTFILES_DIR/sync-claude.sh" ]; then
+    "$DOTFILES_DIR/sync-claude.sh" install
+fi

@@ -1,4 +1,9 @@
 {
+  "marketplaces": {
+    "impeccable": { "source": "github", "repo": "pbakaus/impeccable" },
+    "superpowers-marketplace": { "source": "github", "repo": "obra/superpowers-marketplace" },
+    "ui-ux-pro-max-skill": { "source": "github", "repo": "nextlevelbuilder/ui-ux-pro-max-skill" }
+  },
   "skills": {
     "tdd": { "repo": "mattpocock/skills", "path": "tdd" },
     "write-a-skill": { "repo": "mattpocock/skills", "path": "write-a-skill" },
@@ -24,6 +29,12 @@
     "ralph-loop@claude-plugins-official",
     "claude-code-setup@claude-plugins-official",
     "document-skills@anthropic-agent-skills",
-    "superpowers@superpowers-marketplace"
+    "superpowers@superpowers-marketplace",
+    "impeccable@impeccable",
+    "playwright@claude-plugins-official",
+    "supabase@claude-plugins-official",
+    "figma@claude-plugins-official",
+    "security-guidance@claude-plugins-official",
+    "ui-ux-pro-max@ui-ux-pro-max-skill"
   ]
 }
