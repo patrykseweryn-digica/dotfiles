@@ -11,6 +11,18 @@
     "ui-ux-pro-max-skill": {
       "source": "github",
       "repo": "nextlevelbuilder/ui-ux-pro-max-skill"
+    },
+    "claude-code-plugins": {
+      "source": "github",
+      "repo": "anthropics/claude-code"
+    },
+    "nyldn-plugins": {
+      "source": "github",
+      "repo": "nyldn/claude-octopus"
+    },
+    "qmd": {
+      "source": "git",
+      "url": "https://github.com/tobi/qmd.git"
     }
   },
   "skills": {
@@ -74,6 +86,9 @@
     "supabase@claude-plugins-official",
     "figma@claude-plugins-official",
     "security-guidance@claude-plugins-official",
-    "ui-ux-pro-max@ui-ux-pro-max-skill"
+    "ui-ux-pro-max@ui-ux-pro-max-skill",
+    "claude-octopus@nyldn-plugins",
+    "qmd@qmd",
+    "security-guidance@claude-code-plugins"
   ]
 }
