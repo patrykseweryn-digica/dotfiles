@@ -45,6 +45,16 @@ alias stash="git stash -u"
 alias unstage="git restore --staged ."
 alias wip="commit wip"
 
+# Git worktree helper — creates worktrees in .worktrees/ subdir
+gwta() {
+  local branch="${1?Usage: gwta <branch-name> [base-branch]}"
+  local base="${2:-HEAD}"
+  local dir=".worktrees/${branch}"
+  mkdir -p .worktrees
+  git worktree add "$dir" -b "$branch" "$base"
+  echo "Worktree ready: $dir"
+}
+
 # Terminal
 alias gogh='bash -c "$(curl -sLo- https://git.io/vQgMr)"'
 

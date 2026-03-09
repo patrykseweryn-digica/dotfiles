@@ -89,7 +89,6 @@ plugins=(
 	zsh-syntax-highlighting
 	zsh-bat
 	you-should-use
-	fzf-tab
 )
 source $ZSH/oh-my-zsh.sh
 
@@ -98,6 +97,9 @@ zstyle ':completion:*:(ssh|scp|sftp):*' hosts $(awk '/^Host / && !/\*/ {print $2
 
 # zoxide (smart cd, replaces z plugin)
 eval "$(zoxide init zsh)"
+
+# uv shell completions
+eval "$(uv generate-shell-completion zsh)"
 export NVM_DIR="$HOME/.nvm"
 [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"                   # This loads nvm
 [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion" # This loads nvm bash_completion
