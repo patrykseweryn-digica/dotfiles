@@ -147,11 +147,10 @@
     "playwright@claude-plugins-official": true,
     "supabase@claude-plugins-official": true,
     "figma@claude-plugins-official": true,
-    "security-guidance@claude-plugins-official": true,
     "ui-ux-pro-max@ui-ux-pro-max-skill": true,
+    "security-guidance@claude-plugins-official": true,
     "claude-octopus@nyldn-plugins": true,
-    "qmd@qmd": true,
-    "security-guidance@claude-code-plugins": true
+    "qmd@qmd": true
   },
   "extraKnownMarketplaces": {
     "impeccable": {
@@ -172,12 +171,6 @@
         "repo": "nextlevelbuilder/ui-ux-pro-max-skill"
       }
     },
-    "claude-code-plugins": {
-      "source": {
-        "source": "github",
-        "repo": "anthropics/claude-code"
-      }
-    },
     "nyldn-plugins": {
       "source": {
         "source": "github",
@@ -188,6 +181,12 @@
       "source": {
         "source": "git",
         "url": "https://github.com/tobi/qmd.git"
+      }
+    },
+    "claude-code-plugins": {
+      "source": {
+        "source": "github",
+        "repo": "anthropics/claude-code"
       }
     }
   },

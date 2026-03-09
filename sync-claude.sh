@@ -146,6 +146,10 @@ cmd_install() {
         rm "$plugins_json"
     fi
 
+    # Write extraKnownMarketplaces before installing plugins so claude CLI
+    # can resolve custom marketplace sources on first run
+    generate_settings
+
     # Install plugins
     if ! command -v claude >/dev/null 2>&1; then
         echo "[WARN] claude CLI not found, skipping plugin installation"
