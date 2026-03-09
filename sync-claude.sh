@@ -33,10 +33,27 @@ generate_settings() {
         return
     fi
 
+    local plugins_file="${HOME}/.claude/plugins/installed_plugins.json"
+    local installed_json="[]"
+    if [ -f "$plugins_file" ]; then
+        installed_json=$(jq '[.plugins | keys[]]' "$plugins_file")
+    fi
+
     local tmp="${SETTINGS_FILE}.tmp"
 
-    jq --slurpfile m "$MANIFEST" '
-        ($m[0].plugins | map({(.): true}) | add // {}) as $ep |
+    # Respect user's enabled/disabled state:
+    #   - Plugin in current enabledPlugins → keep current value
+    #   - Not in enabledPlugins but installed → user disabled it via UI → keep disabled
+    #   - Not in enabledPlugins and not installed → new plugin → enable
+    jq --slurpfile m "$MANIFEST" --argjson installed "$installed_json" '
+        (.enabledPlugins // {}) as $current |
+        ($m[0].plugins | map(
+            . as $p |
+            if ($current | has($p)) then {($p): $current[$p]}
+            elif ($installed | index($p)) then {($p): false}
+            else {($p): true}
+            end
+        ) | add // {}) as $ep |
         ($m[0].marketplaces // {} | to_entries | map({(.key): {"source": .value}}) | add // {}) as $mk |
         .enabledPlugins = $ep |
         if ($mk | length) > 0 then .extraKnownMarketplaces = $mk else del(.extraKnownMarketplaces) end
@@ -250,6 +267,19 @@ cmd_import() {
         changed=true
     done
 
+    # Warn about plugins in manifest but not installed (always visible, even in --quiet)
+    if [ -f "$plugins_file" ]; then
+        local stale_plugins
+        stale_plugins=$(jq -r --slurpfile m "$MANIFEST" \
+            '$m[0].plugins - [.plugins | keys[]] | .[]' "$plugins_file") || true
+
+        if [ -n "$stale_plugins" ]; then
+            echo "[WARN] Plugins in manifest but not installed (uninstalled?):"
+            echo "$stale_plugins" | while read -r p; do echo "  - $p"; done
+            echo "[WARN] To remove from manifest: ./sync-claude.sh prune"
+        fi
+    fi
+
     if [ "$changed" = true ]; then
         generate_settings
         echo "[INFO] Manifest updated. Don't forget to commit and push."
@@ -266,6 +296,37 @@ cmd_update() {
     resolve_skills
 
     log_info "Update complete"
+}
+
+cmd_prune() {
+    local plugins_file="${HOME}/.claude/plugins/installed_plugins.json"
+
+    if [ ! -f "$plugins_file" ]; then
+        echo "[ERROR] installed_plugins.json not found" >&2
+        return 1
+    fi
+
+    local stale_plugins tmp changed=false
+    tmp="${MANIFEST}.tmp"
+    stale_plugins=$(jq -r --slurpfile m "$MANIFEST" \
+        '$m[0].plugins - [.plugins | keys[]] | .[]' "$plugins_file") || true
+
+    if [ -z "$stale_plugins" ]; then
+        log_info "Nothing to prune"
+        return 0
+    fi
+
+    for plugin in $stale_plugins; do
+        jq --arg p "$plugin" '.plugins -= [$p]' "$MANIFEST" > "$tmp"
+        mv "$tmp" "$MANIFEST"
+        echo "[INFO] Removed from manifest: $plugin"
+        changed=true
+    done
+
+    if [ "$changed" = true ]; then
+        generate_settings
+        echo "[INFO] Manifest pruned. Don't forget to commit and push."
+    fi
 }
 
 cmd_check() {
@@ -323,13 +384,17 @@ case "${1:-}" in
     check)
         cmd_check
         ;;
+    prune)
+        cmd_prune
+        ;;
     *)
-        echo "Usage: $0 [--quiet] {install|import|update|check}"
+        echo "Usage: $0 [--quiet] {install|import|update|check|prune}"
         echo
         echo "  install  Clone repos, resolve skills, install plugins"
         echo "  import   Import new skills/plugins from local state into manifest"
         echo "  update   Pull latest skill repos and re-resolve"
         echo "  check    Compare manifest plugins vs installed plugins"
+        echo "  prune    Remove uninstalled plugins from manifest"
         exit 1
         ;;
 esac
