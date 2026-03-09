@@ -44,6 +44,7 @@
 - Linter/formatter: `ruff`
 - Type checker: `pyright`
 - Pre-commit hooks: always set up
+- New project: `new-project <name>` (uses copier template from `gh:p-severin/python-repo-template`)
 
 ### JavaScript/TypeScript
 - Linter: `eslint`

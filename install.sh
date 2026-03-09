@@ -72,13 +72,11 @@ load_env() {
     echo "[INFO] Loaded environment from $ENV_FILE"
 }
 
-OVERWRITE=false
 DEBUG=false
 
 usage() {
-    echo "Usage: $0 [--force] [--sudo] [--debug]"
+    echo "Usage: $0 [--sudo] [--debug]"
     echo
-    echo "  --force, -f    Overwrite existing dotfiles"
     echo "  --sudo, -s     Force enable sudo (skip auto-detection)"
     echo "  --debug        Enable verbose shell tracing"
 }
@@ -86,9 +84,6 @@ usage() {
 parse_args() {
     while [ $# -gt 0 ]; do
         case "$1" in
-        -f | --force)
-            OVERWRITE=true
-            ;;
         -s | --sudo)
             HAS_SUDO=true
             ;;
@@ -112,15 +107,30 @@ parse_args() {
 link_file() {
     local source_path="$1"
     local target_path="$2"
+    local backup_dir="${HOME}/.dotfiles-backup"
 
+    # Already a correct symlink - nothing to do
+    if [ -L "$target_path" ] && [ "$(readlink "$target_path")" = "$source_path" ]; then
+        return
+    fi
+
+    # Target exists and is not our symlink - backup with drift warning
     if [ -e "$target_path" ] || [ -L "$target_path" ]; then
-        if [ "$OVERWRITE" = true ]; then
-            echo "[INFO] Overwriting $target_path"
-            rm -rf "$target_path"
+        mkdir -p "$backup_dir"
+        local backup_name
+        backup_name="$(basename "$target_path").$(date +%Y%m%d%H%M%S)"
+        cp -rP "$target_path" "${backup_dir}/${backup_name}"
+
+        # Drift warning: target differs from source
+        if [ -f "$target_path" ] && [ -f "$source_path" ] && ! diff -q "$source_path" "$target_path" >/dev/null 2>&1; then
+            echo "[WARN] $target_path differs from dotfiles source. Backed up to ${backup_dir}/${backup_name}"
+            echo "[WARN] Diff (source vs target):"
+            diff --color=auto "$source_path" "$target_path" | head -20 || true
         else
-            echo "[INFO] Skipping $target_path; already exists (use --force to overwrite)"
-            return
+            echo "[INFO] Backed up $target_path to ${backup_dir}/${backup_name}"
         fi
+
+        rm -rf "$target_path"
     fi
 
     ln -s "$source_path" "$target_path"
@@ -161,6 +171,9 @@ setup_dotfiles() {
     # Link .vimrc
     link_file "$DOTFILES_DIR/.vimrc" "${HOME}/.vimrc"
 
+    # Link .aliases
+    link_file "$DOTFILES_DIR/.aliases" "${HOME}/.aliases"
+
     # Link VSCode settings
     mkdir -p "${HOME}/.config/Code/User"
     link_file "$DOTFILES_DIR/config/Code/settings.json" "${HOME}/.config/Code/User/settings.json"
@@ -176,9 +189,6 @@ setup_dotfiles() {
     mkdir -p "${HOME}/.config/gh"
     link_file "$DOTFILES_DIR/config/gh/config.yml" "${HOME}/.config/gh/config.yml"
 
-    # Link .bashrc
-    link_file "$DOTFILES_DIR/.bashrc" "${HOME}/.bashrc"
-
     # Link Claude Code config
     mkdir -p "${HOME}/.claude/plugins" "${HOME}/.claude/output-styles" "${HOME}/.claude/skills"
     link_file "$DOTFILES_DIR/config/claude/CLAUDE.md" "${HOME}/.claude/CLAUDE.md"
@@ -187,13 +197,14 @@ setup_dotfiles() {
     link_file "$DOTFILES_DIR/config/claude/output-styles" "${HOME}/.claude/output-styles"
     link_file "$DOTFILES_DIR/config/claude/agents" "${HOME}/.claude/agents"
 
-    # Link each skill directory individually (needed because last30days is a submodule)
-    for skill_dir in "$DOTFILES_DIR/config/claude/skills"/*/; do
+    # Link custom skills from dotfiles
+    for skill_dir in "$DOTFILES_DIR/config/claude/skills-custom"/*/; do
+        [ -d "$skill_dir" ] || continue
         skill_name="$(basename "$skill_dir")"
         link_file "$skill_dir" "${HOME}/.claude/skills/${skill_name}"
     done
     # Link .skill compiled files
-    for skill_file in "$DOTFILES_DIR/config/claude/skills"/*.skill; do
+    for skill_file in "$DOTFILES_DIR/config/claude/skills-custom"/*.skill; do
         [ -f "$skill_file" ] && link_file "$skill_file" "${HOME}/.claude/skills/$(basename "$skill_file")"
     done
 
@@ -236,19 +247,15 @@ main() {
     echo "[INFO] Starting dotfiles installation..."
     echo "[INFO] Sudo available: ${HAS_SUDO}"
     echo "[INFO] Install directory: ${INSTALL_DIR}"
-    if [ "$OVERWRITE" = true ]; then
-        echo "[INFO] Existing dotfiles will be overwritten"
-    fi
-
-    # Install tools
-    install_uv
-    install_zsh
-    install_oh_my_zsh
-    install_pipx
-    install_tools
-    install_fonts
-    install_nvm
-    install_terminal_colors
+    # Install tools (continue on non-critical failures)
+    install_uv || echo "[WARN] uv installation had issues, continuing..."
+    install_zsh || { echo "[ERROR] zsh installation failed, aborting"; return 1; }
+    install_oh_my_zsh || echo "[WARN] Oh My Zsh installation had issues, continuing..."
+    install_pipx || echo "[WARN] pipx installation had issues, continuing..."
+    install_tools || echo "[WARN] Some tools failed to install, continuing..."
+    install_fonts || echo "[WARN] Font installation had issues, continuing..."
+    install_nvm || echo "[WARN] NVM installation had issues, continuing..."
+    install_terminal_colors || echo "[WARN] Terminal color setup had issues, continuing..."
 
     # Setup dotfile configurations
     setup_dotfiles

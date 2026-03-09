@@ -11,6 +11,13 @@ install_terminal_colors() {
         return
     fi
 
+    # Skip if already applied
+    local marker="${HOME}/.local/share/.terminal-colors-applied"
+    if [ -f "$marker" ]; then
+        echo "[INFO] Terminal color scheme already applied"
+        return
+    fi
+
     local tmp_dir
     tmp_dir="$(mktemp -d)"
 
@@ -31,6 +38,8 @@ install_terminal_colors() {
     echo "[INFO] Applying ${GOGH_THEME} color scheme..."
     if GOGH_APPLY_SCRIPT="${tmp_dir}/apply-colors.sh" bash "${tmp_dir}/${GOGH_THEME}.sh"; then
         echo "[INFO] Terminal color scheme applied successfully"
+        mkdir -p "$(dirname "$marker")"
+        touch "$marker"
     else
         echo "[WARN] Failed to apply terminal color scheme"
     fi
