@@ -59,8 +59,12 @@ generate_settings() {
         if ($mk | length) > 0 then .extraKnownMarketplaces = $mk else del(.extraKnownMarketplaces) end
     ' "$SETTINGS_FILE" > "$tmp" || { rm -f "$tmp"; echo "[ERROR] Failed to generate settings" >&2; return 1; }
 
-    mv "$tmp" "$SETTINGS_FILE"
-    log_info "Updated settings.json (enabledPlugins + extraKnownMarketplaces)"
+    if cmp -s "$tmp" "$SETTINGS_FILE"; then
+        rm -f "$tmp"
+    else
+        mv "$tmp" "$SETTINGS_FILE"
+        log_info "Updated settings.json (enabledPlugins + extraKnownMarketplaces)"
+    fi
 }
 
 sync_repos() {
@@ -283,8 +287,11 @@ cmd_import() {
         fi
     fi
 
+    # Always reconcile settings.json with manifest (handles stale entries
+    # from Claude Code overwriting settings after previous hook runs)
+    generate_settings
+
     if [ "$changed" = true ]; then
-        generate_settings
         echo "[INFO] Manifest updated. Don't forget to commit and push."
     else
         log_info "No new skills or plugins to import."
@@ -309,7 +316,7 @@ cmd_prune() {
         return 1
     fi
 
-    local stale_plugins tmp changed=false
+    local stale_plugins tmp
     tmp="${MANIFEST}.tmp"
     stale_plugins=$(jq -r --slurpfile m "$MANIFEST" \
         '$m[0].plugins - [.plugins | keys[]] | .[]' "$plugins_file") || true
@@ -323,13 +330,10 @@ cmd_prune() {
         jq --arg p "$plugin" '.plugins -= [$p]' "$MANIFEST" > "$tmp"
         mv "$tmp" "$MANIFEST"
         echo "[INFO] Removed from manifest: $plugin"
-        changed=true
     done
 
-    if [ "$changed" = true ]; then
-        generate_settings
-        echo "[INFO] Manifest pruned. Don't forget to commit and push."
-    fi
+    generate_settings
+    echo "[INFO] Manifest pruned. Don't forget to commit and push."
 }
 
 cmd_check() {

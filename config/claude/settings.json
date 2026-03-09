@@ -112,6 +112,17 @@
           }
         ]
       }
+    ],
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash $HOME/dotfiles/sync-claude.sh --quiet prune"
+          }
+        ]
+      }
     ]
   },
   "statusLine": {
