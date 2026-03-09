@@ -267,16 +267,19 @@ cmd_import() {
         changed=true
     done
 
-    # Warn about plugins in manifest but not installed (always visible, even in --quiet)
+    # Auto-prune: remove plugins from manifest that were uninstalled locally
     if [ -f "$plugins_file" ]; then
         local stale_plugins
         stale_plugins=$(jq -r --slurpfile m "$MANIFEST" \
             '$m[0].plugins - [.plugins | keys[]] | .[]' "$plugins_file") || true
 
         if [ -n "$stale_plugins" ]; then
-            echo "[WARN] Plugins in manifest but not installed (uninstalled?):"
-            echo "$stale_plugins" | while read -r p; do echo "  - $p"; done
-            echo "[WARN] To remove from manifest: ./sync-claude.sh prune"
+            for plugin in $stale_plugins; do
+                jq --arg p "$plugin" '.plugins -= [$p]' "$MANIFEST" > "$tmp"
+                mv "$tmp" "$MANIFEST"
+                echo "[INFO] Pruned from manifest (uninstalled): $plugin"
+                changed=true
+            done
         fi
     fi
 
