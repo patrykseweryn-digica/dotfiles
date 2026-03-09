@@ -92,15 +92,21 @@ install_fonts() {
         fc-cache -f
     fi
 
-    # Configure GNOME Terminal default font
+    # Configure GNOME Terminal default font (only if not already set)
     if command -v gsettings >/dev/null 2>&1 && fc-list 2>/dev/null | grep -qi "JetBrainsMono Nerd"; then
         local profile_id
         profile_id=$(gsettings get org.gnome.Terminal.ProfilesList default 2>/dev/null | tr -d "'") || true
         if [ -n "$profile_id" ]; then
             local profile_path="org.gnome.Terminal.Legacy.Profile:/org/gnome/terminal/legacy/profiles:/:${profile_id}/"
-            gsettings set "$profile_path" use-system-font false
-            gsettings set "$profile_path" font 'JetBrainsMono Nerd Font 16'
-            echo "[INFO] GNOME Terminal font set to JetBrains Mono Nerd Font 16"
+            local current_font
+            current_font=$(gsettings get "$profile_path" font 2>/dev/null | tr -d "'") || true
+            if [ "$current_font" = "JetBrainsMono Nerd Font 16" ]; then
+                echo "[INFO] GNOME Terminal font already set"
+            else
+                gsettings set "$profile_path" use-system-font false
+                gsettings set "$profile_path" font 'JetBrainsMono Nerd Font 16'
+                echo "[INFO] GNOME Terminal font set to JetBrains Mono Nerd Font 16"
+            fi
         fi
     fi
 }

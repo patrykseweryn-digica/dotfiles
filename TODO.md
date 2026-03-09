@@ -49,6 +49,6 @@
 
 ## Inne
 
-- [ ] `.env.example` - zamienic prawdziwy email na placeholder
-- [ ] `.zshrc` - wyczyscic zakomentowany boilerplate oh-my-zsh
+- [x] .env.example - zdecydowano: zostaje z prawdziwymi mailami (repo prywatne)
+- [x] .zshrc - wyczyszczony boilerplate oh-my-zsh
 - [x] `.zshrc` - dodac `source ~/.zshrc.local` na lokalne ustawienia per-maszyna
