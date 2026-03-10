@@ -105,6 +105,84 @@ resolve_skills() {
     done
 }
 
+fix_mcp_deps() {
+    local plugin_cache="${HOME}/.claude/plugins/cache"
+    local bin_dir="${HOME}/.local/bin"
+    [ -d "$plugin_cache" ] || return 0
+
+    log_info "Checking MCP server dependencies..."
+    mkdir -p "$bin_dir"
+
+    local mcp_file
+    while IFS= read -r mcp_file; do
+        [ -n "$mcp_file" ] || continue
+
+        local plugin_dir
+        if [[ "$mcp_file" == */.claude-plugin/* ]]; then
+            plugin_dir="$(dirname "$(dirname "$mcp_file")")"
+        else
+            plugin_dir="$(dirname "$mcp_file")"
+        fi
+
+        local entry
+        while IFS= read -r entry; do
+            [ -n "$entry" ] || continue
+
+            local name cmd args_first
+            name=$(echo "$entry" | base64 -d | jq -r '.key')
+            cmd=$(echo "$entry" | base64 -d | jq -r '.value.command // empty')
+            args_first=$(echo "$entry" | base64 -d | jq -r '.value.args[0] // ""')
+
+            # Skip HTTP-based or command-less MCP servers
+            [ -n "$cmd" ] || continue
+
+            if [ "$cmd" = "node" ] && [[ "$args_first" == ./* ]]; then
+                # Node-based server with relative path — install deps if missing
+                local server_dir
+                server_dir="$(dirname "${plugin_dir}/${args_first}")"
+                local pkg_dir="$server_dir"
+                while [ "$pkg_dir" != "/" ] && [ ! -f "$pkg_dir/package.json" ]; do
+                    pkg_dir="$(dirname "$pkg_dir")"
+                done
+
+                if [ -f "$pkg_dir/package.json" ] && [ ! -d "$pkg_dir/node_modules" ]; then
+                    log_info "Installing npm deps for MCP server '$name'..."
+                    (cd "$pkg_dir" && npm install --no-audit --no-fund) || echo "[WARN] npm install failed for MCP server '$name'"
+                fi
+            elif ! command -v "$cmd" >/dev/null 2>&1; then
+                # Binary not on PATH — check if plugin provides it via package.json bin
+                if [ -f "$plugin_dir/package.json" ]; then
+                    local bin_path
+                    bin_path=$(jq -r ".bin.\"$cmd\" // empty" "$plugin_dir/package.json")
+                    if [ -n "$bin_path" ]; then
+                        [ -d "$plugin_dir/node_modules" ] || {
+                            log_info "Installing npm deps for MCP server '$name'..."
+                            (cd "$plugin_dir" && npm install --no-audit --no-fund) || {
+                                echo "[WARN] npm install failed for MCP server '$name'"
+                                continue
+                            }
+                        }
+                        local target="${plugin_dir}/${bin_path}"
+                        if [ ! -f "$target" ] && jq -e '.scripts.build' "$plugin_dir/package.json" >/dev/null 2>&1; then
+                            log_info "Building MCP server '$name'..."
+                            (cd "$plugin_dir" && npm run build) || echo "[WARN] build failed for MCP server '$name'"
+                        fi
+                        if [ -f "$target" ]; then
+                            chmod +x "$target"
+                            ln -sf "$target" "${bin_dir}/${cmd}"
+                            log_info "Linked MCP binary: ${bin_dir}/${cmd} -> $target"
+                        else
+                            echo "[WARN] MCP server '$name': binary '$target' not found after install"
+                        fi
+                        continue
+                    fi
+                fi
+                echo "[WARN] MCP server '$name' requires '$cmd' which is not on PATH"
+            fi
+        done < <(jq -r '([.mcpServers // {}] + [.plugins[]?.mcpServers // {}]) | add // {} | to_entries[] | @base64' "$mcp_file" 2>/dev/null)
+    done < <(find "$plugin_cache" \( -name '.mcp.json' -o \( -name 'marketplace.json' -path '*/.claude-plugin/*' \) \) 2>/dev/null)
+}
+
 cmd_install() {
     log_info "Installing skills and plugins from manifest..."
     mkdir -p "$CACHE_DIR" "$RESOLVED_DIR" "$SKILLS_DIR"
@@ -164,6 +242,7 @@ cmd_install() {
         CLAUDECODE='' claude plugin install "$plugin" 2>&1 || echo "[WARN] Failed to install plugin: $plugin"
     done
 
+    fix_mcp_deps
     generate_settings
     log_info "Sync install complete"
 }
