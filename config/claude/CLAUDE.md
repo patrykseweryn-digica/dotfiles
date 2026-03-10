@@ -55,5 +55,11 @@
 - OS: Linux (Ubuntu) - keep all commands Linux-compatible
 - IDE: VS Code
 
+## Tmux Preview Pane
+- If `$PREVIEW_PANE` env var is set, you have a shared tmux preview panel
+- To show a file there: `tmux send-keys -t $PREVIEW_PANE 'cat "path/to/file"' Enter`
+- To clear it: `tmux send-keys -t $PREVIEW_PANE 'clear' Enter`
+- Use it when I say "pokaż", "preview", or "wyświetl"
+
 ## Git
 - When committing code, you're forbidden to add any information that it was co-authored by Claude models
