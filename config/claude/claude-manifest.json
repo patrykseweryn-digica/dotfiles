@@ -23,6 +23,10 @@
     "claude-code-plugins": {
       "source": "github",
       "repo": "anthropics/claude-code"
+    },
+    "anthropic-agent-skills": {
+      "source": "github",
+      "repo": "anthropics/skills"
     }
   },
   "skills": {

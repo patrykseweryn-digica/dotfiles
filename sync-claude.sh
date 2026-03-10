@@ -234,6 +234,33 @@ cmd_install() {
         return
     fi
 
+    # Register missing marketplaces via CLI (settings.json alone is not enough)
+    local known_mp_file="${HOME}/.claude/plugins/known_marketplaces.json"
+    local known_mp_keys=""
+    if [ -f "$known_mp_file" ]; then
+        known_mp_keys=$(jq -r 'keys[]' "$known_mp_file")
+    fi
+
+    local mp_names
+    mp_names=$(jq -r '.marketplaces | keys[]' "$MANIFEST")
+    for mp_name in $mp_names; do
+        if echo "$known_mp_keys" | grep -qxF "$mp_name"; then
+            continue
+        fi
+        local mp_source mp_arg
+        mp_source=$(jq -r ".marketplaces[\"$mp_name\"].source" "$MANIFEST")
+        if [ "$mp_source" = "github" ]; then
+            mp_arg=$(jq -r ".marketplaces[\"$mp_name\"].repo" "$MANIFEST")
+        elif [ "$mp_source" = "git" ]; then
+            mp_arg=$(jq -r ".marketplaces[\"$mp_name\"].url" "$MANIFEST")
+        else
+            echo "[WARN] Unknown marketplace source type '$mp_source' for $mp_name"
+            continue
+        fi
+        log_info "Adding marketplace: $mp_name ($mp_arg)"
+        CLAUDECODE='' claude plugin marketplace add "$mp_arg" 2>&1 || echo "[WARN] Failed to add marketplace: $mp_name"
+    done
+
     local plugins
     plugins=$(jq -r '.plugins[]' "$MANIFEST")
 
