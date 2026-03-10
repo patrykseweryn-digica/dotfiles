@@ -130,7 +130,6 @@
     "command": "bash /home/pseweryn/.claude/statusline-command.sh"
   },
   "enabledPlugins": {
-    "frontend-design@claude-plugins-official": true,
     "context7@claude-plugins-official": true,
     "code-review@claude-plugins-official": true,
     "code-simplifier@claude-plugins-official": true,
@@ -149,8 +148,7 @@
     "figma@claude-plugins-official": true,
     "ui-ux-pro-max@ui-ux-pro-max-skill": true,
     "security-guidance@claude-plugins-official": true,
-    "claude-octopus@nyldn-plugins": true,
-    "qmd@qmd": true
+    "claude-octopus@nyldn-plugins": true
   },
   "extraKnownMarketplaces": {
     "impeccable": {
@@ -190,6 +188,7 @@
       }
     }
   },
+  "effortLevel": "high",
   "defaultMode": "acceptEdits",
-  "effortLevel": "high"
+  "model": "sonnet"
 }

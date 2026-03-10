@@ -68,7 +68,6 @@
     }
   },
   "plugins": [
-    "frontend-design@claude-plugins-official",
     "context7@claude-plugins-official",
     "code-review@claude-plugins-official",
     "code-simplifier@claude-plugins-official",
@@ -87,7 +86,6 @@
     "figma@claude-plugins-official",
     "ui-ux-pro-max@ui-ux-pro-max-skill",
     "security-guidance@claude-plugins-official",
-    "claude-octopus@nyldn-plugins",
-    "qmd@qmd"
+    "claude-octopus@nyldn-plugins"
   ]
 }
