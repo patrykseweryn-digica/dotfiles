@@ -5,6 +5,9 @@ if [[ -r "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh" ]]
   source "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh"
 fi
 
+# Local binaries (early, so tools in ~/.local/bin are available during init)
+export PATH="${HOME}/.local/bin:${HOME}/.cargo/bin:$PATH"
+
 export ZSH="$HOME/.oh-my-zsh"
 ZSH_THEME="powerlevel10k/powerlevel10k"
 
@@ -42,9 +45,6 @@ export NVM_DIR="$HOME/.nvm"
 
 # Source aliases
 [[ ! -f ~/.aliases ]] || source ~/.aliases
-
-# Local binaries
-export PATH="${HOME}/.local/bin:${HOME}/.cargo/bin:$PATH"
 
 # Python startup file (set at the end to override any other settings)
 export PYTHONSTARTUP="${HOME}/.pythonrc.py"

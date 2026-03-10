@@ -191,7 +191,7 @@ install_tools() {
     fi
 
     # pre-commit (via uv)
-    if check_installed pre-commit; then
+    if pre-commit --version >/dev/null 2>&1; then
         echo "[INFO] pre-commit is already installed"
     elif check_installed uv; then
         echo "[INFO] Installing pre-commit via uv..."

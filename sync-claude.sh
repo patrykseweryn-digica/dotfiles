@@ -237,7 +237,17 @@ cmd_install() {
     local plugins
     plugins=$(jq -r '.plugins[]' "$MANIFEST")
 
+    local installed_plugins_file="${HOME}/.claude/plugins/installed_plugins.json"
+    local installed_keys=""
+    if [ -f "$installed_plugins_file" ]; then
+        installed_keys=$(jq -r '.plugins | keys[]' "$installed_plugins_file")
+    fi
+
     for plugin in $plugins; do
+        if echo "$installed_keys" | grep -qxF "$plugin"; then
+            log_info "Plugin already installed: $plugin"
+            continue
+        fi
         log_info "Installing plugin: $plugin"
         CLAUDECODE='' claude plugin install "$plugin" 2>&1 || echo "[WARN] Failed to install plugin: $plugin"
     done

@@ -269,7 +269,7 @@ main() {
     setup_dotfiles
 
     # Setup pre-commit hooks
-    if check_installed pre-commit; then
+    if pre-commit --version >/dev/null 2>&1; then
         echo "[INFO] Installing pre-commit hooks..."
         pre-commit install -c "${DOTFILES_DIR}/.pre-commit-config.yaml"
     fi
