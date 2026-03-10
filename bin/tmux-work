@@ -43,7 +43,7 @@ fi
 tmux kill-session -t "$SESSION" 2>/dev/null || true
 
 # Create detached session with explicit size (needed for splits)
-tmux new-session -d -s "$SESSION" -x 200 -y 50
+tmux new-session -d -s "$SESSION" -x 200 -y 50 -c "$PWD"
 
 PREVIEW_PANE=""
 if [ "$PREVIEW" = true ]; then
