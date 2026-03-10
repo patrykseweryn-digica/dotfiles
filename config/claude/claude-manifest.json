@@ -86,6 +86,10 @@
     "figma@claude-plugins-official",
     "ui-ux-pro-max@ui-ux-pro-max-skill",
     "security-guidance@claude-plugins-official",
-    "claude-octopus@nyldn-plugins"
+    "claude-octopus@nyldn-plugins",
+    "frontend-design@claude-plugins-official",
+    "qmd@qmd",
+    "security-guidance@claude-code-plugins",
+    "huggingface-skills@claude-plugins-official"
   ]
 }

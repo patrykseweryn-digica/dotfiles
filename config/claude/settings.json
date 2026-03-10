@@ -127,7 +127,7 @@
   },
   "statusLine": {
     "type": "command",
-    "command": "bash /home/pseweryn/.claude/statusline-command.sh"
+    "command": "bash $HOME/.claude/statusline-command.sh"
   },
   "enabledPlugins": {
     "context7@claude-plugins-official": true,
@@ -148,7 +148,11 @@
     "figma@claude-plugins-official": true,
     "ui-ux-pro-max@ui-ux-pro-max-skill": true,
     "security-guidance@claude-plugins-official": true,
-    "claude-octopus@nyldn-plugins": true
+    "claude-octopus@nyldn-plugins": true,
+    "frontend-design@claude-plugins-official": true,
+    "qmd@qmd": true,
+    "security-guidance@claude-code-plugins": true,
+    "huggingface-skills@claude-plugins-official": true
   },
   "extraKnownMarketplaces": {
     "impeccable": {
@@ -189,6 +193,5 @@
     }
   },
   "effortLevel": "high",
-  "defaultMode": "acceptEdits",
-  "model": "sonnet"
+  "defaultMode": "acceptEdits"
 }
