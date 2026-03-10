@@ -60,3 +60,4 @@ alias gogh='bash -c "$(curl -sLo- https://git.io/vQgMr)"'
 
 # Claude Code
 alias claude-sync='cd ~/dotfiles && git add config/claude/ && git status'
+alias tw='tmux-work'

@@ -1,0 +1,118 @@
+#!/bin/bash
+set -eu
+
+SESSION="work"
+AGENTS=4
+PREVIEW=true
+DANGEROUS=false
+CLAUDE_CMD="claude"
+
+usage() {
+    echo "Usage: tmux-work [agents] [--no-preview] [--dangerous]"
+    echo
+    echo "  agents        Number of Claude Code agents (default: 4)"
+    echo "  --no-preview  Skip the preview pane"
+    echo "  --dangerous   Run with --dangerously-skip-permissions"
+    echo
+    echo "Examples:"
+    echo "  tmux-work              # 4 agents + preview pane"
+    echo "  tmux-work 2            # 2 agents + preview pane"
+    echo "  tmux-work 3 --dangerous"
+}
+
+for arg in "$@"; do
+    case "$arg" in
+        --no-preview) PREVIEW=false ;;
+        --dangerous) DANGEROUS=true ;;
+        -h|--help) usage; exit 0 ;;
+        [0-9]*) AGENTS="$arg" ;;
+        *) echo "Unknown option: $arg" >&2; usage >&2; exit 1 ;;
+    esac
+done
+
+if [ "$AGENTS" -lt 1 ] || [ "$AGENTS" -gt 8 ]; then
+    echo "Error: agents must be between 1 and 8" >&2
+    exit 1
+fi
+
+if [ "$DANGEROUS" = true ]; then
+    CLAUDE_CMD="claude --dangerously-skip-permissions"
+fi
+
+# Kill existing session
+tmux kill-session -t "$SESSION" 2>/dev/null || true
+
+# Create detached session with explicit size (needed for splits)
+tmux new-session -d -s "$SESSION" -x 200 -y 50
+
+PREVIEW_PANE=""
+if [ "$PREVIEW" = true ]; then
+    PREVIEW_PANE=$(tmux split-window -h -l 40% -t "$SESSION" -P -F '#{pane_id}')
+fi
+
+# Get root pane (first agent pane)
+ROOT=$(tmux list-panes -t "$SESSION" -F '#{pane_id}' | head -1)
+
+# Note: using -l with % instead of -p (tmux 3.4 "size missing" bug with -p on detached sessions)
+if [ "$AGENTS" -eq 1 ]; then
+    : # just ROOT
+elif [ "$AGENTS" -eq 2 ]; then
+    tmux split-window -v -l 50% -t "$ROOT"
+elif [ "$AGENTS" -eq 3 ]; then
+    P1=$(tmux split-window -v -l 66% -t "$ROOT" -P -F '#{pane_id}')
+    tmux split-window -v -l 50% -t "$P1"
+elif [ "$AGENTS" -eq 4 ]; then
+    P2=$(tmux split-window -v -l 50% -t "$ROOT" -P -F '#{pane_id}')
+    tmux split-window -h -l 50% -t "$ROOT"
+    tmux split-window -h -l 50% -t "$P2"
+elif [ "$AGENTS" -eq 5 ]; then
+    P1=$(tmux split-window -v -l 66% -t "$ROOT" -P -F '#{pane_id}')
+    P2=$(tmux split-window -v -l 50% -t "$P1" -P -F '#{pane_id}')
+    tmux split-window -h -l 50% -t "$ROOT"
+    tmux split-window -h -l 50% -t "$P1"
+elif [ "$AGENTS" -eq 6 ]; then
+    P1=$(tmux split-window -v -l 66% -t "$ROOT" -P -F '#{pane_id}')
+    P2=$(tmux split-window -v -l 50% -t "$P1" -P -F '#{pane_id}')
+    tmux split-window -h -l 50% -t "$ROOT"
+    tmux split-window -h -l 50% -t "$P1"
+    tmux split-window -h -l 50% -t "$P2"
+elif [ "$AGENTS" -eq 7 ]; then
+    P1=$(tmux split-window -v -l 75% -t "$ROOT" -P -F '#{pane_id}')
+    P2=$(tmux split-window -v -l 66% -t "$P1" -P -F '#{pane_id}')
+    P3=$(tmux split-window -v -l 50% -t "$P2" -P -F '#{pane_id}')
+    tmux split-window -h -l 50% -t "$ROOT"
+    tmux split-window -h -l 50% -t "$P1"
+    tmux split-window -h -l 50% -t "$P2"
+elif [ "$AGENTS" -eq 8 ]; then
+    P1=$(tmux split-window -v -l 75% -t "$ROOT" -P -F '#{pane_id}')
+    P2=$(tmux split-window -v -l 66% -t "$P1" -P -F '#{pane_id}')
+    P3=$(tmux split-window -v -l 50% -t "$P2" -P -F '#{pane_id}')
+    tmux split-window -h -l 50% -t "$ROOT"
+    tmux split-window -h -l 50% -t "$P1"
+    tmux split-window -h -l 50% -t "$P2"
+    tmux split-window -h -l 50% -t "$P3"
+fi
+
+# Select first pane
+tmux select-pane -t "$ROOT"
+
+# Get agent panes (exclude preview pane)
+mapfile -t ALL_PANES < <(tmux list-panes -t "$SESSION" -F '#{pane_id}')
+AGENT_PANES=()
+for pane in "${ALL_PANES[@]}"; do
+    [ "$pane" != "$PREVIEW_PANE" ] && AGENT_PANES+=("$pane")
+done
+
+# Launch claude in each agent pane
+for ((i = 0; i < AGENTS && i < ${#AGENT_PANES[@]}; i++)); do
+    LAUNCH_CMD="unset CLAUDECODE"
+    [ -n "$PREVIEW_PANE" ] && LAUNCH_CMD="$LAUNCH_CMD && export PREVIEW_PANE=$PREVIEW_PANE"
+    tmux send-keys -t "${AGENT_PANES[$i]}" "$LAUNCH_CMD && $CLAUDE_CMD" Enter
+done
+
+# Attach or switch to session
+if [ -z "${TMUX:-}" ]; then
+    tmux attach -t "$SESSION"
+else
+    tmux switch-client -t "$SESSION"
+fi

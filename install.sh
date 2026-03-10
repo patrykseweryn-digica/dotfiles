@@ -174,6 +174,14 @@ setup_dotfiles() {
     # Link .aliases
     link_file "$DOTFILES_DIR/.aliases" "${HOME}/.aliases"
 
+    # Link bin scripts
+    mkdir -p "${BIN_DIR}"
+    for script in "$DOTFILES_DIR/bin"/*; do
+        [ -f "$script" ] || continue
+        chmod +x "$script"
+        link_file "$script" "${BIN_DIR}/$(basename "$script")"
+    done
+
     # Link VSCode settings
     mkdir -p "${HOME}/.config/Code/User"
     link_file "$DOTFILES_DIR/config/Code/settings.json" "${HOME}/.config/Code/User/settings.json"
