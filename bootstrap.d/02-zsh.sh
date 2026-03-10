@@ -45,20 +45,9 @@ set_default_shell() {
         return 0
     fi
 
-    local zsh_path
-    zsh_path="$(command -v zsh || true)"
-    if [ -z "$zsh_path" ]; then
-        return 1
-    fi
-
-    echo "[INFO] Attempting to set default shell to zsh (you may be prompted for your password)..."
-    if chsh -s "$zsh_path" "$USER" </dev/null 2>/dev/null || chsh -s "$zsh_path" </dev/null 2>/dev/null; then
-        echo "[INFO] Default shell changed to zsh"
-        return 0
-    fi
-
-    echo "[WARN] Could not change default shell via chsh."
-    return 1
+    echo "[INFO] Changing default shell to zsh (you may be prompted for your password)..."
+    chsh -s "$(which zsh)"
+    echo "[INFO] Default shell changed to zsh"
 }
 
 add_ssh_auto_zsh_snippet() {
