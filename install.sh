@@ -264,6 +264,7 @@ main() {
     install_fonts || echo "[WARN] Font installation had issues, continuing..."
     install_nvm || echo "[WARN] NVM installation had issues, continuing..."
     install_terminal_colors || echo "[WARN] Terminal color setup had issues, continuing..."
+    install_claude_code || echo "[WARN] Claude Code installation had issues, continuing..."
 
     # Setup dotfile configurations
     setup_dotfiles
