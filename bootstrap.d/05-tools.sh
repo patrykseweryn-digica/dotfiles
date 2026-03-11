@@ -182,6 +182,25 @@ install_tools() {
         install_github_binary "jqlang/jq" "jq-1.7.1" "jq-linux-amd64" "jq-linux-amd64" "jq" || true
     fi
 
+    # xclip (clipboard from terminal, used by copyssh alias)
+    if check_installed xclip; then
+        echo "[INFO] xclip is already installed"
+    elif [ "$HAS_SUDO" = true ]; then
+        if command -v apt-get >/dev/null 2>&1; then
+            sudo apt-get install -y xclip
+        elif command -v dnf >/dev/null 2>&1; then
+            sudo dnf install -y xclip
+        elif command -v pacman >/dev/null 2>&1; then
+            sudo pacman -S --noconfirm xclip
+        elif command -v brew >/dev/null 2>&1; then
+            brew install xclip
+        else
+            echo "[WARN] Could not install xclip: no supported package manager"
+        fi
+    else
+        echo "[WARN] Skipping xclip (no sudo available)"
+    fi
+
     # tpm (tmux plugin manager)
     if [ -d "${HOME}/.tmux/plugins/tpm" ]; then
         echo "[INFO] tpm is already installed"
