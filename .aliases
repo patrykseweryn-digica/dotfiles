@@ -21,7 +21,7 @@ alias dotfiles="cd $DOTFILES"
 
 # JS
 alias nfresh="rm -rf node_modules/ package-lock.json && npm install"
-alias watch="npm run dev"
+alias nrd="npm run dev"
 
 # Docker
 alias docker-composer="docker compose"
