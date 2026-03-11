@@ -208,6 +208,11 @@ install_tools() {
         echo "[INFO] Installing tpm..."
         git clone https://github.com/tmux-plugins/tpm "${HOME}/.tmux/plugins/tpm" --depth=1 || echo "[WARN] Failed to install tpm"
     fi
+    # Install tmux plugins via tpm
+    if [ -x "${HOME}/.tmux/plugins/tpm/bin/install_plugins" ]; then
+        echo "[INFO] Installing tmux plugins..."
+        "${HOME}/.tmux/plugins/tpm/bin/install_plugins" || echo "[WARN] Failed to install tmux plugins"
+    fi
 
     # pre-commit (via uv)
     if pre-commit --version >/dev/null 2>&1; then
