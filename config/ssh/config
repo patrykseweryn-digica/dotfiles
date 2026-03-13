@@ -17,6 +17,7 @@ Host gpu1 gpu2 gpu3 gpu4 gpu5 gpu6 gpu7 gpu8 gpu9 hercules atlas
     User pseweryn
     IdentityFile ~/.ssh/id_ed25519_work
     IdentitiesOnly yes
+    ForwardX11 yes
 
 Host gpu1
     HostName 10.10.10.41
