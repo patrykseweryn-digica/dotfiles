@@ -67,6 +67,49 @@
       "path": "write-a-prd"
     }
   },
+  "mcpServers": {
+    "todoist": {
+      "type": "http",
+      "url": "https://ai.todoist.net/mcp"
+    },
+    "garmin": {
+      "type": "stdio",
+      "command": "uvx",
+      "args": [
+        "--python",
+        "3.12",
+        "--from",
+        "git+https://github.com/Taxuspt/garmin_mcp",
+        "garmin-mcp"
+      ]
+    },
+    "sequential-thinking": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-sequential-thinking"
+      ]
+    },
+    "playwright": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@playwright/mcp@latest"
+      ]
+    },
+    "chrome-devtools": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "chrome-devtools-mcp@latest",
+        "--browserUrl",
+        "http://127.0.0.1:9222"
+      ]
+    }
+  },
   "plugins": [
     "context7@claude-plugins-official",
     "code-review@claude-plugins-official",
@@ -88,6 +131,7 @@
     "security-guidance@claude-code-plugins",
     "huggingface-skills@claude-plugins-official",
     "skill-creator@claude-plugins-official",
-    "playground@claude-plugins-official"
+    "playground@claude-plugins-official",
+    "github@claude-plugins-official"
   ]
 }

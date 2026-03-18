@@ -150,7 +150,8 @@
     "security-guidance@claude-code-plugins": true,
     "huggingface-skills@claude-plugins-official": true,
     "skill-creator@claude-plugins-official": true,
-    "playground@claude-plugins-official": true
+    "playground@claude-plugins-official": true,
+    "github@claude-plugins-official": false
   },
   "extraKnownMarketplaces": {
     "impeccable": {

@@ -105,6 +105,132 @@ resolve_skills() {
     done
 }
 
+install_mcp_servers() {
+    if ! command -v claude >/dev/null 2>&1; then
+        echo "[WARN] claude CLI not found, skipping MCP server installation"
+        return
+    fi
+
+    local servers
+    servers=$(jq -r '.mcpServers // {} | keys[]' "$MANIFEST")
+    [ -n "$servers" ] || return 0
+
+    # Load env vars from dotfiles .env for MCP server env
+    local env_file="${DOTFILES_DIR}/.env"
+    if [ -f "$env_file" ]; then
+        set -a
+        # shellcheck disable=SC1090
+        . "$env_file"
+        set +a
+    fi
+
+    for name in $servers; do
+        if claude mcp get "$name" >/dev/null 2>&1; then
+            log_info "MCP server already configured: $name"
+            continue
+        fi
+
+        local type
+        type=$(jq -r ".mcpServers[\"$name\"].type" "$MANIFEST")
+
+        if [ "$type" = "http" ]; then
+            local url
+            url=$(jq -r ".mcpServers[\"$name\"].url" "$MANIFEST")
+            log_info "Adding MCP server (http): $name"
+            CLAUDECODE='' claude mcp add -s user -t http "$name" "$url" 2>&1 || echo "[WARN] Failed to add MCP server: $name"
+
+        elif [ "$type" = "stdio" ]; then
+            local cmd
+            cmd=$(jq -r ".mcpServers[\"$name\"].command" "$MANIFEST")
+
+            local -a add_args=()
+
+            # Add env flags from manifest env keys (values from environment)
+            while IFS= read -r key; do
+                [ -n "$key" ] || continue
+                local val="${!key:-}"
+                if [ -n "$val" ]; then
+                    add_args+=(-e "${key}=${val}")
+                else
+                    echo "[WARN] MCP server '$name': env var $key not set"
+                fi
+            done < <(jq -r ".mcpServers[\"$name\"].env // [] | .[]" "$MANIFEST")
+
+            add_args+=("$name" -- "$cmd")
+
+            while IFS= read -r arg; do
+                [ -n "$arg" ] || continue
+                add_args+=("$arg")
+            done < <(jq -r ".mcpServers[\"$name\"].args // [] | .[]" "$MANIFEST")
+
+            log_info "Adding MCP server (stdio): $name"
+            CLAUDECODE='' claude mcp add -s user "${add_args[@]}" 2>&1 || echo "[WARN] Failed to add MCP server: $name"
+        else
+            echo "[WARN] MCP server '$name': unknown type '$type'"
+        fi
+    done
+}
+
+import_mcp_servers() {
+    if ! command -v claude >/dev/null 2>&1; then
+        log_info "claude CLI not found, skipping MCP server import"
+        return
+    fi
+
+    # Get user-scope MCP server names (exclude plugin: and claude.ai prefixed)
+    local server_names
+    server_names=$(claude mcp list 2>&1 | grep -v "^Checking\|^$\|^plugin:\|^claude\.ai" | sed 's/:.*//')
+    [ -n "$server_names" ] || return 0
+
+    local manifest_servers
+    manifest_servers=$(jq -r '.mcpServers // {} | keys[]' "$MANIFEST")
+
+    local tmp="${MANIFEST}.tmp"
+    local changed=false
+
+    for name in $server_names; do
+        echo "$manifest_servers" | grep -qx "$name" && continue
+
+        local get_output
+        get_output=$(claude mcp get "$name" 2>&1) || continue
+
+        # Only import user-scope servers
+        echo "$get_output" | grep -q "User config" || continue
+
+        local type
+        type=$(echo "$get_output" | grep "^  Type:" | sed 's/.*Type: //' | xargs)
+
+        if [ "$type" = "http" ]; then
+            local url
+            url=$(echo "$get_output" | grep "^  URL:" | sed 's/.*URL: //' | xargs)
+
+            jq --arg name "$name" --arg url "$url" \
+                '.mcpServers[$name] = {"type": "http", "url": $url}' "$MANIFEST" > "$tmp"
+            mv "$tmp" "$MANIFEST"
+            echo "[INFO] Added MCP server to manifest: $name (http)"
+            changed=true
+
+        elif [ "$type" = "stdio" ]; then
+            local cmd args_line
+            cmd=$(echo "$get_output" | grep "^  Command:" | sed 's/.*Command: //' | xargs)
+            args_line=$(echo "$get_output" | grep "^  Args:" | sed 's/.*Args: //')
+
+            local args_json
+            args_json=$(python3 -c "import sys, json; line = sys.stdin.read().strip(); print(json.dumps(line.split()) if line else '[]')" <<< "$args_line" 2>/dev/null || echo "[]")
+
+            jq --arg name "$name" --arg cmd "$cmd" --argjson args "$args_json" \
+                '.mcpServers[$name] = {"type": "stdio", "command": $cmd, "args": $args}' "$MANIFEST" > "$tmp"
+            mv "$tmp" "$MANIFEST"
+            echo "[INFO] Added MCP server to manifest: $name (stdio: $cmd)"
+            changed=true
+        fi
+    done
+
+    if [ "$changed" = true ]; then
+        echo "[INFO] MCP servers imported into manifest."
+    fi
+}
+
 fix_mcp_deps() {
     local plugin_cache="${HOME}/.claude/plugins/cache"
     local bin_dir="${HOME}/.local/bin"
@@ -279,6 +405,7 @@ cmd_install() {
         CLAUDECODE='' claude plugin install "$plugin" 2>&1 || echo "[WARN] Failed to install plugin: $plugin"
     done
 
+    install_mcp_servers
     fix_mcp_deps
     generate_settings
     log_info "Sync install complete"
@@ -405,6 +532,11 @@ cmd_import() {
                 changed=true
             done
         fi
+    fi
+
+    # Import MCP servers (skip in quiet mode — claude mcp list is slow)
+    if [ "$QUIET" != true ]; then
+        import_mcp_servers
     fi
 
     # Always reconcile settings.json with manifest (handles stale entries
