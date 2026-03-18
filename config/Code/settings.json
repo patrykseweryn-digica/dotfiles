@@ -175,5 +175,12 @@
   "workbench.iconTheme": "vscode-icons",
   "workbench.startupEditor": "none",
   "accessibility.voice.keywordActivation": "chatInContext",
-  "editor.wordWrap": "on"
+  "editor.wordWrap": "on",
+  "editor.unicodeHighlight.nonBasicASCII": false,
+  "workbench.editorAssociations": {
+    "*.copilotmd": "vscode.markdown.preview.editor",
+    "*.parquet": "duckdb.dataFileViewer",
+    "*.csv": "duckdb.dataFileViewer",
+    "*.tsv": "duckdb.dataFileViewer"
+  }
 }
