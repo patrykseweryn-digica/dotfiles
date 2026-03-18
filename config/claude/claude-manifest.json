@@ -42,10 +42,6 @@
       "repo": "mattpocock/skills",
       "path": "design-an-interface"
     },
-    "setup-pre-commit": {
-      "repo": "mattpocock/skills",
-      "path": "setup-pre-commit"
-    },
     "git-guardrails-claude-code": {
       "repo": "mattpocock/skills",
       "path": "git-guardrails-claude-code"
@@ -77,7 +73,6 @@
     "code-simplifier@claude-plugins-official",
     "claude-md-management@claude-plugins-official",
     "pyright-lsp@claude-plugins-official",
-    "superpowers@claude-plugins-official",
     "typescript-lsp@claude-plugins-official",
     "feature-dev@claude-plugins-official",
     "ralph-loop@claude-plugins-official",
@@ -89,11 +84,10 @@
     "supabase@claude-plugins-official",
     "figma@claude-plugins-official",
     "ui-ux-pro-max@ui-ux-pro-max-skill",
-    "security-guidance@claude-plugins-official",
-    "claude-octopus@nyldn-plugins",
-    "frontend-design@claude-plugins-official",
     "qmd@qmd",
     "security-guidance@claude-code-plugins",
-    "huggingface-skills@claude-plugins-official"
+    "huggingface-skills@claude-plugins-official",
+    "skill-creator@claude-plugins-official",
+    "playground@claude-plugins-official"
   ]
 }
