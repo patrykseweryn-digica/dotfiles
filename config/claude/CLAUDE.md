@@ -17,6 +17,8 @@
 - When unsure about a library/framework, look up docs via Context7 before implementing
 - Never commit or push unless I explicitly ask - no auto-commits
 - Git commit messages: short one-line summaries, no rigid format
+- When implementing changes, apply code changes - don't just write a plan unless explicitly asked
+- One logical change at a time - verify it works before moving to the next
 
 ## Code Quality
 - Pragmatic: prefer complete code, TODOs acceptable only for clearly out-of-scope items
@@ -24,6 +26,8 @@
 - Pragmatic typing: proper types when straightforward, `@ts-ignore` / `type: ignore` OK for edge cases
 - Handle only the most important and probable errors - don't over-handle
 - Write tests only when I ask for them
+- Before applying a fix broadly, test it on a small representative sample first
+- Before committing: run type checker (pyright/tsc) and fix all errors
 
 ## Strict Rules - NEVER Do
 - Over-engineer: no unnecessary abstractions, no design patterns for their own sake, no premature optimization
