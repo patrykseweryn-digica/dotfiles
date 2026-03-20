@@ -143,7 +143,7 @@ install_mcp_servers() {
             local cmd
             cmd=$(jq -r ".mcpServers[\"$name\"].command" "$MANIFEST")
 
-            local -a add_args=()
+            local -a add_args=("$name")
 
             # Add env flags from manifest env keys (values from environment)
             while IFS= read -r key; do
@@ -156,7 +156,7 @@ install_mcp_servers() {
                 fi
             done < <(jq -r ".mcpServers[\"$name\"].env // [] | .[]" "$MANIFEST")
 
-            add_args+=("$name" -- "$cmd")
+            add_args+=(-- "$cmd")
 
             while IFS= read -r arg; do
                 [ -n "$arg" ] || continue
