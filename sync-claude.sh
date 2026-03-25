@@ -309,6 +309,51 @@ fix_mcp_deps() {
     done < <(find "$plugin_cache" \( -name '.mcp.json' -o \( -name 'marketplace.json' -path '*/.claude-plugin/*' \) \) 2>/dev/null)
 }
 
+prune_orphan_marketplaces() {
+    local tmp="${MANIFEST}.tmp"
+    local pruned=false
+
+    # Collect marketplace names referenced by plugins (part after @)
+    local used_mp
+    used_mp=$(jq -r '.plugins[] | split("@")[1]' "$MANIFEST" | sort -u)
+
+    # Add standard marketplaces that should never be pruned
+    for std in $STANDARD_MARKETPLACES; do
+        used_mp=$(printf '%s\n%s' "$used_mp" "$std")
+    done
+    used_mp=$(echo "$used_mp" | sort -u)
+
+    # Prune from manifest
+    local all_mp
+    all_mp=$(jq -r '.marketplaces // {} | keys[]' "$MANIFEST")
+
+    for mp in $all_mp; do
+        if ! echo "$used_mp" | grep -qxF "$mp"; then
+            jq --arg mp "$mp" 'del(.marketplaces[$mp])' "$MANIFEST" > "$tmp"
+            mv "$tmp" "$MANIFEST"
+            echo "[INFO] Pruned orphan marketplace: $mp"
+            pruned=true
+        fi
+    done
+
+    # Prune from Claude Code's internal registry
+    local known_mp_file="${HOME}/.claude/plugins/known_marketplaces.json"
+    if [ -f "$known_mp_file" ]; then
+        local all_known
+        all_known=$(jq -r 'keys[]' "$known_mp_file")
+        for mp in $all_known; do
+            if ! echo "$used_mp" | grep -qxF "$mp"; then
+                jq --arg mp "$mp" 'del(.[$mp])' "$known_mp_file" > "${known_mp_file}.tmp"
+                mv "${known_mp_file}.tmp" "$known_mp_file"
+                echo "[INFO] Pruned from known_marketplaces.json: $mp"
+                pruned=true
+            fi
+        done
+    fi
+
+    [ "$pruned" = true ]
+}
+
 cmd_install() {
     log_info "Installing skills and plugins from manifest..."
     mkdir -p "$CACHE_DIR" "$RESOLVED_DIR" "$SKILLS_DIR"
@@ -534,6 +579,9 @@ cmd_import() {
         fi
     fi
 
+    # Prune orphan marketplaces
+    prune_orphan_marketplaces && changed=true || true
+
     # Import MCP servers (skip in quiet mode — claude mcp list is slow)
     if [ "$QUIET" != true ]; then
         import_mcp_servers
@@ -573,19 +621,23 @@ cmd_prune() {
     stale_plugins=$(jq -r --slurpfile m "$MANIFEST" \
         '$m[0].plugins - [.plugins | keys[]] | .[]' "$plugins_file") || true
 
-    if [ -z "$stale_plugins" ]; then
-        log_info "Nothing to prune"
-        return 0
-    fi
+    local changed=false
 
     for plugin in $stale_plugins; do
         jq --arg p "$plugin" '.plugins -= [$p]' "$MANIFEST" > "$tmp"
         mv "$tmp" "$MANIFEST"
         echo "[INFO] Removed from manifest: $plugin"
+        changed=true
     done
 
-    generate_settings
-    echo "[INFO] Manifest pruned. Don't forget to commit and push."
+    prune_orphan_marketplaces && changed=true || true
+
+    if [ "$changed" = true ]; then
+        generate_settings
+        echo "[INFO] Manifest pruned. Don't forget to commit and push."
+    else
+        log_info "Nothing to prune"
+    fi
 }
 
 cmd_check() {
