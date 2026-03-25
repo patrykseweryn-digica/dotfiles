@@ -563,25 +563,6 @@ cmd_import() {
         changed=true
     done
 
-    # Auto-prune: remove plugins from manifest that were uninstalled locally
-    if [ -f "$plugins_file" ]; then
-        local stale_plugins
-        stale_plugins=$(jq -r --slurpfile m "$MANIFEST" \
-            '$m[0].plugins - [.plugins | keys[]] | .[]' "$plugins_file") || true
-
-        if [ -n "$stale_plugins" ]; then
-            for plugin in $stale_plugins; do
-                jq --arg p "$plugin" '.plugins -= [$p]' "$MANIFEST" > "$tmp"
-                mv "$tmp" "$MANIFEST"
-                echo "[INFO] Pruned from manifest (uninstalled): $plugin"
-                changed=true
-            done
-        fi
-    fi
-
-    # Prune orphan marketplaces
-    prune_orphan_marketplaces && changed=true || true
-
     # Import MCP servers (skip in quiet mode — claude mcp list is slow)
     if [ "$QUIET" != true ]; then
         import_mcp_servers

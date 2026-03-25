@@ -101,30 +101,7 @@
       "Bash(reboot *)"
     ]
   },
-  "hooks": {
-    "SessionStart": [
-      {
-        "matcher": "startup",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash $HOME/dotfiles/sync-claude.sh --quiet import"
-          }
-        ]
-      }
-    ],
-    "Stop": [
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash $HOME/dotfiles/sync-claude.sh --quiet prune"
-          }
-        ]
-      }
-    ]
-  },
+  "hooks": {},
   "statusLine": {
     "type": "command",
     "command": "bash $HOME/.claude/statusline-command.sh"
@@ -147,9 +124,7 @@
     "huggingface-skills@claude-plugins-official": true,
     "skill-creator@claude-plugins-official": true,
     "chrome-devtools-mcp@claude-plugins-official": true,
-    "security-guidance@claude-plugins-official": true,
-    "superpowers@claude-plugins-official": true,
-    "obsidian@obsidian-skills": true
+    "obsidian@obsidian-skills": true,
   },
   "extraKnownMarketplaces": {
     "impeccable": {
