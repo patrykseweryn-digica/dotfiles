@@ -4,29 +4,17 @@
       "source": "github",
       "repo": "pbakaus/impeccable"
     },
-    "superpowers-marketplace": {
-      "source": "github",
-      "repo": "obra/superpowers-marketplace"
-    },
     "ui-ux-pro-max-skill": {
       "source": "github",
       "repo": "nextlevelbuilder/ui-ux-pro-max-skill"
     },
-    "nyldn-plugins": {
-      "source": "github",
-      "repo": "nyldn/claude-octopus"
-    },
-    "qmd": {
-      "source": "git",
-      "url": "https://github.com/tobi/qmd.git"
-    },
-    "claude-code-plugins": {
-      "source": "github",
-      "repo": "anthropics/claude-code"
-    },
     "anthropic-agent-skills": {
       "source": "github",
       "repo": "anthropics/skills"
+    },
+    "obsidian-skills": {
+      "source": "github",
+      "repo": "kepano/obsidian-skills"
     }
   },
   "skills": {
@@ -65,6 +53,10 @@
     "write-a-prd": {
       "repo": "mattpocock/skills",
       "path": "write-a-prd"
+    },
+    "setup-pre-commit": {
+      "repo": "mattpocock/skills",
+      "path": "setup-pre-commit"
     }
   },
   "mcpServers": {
@@ -134,20 +126,18 @@
     "pyright-lsp@claude-plugins-official",
     "typescript-lsp@claude-plugins-official",
     "feature-dev@claude-plugins-official",
-    "ralph-loop@claude-plugins-official",
     "claude-code-setup@claude-plugins-official",
     "document-skills@anthropic-agent-skills",
-    "superpowers@superpowers-marketplace",
     "impeccable@impeccable",
     "playwright@claude-plugins-official",
     "supabase@claude-plugins-official",
     "figma@claude-plugins-official",
     "ui-ux-pro-max@ui-ux-pro-max-skill",
-    "qmd@qmd",
-    "security-guidance@claude-code-plugins",
     "huggingface-skills@claude-plugins-official",
     "skill-creator@claude-plugins-official",
-    "playground@claude-plugins-official",
-    "github@claude-plugins-official"
+    "chrome-devtools-mcp@claude-plugins-official",
+    "security-guidance@claude-plugins-official",
+    "superpowers@claude-plugins-official",
+    "obsidian@obsidian-skills"
   ]
 }

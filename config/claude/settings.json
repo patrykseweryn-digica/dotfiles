@@ -137,21 +137,19 @@
     "pyright-lsp@claude-plugins-official": true,
     "typescript-lsp@claude-plugins-official": true,
     "feature-dev@claude-plugins-official": true,
-    "ralph-loop@claude-plugins-official": true,
     "claude-code-setup@claude-plugins-official": true,
     "document-skills@anthropic-agent-skills": true,
-    "superpowers@superpowers-marketplace": true,
     "impeccable@impeccable": true,
     "playwright@claude-plugins-official": true,
     "supabase@claude-plugins-official": true,
     "figma@claude-plugins-official": true,
     "ui-ux-pro-max@ui-ux-pro-max-skill": true,
-    "qmd@qmd": true,
-    "security-guidance@claude-code-plugins": true,
     "huggingface-skills@claude-plugins-official": true,
     "skill-creator@claude-plugins-official": true,
-    "playground@claude-plugins-official": true,
-    "github@claude-plugins-official": false
+    "chrome-devtools-mcp@claude-plugins-official": true,
+    "security-guidance@claude-plugins-official": true,
+    "superpowers@claude-plugins-official": true,
+    "obsidian@obsidian-skills": true
   },
   "extraKnownMarketplaces": {
     "impeccable": {
@@ -160,40 +158,22 @@
         "repo": "pbakaus/impeccable"
       }
     },
-    "superpowers-marketplace": {
-      "source": {
-        "source": "github",
-        "repo": "obra/superpowers-marketplace"
-      }
-    },
     "ui-ux-pro-max-skill": {
       "source": {
         "source": "github",
         "repo": "nextlevelbuilder/ui-ux-pro-max-skill"
       }
     },
-    "nyldn-plugins": {
-      "source": {
-        "source": "github",
-        "repo": "nyldn/claude-octopus"
-      }
-    },
-    "qmd": {
-      "source": {
-        "source": "git",
-        "url": "https://github.com/tobi/qmd.git"
-      }
-    },
-    "claude-code-plugins": {
-      "source": {
-        "source": "github",
-        "repo": "anthropics/claude-code"
-      }
-    },
     "anthropic-agent-skills": {
       "source": {
         "source": "github",
         "repo": "anthropics/skills"
+      }
+    },
+    "obsidian-skills": {
+      "source": {
+        "source": "github",
+        "repo": "kepano/obsidian-skills"
       }
     }
   },
