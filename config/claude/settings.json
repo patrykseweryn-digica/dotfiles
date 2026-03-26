@@ -124,7 +124,10 @@
     "huggingface-skills@claude-plugins-official": true,
     "skill-creator@claude-plugins-official": true,
     "chrome-devtools-mcp@claude-plugins-official": true,
-    "obsidian@obsidian-skills": true
+    "security-guidance@claude-plugins-official": true,
+    "superpowers@claude-plugins-official": true,
+    "obsidian@obsidian-skills": true,
+    "ralph-loop@claude-plugins-official": false
   },
   "extraKnownMarketplaces": {
     "impeccable": {
