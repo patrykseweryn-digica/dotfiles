@@ -138,7 +138,6 @@
     "chrome-devtools-mcp@claude-plugins-official",
     "security-guidance@claude-plugins-official",
     "superpowers@claude-plugins-official",
-    "obsidian@obsidian-skills",
-    "ralph-loop@claude-plugins-official"
+    "obsidian@obsidian-skills"
   ]
 }

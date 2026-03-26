@@ -1,6 +1,112 @@
 {
+  "defaultMode": "acceptEdits",
+  "effortLevel": "high",
+  "enabledPlugins": {
+    "chrome-devtools-mcp@claude-plugins-official": true,
+    "claude-code-setup@claude-plugins-official": true,
+    "claude-md-management@claude-plugins-official": true,
+    "code-review@claude-plugins-official": true,
+    "code-simplifier@claude-plugins-official": true,
+    "context7@claude-plugins-official": true,
+    "document-skills@anthropic-agent-skills": true,
+    "feature-dev@claude-plugins-official": true,
+    "figma@claude-plugins-official": true,
+    "huggingface-skills@claude-plugins-official": true,
+    "impeccable@impeccable": true,
+    "obsidian@obsidian-skills": true,
+    "playwright@claude-plugins-official": true,
+    "pyright-lsp@claude-plugins-official": true,
+    "security-guidance@claude-plugins-official": true,
+    "skill-creator@claude-plugins-official": true,
+    "supabase@claude-plugins-official": true,
+    "superpowers@claude-plugins-official": true,
+    "typescript-lsp@claude-plugins-official": true,
+    "ui-ux-pro-max@ui-ux-pro-max-skill": true
+  },
   "env": {
     "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
+  },
+  "extraKnownMarketplaces": {
+    "anthropic-agent-skills": {
+      "source": {
+        "repo": "anthropics/skills",
+        "source": "github"
+      }
+    },
+    "impeccable": {
+      "source": {
+        "repo": "pbakaus/impeccable",
+        "source": "github"
+      }
+    },
+    "obsidian-skills": {
+      "source": {
+        "repo": "kepano/obsidian-skills",
+        "source": "github"
+      }
+    },
+    "ui-ux-pro-max-skill": {
+      "source": {
+        "repo": "nextlevelbuilder/ui-ux-pro-max-skill",
+        "source": "github"
+      }
+    }
+  },
+  "hooks": {},
+  "language": "Polish",
+  "mcpServers": {
+    "chrome-devtools": {
+      "args": [
+        "-y",
+        "chrome-devtools-mcp@latest",
+        "--browserUrl",
+        "http://127.0.0.1:9222"
+      ],
+      "command": "npx",
+      "type": "stdio"
+    },
+    "garmin": {
+      "args": [
+        "--python",
+        "3.12",
+        "--from",
+        "git+https://github.com/Taxuspt/garmin_mcp",
+        "garmin-mcp"
+      ],
+      "command": "uvx",
+      "type": "stdio"
+    },
+    "playwright": {
+      "args": [
+        "-y",
+        "@playwright/mcp@latest"
+      ],
+      "command": "npx",
+      "type": "stdio"
+    },
+    "sequential-thinking": {
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-sequential-thinking"
+      ],
+      "command": "npx",
+      "type": "stdio"
+    },
+    "telegram": {
+      "args": [
+        "--python",
+        "3.12",
+        "--from",
+        "git+https://github.com/chigwell/telegram-mcp",
+        "telegram-mcp"
+      ],
+      "command": "uvx",
+      "type": "stdio"
+    },
+    "todoist": {
+      "type": "http",
+      "url": "https://ai.todoist.net/mcp"
+    }
   },
   "permissions": {
     "allow": [
@@ -101,74 +207,9 @@
       "Bash(reboot *)"
     ]
   },
-  "hooks": {},
   "statusLine": {
-    "type": "command",
-    "command": "bash $HOME/.claude/statusline-command.sh"
+    "command": "bash $HOME/.claude/statusline-command.sh",
+    "type": "command"
   },
-  "enabledPlugins": {
-    "context7@claude-plugins-official": true,
-    "code-review@claude-plugins-official": true,
-    "code-simplifier@claude-plugins-official": true,
-    "claude-md-management@claude-plugins-official": true,
-    "pyright-lsp@claude-plugins-official": true,
-    "typescript-lsp@claude-plugins-official": true,
-    "feature-dev@claude-plugins-official": true,
-    "claude-code-setup@claude-plugins-official": true,
-    "document-skills@anthropic-agent-skills": true,
-    "impeccable@impeccable": true,
-    "playwright@claude-plugins-official": true,
-    "supabase@claude-plugins-official": true,
-    "figma@claude-plugins-official": true,
-    "ui-ux-pro-max@ui-ux-pro-max-skill": true,
-    "huggingface-skills@claude-plugins-official": true,
-    "skill-creator@claude-plugins-official": true,
-    "chrome-devtools-mcp@claude-plugins-official": true,
-    "security-guidance@claude-plugins-official": true,
-    "superpowers@claude-plugins-official": true,
-    "obsidian@obsidian-skills": true,
-    "ralph-loop@claude-plugins-official": false
-  },
-  "extraKnownMarketplaces": {
-    "impeccable": {
-      "source": {
-        "source": "github",
-        "repo": "pbakaus/impeccable"
-      }
-    },
-    "ui-ux-pro-max-skill": {
-      "source": {
-        "source": "github",
-        "repo": "nextlevelbuilder/ui-ux-pro-max-skill"
-      }
-    },
-    "anthropic-agent-skills": {
-      "source": {
-        "source": "github",
-        "repo": "anthropics/skills"
-      }
-    },
-    "obsidian-skills": {
-      "source": {
-        "source": "github",
-        "repo": "kepano/obsidian-skills"
-      }
-    }
-  },
-  "language": "Polish",
-  "effortLevel": "high",
-  "voiceEnabled": true,
-  "mcpServers": {
-    "chrome-devtools": {
-      "type": "stdio",
-      "command": "npx",
-      "args": [
-        "-y",
-        "chrome-devtools-mcp@latest",
-        "--browserUrl",
-        "http://127.0.0.1:9222"
-      ]
-    }
-  },
-  "defaultMode": "acceptEdits"
+  "voiceEnabled": true
 }
