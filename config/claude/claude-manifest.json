@@ -57,38 +57,6 @@
     "setup-pre-commit": {
       "repo": "mattpocock/skills",
       "path": "setup-pre-commit"
-    },
-    "agent-evaluation": {
-      "repo": "mlflow/skills",
-      "path": "agent-evaluation"
-    },
-    "analyzing-mlflow-session": {
-      "repo": "mlflow/skills",
-      "path": "analyze-mlflow-chat-session"
-    },
-    "analyzing-mlflow-trace": {
-      "repo": "mlflow/skills",
-      "path": "analyze-mlflow-trace"
-    },
-    "instrumenting-with-mlflow-tracing": {
-      "repo": "mlflow/skills",
-      "path": "instrumenting-with-mlflow-tracing"
-    },
-    "mlflow-onboarding": {
-      "repo": "mlflow/skills",
-      "path": "mlflow-onboarding"
-    },
-    "querying-mlflow-metrics": {
-      "repo": "mlflow/skills",
-      "path": "querying-mlflow-metrics"
-    },
-    "retrieving-mlflow-traces": {
-      "repo": "mlflow/skills",
-      "path": "retrieving-mlflow-traces"
-    },
-    "searching-mlflow-docs": {
-      "repo": "mlflow/skills",
-      "path": "searching-mlflow-docs"
     }
   },
   "mcpServers": {
