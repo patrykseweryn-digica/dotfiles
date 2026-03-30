@@ -120,5 +120,20 @@
         "key": "ctrl+shift+r",
         "command": "-workbench.view.extension.thunder-client",
         "when": "viewContainer.workbench.view.extension.thunder-client.enabled"
+    },
+    {
+        "key": "ctrl+alt+i",
+        "command": "-workbench.panel.chat",
+        "when": "workbench.panel.chat.view.copilot.active"
+    },
+    {
+        "key": "ctrl+alt+i",
+        "command": "claude-vscode.sidebar.open",
+        "when": "!claude-vscode.sideBarActive"
+    },
+    {
+        "key": "ctrl+alt+i",
+        "command": "workbench.action.closeAuxiliaryBar",
+        "when": "claude-vscode.sideBarActive"
     }
 ]

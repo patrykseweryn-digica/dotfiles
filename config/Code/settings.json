@@ -60,7 +60,7 @@
   "chat.fontSize": 16,
   "chat.mcp.gallery.enabled": true,
   "chat.viewSessions.orientation": "stacked",
-  "claudeCode.preferredLocation": "panel",
+  "claudeCode.preferredLocation": "sidebar",
   "claudeCode.selectedModel": "default",
   "claudeCode.useTerminal": true,
   "diffEditor.renderSideBySide": false,
