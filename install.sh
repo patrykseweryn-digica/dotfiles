@@ -9,6 +9,23 @@ if command -v sudo >/dev/null 2>&1 && sudo -n true 2>/dev/null; then
     HAS_SUDO=true
 fi
 
+# Detect OS and architecture
+OS="$(uname -s)"     # "Linux" or "Darwin"
+ARCH="$(uname -m)"   # "x86_64" or "arm64"
+export IS_MACOS=false
+export IS_LINUX=false
+if [ "$OS" = "Darwin" ]; then
+    IS_MACOS=true
+elif [ "$OS" = "Linux" ]; then
+    IS_LINUX=true
+fi
+
+# Detect if brew is available (independent of sudo — brew doesn't need sudo on macOS)
+HAS_BREW=false
+if command -v brew >/dev/null 2>&1; then
+    HAS_BREW=true
+fi
+
 # Installation directory for user-local installs
 INSTALL_DIR="${HOME}/.local"
 BIN_DIR="${INSTALL_DIR}/bin"
@@ -183,9 +200,14 @@ setup_dotfiles() {
     done
 
     # Link VSCode settings
-    mkdir -p "${HOME}/.config/Code/User"
-    link_file "$DOTFILES_DIR/config/Code/settings.json" "${HOME}/.config/Code/User/settings.json"
-    link_file "$DOTFILES_DIR/config/Code/keybindings.json" "${HOME}/.config/Code/User/keybindings.json"
+    if [ "$IS_MACOS" = true ]; then
+        VSCODE_USER_DIR="${HOME}/Library/Application Support/Code/User"
+    else
+        VSCODE_USER_DIR="${HOME}/.config/Code/User"
+    fi
+    mkdir -p "$VSCODE_USER_DIR"
+    link_file "$DOTFILES_DIR/config/Code/settings.json" "$VSCODE_USER_DIR/settings.json"
+    link_file "$DOTFILES_DIR/config/Code/keybindings.json" "$VSCODE_USER_DIR/keybindings.json"
 
     # Link Neovim config
     link_file "$DOTFILES_DIR/config/nvim" "${HOME}/.config/nvim"
@@ -253,7 +275,9 @@ main() {
     load_env
 
     echo "[INFO] Starting dotfiles installation..."
+    echo "[INFO] OS: ${OS} (${ARCH})"
     echo "[INFO] Sudo available: ${HAS_SUDO}"
+    echo "[INFO] Brew available: ${HAS_BREW}"
     echo "[INFO] Install directory: ${INSTALL_DIR}"
     # Install tools (continue on non-critical failures)
     install_uv || echo "[WARN] uv installation had issues, continuing..."

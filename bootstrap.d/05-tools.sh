@@ -6,6 +6,8 @@ install_tools() {
     # fzf (required by fzf-tab zsh plugin)
     if check_installed fzf; then
         echo "[INFO] fzf is already installed"
+    elif [ "$HAS_BREW" = true ]; then
+        brew install fzf
     elif [ "$HAS_SUDO" = true ]; then
         if command -v apt-get >/dev/null 2>&1; then
             sudo apt-get install -y fzf
@@ -13,18 +15,19 @@ install_tools() {
             sudo dnf install -y fzf
         elif command -v pacman >/dev/null 2>&1; then
             sudo pacman -S --noconfirm fzf
-        elif command -v brew >/dev/null 2>&1; then
-            brew install fzf
         else
             echo "[WARN] Could not install fzf: no supported package manager"
         fi
     else
-        install_github_binary "junegunn/fzf" "v0.67.0" "fzf-{tag_no_v}-linux_amd64.tar.gz" "fzf" || true
+        install_github_binary "junegunn/fzf" "v0.67.0" \
+            "$(github_binary_pattern fzf)" "fzf" || true
     fi
 
     # bat (required by zsh-bat plugin)
     if check_installed bat || check_installed batcat; then
         echo "[INFO] bat is already installed"
+    elif [ "$HAS_BREW" = true ]; then
+        brew install bat
     elif [ "$HAS_SUDO" = true ]; then
         if command -v apt-get >/dev/null 2>&1; then
             sudo apt-get install -y bat
@@ -36,18 +39,19 @@ install_tools() {
             sudo dnf install -y bat
         elif command -v pacman >/dev/null 2>&1; then
             sudo pacman -S --noconfirm bat
-        elif command -v brew >/dev/null 2>&1; then
-            brew install bat
         else
             echo "[WARN] Could not install bat: no supported package manager"
         fi
     else
-        install_github_binary "sharkdp/bat" "v0.26.1" "bat-{tag}-x86_64-unknown-linux-gnu.tar.gz" "bat" || true
+        install_github_binary "sharkdp/bat" "v0.26.1" \
+            "$(github_binary_pattern bat)" "bat" || true
     fi
 
     # ripgrep (fast grep replacement)
     if check_installed rg; then
         echo "[INFO] ripgrep is already installed"
+    elif [ "$HAS_BREW" = true ]; then
+        brew install ripgrep
     elif [ "$HAS_SUDO" = true ]; then
         if command -v apt-get >/dev/null 2>&1; then
             sudo apt-get install -y ripgrep
@@ -55,18 +59,19 @@ install_tools() {
             sudo dnf install -y ripgrep
         elif command -v pacman >/dev/null 2>&1; then
             sudo pacman -S --noconfirm ripgrep
-        elif command -v brew >/dev/null 2>&1; then
-            brew install ripgrep
         else
             echo "[WARN] Could not install ripgrep: no supported package manager"
         fi
     else
-        install_github_binary "BurntSushi/ripgrep" "15.1.0" "ripgrep-{tag}-x86_64-unknown-linux-musl.tar.gz" "rg" || true
+        install_github_binary "BurntSushi/ripgrep" "15.1.0" \
+            "$(github_binary_pattern ripgrep)" "rg" || true
     fi
 
     # fd (fast find replacement)
     if check_installed fd || check_installed fdfind; then
         echo "[INFO] fd is already installed"
+    elif [ "$HAS_BREW" = true ]; then
+        brew install fd
     elif [ "$HAS_SUDO" = true ]; then
         if command -v apt-get >/dev/null 2>&1; then
             sudo apt-get install -y fd-find
@@ -78,18 +83,19 @@ install_tools() {
             sudo dnf install -y fd-find
         elif command -v pacman >/dev/null 2>&1; then
             sudo pacman -S --noconfirm fd
-        elif command -v brew >/dev/null 2>&1; then
-            brew install fd
         else
             echo "[WARN] Could not install fd: no supported package manager"
         fi
     else
-        install_github_binary "sharkdp/fd" "v10.2.0" "fd-{tag}-x86_64-unknown-linux-gnu.tar.gz" "fd" || true
+        install_github_binary "sharkdp/fd" "v10.2.0" \
+            "$(github_binary_pattern fd)" "fd" || true
     fi
 
-    # eza (modern ls replacement)
+    # eza (modern ls replacement — no macOS binary on GitHub, brew or package manager only)
     if check_installed eza; then
         echo "[INFO] eza is already installed"
+    elif [ "$HAS_BREW" = true ]; then
+        brew install eza
     elif [ "$HAS_SUDO" = true ]; then
         if command -v apt-get >/dev/null 2>&1; then
             sudo apt-get install -y eza 2>/dev/null || true
@@ -97,25 +103,29 @@ install_tools() {
             sudo dnf install -y eza 2>/dev/null || true
         elif command -v pacman >/dev/null 2>&1; then
             sudo pacman -S --noconfirm eza
-        elif command -v brew >/dev/null 2>&1; then
-            brew install eza
         fi
     fi
-    # Fallback to GitHub binary
-    if ! check_installed eza; then
-        install_github_binary "eza-community/eza" "v0.20.14" "eza_x86_64-unknown-linux-gnu.tar.gz" "eza" || true
+    # Fallback to GitHub binary (Linux only — no macOS binary available)
+    if ! check_installed eza && [ "$IS_LINUX" = true ]; then
+        install_github_binary "eza-community/eza" "v0.20.14" \
+            "$(github_binary_pattern eza)" "eza" || true
     fi
 
     # delta (syntax-highlighting git diff pager)
     if check_installed delta; then
         echo "[INFO] delta is already installed"
+    elif [ "$HAS_BREW" = true ]; then
+        brew install git-delta
     else
-        install_github_binary "dandavison/delta" "0.18.2" "delta-0.18.2-x86_64-unknown-linux-gnu.tar.gz" "delta" || true
+        install_github_binary "dandavison/delta" "0.18.2" \
+            "$(github_binary_pattern delta)" "delta" || true
     fi
 
     # zoxide (smart cd replacement)
     if check_installed zoxide; then
         echo "[INFO] zoxide is already installed"
+    elif [ "$HAS_BREW" = true ]; then
+        brew install zoxide
     elif curl -sSf https://raw.githubusercontent.com/ajeetdsouza/zoxide/main/install.sh | sh 2>/dev/null; then
         echo "[INFO] zoxide installed successfully"
     elif check_installed cargo; then
@@ -128,6 +138,8 @@ install_tools() {
     # tealdeer (tldr - practical command examples)
     if check_installed tldr; then
         echo "[INFO] tealdeer is already installed"
+    elif [ "$HAS_BREW" = true ]; then
+        brew install tealdeer
     elif [ "$HAS_SUDO" = true ]; then
         if command -v apt-get >/dev/null 2>&1; then
             sudo apt-get install -y tealdeer
@@ -135,13 +147,14 @@ install_tools() {
             sudo dnf install -y tealdeer
         elif command -v pacman >/dev/null 2>&1; then
             sudo pacman -S --noconfirm tealdeer
-        elif command -v brew >/dev/null 2>&1; then
-            brew install tealdeer
         else
             echo "[WARN] Could not install tealdeer: no supported package manager"
         fi
     else
-        install_github_binary "tealdeer-rs/tealdeer" "v1.8.1" "tealdeer-linux-x86_64-musl" "tealdeer-linux-x86_64-musl" "tldr" || true
+        local pattern
+        pattern="$(github_binary_pattern tealdeer)"
+        install_github_binary "tealdeer-rs/tealdeer" "v1.8.1" \
+            "$pattern" "$pattern" "tldr" || true
     fi
     # Update tldr cache if freshly installed
     if check_installed tldr; then
@@ -151,21 +164,20 @@ install_tools() {
     # lazygit (TUI for git)
     if check_installed lazygit; then
         echo "[INFO] lazygit is already installed"
-    elif [ "$HAS_SUDO" = true ]; then
-        if command -v pacman >/dev/null 2>&1; then
-            sudo pacman -S --noconfirm lazygit
-        elif command -v brew >/dev/null 2>&1; then
-            brew install lazygit
-        else
-            install_github_binary "jesseduffield/lazygit" "v0.59.0" "lazygit_{tag_no_v}_Linux_x86_64.tar.gz" "lazygit" || true
-        fi
+    elif [ "$HAS_BREW" = true ]; then
+        brew install lazygit
+    elif [ "$HAS_SUDO" = true ] && command -v pacman >/dev/null 2>&1; then
+        sudo pacman -S --noconfirm lazygit
     else
-        install_github_binary "jesseduffield/lazygit" "v0.59.0" "lazygit_{tag_no_v}_Linux_x86_64.tar.gz" "lazygit" || true
+        install_github_binary "jesseduffield/lazygit" "v0.59.0" \
+            "$(github_binary_pattern lazygit)" "lazygit" || true
     fi
 
     # jq (required by sync-claude.sh)
     if check_installed jq; then
         echo "[INFO] jq is already installed"
+    elif [ "$HAS_BREW" = true ]; then
+        brew install jq
     elif [ "$HAS_SUDO" = true ]; then
         if command -v apt-get >/dev/null 2>&1; then
             sudo apt-get install -y jq
@@ -173,17 +185,20 @@ install_tools() {
             sudo dnf install -y jq
         elif command -v pacman >/dev/null 2>&1; then
             sudo pacman -S --noconfirm jq
-        elif command -v brew >/dev/null 2>&1; then
-            brew install jq
         else
             echo "[WARN] Could not install jq: no supported package manager"
         fi
     else
-        install_github_binary "jqlang/jq" "jq-1.7.1" "jq-linux-amd64" "jq-linux-amd64" "jq" || true
+        local pattern
+        pattern="$(github_binary_pattern jq)"
+        install_github_binary "jqlang/jq" "jq-1.7.1" \
+            "$pattern" "$pattern" "jq" || true
     fi
 
-    # xclip (clipboard from terminal, used by copyssh alias)
-    if check_installed xclip; then
+    # xclip (clipboard from terminal — Linux only, macOS has built-in pbcopy/pbpaste)
+    if [ "$IS_MACOS" = true ]; then
+        echo "[INFO] Skipping xclip (macOS uses built-in pbcopy/pbpaste)"
+    elif check_installed xclip; then
         echo "[INFO] xclip is already installed"
     elif [ "$HAS_SUDO" = true ]; then
         if command -v apt-get >/dev/null 2>&1; then
@@ -192,8 +207,6 @@ install_tools() {
             sudo dnf install -y xclip
         elif command -v pacman >/dev/null 2>&1; then
             sudo pacman -S --noconfirm xclip
-        elif command -v brew >/dev/null 2>&1; then
-            brew install xclip
         else
             echo "[WARN] Could not install xclip: no supported package manager"
         fi

@@ -7,7 +7,9 @@ description: Search, create, edit, summarize, and organize notes in the user's O
 
 ## Vault
 
-Path: `/home/pseweryn/Documents/Obsidian/just-stefan-things/`
+Path (detect which exists):
+- macOS: `~/Documents/just-stefan-things/`
+- Linux: `~/Documents/Obsidian/just-stefan-things/`
 
 ## Folder structure
 
@@ -90,10 +92,10 @@ When the user asks to update a note, read it first, then propose changes in chat
 ### Search for notes
 
 **By filename:**
-Use Glob with path `/home/pseweryn/Documents/Obsidian/just-stefan-things/` and pattern `**/*keyword*`.
+First determine the vault path: use `~/Documents/just-stefan-things/` if it exists (macOS), otherwise `~/Documents/Obsidian/just-stefan-things/` (Linux). Use Glob with that path and pattern `**/*keyword*`.
 
 **By content:**
-Use Grep with path `/home/pseweryn/Documents/Obsidian/just-stefan-things/` and the search term.
+Use Grep with the vault path (determined above) and the search term.
 
 **Find backlinks to a note:**
 Use Grep with pattern `\[\[Note Title\]\]` across the vault.

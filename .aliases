@@ -1,15 +1,23 @@
 # Shortcuts
-alias copyssh="xclip -selection clipboard < $HOME/.ssh/id_ed25519.pub"
+if [ "$(uname)" = "Darwin" ]; then
+    alias copyssh="pbcopy < $HOME/.ssh/id_ed25519.pub"
+    alias reloaddns="sudo dscacheutil -flushcache && sudo killall -HUP mDNSResponder"
+    alias shrug="echo '¯\_(ツ)_/¯' | pbcopy"
+else
+    alias copyssh="xclip -selection clipboard < $HOME/.ssh/id_ed25519.pub"
+    alias reloaddns="sudo systemd-resolve --flush-caches"
+    alias shrug="echo '¯\_(ツ)_/¯' | wl-copy"
+fi
 alias reloadshell="exec $SHELL"
-alias reloaddns="sudo systemd-resolve --flush-caches"
 if command -v eza >/dev/null 2>&1; then
     alias ls="eza"
     alias ll="eza -alh --group-directories-first"
     alias tree="eza --tree"
+elif [ "$(uname)" = "Darwin" ]; then
+    alias ll="ls -AhlF"
 else
     alias ll="ls -AhlF --color=auto --group-directories-first"
 fi
-alias shrug="echo '¯\_(ツ)_/¯' | wl-copy"
 alias timestamp="date +%s"
 alias version="commit 'version'"
 

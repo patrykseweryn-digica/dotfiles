@@ -44,3 +44,71 @@ install_github_binary() {
     rm -rf "$tmp_dir"
     echo "[INFO] ${name} installed to ${BIN_DIR}/${name}"
 }
+
+# Return the correct GitHub release archive pattern for the current OS/arch.
+# Usage: github_binary_pattern <tool-name>
+# Outputs the archive filename pattern (with {tag}/{tag_no_v} placeholders).
+github_binary_pattern() {
+    local tool="$1"
+    local os="${OS:-Linux}"
+    local arch="${ARCH:-x86_64}"
+
+    case "$tool" in
+        fzf)
+            if [ "$os" = "Darwin" ] && [ "$arch" = "arm64" ]; then
+                echo "fzf-{tag_no_v}-darwin_arm64.tar.gz"
+            else
+                echo "fzf-{tag_no_v}-linux_amd64.tar.gz"
+            fi
+            ;;
+        bat)
+            if [ "$os" = "Darwin" ] && [ "$arch" = "arm64" ]; then
+                echo "bat-{tag}-aarch64-apple-darwin.tar.gz"
+            else
+                echo "bat-{tag}-x86_64-unknown-linux-gnu.tar.gz"
+            fi
+            ;;
+        ripgrep)
+            if [ "$os" = "Darwin" ] && [ "$arch" = "arm64" ]; then
+                echo "ripgrep-{tag}-aarch64-apple-darwin.tar.gz"
+            else
+                echo "ripgrep-{tag}-x86_64-unknown-linux-musl.tar.gz"
+            fi
+            ;;
+        fd)
+            if [ "$os" = "Darwin" ] && [ "$arch" = "arm64" ]; then
+                echo "fd-{tag}-aarch64-apple-darwin.tar.gz"
+            else
+                echo "fd-{tag}-x86_64-unknown-linux-gnu.tar.gz"
+            fi
+            ;;
+        delta)
+            if [ "$os" = "Darwin" ] && [ "$arch" = "arm64" ]; then
+                echo "delta-{tag}-aarch64-apple-darwin.tar.gz"
+            else
+                echo "delta-{tag}-x86_64-unknown-linux-gnu.tar.gz"
+            fi
+            ;;
+        lazygit)
+            if [ "$os" = "Darwin" ] && [ "$arch" = "arm64" ]; then
+                echo "lazygit_{tag_no_v}_darwin_arm64.tar.gz"
+            else
+                echo "lazygit_{tag_no_v}_Linux_x86_64.tar.gz"
+            fi
+            ;;
+        jq)
+            if [ "$os" = "Darwin" ] && [ "$arch" = "arm64" ]; then
+                echo "jq-macos-arm64"
+            else
+                echo "jq-linux-amd64"
+            fi
+            ;;
+        tealdeer)
+            if [ "$os" = "Darwin" ] && [ "$arch" = "arm64" ]; then
+                echo "tealdeer-macos-aarch64"
+            else
+                echo "tealdeer-linux-x86_64-musl"
+            fi
+            ;;
+    esac
+}

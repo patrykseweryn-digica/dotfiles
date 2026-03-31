@@ -97,7 +97,10 @@ fi
 tmux select-pane -t "$ROOT"
 
 # Get agent panes (exclude preview pane)
-mapfile -t ALL_PANES < <(tmux list-panes -t "$SESSION" -F '#{pane_id}')
+ALL_PANES=()
+while IFS= read -r pane_id; do
+    ALL_PANES+=("$pane_id")
+done < <(tmux list-panes -t "$SESSION" -F '#{pane_id}')
 AGENT_PANES=()
 for pane in "${ALL_PANES[@]}"; do
     [ "$pane" != "$PREVIEW_PANE" ] && AGENT_PANES+=("$pane")

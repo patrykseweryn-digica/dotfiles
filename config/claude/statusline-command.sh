@@ -23,12 +23,23 @@ MINS=$((DURATION_MS / 60000)); SECS=$(((DURATION_MS % 60000) / 1000))
 COST_FMT=$(LC_NUMERIC=C printf '$%.2f' "$COST")
 
 # Git branch with caching
-CACHE_FILE="/tmp/statusline-git-cache-$(echo "$DIR" | md5sum | cut -d' ' -f1)"
+if command -v md5sum >/dev/null 2>&1; then
+    CACHE_FILE="/tmp/statusline-git-cache-$(echo "$DIR" | md5sum | cut -d' ' -f1)"
+else
+    CACHE_FILE="/tmp/statusline-git-cache-$(echo "$DIR" | md5)"
+fi
 CACHE_MAX_AGE=5
 
 cache_is_stale() {
-    [ ! -f "$CACHE_FILE" ] || \
-    [ $(($(date +%s) - $(stat -c %Y "$CACHE_FILE" 2>/dev/null || echo 0))) -gt $CACHE_MAX_AGE ]
+    [ ! -f "$CACHE_FILE" ] || {
+        local mtime
+        if stat -c %Y "$CACHE_FILE" >/dev/null 2>&1; then
+            mtime=$(stat -c %Y "$CACHE_FILE" 2>/dev/null || echo 0)
+        else
+            mtime=$(stat -f %m "$CACHE_FILE" 2>/dev/null || echo 0)
+        fi
+        [ $(($(date +%s) - mtime)) -gt $CACHE_MAX_AGE ]
+    }
 }
 
 BRANCH=""

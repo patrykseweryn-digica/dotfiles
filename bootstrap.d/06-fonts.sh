@@ -1,8 +1,25 @@
 #!/bin/bash
 
+# Check if a font is installed (cross-platform)
+font_is_installed() {
+    local name="$1"
+    if command -v fc-list >/dev/null 2>&1; then
+        fc-list 2>/dev/null | grep -qi "$name"
+    elif [ "$IS_MACOS" = true ]; then
+        find "${HOME}/Library/Fonts" /Library/Fonts -iname "*${name}*" -print -quit 2>/dev/null | grep -q .
+    else
+        return 1
+    fi
+}
+
 install_font() {
     local name="$1" url="$2"
-    local font_dir="${HOME}/.local/share/fonts"
+    local font_dir
+    if [ "$IS_MACOS" = true ]; then
+        font_dir="${HOME}/Library/Fonts"
+    else
+        font_dir="${HOME}/.local/share/fonts"
+    fi
     local tmp_dir
 
     mkdir -p "$font_dir"
@@ -28,10 +45,8 @@ install_font() {
 install_fonts() {
     echo "[INFO] Installing fonts..."
 
-    local font_dir="${HOME}/.local/share/fonts"
-
     # JetBrains Mono Nerd Font (required by powerlevel10k)
-    if fc-list 2>/dev/null | grep -qi "JetBrainsMono Nerd"; then
+    if font_is_installed "JetBrainsMono Nerd"; then
         echo "[INFO] JetBrains Mono Nerd Font is already installed"
     else
         install_font "JetBrains Mono Nerd Font" \
@@ -39,7 +54,7 @@ install_fonts() {
     fi
 
     # JetBrains Mono (clean monospace, no Nerd Font icons)
-    if fc-list 2>/dev/null | grep -i "JetBrains Mono" | grep -qvi "Nerd"; then
+    if font_is_installed "JetBrains Mono"; then
         echo "[INFO] JetBrains Mono is already installed"
     else
         install_font "JetBrains Mono" \
@@ -47,7 +62,7 @@ install_fonts() {
     fi
 
     # FiraCode (programming font with ligatures)
-    if fc-list 2>/dev/null | grep -qi "Fira Code"; then
+    if font_is_installed "Fira Code"; then
         echo "[INFO] FiraCode is already installed"
     else
         install_font "FiraCode" \
@@ -55,7 +70,7 @@ install_fonts() {
     fi
 
     # Source Code Pro (Adobe)
-    if fc-list 2>/dev/null | grep -qi "Source Code Pro"; then
+    if font_is_installed "Source Code Pro"; then
         echo "[INFO] Source Code Pro is already installed"
     else
         install_font "Source Code Pro" \
@@ -63,7 +78,7 @@ install_fonts() {
     fi
 
     # Cascadia Code (Microsoft, with Mono variant without ligatures)
-    if fc-list 2>/dev/null | grep -qi "Cascadia"; then
+    if font_is_installed "Cascadia"; then
         echo "[INFO] Cascadia Code is already installed"
     else
         install_font "Cascadia Code" \
@@ -71,7 +86,7 @@ install_fonts() {
     fi
 
     # Iosevka (ultra-configurable, narrow monospace)
-    if fc-list 2>/dev/null | grep -qi "Iosevka"; then
+    if font_is_installed "Iosevka"; then
         echo "[INFO] Iosevka is already installed"
     else
         install_font "Iosevka" \
@@ -79,21 +94,21 @@ install_fonts() {
     fi
 
     # Monaspace (GitHub, 5 stylistic variants with texture healing)
-    if fc-list 2>/dev/null | grep -qi "Monaspace"; then
+    if font_is_installed "Monaspace"; then
         echo "[INFO] Monaspace is already installed"
     else
         install_font "Monaspace" \
             "https://github.com/githubnext/monaspace/releases/download/v1.301/monaspace-static-v1.301.zip"
     fi
 
-    # Rebuild font cache
+    # Rebuild font cache (Linux only — macOS handles this automatically)
     if command -v fc-cache >/dev/null 2>&1; then
         echo "[INFO] Rebuilding font cache..."
         fc-cache -f
     fi
 
-    # Configure GNOME Terminal default font (only if not already set)
-    if command -v gsettings >/dev/null 2>&1 && fc-list 2>/dev/null | grep -qi "JetBrainsMono Nerd"; then
+    # Configure GNOME Terminal default font (Linux/GNOME only)
+    if command -v gsettings >/dev/null 2>&1 && font_is_installed "JetBrainsMono Nerd"; then
         local profile_id
         profile_id=$(gsettings get org.gnome.Terminal.ProfilesList default 2>/dev/null | tr -d "'") || true
         if [ -n "$profile_id" ]; then
