@@ -32,4 +32,8 @@ install_nvm() {
     else
         echo "[INFO] Node.js default version already set: $(nvm version default)"
     fi
+
+    # Install global npm packages
+    echo "[INFO] Installing global npm packages..."
+    npm i -g @steipete/summarize || echo "[WARN] Failed to install @steipete/summarize"
 }
