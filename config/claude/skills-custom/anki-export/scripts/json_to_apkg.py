@@ -23,169 +23,206 @@ def convert_backticks_to_html(text: str) -> str:
 
 
 CARD_CSS = '''
-@import url('https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@300;400;600&family=Source+Code+Pro&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@300;400;600&family=Source+Code+Pro:wght@400;500&display=swap');
 
-*, *::before, *::after { box-sizing: border-box; }
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: 100%; min-height: 100%; margin: 0; padding: 0; }
 
+/* ── Light theme tokens ── */
 .card {
-    --bg: linear-gradient(135deg, #f5e6d0 0%, #e8d0b8 30%, #dcc8b0 60%, #e8dcc8 100%);
-    --card-bg: rgba(235, 225, 205, 0.85);
-    --card-border: rgba(235, 225, 205, 0.32);
-    --card-shadow: 0 8px 32px rgba(100, 80, 50, 0.1);
-    --text-q: #2a2018;
-    --text-a: #2e2418;
-    --meta-color: #8a7a64;
-    --sep: linear-gradient(to right, transparent, rgba(200, 180, 150, 0.4), transparent);
-    --code-bg: rgba(255, 255, 255, 0.3);
-    --code-text: #8a6530;
-    --code-border: rgba(200, 180, 150, 0.25);
-    --extra-color: #6a5c48;
-    --extra-border: rgba(235, 225, 205, 0.32);
-    --explanation-color: #7a6a58;
-    --glow: linear-gradient(to right, transparent 10%, rgba(255,255,255,0.5) 50%, transparent 90%);
+    --surface: #f2e8da;
+    --surface-warm: rgba(220, 190, 150, 0.35);
+    --surface-warm-0: rgba(220, 190, 150, 0);
+    --surface-cool: rgba(200, 175, 140, 0.18);
+    --surface-cool-0: rgba(200, 175, 140, 0);
+    --card-bg: rgba(255, 253, 250, 0.72);
+    --card-blur-bg: rgba(255, 253, 250, 0.48);
+    --card-border: rgba(255, 255, 255, 0.5);
+    --card-shadow: 0 1px 3px rgba(100, 80, 50, 0.05), 0 8px 32px rgba(100, 80, 50, 0.07);
+    --text-q: #1e1810;
+    --text-a: #3a2e20;
+    --text-muted: #8a7c68;
+    --sep: rgba(180, 160, 130, 0.28);
+    --sep-0: rgba(180, 160, 130, 0);
+    --code-bg: rgba(160, 140, 110, 0.1);
+    --code-text: #7a5c30;
+    --code-border: rgba(160, 140, 110, 0.18);
+    --extra-border: rgba(180, 160, 130, 0.3);
+    --glow: rgba(255, 255, 255, 0.55);
+    --glow-0: rgba(255, 255, 255, 0);
+
     font-family: 'Source Sans 3', -apple-system, BlinkMacSystemFont, sans-serif;
-    background:
-        radial-gradient(ellipse 60% 40% at 80% 10%, rgba(220, 180, 130, 0.35) 0%, transparent 70%),
-        radial-gradient(ellipse 50% 40% at 15% 90%, rgba(200, 160, 120, 0.25) 0%, transparent 70%),
-        linear-gradient(135deg, #f5e6d0 0%, #e8d0b8 30%, #dcc8b0 60%, #e8dcc8 100%);
-    padding: 12px;
-    margin: 0;
+
+    /* Layout: top-aligned, full viewport, stable on answer reveal */
+    width: 100%;
+    min-height: 100vh;
+    min-height: 100dvh;
+    padding: 48px 16px 24px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+
+    /* FIX: explicit color stops instead of transparent (prevents dark band artifacts) */
+    background-color: var(--surface);
+    background-image:
+        radial-gradient(ellipse 80% 60% at 70% 12%, var(--surface-warm) 0%, var(--surface-warm-0) 70%),
+        radial-gradient(ellipse 60% 50% at 25% 88%, var(--surface-cool) 0%, var(--surface-cool-0) 70%);
+
     -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
     text-align: center;
 }
 
-/* Glass card container */
+/* ── Glass card ── */
 .glass {
     background: var(--card-bg);
     border: 1px solid var(--card-border);
-    border-radius: 16px;
-    padding: 18px;
+    border-radius: 20px;
+    padding: 28px 26px;
     box-shadow: var(--card-shadow);
+    /* Viewport-based width: 75vw on mobile, capped at 560px on desktop */
+    width: clamp(280px, 75vw, 560px);
     position: relative;
     overflow: hidden;
-    max-width: 560px;
-    width: 100%;
-    margin: 0 auto;
-    z-index: 1;
 }
 
-/* Backdrop blur for supporting browsers */
 @supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
     .glass {
-        background: rgba(235, 225, 205, 0.48);
-        backdrop-filter: blur(20px);
-        -webkit-backdrop-filter: blur(20px);
+        background: var(--card-blur-bg);
+        backdrop-filter: blur(24px) saturate(1.15);
+        -webkit-backdrop-filter: blur(24px) saturate(1.15);
     }
 }
 
-/* Top edge glow */
+/* Top edge highlight */
 .glass::before {
     content: '';
     position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
+    top: 0; left: 24px; right: 24px;
     height: 1px;
-    background: var(--glow);
+    background: linear-gradient(to right, var(--glow-0), var(--glow), var(--glow-0));
+    border-radius: 1px;
 }
 
+/* ── Typography ── */
 .meta {
-    font-size: 11px;
-    font-weight: 300;
-    color: var(--meta-color);
-    margin-bottom: 12px;
-    letter-spacing: 0.08em;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    margin-bottom: 0.875rem;
+    letter-spacing: 0.12em;
     text-transform: uppercase;
+    opacity: 0.72;
 }
 
 .question {
-    font-size: 18px;
+    font-size: 1.125rem;
     font-weight: 600;
     line-height: 1.4;
     color: var(--text-q);
     overflow-wrap: break-word;
+    word-break: break-word;
 }
 
 .separator {
     height: 1px;
-    background: var(--sep);
-    margin: 16px 0;
+    background: linear-gradient(to right, var(--sep-0), var(--sep), var(--sep-0));
+    margin: 1.25rem 0;
     border: none;
 }
 
 .answer {
-    font-size: 19px;
+    font-size: 1.3125rem;
     font-weight: 500;
     line-height: 1.5;
     color: var(--text-a);
     overflow-wrap: break-word;
+    word-break: break-word;
 }
 
-code {
-    font-family: 'Source Code Pro', monospace;
-    font-size: 0.88em;
-    background: var(--code-bg);
-    color: var(--code-text);
-    padding: 3px 9px;
-    border-radius: 8px;
-    border: 1px solid var(--code-border);
-    word-break: break-all;
-}
-
-.answer ul {
-    display: inline-block;
-    margin: 6px 0 0 0;
-    padding-left: 20px;
-    text-align: left;
-}
-
-.answer li {
-    margin: 2px 0;
+.explanation {
+    font-size: 0.9375rem;
+    font-weight: 400;
+    line-height: 1.65;
+    color: var(--text-muted);
+    margin-top: 1rem;
+    overflow-wrap: break-word;
 }
 
 .extra {
     display: inline-block;
     font-style: italic;
-    font-size: 14px;
-    color: var(--extra-color);
-    opacity: 0.8;
-    margin-top: 16px;
-    line-height: 1.6;
-    padding-left: 18px;
+    font-size: 0.8125rem;
+    font-weight: 400;
+    color: var(--text-muted);
+    opacity: 0.7;
+    margin-top: 1.125rem;
+    line-height: 1.55;
+    padding-left: 0.875rem;
     border-left: 2px solid var(--extra-border);
     text-align: left;
 }
 
-.explanation {
-    font-size: 17px;
+/* ── Code ── */
+code {
+    font-family: 'Source Code Pro', 'SF Mono', Menlo, monospace;
+    font-size: 0.84em;
     font-weight: 400;
-    line-height: 1.6;
-    color: var(--explanation-color);
-    margin-top: 14px;
-    overflow-wrap: break-word;
+    background: var(--code-bg);
+    color: var(--code-text);
+    padding: 2px 8px;
+    border-radius: 6px;
+    border: 1px solid var(--code-border);
+    word-break: break-all;
 }
 
-/* ── Dark mode: AnkiDroid / AnkiMobile ── */
+/* ── Lists ── */
+.answer ul {
+    display: inline-block;
+    margin: 8px 0 0;
+    padding-left: 20px;
+    text-align: left;
+}
+
+.answer li { margin: 3px 0; }
+
+/* ── Responsive: small screens ── */
+@media (max-width: 480px) {
+    .card { padding: 2rem 0.75rem 1rem; }
+    .glass { padding: 1.375rem 1.125rem; border-radius: 1rem; }
+    .question { font-size: 1.0625rem; }
+    .answer { font-size: 1.1875rem; }
+    .explanation { font-size: 0.875rem; }
+}
+
+/* ── Dark theme mixin (reused across selectors) ── */
 .nightMode.card,
 .night_mode .card {
-    --card-bg: rgba(65, 58, 48, 0.85);
-    --card-border: rgba(105, 95, 75, 0.2);
-    --card-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
-    --text-q: #dcd0b8;
-    --text-a: #d8ccb4;
-    --meta-color: #9a8a70;
-    --sep: linear-gradient(to right, transparent, rgba(150, 130, 100, 0.3), transparent);
-    --code-bg: rgba(85, 75, 55, 0.35);
-    --code-text: #d4c090;
-    --code-border: rgba(105, 95, 75, 0.2);
-    --extra-color: #a89880;
-    --extra-border: rgba(105, 95, 75, 0.2);
-    --explanation-color: #b0a080;
-    --glow: linear-gradient(to right, transparent 10%, rgba(255,255,255,0.08) 50%, transparent 90%);
-    background:
-        radial-gradient(ellipse 60% 40% at 80% 10%, rgba(100, 80, 50, 0.25) 0%, transparent 70%),
-        radial-gradient(ellipse 50% 40% at 15% 90%, rgba(80, 65, 40, 0.2) 0%, transparent 70%),
-        linear-gradient(135deg, #302a24 0%, #362e28 30%, #2e2822 60%, #342c26 100%);
+    --surface: #1c1814;
+    --surface-warm: rgba(80, 65, 42, 0.28);
+    --surface-warm-0: rgba(80, 65, 42, 0);
+    --surface-cool: rgba(60, 50, 35, 0.18);
+    --surface-cool-0: rgba(60, 50, 35, 0);
+    --card-bg: rgba(48, 42, 34, 0.82);
+    --card-blur-bg: rgba(48, 42, 34, 0.5);
+    --card-border: rgba(85, 75, 58, 0.22);
+    --card-shadow: 0 1px 3px rgba(0, 0, 0, 0.12), 0 8px 32px rgba(0, 0, 0, 0.18);
+    --text-q: #e0d6c8;
+    --text-a: #ccc0ac;
+    --text-muted: #8a7e6c;
+    --sep: rgba(120, 105, 78, 0.28);
+    --sep-0: rgba(120, 105, 78, 0);
+    --code-bg: rgba(85, 74, 55, 0.28);
+    --code-text: #d4be88;
+    --code-border: rgba(85, 74, 55, 0.28);
+    --extra-border: rgba(100, 88, 65, 0.28);
+    --glow: rgba(255, 255, 255, 0.05);
+    --glow-0: rgba(255, 255, 255, 0);
+
+    background-color: var(--surface);
+    background-image:
+        radial-gradient(ellipse 80% 60% at 70% 12%, var(--surface-warm) 0%, var(--surface-warm-0) 70%),
+        radial-gradient(ellipse 60% 50% at 25% 88%, var(--surface-cool) 0%, var(--surface-cool-0) 70%);
 }
 
 .nightMode.card .glass,
@@ -196,41 +233,44 @@ code {
 @supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
     .nightMode.card .glass,
     .night_mode .card .glass {
-        background: rgba(65, 58, 48, 0.5);
+        background: var(--card-blur-bg);
     }
 }
 
-/* ── Dark mode: Anki Desktop ── */
+/* Anki Desktop dark mode */
 @media (prefers-color-scheme: dark) {
     .card {
-        --card-bg: rgba(65, 58, 48, 0.85);
-        --card-border: rgba(105, 95, 75, 0.2);
-        --card-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
-        --text-q: #dcd0b8;
-        --text-a: #d8ccb4;
-        --meta-color: #9a8a70;
-        --sep: linear-gradient(to right, transparent, rgba(150, 130, 100, 0.3), transparent);
-        --code-bg: rgba(85, 75, 55, 0.35);
-        --code-text: #d4c090;
-        --code-border: rgba(105, 95, 75, 0.2);
-        --extra-color: #a89880;
-        --extra-border: rgba(105, 95, 75, 0.2);
-        --explanation-color: #b0a080;
-        --glow: linear-gradient(to right, transparent 10%, rgba(255,255,255,0.08) 50%, transparent 90%);
-        background:
-            radial-gradient(ellipse 60% 40% at 80% 10%, rgba(100, 80, 50, 0.25) 0%, transparent 70%),
-            radial-gradient(ellipse 50% 40% at 15% 90%, rgba(80, 65, 40, 0.2) 0%, transparent 70%),
-            linear-gradient(135deg, #302a24 0%, #362e28 30%, #2e2822 60%, #342c26 100%);
+        --surface: #1c1814;
+        --surface-warm: rgba(80, 65, 42, 0.28);
+        --surface-warm-0: rgba(80, 65, 42, 0);
+        --surface-cool: rgba(60, 50, 35, 0.18);
+        --surface-cool-0: rgba(60, 50, 35, 0);
+        --card-bg: rgba(48, 42, 34, 0.82);
+        --card-blur-bg: rgba(48, 42, 34, 0.5);
+        --card-border: rgba(85, 75, 58, 0.22);
+        --card-shadow: 0 1px 3px rgba(0, 0, 0, 0.12), 0 8px 32px rgba(0, 0, 0, 0.18);
+        --text-q: #e0d6c8;
+        --text-a: #ccc0ac;
+        --text-muted: #8a7e6c;
+        --sep: rgba(120, 105, 78, 0.28);
+        --sep-0: rgba(120, 105, 78, 0);
+        --code-bg: rgba(85, 74, 55, 0.28);
+        --code-text: #d4be88;
+        --code-border: rgba(85, 74, 55, 0.28);
+        --extra-border: rgba(100, 88, 65, 0.28);
+        --glow: rgba(255, 255, 255, 0.05);
+        --glow-0: rgba(255, 255, 255, 0);
+
+        background-color: var(--surface);
+        background-image:
+            radial-gradient(ellipse 80% 60% at 70% 12%, var(--surface-warm) 0%, var(--surface-warm-0) 70%),
+            radial-gradient(ellipse 60% 50% at 25% 88%, var(--surface-cool) 0%, var(--surface-cool-0) 70%);
     }
 
-    .glass {
-        background: var(--card-bg);
-    }
+    .glass { background: var(--card-bg); }
 
     @supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
-        .glass {
-            background: rgba(65, 58, 48, 0.5);
-        }
+        .glass { background: var(--card-blur-bg); }
     }
 }
 '''
@@ -255,7 +295,7 @@ BACK_TEMPLATE = '''
 
 
 def create_model(deck_name: str) -> genanki.Model:
-    model_id = generate_id(f"model_glass_v2_{deck_name}")
+    model_id = generate_id(f"model_glass_v5_{deck_name}")
 
     return genanki.Model(
         model_id,
