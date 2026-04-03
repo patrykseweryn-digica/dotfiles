@@ -227,17 +227,21 @@ install_tools() {
         "${HOME}/.tmux/plugins/tpm/bin/install_plugins" || echo "[WARN] Failed to install tmux plugins"
     fi
 
-    # pre-commit (via uv)
-    if pre-commit --version >/dev/null 2>&1; then
-        echo "[INFO] pre-commit is already installed"
-    elif check_installed uv; then
-        echo "[INFO] Installing pre-commit via uv..."
-        if uv tool install pre-commit; then
-            echo "[INFO] pre-commit installed successfully"
-        else
-            echo "[WARN] Failed to install pre-commit" >&2
-        fi
+    # Python dev tools (via uv)
+    if check_installed uv; then
+        for tool in pre-commit ruff pyright; do
+            if "$tool" --version >/dev/null 2>&1; then
+                echo "[INFO] $tool is already installed"
+            else
+                echo "[INFO] Installing $tool via uv..."
+                if uv tool install "$tool"; then
+                    echo "[INFO] $tool installed successfully"
+                else
+                    echo "[WARN] Failed to install $tool" >&2
+                fi
+            fi
+        done
     else
-        echo "[WARN] Skipping pre-commit (uv not available)"
+        echo "[WARN] Skipping Python dev tools (uv not available)"
     fi
 }
