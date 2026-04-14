@@ -64,6 +64,9 @@ new-project-digica() {
   uvx copier copy --trust gh:patrykseweryn-digica/python-repo-template "$name"
 }
 
+# Load environment variables from .env
+set -a; [[ -f ~/dotfiles/.env ]] && source ~/dotfiles/.env; set +a
+
 # Local per-machine overrides (not tracked in dotfiles)
 [[ ! -f ~/.zshrc.local ]] || source ~/.zshrc.local
 
