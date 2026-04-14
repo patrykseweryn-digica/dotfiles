@@ -192,9 +192,8 @@ done
 cmd_capture() {
     log_info "Capturing local MCP server changes into manifest..."
 
-    [ -f "$SETTINGS_FILE" ] || { echo "[ERROR] Settings file not found: $SETTINGS_FILE" >&2; return 1; }
-
-    local tmp="${MANIFEST}.tmp"
+    local live_settings="${HOME}/.claude/settings.json"
+    [ -f "$live_settings" ] || { echo "[ERROR] Live settings not found: $live_settings" >&2; return 1; }
 
     python3 -c "
 import json, sys
@@ -262,7 +261,10 @@ with open(manifest_path, 'w') as f:
     f.write('\n')
 
 print(f'[INFO] Manifest updated ({len(added)} added, {len(updated)} updated, {len(removed)} removed)')
-" "$SETTINGS_FILE" "$MANIFEST"
+" "$live_settings" "$MANIFEST"
+
+    # Regenerate dotfiles settings.json from updated manifest
+    generate_settings
 }
 
 case "${1:-}" in

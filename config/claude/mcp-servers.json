@@ -4,11 +4,6 @@
     "command": "npx",
     "type": "stdio"
   },
-  "garmin": {
-    "args": ["--python", "3.12", "--from", "git+https://github.com/Taxuspt/garmin_mcp", "garmin-mcp"],
-    "command": "uvx",
-    "type": "stdio"
-  },
   "playwright": {
     "args": ["-y", "@playwright/mcp@latest"],
     "command": "npx",
@@ -17,16 +12,6 @@
   "sequential-thinking": {
     "args": ["-y", "@modelcontextprotocol/server-sequential-thinking"],
     "command": "npx",
-    "type": "stdio"
-  },
-  "telegram": {
-    "args": ["--python", "3.12", "--from", "git+https://github.com/chigwell/telegram-mcp", "telegram-mcp"],
-    "command": "uvx",
-    "env": {
-      "TELEGRAM_API_ID": "${TELEGRAM_API_ID}",
-      "TELEGRAM_API_HASH": "${TELEGRAM_API_HASH}",
-      "TELEGRAM_SESSION_STRING": "${TELEGRAM_SESSION_STRING}"
-    },
     "type": "stdio"
   },
   "todoist": {
