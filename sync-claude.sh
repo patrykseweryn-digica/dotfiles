@@ -189,6 +189,82 @@ while [[ "${1:-}" == --* ]]; do
     esac
 done
 
+cmd_capture() {
+    log_info "Capturing local MCP server changes into manifest..."
+
+    [ -f "$SETTINGS_FILE" ] || { echo "[ERROR] Settings file not found: $SETTINGS_FILE" >&2; return 1; }
+
+    local tmp="${MANIFEST}.tmp"
+
+    python3 -c "
+import json, sys
+
+settings_path = sys.argv[1]
+manifest_path = sys.argv[2]
+
+with open(settings_path) as f:
+    settings = json.load(f)
+
+with open(manifest_path) as f:
+    manifest = json.load(f)
+
+live = settings.get('mcpServers', {})
+old = manifest.get('mcpServers', {})
+
+# Normalize manifest format: strip env lists back to dicts for comparison
+def normalize(server):
+    s = dict(server)
+    if isinstance(s.get('env'), list):
+        s['env'] = s['env']
+    return s
+
+added, updated, removed = [], [], []
+
+for name, server in live.items():
+    if name not in old:
+        added.append(name)
+    else:
+        old_norm = normalize(old[name])
+        # Compare without env (settings.json has env stripped by generate_settings)
+        live_cmp = {k: v for k, v in server.items() if k != 'env'}
+        old_cmp = {k: v for k, v in old_norm.items() if k != 'env'}
+        if live_cmp != old_cmp:
+            updated.append(name)
+
+for name in old:
+    if name not in live:
+        removed.append(name)
+
+if not added and not updated and not removed:
+    print('[INFO] Manifest already up to date')
+    sys.exit(0)
+
+# Apply changes
+mcp = dict(old)
+for name in added:
+    mcp[name] = live[name]
+    print(f'  + {name}')
+for name in updated:
+    # Preserve env from manifest (not in settings.json)
+    env = old[name].get('env')
+    mcp[name] = live[name]
+    if env is not None:
+        mcp[name]['env'] = env
+    print(f'  ~ {name}')
+for name in removed:
+    del mcp[name]
+    print(f'  - {name}')
+
+manifest['mcpServers'] = mcp
+
+with open(manifest_path, 'w') as f:
+    json.dump(manifest, f, indent=2)
+    f.write('\n')
+
+print(f'[INFO] Manifest updated ({len(added)} added, {len(updated)} updated, {len(removed)} removed)')
+" "$SETTINGS_FILE" "$MANIFEST"
+}
+
 case "${1:-}" in
     install)
         cmd_install
@@ -196,11 +272,15 @@ case "${1:-}" in
     update)
         cmd_update
         ;;
+    capture)
+        cmd_capture
+        ;;
     *)
-        echo "Usage: $0 [--quiet] {install|update}"
+        echo "Usage: $0 [--quiet] {install|update|capture}"
         echo
         echo "  install  Clone repos, resolve skills, install plugins, generate settings"
         echo "  update   Pull latest skill repos and re-resolve"
+        echo "  capture  Capture local MCP server changes back into manifest"
         exit 1
         ;;
 esac
