@@ -135,5 +135,10 @@
         "key": "ctrl+alt+i",
         "command": "workbench.action.closeAuxiliaryBar",
         "when": "claude-vscode.sideBarActive"
+    },
+    {
+        "key": "cmd+k cmd+o",
+        "command": "workbench.action.files.openFolder",
+        "when": "isMacNative && openFolderWorkspaceSupport"
     }
 ]
