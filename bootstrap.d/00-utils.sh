@@ -110,5 +110,8 @@ github_binary_pattern() {
                 echo "tealdeer-linux-x86_64-musl"
             fi
             ;;
+        eza)
+            echo "eza_x86_64-unknown-linux-gnu.tar.gz"
+            ;;
     esac
 }
