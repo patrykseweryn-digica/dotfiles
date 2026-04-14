@@ -68,4 +68,5 @@ alias gogh='bash -c "$(curl -sLo- https://git.io/vQgMr)"'
 
 # Claude Code
 alias claude-sync='cd ~/dotfiles && git add config/claude/ && git status'
+alias claude-cleanup='ps aux | grep "[c]laude" | awk "\$7 == \"??\" {print \$2}" | xargs kill -9 2>/dev/null && echo "✅ Claude orphan processes cleaned"'
 alias tw='tmux-work'
