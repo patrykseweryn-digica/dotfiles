@@ -1,109 +1,69 @@
 {
   "marketplaces": {
-    "impeccable": {
-      "source": "github",
-      "repo": "pbakaus/impeccable"
-    },
-    "ui-ux-pro-max-skill": {
-      "source": "github",
-      "repo": "nextlevelbuilder/ui-ux-pro-max-skill"
-    },
     "anthropic-agent-skills": {
-      "source": "github",
-      "repo": "anthropics/skills"
+      "repo": "anthropics/skills",
+      "source": "github"
+    },
+    "claude-plugins-official": {
+      "repo": "anthropics/claude-plugins-official",
+      "source": "github"
+    },
+    "impeccable": {
+      "repo": "pbakaus/impeccable",
+      "source": "github"
+    },
+    "last30days-skill": {
+      "repo": "mvanhorn/last30days-skill",
+      "source": "github"
     },
     "obsidian-skills": {
-      "source": "github",
-      "repo": "kepano/obsidian-skills"
-    }
-  },
-  "skills": {
-    "tdd": {
-      "repo": "mattpocock/skills",
-      "path": "tdd"
+      "repo": "kepano/obsidian-skills",
+      "source": "github"
     },
-    "write-a-skill": {
-      "repo": "mattpocock/skills",
-      "path": "write-a-skill"
-    },
-    "design-an-interface": {
-      "repo": "mattpocock/skills",
-      "path": "design-an-interface"
-    },
-    "git-guardrails-claude-code": {
-      "repo": "mattpocock/skills",
-      "path": "git-guardrails-claude-code"
-    },
-    "request-refactor-plan": {
-      "repo": "mattpocock/skills",
-      "path": "request-refactor-plan"
-    },
-    "find-skills": {
-      "repo": "vercel-labs/skills",
-      "path": "skills/find-skills"
-    },
-    "prd-to-issues": {
-      "repo": "mattpocock/skills",
-      "path": "prd-to-issues"
-    },
-    "scaffold-exercises": {
-      "repo": "mattpocock/skills",
-      "path": "scaffold-exercises"
-    },
-    "write-a-prd": {
-      "repo": "mattpocock/skills",
-      "path": "write-a-prd"
-    },
-    "setup-pre-commit": {
-      "repo": "mattpocock/skills",
-      "path": "setup-pre-commit"
+    "ui-ux-pro-max-skill": {
+      "repo": "nextlevelbuilder/ui-ux-pro-max-skill",
+      "source": "github"
     }
   },
   "mcpServers": {
-    "todoist": {
-      "type": "http",
-      "url": "https://ai.todoist.net/mcp"
+    "chrome-devtools": {
+      "args": [
+        "-y",
+        "chrome-devtools-mcp@latest",
+        "--browserUrl",
+        "http://127.0.0.1:9222"
+      ],
+      "command": "npx",
+      "type": "stdio"
     },
     "garmin": {
-      "type": "stdio",
-      "command": "uvx",
       "args": [
         "--python",
         "3.12",
         "--from",
         "git+https://github.com/Taxuspt/garmin_mcp",
         "garmin-mcp"
-      ]
-    },
-    "sequential-thinking": {
-      "type": "stdio",
-      "command": "npx",
-      "args": [
-        "-y",
-        "@modelcontextprotocol/server-sequential-thinking"
-      ]
+      ],
+      "command": "uvx",
+      "type": "stdio"
     },
     "playwright": {
-      "type": "stdio",
-      "command": "npx",
       "args": [
         "-y",
         "@playwright/mcp@latest"
-      ]
-    },
-    "chrome-devtools": {
-      "type": "stdio",
+      ],
       "command": "npx",
+      "type": "stdio"
+    },
+    "sequential-thinking": {
       "args": [
         "-y",
-        "chrome-devtools-mcp@latest",
-        "--browserUrl",
-        "http://127.0.0.1:9222"
-      ]
+        "@modelcontextprotocol/server-sequential-thinking"
+      ],
+      "command": "npx",
+      "type": "stdio"
     },
     "telegram": {
-      "type": "stdio",
-      "command": "uvx",
       "args": [
         "--python",
         "3.12",
@@ -111,33 +71,83 @@
         "git+https://github.com/chigwell/telegram-mcp",
         "telegram-mcp"
       ],
+      "command": "uvx",
       "env": [
         "TELEGRAM_API_ID",
         "TELEGRAM_API_HASH",
         "TELEGRAM_SESSION_STRING"
-      ]
+      ],
+      "type": "stdio"
+    },
+    "todoist": {
+      "type": "http",
+      "url": "https://ai.todoist.net/mcp"
     }
   },
   "plugins": [
-    "context7@claude-plugins-official",
+    "chrome-devtools-mcp@claude-plugins-official",
+    "claude-code-setup@claude-plugins-official",
+    "claude-md-management@claude-plugins-official",
     "code-review@claude-plugins-official",
     "code-simplifier@claude-plugins-official",
-    "claude-md-management@claude-plugins-official",
-    "pyright-lsp@claude-plugins-official",
-    "typescript-lsp@claude-plugins-official",
-    "feature-dev@claude-plugins-official",
-    "claude-code-setup@claude-plugins-official",
+    "context7@claude-plugins-official",
     "document-skills@anthropic-agent-skills",
-    "impeccable@impeccable",
-    "playwright@claude-plugins-official",
-    "supabase@claude-plugins-official",
+    "feature-dev@claude-plugins-official",
     "figma@claude-plugins-official",
-    "ui-ux-pro-max@ui-ux-pro-max-skill",
     "huggingface-skills@claude-plugins-official",
-    "skill-creator@claude-plugins-official",
-    "chrome-devtools-mcp@claude-plugins-official",
+    "impeccable@impeccable",
+    "last30days@last30days-skill",
+    "obsidian@obsidian-skills",
+    "playwright@claude-plugins-official",
+    "pyright-lsp@claude-plugins-official",
+    "ralph-loop@claude-plugins-official",
     "security-guidance@claude-plugins-official",
+    "skill-creator@claude-plugins-official",
+    "supabase@claude-plugins-official",
     "superpowers@claude-plugins-official",
-    "obsidian@obsidian-skills"
-  ]
+    "typescript-lsp@claude-plugins-official",
+    "ui-ux-pro-max@ui-ux-pro-max-skill"
+  ],
+  "skills": {
+    "design-an-interface": {
+      "path": "design-an-interface",
+      "repo": "mattpocock/skills"
+    },
+    "find-skills": {
+      "path": "skills/find-skills",
+      "repo": "vercel-labs/skills"
+    },
+    "git-guardrails-claude-code": {
+      "path": "git-guardrails-claude-code",
+      "repo": "mattpocock/skills"
+    },
+    "prd-to-issues": {
+      "path": "prd-to-issues",
+      "repo": "mattpocock/skills"
+    },
+    "request-refactor-plan": {
+      "path": "request-refactor-plan",
+      "repo": "mattpocock/skills"
+    },
+    "scaffold-exercises": {
+      "path": "scaffold-exercises",
+      "repo": "mattpocock/skills"
+    },
+    "setup-pre-commit": {
+      "path": "setup-pre-commit",
+      "repo": "mattpocock/skills"
+    },
+    "tdd": {
+      "path": "tdd",
+      "repo": "mattpocock/skills"
+    },
+    "write-a-prd": {
+      "path": "write-a-prd",
+      "repo": "mattpocock/skills"
+    },
+    "write-a-skill": {
+      "path": "write-a-skill",
+      "repo": "mattpocock/skills"
+    }
+  }
 }

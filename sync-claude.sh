@@ -31,6 +31,31 @@ generate_settings() {
     local tmp="${SETTINGS_FILE}.tmp"
 
     jq -S --slurpfile m "$MANIFEST" '
+        del(
+            .feedbackSurveyState,
+            .lastReleaseNotesSeen,
+            .hasCompletedOnboarding,
+            .hasCompletedProjectOnboarding,
+            .projectOnboardingSeenCount,
+            .lastOnboardingVersion,
+            .tipsHistory,
+            .firstStartTime,
+            .userID,
+            .oauthAccount,
+            .fallbackAvailableWarningThreshold,
+            .cachedChangelog,
+            .changelogLastFetched,
+            .installMethod,
+            .autoUpdates,
+            .hasTrustDialogAccepted,
+            .customApiKeyResponses,
+            .shiftEnterKeyBindingInstalled,
+            .optionAsMetaKeyInstalled,
+            .promptQueueUseCount,
+            .subscriptionNoticeCount,
+            .hasAvailableSubscription,
+            .recommendedSubscription
+        ) |
         .enabledPlugins = ($m[0].plugins | map({(.): true}) | add // {}) |
         .extraKnownMarketplaces = ($m[0].marketplaces // {} | to_entries |
             map({(.key): {"source": .value}}) | add // {}) |
@@ -181,6 +206,57 @@ cmd_update() {
     log_info "Update complete"
 }
 
+cmd_export() {
+    local check_only=false
+    [ "${1:-}" = "--check" ] && check_only=true
+
+    local installed_json="${HOME}/.claude/plugins/installed_plugins.json"
+    local known_mp="${HOME}/.claude/plugins/known_marketplaces.json"
+
+    if [ ! -f "$installed_json" ]; then
+        log_info "No installed_plugins.json found, nothing to export"
+        return 0
+    fi
+
+    [ -f "$known_mp" ] || known_mp=/dev/null
+
+    local tmp
+    tmp=$(mktemp)
+    jq -S --slurpfile inst "$installed_json" \
+       --slurpfile km <(cat "$known_mp" 2>/dev/null || echo '{}') '
+        . as $m |
+        (($inst[0].plugins // {}) | keys) as $installed |
+        (($m.plugins // []) + ($installed - ($m.plugins // [])) | unique) as $new_plugins |
+        ($new_plugins | map(split("@")[1] // empty) | unique) as $used_mps |
+        ($used_mps - (($m.marketplaces // {}) | keys)) as $missing_mps |
+        ($missing_mps | map(
+            . as $name
+            | {($name): (($km[0] // {})[$name].source // null)}
+        ) | map(select(.[] != null)) | add // {}) as $new_mps |
+        .plugins = $new_plugins |
+        .marketplaces = (($m.marketplaces // {}) + $new_mps)
+    ' "$MANIFEST" > "$tmp" || { rm -f "$tmp"; echo "[ERROR] export failed" >&2; return 1; }
+
+    if cmp -s "$tmp" "$MANIFEST"; then
+        rm -f "$tmp"
+        log_info "Manifest already in sync with installed plugins"
+        return 0
+    fi
+
+    if [ "$check_only" = true ]; then
+        echo "[ERROR] Manifest drift detected. Installed plugins/marketplaces missing from manifest:" >&2
+        diff <(jq -S '{plugins, marketplaces}' "$MANIFEST") \
+             <(jq -S '{plugins, marketplaces}' "$tmp") >&2 || true
+        echo "" >&2
+        echo "Run: ./sync-claude.sh export" >&2
+        rm -f "$tmp"
+        return 1
+    fi
+
+    mv "$tmp" "$MANIFEST"
+    log_info "Updated manifest with installed plugins/marketplaces"
+}
+
 # Parse global flags
 while [[ "${1:-}" == --* ]]; do
     case "$1" in
@@ -196,11 +272,17 @@ case "${1:-}" in
     update)
         cmd_update
         ;;
+    export)
+        shift
+        cmd_export "$@"
+        ;;
     *)
-        echo "Usage: $0 [--quiet] {install|update}"
+        echo "Usage: $0 [--quiet] {install|update|export [--check]}"
         echo
-        echo "  install  Clone repos, resolve skills, install plugins, generate settings"
-        echo "  update   Pull latest skill repos and re-resolve"
+        echo "  install         Clone repos, resolve skills, install plugins, generate settings"
+        echo "  update          Pull latest skill repos and re-resolve"
+        echo "  export          Sync installed plugins/marketplaces into manifest"
+        echo "  export --check  Exit 1 if manifest is out of sync with installed plugins"
         exit 1
         ;;
 esac
