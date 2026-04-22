@@ -76,7 +76,7 @@ Based on findings, suggest specific fixes:
 | Price field has mixed formats | "Add a price processor to ItemLoader: `price_in = MapCompose(remove_currency, float)`" |
 | Only 1 page of results | "Pagination selector might be wrong. Current: `{selector}`. Check if the site uses AJAX pagination." |
 | HTTP 429 errors | "Site is rate-limiting. Increase DOWNLOAD_DELAY to 2-3 seconds or enable proxy rotation." |
-| HTTP 403 errors | "Site might have bot protection. Consider using anti-bot tools (see /scrapy-copilot anti-bot guidance)." |
+| HTTP 403 errors | "Site might have bot protection. Consider using anti-bot tools (see /web-scraper-copilot anti-bot guidance)." |
 
 ### Step 7: Report
 

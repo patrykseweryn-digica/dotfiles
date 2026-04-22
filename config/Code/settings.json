@@ -171,7 +171,6 @@
   "terminal.integrated.shellIntegration.enabled": true,
   "terminal.integrated.stickyScroll.enabled": false,
   "vsicons.dontShowNewVersionMessage": true,
-  "workbench.colorTheme": "Monokai",
   "workbench.iconTheme": "vscode-icons",
   "workbench.startupEditor": "none",
   "accessibility.voice.keywordActivation": "chatInContext",
@@ -181,6 +180,10 @@
     "*.copilotmd": "vscode.markdown.preview.editor",
     "*.parquet": "duckdb.dataFileViewer",
     "*.csv": "duckdb.dataFileViewer",
-    "*.tsv": "duckdb.dataFileViewer"
-  }
+    "*.tsv": "duckdb.dataFileViewer",
+    "*.xlsx": "duckdb.dataFileViewer"
+  },
+  "workbench.colorTheme": "Monokai",
+  "gitlens.ai.model": "vscode",
+  "gitlens.ai.vscode.model": "copilot:gpt-4.1"
 }

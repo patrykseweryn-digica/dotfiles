@@ -1,11 +1,45 @@
 # Storage Backends
 
-## Asking the User
+After generating the scraper, ask: "Where do you want to save the scraped data?"
+Default is JSONL.
 
-After generating the spider, ask: "Where do you want to save the scraped data?"
-Default is JSONL (already configured in settings.py). Other options below.
+## Standalone Scripts
 
-## Available Backends
+### JSONL (default)
+
+```python
+from pathlib import Path
+
+def export_jsonl(items: list, path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w") as f:
+        for item in items:
+            f.write(item.model_dump_json() + "\n")
+```
+
+### TSV / CSV
+
+```python
+import csv
+from pathlib import Path
+
+def export_tsv(items: list, path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if not items:
+        return
+    fields = list(items[0].model_fields.keys())
+    with open(path, "w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=fields, delimiter="\t")
+        writer.writeheader()
+        for item in items:
+            writer.writerow(item.model_dump())
+```
+
+Replace `delimiter="\t"` with `delimiter=","` for CSV.
+
+---
+
+## Scrapy Backends
 
 ### JSONL (default — already configured)
 No changes needed. Output goes to `output/<spider>/<timestamp>.jsonl`.

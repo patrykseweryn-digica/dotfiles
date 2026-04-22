@@ -99,7 +99,8 @@
       "Bash(killall *)",
       "Bash(shutdown *)",
       "Bash(reboot *)"
-    ]
+    ],
+    "defaultMode": "auto"
   },
   "hooks": {},
   "statusLine": {
@@ -126,7 +127,8 @@
     "supabase@claude-plugins-official": true,
     "superpowers@claude-plugins-official": true,
     "typescript-lsp@claude-plugins-official": true,
-    "ui-ux-pro-max@ui-ux-pro-max-skill": true
+    "ui-ux-pro-max@ui-ux-pro-max-skill": true,
+    "last30days-3@last30days-skill": true
   },
   "extraKnownMarketplaces": {
     "anthropic-agent-skills": {
@@ -152,10 +154,17 @@
         "source": "github",
         "repo": "nextlevelbuilder/ui-ux-pro-max-skill"
       }
+    },
+    "last30days-skill": {
+      "source": {
+        "source": "github",
+        "repo": "mvanhorn/last30days-skill"
+      }
     }
   },
   "language": "Polish",
-  "effortLevel": "high",
+  "effortLevel": "xhigh",
+  "skipAutoPermissionPrompt": true,
   "voiceEnabled": true,
   "defaultMode": "acceptEdits",
   "mcpServers": {

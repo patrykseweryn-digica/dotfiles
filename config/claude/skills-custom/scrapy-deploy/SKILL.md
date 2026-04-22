@@ -14,7 +14,7 @@ Deploy Scrapy projects to Docker with monitoring and scheduling.
 
 ## Context Check
 
-Verify this is a Scrapy project (look for `scrapy.cfg`). If not, tell the user to create one first with `/scrapy-copilot`.
+Verify this is a Scrapy project (look for `scrapy.cfg`). If not, tell the user to create one first with `/web-scraper-copilot`.
 
 ## Deployment: Docker (Recommended)
 
