@@ -6,7 +6,8 @@ MANIFEST="${DOTFILES_DIR}/config/claude/claude-manifest.json"
 CACHE_DIR="${HOME}/.cache/claude-skill-repos"
 RESOLVED_DIR="${CACHE_DIR}/resolved"
 SKILLS_DIR="${HOME}/.claude/skills"
-SETTINGS_FILE="${DOTFILES_DIR}/config/claude/settings.json"
+TEMPLATE_FILE="${DOTFILES_DIR}/config/claude/settings.json"
+SETTINGS_FILE="${HOME}/.claude/settings.json"
 
 QUIET=false
 
@@ -26,48 +27,24 @@ log_info() {
 }
 
 generate_settings() {
-    [ -f "$SETTINGS_FILE" ] || { echo "[WARN] Settings file not found: $SETTINGS_FILE"; return; }
+    [ -f "$TEMPLATE_FILE" ] || { echo "[ERROR] Template not found: $TEMPLATE_FILE" >&2; return 1; }
 
+    mkdir -p "$(dirname "$SETTINGS_FILE")"
     local tmp="${SETTINGS_FILE}.tmp"
 
     jq -S --slurpfile m "$MANIFEST" '
-        del(
-            .feedbackSurveyState,
-            .lastReleaseNotesSeen,
-            .hasCompletedOnboarding,
-            .hasCompletedProjectOnboarding,
-            .projectOnboardingSeenCount,
-            .lastOnboardingVersion,
-            .tipsHistory,
-            .firstStartTime,
-            .userID,
-            .oauthAccount,
-            .fallbackAvailableWarningThreshold,
-            .cachedChangelog,
-            .changelogLastFetched,
-            .installMethod,
-            .autoUpdates,
-            .hasTrustDialogAccepted,
-            .customApiKeyResponses,
-            .shiftEnterKeyBindingInstalled,
-            .optionAsMetaKeyInstalled,
-            .promptQueueUseCount,
-            .subscriptionNoticeCount,
-            .hasAvailableSubscription,
-            .recommendedSubscription
-        ) |
         .enabledPlugins = ($m[0].plugins | map({(.): true}) | add // {}) |
         .extraKnownMarketplaces = ($m[0].marketplaces // {} | to_entries |
             map({(.key): {"source": .value}}) | add // {}) |
         .mcpServers = ($m[0].mcpServers // {} | to_entries |
             map({(.key): (.value | del(.env))}) | add // {})
-    ' "$SETTINGS_FILE" > "$tmp" || { rm -f "$tmp"; echo "[ERROR] Failed to generate settings" >&2; return 1; }
+    ' "$TEMPLATE_FILE" > "$tmp" || { rm -f "$tmp"; echo "[ERROR] Failed to generate settings" >&2; return 1; }
 
-    if cmp -s "$tmp" "$SETTINGS_FILE"; then
+    if [ -f "$SETTINGS_FILE" ] && cmp -s "$tmp" "$SETTINGS_FILE"; then
         rm -f "$tmp"
     else
         mv "$tmp" "$SETTINGS_FILE"
-        log_info "Updated settings.json"
+        log_info "Wrote $SETTINGS_FILE"
     fi
 }
 

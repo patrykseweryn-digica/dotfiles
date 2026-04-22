@@ -200,8 +200,15 @@ setup_dotfiles() {
     # Link Claude Code config
     mkdir -p "${HOME}/.claude/plugins" "${HOME}/.claude/output-styles" "${HOME}/.claude/skills"
     link_file "$DOTFILES_DIR/config/claude/CLAUDE.md" "${HOME}/.claude/CLAUDE.md"
-    link_file "$DOTFILES_DIR/config/claude/settings.json" "${HOME}/.claude/settings.json"
     link_file "$DOTFILES_DIR/config/claude/statusline-command.sh" "${HOME}/.claude/statusline-command.sh"
+
+    # settings.json is NOT symlinked — Claude Code writes to it during sessions,
+    # which would drift repo. sync-claude.sh generates it as a plain file from
+    # the template + manifest.
+    if [ -L "${HOME}/.claude/settings.json" ]; then
+        rm "${HOME}/.claude/settings.json"
+        echo "[INFO] Removed legacy settings.json symlink"
+    fi
     link_file "$DOTFILES_DIR/config/claude/output-styles" "${HOME}/.claude/output-styles"
     link_file "$DOTFILES_DIR/config/claude/agents" "${HOME}/.claude/agents"
 
