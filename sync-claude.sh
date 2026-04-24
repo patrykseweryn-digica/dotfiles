@@ -86,6 +86,34 @@ resolve_skills() {
     done
 }
 
+cleanup_stale_skill_links() {
+    [ -d "$SKILLS_DIR" ] || return 0
+    local manifest_skills
+    manifest_skills=$(jq -r '.skills | keys[]' "$MANIFEST")
+
+    for link in "$SKILLS_DIR"/*; do
+        [ -L "$link" ] || continue
+        local name
+        name=$(basename "$link")
+
+        if [ ! -e "$link" ]; then
+            log_info "Removing broken skill symlink: $name"
+            rm "$link"
+            continue
+        fi
+
+        local target
+        target=$(readlink "$link")
+
+        if [[ "$target" == "$RESOLVED_DIR/"* ]]; then
+            if ! echo "$manifest_skills" | grep -qxF "$name"; then
+                log_info "Removing unmanaged marketplace symlink: $name"
+                rm "$link"
+            fi
+        fi
+    done
+}
+
 cmd_install() {
     log_info "Installing skills and plugins from manifest..."
     mkdir -p "$CACHE_DIR" "$RESOLVED_DIR" "$SKILLS_DIR"
@@ -106,7 +134,7 @@ cmd_install() {
         if [ -L "$link" ]; then
             local target
             target=$(readlink "$link")
-            if [[ "$target" == *"$DOTFILES_DIR"* ]]; then
+            if [[ "$target" == *"$DOTFILES_DIR"* ]] && [ -e "$link" ]; then
                 log_info "Skipping $name (custom skill from dotfiles)"
                 continue
             fi
@@ -119,6 +147,8 @@ cmd_install() {
         ln -s "$dest" "$link"
         log_info "Linked skill: $name"
     done
+
+    cleanup_stale_skill_links
 
     # Remove broken symlink that prevents plugin installation
     local plugins_json="${HOME}/.claude/plugins/installed_plugins.json"
