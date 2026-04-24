@@ -113,6 +113,10 @@
       "path": "design-an-interface",
       "repo": "mattpocock/skills"
     },
+    "domain-model": {
+      "path": "domain-model",
+      "repo": "mattpocock/skills"
+    },
     "find-skills": {
       "path": "skills/find-skills",
       "repo": "vercel-labs/skills"
@@ -121,8 +125,20 @@
       "path": "git-guardrails-claude-code",
       "repo": "mattpocock/skills"
     },
-    "prd-to-issues": {
-      "path": "prd-to-issues",
+    "github-triage": {
+      "path": "github-triage",
+      "repo": "mattpocock/skills"
+    },
+    "grill-me": {
+      "path": "grill-me",
+      "repo": "mattpocock/skills"
+    },
+    "improve-codebase-architecture": {
+      "path": "improve-codebase-architecture",
+      "repo": "mattpocock/skills"
+    },
+    "qa": {
+      "path": "qa",
       "repo": "mattpocock/skills"
     },
     "request-refactor-plan": {
@@ -133,20 +149,32 @@
       "path": "scaffold-exercises",
       "repo": "mattpocock/skills"
     },
-    "setup-pre-commit": {
-      "path": "setup-pre-commit",
-      "repo": "mattpocock/skills"
-    },
     "tdd": {
       "path": "tdd",
       "repo": "mattpocock/skills"
     },
-    "write-a-prd": {
-      "path": "write-a-prd",
+    "to-issues": {
+      "path": "to-issues",
+      "repo": "mattpocock/skills"
+    },
+    "to-prd": {
+      "path": "to-prd",
+      "repo": "mattpocock/skills"
+    },
+    "triage-issue": {
+      "path": "triage-issue",
+      "repo": "mattpocock/skills"
+    },
+    "ubiquitous-language": {
+      "path": "ubiquitous-language",
       "repo": "mattpocock/skills"
     },
     "write-a-skill": {
       "path": "write-a-skill",
+      "repo": "mattpocock/skills"
+    },
+    "zoom-out": {
+      "path": "zoom-out",
       "repo": "mattpocock/skills"
     }
   }
