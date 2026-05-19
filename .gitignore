@@ -2,3 +2,4 @@ config/claude/plugins/installed_plugins.json
 config/claude/skills/
 docs/
 .env
+.claude/

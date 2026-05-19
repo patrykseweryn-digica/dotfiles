@@ -1,7 +1,6 @@
 {
-  "autoUpdatesChannel": "stable",
-  "defaultMode": "acceptEdits",
-  "effortLevel": "high",
+  "autoUpdatesChannel": "latest",
+  "effortLevel": "xhigh",
   "enabledPlugins": {
     "chrome-devtools-mcp@claude-plugins-official": true,
     "claude-code-setup@claude-plugins-official": true,
@@ -170,6 +169,7 @@
       "Bash(python3 *)",
       "Bash(node *)"
     ],
+    "defaultMode": "auto",
     "deny": [
       "Bash(git push *)",
       "Bash(git push)",
@@ -186,9 +186,11 @@
       "Bash(reboot *)"
     ]
   },
+  "skipAutoPermissionPrompt": true,
   "statusLine": {
     "command": "bash $HOME/.claude/statusline-command.sh",
     "type": "command"
   },
+  "tui": "fullscreen",
   "voiceEnabled": true
 }
