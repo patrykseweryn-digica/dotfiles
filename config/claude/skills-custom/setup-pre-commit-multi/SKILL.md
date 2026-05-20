@@ -1,6 +1,6 @@
 ---
-name: setup-pre-commit
-description: Set up pre-commit hooks for Python (pre-commit + ruff + pyright + conventional-commits) or JS/TS (Husky + lint-staged + ESLint + Prettier). Use when user wants to add pre-commit hooks, set up linting on commit, or configure commit-time checks.
+name: setup-pre-commit-multi
+description: Multi-language pre-commit hook setup for Python (pre-commit + ruff + pyright + conventional-commits) AND JS/TS (Husky + lint-staged + ESLint + Prettier). Auto-detects project type from pyproject.toml/package.json and configures both when present. Use for polyglot repos or when you need Python tooling — for JS-only projects prefer `setup-pre-commit` (mattpocock Husky-only).
 ---
 
 # Setup Pre-Commit Hooks

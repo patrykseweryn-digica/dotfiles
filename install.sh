@@ -198,9 +198,12 @@ setup_dotfiles() {
     link_file "$DOTFILES_DIR/config/gh/config.yml" "${HOME}/.config/gh/config.yml"
 
     # Link Claude Code config
-    mkdir -p "${HOME}/.claude/plugins" "${HOME}/.claude/output-styles" "${HOME}/.claude/skills"
+    mkdir -p "${HOME}/.claude/plugins" "${HOME}/.claude/output-styles" "${HOME}/.claude/skills" "${HOME}/.agents"
     link_file "$DOTFILES_DIR/config/claude/CLAUDE.md" "${HOME}/.claude/CLAUDE.md"
     link_file "$DOTFILES_DIR/config/claude/statusline-command.sh" "${HOME}/.claude/statusline-command.sh"
+
+    # Source of truth for `npx skills` lock — version it in the repo.
+    link_file "$DOTFILES_DIR/config/claude/skill-lock.json" "${HOME}/.agents/.skill-lock.json"
 
     # settings.json is NOT symlinked — Claude Code writes to it during sessions,
     # which would drift repo. sync-claude.sh generates it as a plain file from
