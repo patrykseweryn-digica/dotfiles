@@ -14,3 +14,10 @@ repos:
         language: system
         pass_filenames: false
         always_run: true
+      - id: claude-settings-check
+        name: Claude settings drift check
+        description: Ensure ~/.claude/settings.json has no keys outside template + generated keys
+        entry: ./sync-claude.sh settings-check
+        language: system
+        pass_filenames: false
+        always_run: true

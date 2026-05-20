@@ -26,6 +26,29 @@ log_info() {
     echo "[INFO] $*"
 }
 
+cmd_settings_check() {
+    [ -f "$TEMPLATE_FILE" ] || { echo "[ERROR] Template not found: $TEMPLATE_FILE" >&2; return 1; }
+    if [ ! -f "$SETTINGS_FILE" ]; then
+        log_info "No $SETTINGS_FILE yet; skipping drift check"
+        return 0
+    fi
+
+    local extras
+    extras=$(jq -r --slurpfile tpl "$TEMPLATE_FILE" '
+        (($tpl[0] | keys) + ["enabledPlugins", "extraKnownMarketplaces", "mcpServers"]) as $allowed |
+        (keys - $allowed)[]
+    ' "$SETTINGS_FILE") || { echo "[ERROR] Failed to parse $SETTINGS_FILE" >&2; return 1; }
+
+    if [ -n "$extras" ]; then
+        echo "[ERROR] $SETTINGS_FILE has keys outside the template:" >&2
+        echo "$extras" | sed 's/^/  - /' >&2
+        echo "" >&2
+        echo "Add them to $TEMPLATE_FILE (then re-run install) or remove from live settings." >&2
+        return 1
+    fi
+    log_info "settings.json keys in sync with template"
+}
+
 generate_settings() {
     [ -f "$TEMPLATE_FILE" ] || { echo "[ERROR] Template not found: $TEMPLATE_FILE" >&2; return 1; }
 
@@ -157,6 +180,9 @@ cmd_install() {
         rm "$plugins_json"
     fi
 
+    # Block drift before regenerating settings.json from manifest
+    cmd_settings_check
+
     # Generate deterministic settings.json from manifest
     generate_settings
 
@@ -283,13 +309,17 @@ case "${1:-}" in
         shift
         cmd_export "$@"
         ;;
+    settings-check)
+        cmd_settings_check
+        ;;
     *)
-        echo "Usage: $0 [--quiet] {install|update|export [--check]}"
+        echo "Usage: $0 [--quiet] {install|update|export [--check]|settings-check}"
         echo
         echo "  install         Clone repos, resolve skills, install plugins, generate settings"
         echo "  update          Pull latest skill repos and re-resolve"
         echo "  export          Sync installed plugins/marketplaces into manifest"
         echo "  export --check  Exit 1 if manifest is out of sync with installed plugins"
+        echo "  settings-check  Exit 1 if ~/.claude/settings.json has keys outside the template"
         exit 1
         ;;
 esac
