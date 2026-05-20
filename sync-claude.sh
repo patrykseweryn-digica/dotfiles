@@ -71,25 +71,49 @@ generate_settings() {
     fi
 }
 
-ensure_lock_symlink() {
+ensure_live_lock() {
     mkdir -p "$(dirname "$SKILL_LOCK_LIVE")"
 
-    if [ -L "$SKILL_LOCK_LIVE" ] && [ "$(readlink "$SKILL_LOCK_LIVE")" = "$SKILL_LOCK_REPO" ]; then
-        return 0
+    if [ -L "$SKILL_LOCK_LIVE" ]; then
+        local target
+        target=$(readlink "$SKILL_LOCK_LIVE")
+        if [ "$target" = "$SKILL_LOCK_REPO" ]; then
+            local backup_dir="${HOME}/.dotfiles-backup"
+            mkdir -p "$backup_dir"
+            local backup
+            backup="${backup_dir}/.skill-lock.json.legacy.$(date +%Y%m%d%H%M%S)"
+            cp -L "$SKILL_LOCK_LIVE" "$backup"
+            rm "$SKILL_LOCK_LIVE"
+            log_info "Removed legacy symlink, backup at $backup"
+        fi
     fi
 
-    if [ -e "$SKILL_LOCK_LIVE" ] || [ -L "$SKILL_LOCK_LIVE" ]; then
-        local backup_dir="${HOME}/.dotfiles-backup"
-        mkdir -p "$backup_dir"
-        local backup
-        backup="${backup_dir}/.skill-lock.json.$(date +%Y%m%d%H%M%S)"
-        cp -P "$SKILL_LOCK_LIVE" "$backup"
-        rm -f "$SKILL_LOCK_LIVE"
-        log_info "Backed up live skill-lock to $backup"
+    [ -f "$SKILL_LOCK_REPO" ] || { echo "[ERROR] Repo skill-lock missing: $SKILL_LOCK_REPO" >&2; return 1; }
+
+    local tmp
+    tmp=$(mktemp)
+    if [ -f "$SKILL_LOCK_LIVE" ]; then
+        # Merge: repo defines skill set + intent; live contributes state fields (timestamps, hashes).
+        jq -s '
+          .[0] as $live | .[1] as $repo |
+          {
+            dismissed: $repo.dismissed,
+            skills: ($repo.skills | with_entries(
+              .key as $k |
+              .value = (($live.skills[$k] // {}) * .value)
+            ))
+          } + ($live | del(.skills, .dismissed))
+        ' "$SKILL_LOCK_LIVE" "$SKILL_LOCK_REPO" > "$tmp" || { rm -f "$tmp"; echo "[ERROR] Failed to merge live lock" >&2; return 1; }
+    else
+        cp "$SKILL_LOCK_REPO" "$tmp"
     fi
 
-    ln -s "$SKILL_LOCK_REPO" "$SKILL_LOCK_LIVE"
-    log_info "Linked $SKILL_LOCK_LIVE -> $SKILL_LOCK_REPO"
+    if [ -f "$SKILL_LOCK_LIVE" ] && cmp -s "$tmp" "$SKILL_LOCK_LIVE"; then
+        rm -f "$tmp"
+    else
+        mv "$tmp" "$SKILL_LOCK_LIVE"
+        log_info "Wrote $SKILL_LOCK_LIVE from repo intent"
+    fi
 }
 
 cmd_skills_install() {
@@ -105,6 +129,9 @@ cmd_skills_install() {
     local name source
     while IFS=$'\t' read -r name source; do
         [ -n "$name" ] || continue
+        if [ -e "${SKILLS_DIR}/${name}/SKILL.md" ]; then
+            continue
+        fi
         log_info "Installing skill: $name (from $source)"
         if ! npx -y skills add -g "$source" --skill "$name" -y </dev/null >/dev/null 2>&1; then
             echo "[WARN] Failed to install skill: $name (from $source)" >&2
@@ -112,11 +139,30 @@ cmd_skills_install() {
     done <<< "$entries"
 }
 
+cmd_skills_export() {
+    [ -f "$SKILL_LOCK_LIVE" ] || { log_info "No live skill-lock to export from"; return 0; }
+
+    local tmp
+    tmp=$(mktemp)
+    jq -S '{
+        skills: (.skills | map_values(del(.skillFolderHash, .installedAt, .updatedAt))),
+        dismissed: .dismissed
+    }' "$SKILL_LOCK_LIVE" > "$tmp" || { rm -f "$tmp"; echo "[ERROR] skills export failed" >&2; return 1; }
+
+    if [ -f "$SKILL_LOCK_REPO" ] && cmp -s "$tmp" "$SKILL_LOCK_REPO"; then
+        rm -f "$tmp"
+        log_info "Repo skill-lock already in sync"
+    else
+        mv "$tmp" "$SKILL_LOCK_REPO"
+        log_info "Updated $SKILL_LOCK_REPO from live lock"
+    fi
+}
+
 cmd_install() {
     log_info "Installing Claude Code config..."
     mkdir -p "$SKILLS_DIR"
 
-    ensure_lock_symlink
+    ensure_live_lock
     cmd_settings_check
     generate_settings
 
@@ -248,16 +294,20 @@ case "${1:-}" in
         shift
         cmd_export "$@"
         ;;
+    export-skills)
+        cmd_skills_export
+        ;;
     settings-check)
         cmd_settings_check
         ;;
     *)
-        echo "Usage: $0 [--quiet] {install|update|export [--check]|settings-check}"
+        echo "Usage: $0 [--quiet] {install|update|export [--check]|export-skills|settings-check}"
         echo
-        echo "  install         Ensure lock symlink, install marketplaces/plugins, install skills from lock"
+        echo "  install         Generate live skill-lock from repo intent, install marketplaces/plugins/skills"
         echo "  update          Alias for: npx skills update -g (forwards extra args)"
         echo "  export          Sync installed plugins/marketplaces into manifest"
         echo "  export --check  Exit 1 if manifest is out of sync with installed plugins"
+        echo "  export-skills   Strip live skill-lock into repo (after npx skills add/update)"
         echo "  settings-check  Exit 1 if ~/.claude/settings.json has keys outside the template"
         exit 1
         ;;
