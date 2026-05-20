@@ -3,8 +3,8 @@ set -eu
 
 DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MANIFEST="${DOTFILES_DIR}/config/claude/claude-manifest.json"
-CACHE_DIR="${HOME}/.cache/claude-skill-repos"
-RESOLVED_DIR="${CACHE_DIR}/resolved"
+SKILL_LOCK_REPO="${DOTFILES_DIR}/config/claude/skill-lock.json"
+SKILL_LOCK_LIVE="${HOME}/.agents/.skill-lock.json"
 SKILLS_DIR="${HOME}/.claude/skills"
 TEMPLATE_FILE="${DOTFILES_DIR}/config/claude/settings.json"
 SETTINGS_FILE="${HOME}/.claude/settings.json"
@@ -71,107 +71,54 @@ generate_settings() {
     fi
 }
 
-sync_repos() {
-    local repos
-    repos=$(jq -r '.skills[] | .repo' "$MANIFEST" | sort -u)
+ensure_lock_symlink() {
+    mkdir -p "$(dirname "$SKILL_LOCK_LIVE")"
 
-    for repo in $repos; do
-        local repo_dir="${CACHE_DIR}/${repo//\//_}"
-        if [ -d "$repo_dir" ]; then
-            log_info "Updating repo $repo..."
-            git -C "$repo_dir" pull --ff-only --quiet 2>/dev/null || true
-        else
-            log_info "Cloning $repo..."
-            git clone --depth 1 --quiet "https://github.com/${repo}.git" "$repo_dir"
-        fi
-    done
+    if [ -L "$SKILL_LOCK_LIVE" ] && [ "$(readlink "$SKILL_LOCK_LIVE")" = "$SKILL_LOCK_REPO" ]; then
+        return 0
+    fi
+
+    if [ -e "$SKILL_LOCK_LIVE" ] || [ -L "$SKILL_LOCK_LIVE" ]; then
+        local backup_dir="${HOME}/.dotfiles-backup"
+        mkdir -p "$backup_dir"
+        local backup
+        backup="${backup_dir}/.skill-lock.json.$(date +%Y%m%d%H%M%S)"
+        cp -P "$SKILL_LOCK_LIVE" "$backup"
+        rm -f "$SKILL_LOCK_LIVE"
+        log_info "Backed up live skill-lock to $backup"
+    fi
+
+    ln -s "$SKILL_LOCK_REPO" "$SKILL_LOCK_LIVE"
+    log_info "Linked $SKILL_LOCK_LIVE -> $SKILL_LOCK_REPO"
 }
 
-resolve_skills() {
-    local skill_names
-    skill_names=$(jq -r '.skills | keys[]' "$MANIFEST")
+cmd_skills_install() {
+    [ -f "$SKILL_LOCK_LIVE" ] || { log_info "No skill-lock found; skipping skill install"; return 0; }
 
-    for name in $skill_names; do
-        local repo path repo_dir src dest
-        repo=$(jq -r ".skills[\"$name\"].repo" "$MANIFEST")
-        path=$(jq -r ".skills[\"$name\"].path" "$MANIFEST")
-        repo_dir="${CACHE_DIR}/${repo//\//_}"
-        src="${repo_dir}/${path}"
-        dest="${RESOLVED_DIR}/${name}"
+    # Drop stale symlinks pointing at the legacy cache so npx can rebuild them.
+    [ -d "$SKILLS_DIR" ] && find "$SKILLS_DIR" -maxdepth 1 -lname '*claude-skill-repos*' -delete 2>/dev/null || true
 
-        if [ ! -d "$src" ]; then
-            echo "[WARN] Skill source not found: $src"
-            continue
+    local entries
+    entries=$(jq -r '.skills | to_entries[] | "\(.key)\t\(.value.source)"' "$SKILL_LOCK_LIVE")
+    [ -n "$entries" ] || { log_info "No skills in lock"; return 0; }
+
+    local name source
+    while IFS=$'\t' read -r name source; do
+        [ -n "$name" ] || continue
+        log_info "Installing skill: $name (from $source)"
+        if ! npx -y skills add -g "$source" --skill "$name" -y </dev/null >/dev/null 2>&1; then
+            echo "[WARN] Failed to install skill: $name (from $source)" >&2
         fi
-
-        rsync -a --delete "$src/" "$dest/"
-        log_info "Resolved skill: $name"
-    done
-}
-
-cleanup_stale_skill_links() {
-    [ -d "$SKILLS_DIR" ] || return 0
-    local manifest_skills
-    manifest_skills=$(jq -r '.skills | keys[]' "$MANIFEST")
-
-    for link in "$SKILLS_DIR"/*; do
-        [ -L "$link" ] || continue
-        local name
-        name=$(basename "$link")
-
-        if [ ! -e "$link" ]; then
-            log_info "Removing broken skill symlink: $name"
-            rm "$link"
-            continue
-        fi
-
-        local target
-        target=$(readlink "$link")
-
-        if [[ "$target" == "$RESOLVED_DIR/"* ]]; then
-            if ! echo "$manifest_skills" | grep -qxF "$name"; then
-                log_info "Removing unmanaged marketplace symlink: $name"
-                rm "$link"
-            fi
-        fi
-    done
+    done <<< "$entries"
 }
 
 cmd_install() {
-    log_info "Installing skills and plugins from manifest..."
-    mkdir -p "$CACHE_DIR" "$RESOLVED_DIR" "$SKILLS_DIR"
+    log_info "Installing Claude Code config..."
+    mkdir -p "$SKILLS_DIR"
 
-    sync_repos
-    resolve_skills
-
-    # Symlink marketplace skills (skip custom skills from dotfiles)
-    local skill_names
-    skill_names=$(jq -r '.skills | keys[]' "$MANIFEST")
-
-    for name in $skill_names; do
-        local dest="${RESOLVED_DIR}/${name}"
-        local link="${SKILLS_DIR}/${name}"
-
-        [ -d "$dest" ] || continue
-
-        if [ -L "$link" ]; then
-            local target
-            target=$(readlink "$link")
-            if [[ "$target" == *"$DOTFILES_DIR"* ]] && [ -e "$link" ]; then
-                log_info "Skipping $name (custom skill from dotfiles)"
-                continue
-            fi
-            rm "$link"
-        elif [ -e "$link" ]; then
-            echo "[WARN] $link exists and is not a symlink, skipping"
-            continue
-        fi
-
-        ln -s "$dest" "$link"
-        log_info "Linked skill: $name"
-    done
-
-    cleanup_stale_skill_links
+    ensure_lock_symlink
+    cmd_settings_check
+    generate_settings
 
     # Remove broken symlink that prevents plugin installation
     local plugins_json="${HOME}/.claude/plugins/installed_plugins.json"
@@ -180,13 +127,7 @@ cmd_install() {
         rm "$plugins_json"
     fi
 
-    # Block drift before regenerating settings.json from manifest
-    cmd_settings_check
-
-    # Generate deterministic settings.json from manifest
-    generate_settings
-
-    # Install plugins (requires claude CLI)
+    # Install marketplaces + plugins (requires claude CLI)
     if command -v claude >/dev/null 2>&1; then
         # Register missing marketplaces
         local known_mp_file="${HOME}/.claude/plugins/known_marketplaces.json"
@@ -226,17 +167,14 @@ cmd_install() {
         echo "[WARN] claude CLI not found, skipping plugin installation"
     fi
 
+    cmd_skills_install
+
     log_info "Sync install complete"
 }
 
 cmd_update() {
-    log_info "Updating cached skill repos..."
-    mkdir -p "$CACHE_DIR"
-
-    sync_repos
-    resolve_skills
-
-    log_info "Update complete"
+    log_info "Updating skills via npx skills update -g..."
+    npx -y skills update -g "$@"
 }
 
 cmd_export() {
@@ -303,7 +241,8 @@ case "${1:-}" in
         cmd_install
         ;;
     update)
-        cmd_update
+        shift
+        cmd_update "$@"
         ;;
     export)
         shift
@@ -315,8 +254,8 @@ case "${1:-}" in
     *)
         echo "Usage: $0 [--quiet] {install|update|export [--check]|settings-check}"
         echo
-        echo "  install         Clone repos, resolve skills, install plugins, generate settings"
-        echo "  update          Pull latest skill repos and re-resolve"
+        echo "  install         Ensure lock symlink, install marketplaces/plugins, install skills from lock"
+        echo "  update          Alias for: npx skills update -g (forwards extra args)"
         echo "  export          Sync installed plugins/marketplaces into manifest"
         echo "  export --check  Exit 1 if manifest is out of sync with installed plugins"
         echo "  settings-check  Exit 1 if ~/.claude/settings.json has keys outside the template"
