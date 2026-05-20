@@ -1,5 +1,9 @@
 # Global Preferences
 
+- Don’t assume. Don’t hide confusion. Surface tradeoffs.
+- Minimum code that solves the problem. Nothing speculative.
+- Touch only what you must. Clean up only your own mess.
+- Define success criteria. Loop until verified.
 - Match my language (respond in the language I write in)
 - Be concise; explain properly only when needed
 - When stuck or unsure, ask immediately via AskUserQuestion
@@ -29,3 +33,4 @@
 - Write tests only when asked
 - Secrets always via env vars, never hardcoded
 - Feature-based organization (group by domain, not file type)
+- **All imports at the top of the file** — never inline inside functions, methods, or blocks. The only acceptable exception is breaking a true circular import that cannot be resolved by restructuring (rare; explain in a comment if used).
