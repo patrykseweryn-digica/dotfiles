@@ -1,90 +1,6 @@
 {
-  "autoUpdatesChannel": "latest",
-  "effortLevel": "xhigh",
-  "enabledPlugins": {
-    "chrome-devtools-mcp@claude-plugins-official": true,
-    "claude-code-setup@claude-plugins-official": true,
-    "claude-md-management@claude-plugins-official": true,
-    "code-review@claude-plugins-official": true,
-    "code-simplifier@claude-plugins-official": true,
-    "context7@claude-plugins-official": true,
-    "document-skills@anthropic-agent-skills": true,
-    "feature-dev@claude-plugins-official": true,
-    "figma@claude-plugins-official": true,
-    "huggingface-skills@claude-plugins-official": true,
-    "impeccable@impeccable": true,
-    "obsidian@obsidian-skills": true,
-    "playwright@claude-plugins-official": true,
-    "pyright-lsp@claude-plugins-official": true,
-    "security-guidance@claude-plugins-official": true,
-    "skill-creator@claude-plugins-official": true,
-    "supabase@claude-plugins-official": true,
-    "superpowers@claude-plugins-official": true,
-    "typescript-lsp@claude-plugins-official": true,
-    "ui-ux-pro-max@ui-ux-pro-max-skill": true
-  },
   "env": {
     "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
-  },
-  "extraKnownMarketplaces": {
-    "anthropic-agent-skills": {
-      "source": {
-        "repo": "anthropics/skills",
-        "source": "github"
-      }
-    },
-    "impeccable": {
-      "source": {
-        "repo": "pbakaus/impeccable",
-        "source": "github"
-      }
-    },
-    "obsidian-skills": {
-      "source": {
-        "repo": "kepano/obsidian-skills",
-        "source": "github"
-      }
-    },
-    "ui-ux-pro-max-skill": {
-      "source": {
-        "repo": "nextlevelbuilder/ui-ux-pro-max-skill",
-        "source": "github"
-      }
-    }
-  },
-  "hooks": {},
-  "language": "Polish",
-  "mcpServers": {
-    "chrome-devtools": {
-      "args": [
-        "-y",
-        "chrome-devtools-mcp@latest",
-        "--browserUrl",
-        "http://127.0.0.1:9222"
-      ],
-      "command": "npx",
-      "type": "stdio"
-    },
-    "playwright": {
-      "args": [
-        "-y",
-        "@playwright/mcp@latest"
-      ],
-      "command": "npx",
-      "type": "stdio"
-    },
-    "sequential-thinking": {
-      "args": [
-        "-y",
-        "@modelcontextprotocol/server-sequential-thinking"
-      ],
-      "command": "npx",
-      "type": "stdio"
-    },
-    "todoist": {
-      "type": "http",
-      "url": "https://ai.todoist.net/mcp"
-    }
   },
   "permissions": {
     "allow": [
@@ -169,7 +85,6 @@
       "Bash(python3 *)",
       "Bash(node *)"
     ],
-    "defaultMode": "auto",
     "deny": [
       "Bash(git push *)",
       "Bash(git push)",
@@ -184,13 +99,106 @@
       "Bash(killall *)",
       "Bash(shutdown *)",
       "Bash(reboot *)"
-    ]
+    ],
+    "defaultMode": "auto"
   },
-  "skipAutoPermissionPrompt": true,
+  "hooks": {},
   "statusLine": {
-    "command": "bash $HOME/.claude/statusline-command.sh",
-    "type": "command"
+    "type": "command",
+    "command": "bash $HOME/.claude/statusline-command.sh"
   },
+  "enabledPlugins": {
+    "chrome-devtools-mcp@claude-plugins-official": true,
+    "claude-code-setup@claude-plugins-official": true,
+    "claude-md-management@claude-plugins-official": true,
+    "code-review@claude-plugins-official": true,
+    "code-simplifier@claude-plugins-official": true,
+    "context7@claude-plugins-official": true,
+    "document-skills@anthropic-agent-skills": true,
+    "feature-dev@claude-plugins-official": true,
+    "figma@claude-plugins-official": true,
+    "huggingface-skills@claude-plugins-official": true,
+    "impeccable@impeccable": true,
+    "obsidian@obsidian-skills": true,
+    "playwright@claude-plugins-official": true,
+    "pyright-lsp@claude-plugins-official": true,
+    "security-guidance@claude-plugins-official": true,
+    "skill-creator@claude-plugins-official": true,
+    "supabase@claude-plugins-official": true,
+    "superpowers@claude-plugins-official": true,
+    "typescript-lsp@claude-plugins-official": true,
+    "ui-ux-pro-max@ui-ux-pro-max-skill": true,
+    "pydantic-ai@claude-plugins-official": true,
+    "ai@pydantic-skills": true
+  },
+  "extraKnownMarketplaces": {
+    "anthropic-agent-skills": {
+      "source": {
+        "source": "github",
+        "repo": "anthropics/skills"
+      }
+    },
+    "impeccable": {
+      "source": {
+        "source": "github",
+        "repo": "pbakaus/impeccable"
+      }
+    },
+    "obsidian-skills": {
+      "source": {
+        "source": "github",
+        "repo": "kepano/obsidian-skills"
+      }
+    },
+    "ui-ux-pro-max-skill": {
+      "source": {
+        "source": "github",
+        "repo": "nextlevelbuilder/ui-ux-pro-max-skill"
+      }
+    },
+    "pydantic-skills": {
+      "source": {
+        "source": "github",
+        "repo": "pydantic/skills"
+      }
+    }
+  },
+  "language": "Polish",
+  "effortLevel": "xhigh",
+  "autoUpdatesChannel": "latest",
   "tui": "fullscreen",
-  "voiceEnabled": true
+  "skipAutoPermissionPrompt": true,
+  "voiceEnabled": true,
+  "mcpServers": {
+    "chrome-devtools": {
+      "args": [
+        "-y",
+        "chrome-devtools-mcp@latest",
+        "--browserUrl",
+        "http://127.0.0.1:9222"
+      ],
+      "command": "npx",
+      "type": "stdio"
+    },
+    "playwright": {
+      "args": [
+        "-y",
+        "@playwright/mcp@latest"
+      ],
+      "command": "npx",
+      "type": "stdio"
+    },
+    "sequential-thinking": {
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-sequential-thinking"
+      ],
+      "command": "npx",
+      "type": "stdio"
+    },
+    "todoist": {
+      "type": "http",
+      "url": "https://ai.todoist.net/mcp"
+    }
+  }
 }
