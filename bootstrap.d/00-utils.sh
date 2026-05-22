@@ -4,6 +4,58 @@ check_installed() {
     command -v "$1" >/dev/null 2>&1
 }
 
+detect_package_manager() {
+    if command -v apt-get >/dev/null 2>&1; then
+        echo "apt-get"
+    elif command -v dnf >/dev/null 2>&1; then
+        echo "dnf"
+    elif command -v pacman >/dev/null 2>&1; then
+        echo "pacman"
+    elif command -v brew >/dev/null 2>&1; then
+        echo "brew"
+    else
+        return 1
+    fi
+}
+
+install_package_manager_package() {
+    local tool_name="$1"
+    local apt_package="$2"
+    local dnf_package="$3"
+    local pacman_package="$4"
+    local brew_package="$5"
+    local package_manager
+    local package_name
+
+    if ! package_manager="$(detect_package_manager)"; then
+        echo "[WARN] Could not install ${tool_name}: no supported package manager"
+        return 1
+    fi
+
+    case "$package_manager" in
+        apt-get)
+            package_name="$apt_package"
+            [ -n "$package_name" ] || return 1
+            sudo apt-get install -y "$package_name"
+            ;;
+        dnf)
+            package_name="$dnf_package"
+            [ -n "$package_name" ] || return 1
+            sudo dnf install -y "$package_name"
+            ;;
+        pacman)
+            package_name="$pacman_package"
+            [ -n "$package_name" ] || return 1
+            sudo pacman -S --noconfirm "$package_name"
+            ;;
+        brew)
+            package_name="$brew_package"
+            [ -n "$package_name" ] || return 1
+            brew install "$package_name"
+            ;;
+    esac
+}
+
 # Download a binary from a GitHub release tarball/zip and install to BIN_DIR.
 # Usage: install_github_binary <owner/repo> <tag> <archive_pattern> <binary_name_in_archive> [installed_name]
 # archive_pattern: filename pattern with {tag} and/or {tag_no_v} placeholders

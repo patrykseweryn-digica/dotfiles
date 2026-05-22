@@ -1,91 +1,92 @@
 #!/bin/bash
 
+tool_plan_installed() {
+    local check_command
+
+    for check_command in $1; do
+        if check_installed "$check_command"; then
+            return 0
+        fi
+    done
+
+    return 1
+}
+
+run_cli_tool_plan() {
+    local tool_name="$1"
+    local check_commands="$2"
+    local apt_package="$3"
+    local dnf_package="$4"
+    local pacman_package="$5"
+    local brew_package="$6"
+    local github_repo="$7"
+    local github_tag="$8"
+    local github_archive="$9"
+    local github_binary="${10}"
+    local github_installed_name="${11:-}"
+    local post_install="${12:-}"
+
+    if tool_plan_installed "$check_commands"; then
+        echo "[INFO] ${tool_name} is already installed"
+    elif [ "$HAS_SUDO" = true ]; then
+        install_package_manager_package "$tool_name" "$apt_package" "$dnf_package" "$pacman_package" "$brew_package" || true
+        if [ -n "$post_install" ]; then
+            "$post_install"
+        fi
+    else
+        if [ -n "$github_installed_name" ]; then
+            install_github_binary "$github_repo" "$github_tag" "$github_archive" "$github_binary" "$github_installed_name" || true
+        else
+            install_github_binary "$github_repo" "$github_tag" "$github_archive" "$github_binary" || true
+        fi
+    fi
+}
+
+link_bat_alias() {
+    # Debian/Ubuntu installs as 'batcat' — create symlink
+    if ! check_installed bat && check_installed batcat; then
+        ln -sf "$(command -v batcat)" "${BIN_DIR}/bat"
+    fi
+}
+
+link_fd_alias() {
+    # Debian/Ubuntu installs as 'fdfind' — create symlink
+    if ! check_installed fd && check_installed fdfind; then
+        ln -sf "$(command -v fdfind)" "${BIN_DIR}/fd"
+    fi
+}
+
+install_core_cli_tools() {
+    # fzf (required by fzf-tab zsh plugin)
+    run_cli_tool_plan "fzf" "fzf" \
+        "fzf" "fzf" "fzf" "fzf" \
+        "junegunn/fzf" "v0.67.0" "fzf-{tag_no_v}-linux_amd64.tar.gz" "fzf"
+
+    # bat (required by zsh-bat plugin)
+    run_cli_tool_plan "bat" "bat batcat" \
+        "bat" "bat" "bat" "bat" \
+        "sharkdp/bat" "v0.26.1" "bat-{tag}-x86_64-unknown-linux-gnu.tar.gz" "bat" "" "link_bat_alias"
+
+    # ripgrep (fast grep replacement)
+    run_cli_tool_plan "ripgrep" "rg" \
+        "ripgrep" "ripgrep" "ripgrep" "ripgrep" \
+        "BurntSushi/ripgrep" "15.1.0" "ripgrep-{tag}-x86_64-unknown-linux-musl.tar.gz" "rg"
+
+    # fd (fast find replacement)
+    run_cli_tool_plan "fd" "fd fdfind" \
+        "fd-find" "fd-find" "fd" "fd" \
+        "sharkdp/fd" "v10.2.0" "fd-{tag}-x86_64-unknown-linux-gnu.tar.gz" "fd" "" "link_fd_alias"
+
+    # jq (required by sync-claude.sh)
+    run_cli_tool_plan "jq" "jq" \
+        "jq" "jq" "jq" "jq" \
+        "jqlang/jq" "jq-1.7.1" "jq-linux-amd64" "jq-linux-amd64" "jq"
+}
+
 install_tools() {
     echo "[INFO] Installing CLI tools..."
 
-    # fzf (required by fzf-tab zsh plugin)
-    if check_installed fzf; then
-        echo "[INFO] fzf is already installed"
-    elif [ "$HAS_SUDO" = true ]; then
-        if command -v apt-get >/dev/null 2>&1; then
-            sudo apt-get install -y fzf
-        elif command -v dnf >/dev/null 2>&1; then
-            sudo dnf install -y fzf
-        elif command -v pacman >/dev/null 2>&1; then
-            sudo pacman -S --noconfirm fzf
-        elif command -v brew >/dev/null 2>&1; then
-            brew install fzf
-        else
-            echo "[WARN] Could not install fzf: no supported package manager"
-        fi
-    else
-        install_github_binary "junegunn/fzf" "v0.67.0" "fzf-{tag_no_v}-linux_amd64.tar.gz" "fzf" || true
-    fi
-
-    # bat (required by zsh-bat plugin)
-    if check_installed bat || check_installed batcat; then
-        echo "[INFO] bat is already installed"
-    elif [ "$HAS_SUDO" = true ]; then
-        if command -v apt-get >/dev/null 2>&1; then
-            sudo apt-get install -y bat
-            # Debian/Ubuntu installs as 'batcat' — create symlink
-            if ! check_installed bat && check_installed batcat; then
-                ln -sf "$(command -v batcat)" "${BIN_DIR}/bat"
-            fi
-        elif command -v dnf >/dev/null 2>&1; then
-            sudo dnf install -y bat
-        elif command -v pacman >/dev/null 2>&1; then
-            sudo pacman -S --noconfirm bat
-        elif command -v brew >/dev/null 2>&1; then
-            brew install bat
-        else
-            echo "[WARN] Could not install bat: no supported package manager"
-        fi
-    else
-        install_github_binary "sharkdp/bat" "v0.26.1" "bat-{tag}-x86_64-unknown-linux-gnu.tar.gz" "bat" || true
-    fi
-
-    # ripgrep (fast grep replacement)
-    if check_installed rg; then
-        echo "[INFO] ripgrep is already installed"
-    elif [ "$HAS_SUDO" = true ]; then
-        if command -v apt-get >/dev/null 2>&1; then
-            sudo apt-get install -y ripgrep
-        elif command -v dnf >/dev/null 2>&1; then
-            sudo dnf install -y ripgrep
-        elif command -v pacman >/dev/null 2>&1; then
-            sudo pacman -S --noconfirm ripgrep
-        elif command -v brew >/dev/null 2>&1; then
-            brew install ripgrep
-        else
-            echo "[WARN] Could not install ripgrep: no supported package manager"
-        fi
-    else
-        install_github_binary "BurntSushi/ripgrep" "15.1.0" "ripgrep-{tag}-x86_64-unknown-linux-musl.tar.gz" "rg" || true
-    fi
-
-    # fd (fast find replacement)
-    if check_installed fd || check_installed fdfind; then
-        echo "[INFO] fd is already installed"
-    elif [ "$HAS_SUDO" = true ]; then
-        if command -v apt-get >/dev/null 2>&1; then
-            sudo apt-get install -y fd-find
-            # Debian/Ubuntu installs as 'fdfind' — create symlink
-            if ! check_installed fd && check_installed fdfind; then
-                ln -sf "$(command -v fdfind)" "${BIN_DIR}/fd"
-            fi
-        elif command -v dnf >/dev/null 2>&1; then
-            sudo dnf install -y fd-find
-        elif command -v pacman >/dev/null 2>&1; then
-            sudo pacman -S --noconfirm fd
-        elif command -v brew >/dev/null 2>&1; then
-            brew install fd
-        else
-            echo "[WARN] Could not install fd: no supported package manager"
-        fi
-    else
-        install_github_binary "sharkdp/fd" "v10.2.0" "fd-{tag}-x86_64-unknown-linux-gnu.tar.gz" "fd" || true
-    fi
+    install_core_cli_tools
 
     # eza (modern ls replacement)
     if check_installed eza; then
@@ -161,25 +162,6 @@ install_tools() {
         fi
     else
         install_github_binary "jesseduffield/lazygit" "v0.59.0" "lazygit_{tag_no_v}_Linux_x86_64.tar.gz" "lazygit" || true
-    fi
-
-    # jq (required by sync-claude.sh)
-    if check_installed jq; then
-        echo "[INFO] jq is already installed"
-    elif [ "$HAS_SUDO" = true ]; then
-        if command -v apt-get >/dev/null 2>&1; then
-            sudo apt-get install -y jq
-        elif command -v dnf >/dev/null 2>&1; then
-            sudo dnf install -y jq
-        elif command -v pacman >/dev/null 2>&1; then
-            sudo pacman -S --noconfirm jq
-        elif command -v brew >/dev/null 2>&1; then
-            brew install jq
-        else
-            echo "[WARN] Could not install jq: no supported package manager"
-        fi
-    else
-        install_github_binary "jqlang/jq" "jq-1.7.1" "jq-linux-amd64" "jq-linux-amd64" "jq" || true
     fi
 
     # xclip (clipboard from terminal, used by copyssh alias)
