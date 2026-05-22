@@ -197,8 +197,8 @@ setup_dotfiles() {
     mkdir -p "${HOME}/.config/gh"
     link_file "$DOTFILES_DIR/config/gh/config.yml" "${HOME}/.config/gh/config.yml"
 
-    # Link Claude Code config
-    mkdir -p "${HOME}/.claude/plugins" "${HOME}/.claude/output-styles" "${HOME}/.claude/skills" "${HOME}/.agents"
+    # Link shared agent instructions into tool-specific locations.
+    mkdir -p "${HOME}/.claude/plugins" "${HOME}/.claude/output-styles" "${HOME}/.claude/skills" "${HOME}/.agents" "${HOME}/.codex"
     link_file "$DOTFILES_DIR/config/claude/CLAUDE.md" "${HOME}/.claude/CLAUDE.md"
     link_file "$DOTFILES_DIR/config/claude/statusline-command.sh" "${HOME}/.claude/statusline-command.sh"
 
@@ -226,11 +226,11 @@ setup_dotfiles() {
         [ -f "$skill_file" ] && link_file "$skill_file" "${HOME}/.claude/skills/$(basename "$skill_file")"
     done
 
-    # Sync marketplace skills and plugins from manifest
-    if [ -x "$DOTFILES_DIR/sync-claude.sh" ]; then
-        "$DOTFILES_DIR/sync-claude.sh" install
+    # Sync shared agent config plus tool-specific adapters.
+    if [ -f "$DOTFILES_DIR/sync-agents.sh" ]; then
+        "$DOTFILES_DIR/sync-agents.sh" install
     else
-        echo "[WARN] sync-claude.sh not found or not executable, skipping skill/plugin sync"
+        echo "[WARN] sync-agents.sh not found, skipping agent config sync"
     fi
 
     echo "[INFO] Using environment variables defined in $ENV_FILE"

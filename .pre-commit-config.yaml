@@ -21,3 +21,10 @@ repos:
         language: system
         pass_filenames: false
         always_run: true
+      - id: codex-mcp-config-check
+        name: Codex MCP config sync check
+        description: Ensure ~/.codex/config.toml reflects shared MCP servers
+        entry: ./sync-agents.sh codex-check
+        language: system
+        pass_filenames: false
+        always_run: true

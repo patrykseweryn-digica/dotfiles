@@ -1,0 +1,59 @@
+{
+  "chrome-devtools": {
+    "type": "stdio",
+    "command": "npx",
+    "args": [
+      "-y",
+      "chrome-devtools-mcp@latest",
+      "--browserUrl",
+      "http://127.0.0.1:9222"
+    ]
+  },
+  "garmin": {
+    "type": "stdio",
+    "command": "uvx",
+    "args": [
+      "--python",
+      "3.12",
+      "--from",
+      "git+https://github.com/Taxuspt/garmin_mcp",
+      "garmin-mcp"
+    ]
+  },
+  "playwright": {
+    "type": "stdio",
+    "command": "npx",
+    "args": [
+      "-y",
+      "@playwright/mcp@latest"
+    ]
+  },
+  "sequential-thinking": {
+    "type": "stdio",
+    "command": "npx",
+    "args": [
+      "-y",
+      "@modelcontextprotocol/server-sequential-thinking"
+    ]
+  },
+  "telegram": {
+    "type": "stdio",
+    "command": "uvx",
+    "args": [
+      "--python",
+      "3.12",
+      "--from",
+      "git+https://github.com/chigwell/telegram-mcp",
+      "telegram-mcp"
+    ],
+    "env": [
+      "TELEGRAM_API_ID",
+      "TELEGRAM_API_HASH",
+      "TELEGRAM_SESSION_STRING"
+    ]
+  },
+  "todoist": {
+    "type": "http",
+    "url": "https://ai.todoist.net/mcp"
+  }
+}

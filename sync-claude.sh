@@ -3,6 +3,7 @@ set -eu
 
 DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MANIFEST="${DOTFILES_DIR}/config/claude/claude-manifest.json"
+MCP_SERVERS="${DOTFILES_DIR}/.agents/mcp-servers.json"
 SKILL_LOCK_REPO="${DOTFILES_DIR}/config/claude/skill-lock.json"
 SKILL_LOCK_LIVE="${HOME}/.agents/.skill-lock.json"
 SKILLS_DIR="${HOME}/.claude/skills"
@@ -18,6 +19,11 @@ fi
 
 if [ ! -f "$MANIFEST" ]; then
     echo "[ERROR] Manifest not found: $MANIFEST" >&2
+    exit 1
+fi
+
+if [ ! -f "$MCP_SERVERS" ]; then
+    echo "[ERROR] MCP servers file not found: $MCP_SERVERS" >&2
     exit 1
 fi
 
@@ -55,11 +61,11 @@ generate_settings() {
     mkdir -p "$(dirname "$SETTINGS_FILE")"
     local tmp="${SETTINGS_FILE}.tmp"
 
-    jq -S --slurpfile m "$MANIFEST" '
+    jq -S --slurpfile m "$MANIFEST" --slurpfile mcp "$MCP_SERVERS" '
         .enabledPlugins = ($m[0].plugins | map({(.): true}) | add // {}) |
         .extraKnownMarketplaces = ($m[0].marketplaces // {} | to_entries |
             map({(.key): {"source": .value}}) | add // {}) |
-        .mcpServers = ($m[0].mcpServers // {} | to_entries |
+        .mcpServers = ($mcp[0] // {} | to_entries |
             map({(.key): (.value | del(.env))}) | add // {})
     ' "$TEMPLATE_FILE" > "$tmp" || { rm -f "$tmp"; echo "[ERROR] Failed to generate settings" >&2; return 1; }
 
