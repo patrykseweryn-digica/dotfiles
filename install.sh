@@ -137,6 +137,51 @@ link_file() {
     echo "[INFO] Linked $target_path -> $source_path"
 }
 
+deploy_symlink_target() {
+    local source_path="$1"
+    local target_path="$2"
+
+    mkdir -p "$(dirname "$target_path")"
+    link_file "$source_path" "$target_path"
+}
+
+deploy_plain_absent_target() {
+    local target_path="$1"
+
+    if [ -L "$target_path" ]; then
+        rm "$target_path"
+        echo "[INFO] Removed legacy symlink: $target_path"
+    fi
+}
+
+deploy_target() {
+    local target_type="$1"
+    local source_path="$2"
+    local target_path="$3"
+
+    case "$target_type" in
+        symlink)
+            deploy_symlink_target "$source_path" "$target_path"
+            ;;
+        plain-absent)
+            deploy_plain_absent_target "$target_path"
+            ;;
+        *)
+            echo "[ERROR] Unknown managed target type: $target_type" >&2
+            return 1
+            ;;
+    esac
+}
+
+deploy_targets() {
+    local target_type source_path target_path
+
+    while IFS='|' read -r target_type source_path target_path; do
+        [ -n "$target_type" ] || continue
+        deploy_target "$target_type" "$source_path" "$target_path"
+    done
+}
+
 ensure_env_file
 
 for module in "${DOTFILES_DIR}/bootstrap.d"/*.sh; do
@@ -150,80 +195,45 @@ done
 setup_dotfiles() {
     echo "[INFO] Setting up dotfile configurations..."
 
-    # Ensure config directory exists
-    mkdir -p "${HOME}/.config"
+    mkdir -p "${HOME}/.claude/plugins" "${HOME}/.claude/output-styles" "${HOME}/.claude/skills" "${HOME}/.agents" "${HOME}/.codex"
 
-    # Link Git config
-    link_file "$DOTFILES_DIR/config/git" "${HOME}/.config/git"
-
-    # Link Python startup file
-    link_file "$DOTFILES_DIR/pythonrc.py" "${HOME}/.pythonrc.py"
-
-    # Link .zshrc
-    link_file "$DOTFILES_DIR/.zshrc" "${HOME}/.zshrc"
-
-    # Link .p10k.zsh
-    link_file "$DOTFILES_DIR/.p10k.zsh" "${HOME}/.p10k.zsh"
-
-    # Link .tmux.conf
-    link_file "$DOTFILES_DIR/.tmux.conf" "${HOME}/.tmux.conf"
-
-    # Link .vimrc
-    link_file "$DOTFILES_DIR/.vimrc" "${HOME}/.vimrc"
-
-    # Link .aliases
-    link_file "$DOTFILES_DIR/.aliases" "${HOME}/.aliases"
+    deploy_targets <<EOF
+symlink|$DOTFILES_DIR/config/git|$HOME/.config/git
+symlink|$DOTFILES_DIR/pythonrc.py|$HOME/.pythonrc.py
+symlink|$DOTFILES_DIR/.zshrc|$HOME/.zshrc
+symlink|$DOTFILES_DIR/.p10k.zsh|$HOME/.p10k.zsh
+symlink|$DOTFILES_DIR/.tmux.conf|$HOME/.tmux.conf
+symlink|$DOTFILES_DIR/.vimrc|$HOME/.vimrc
+symlink|$DOTFILES_DIR/.aliases|$HOME/.aliases
+symlink|$DOTFILES_DIR/config/Code/settings.json|$HOME/.config/Code/User/settings.json
+symlink|$DOTFILES_DIR/config/Code/keybindings.json|$HOME/.config/Code/User/keybindings.json
+symlink|$DOTFILES_DIR/config/nvim|$HOME/.config/nvim
+symlink|$DOTFILES_DIR/config/ruff|$HOME/.config/ruff
+symlink|$DOTFILES_DIR/config/gh/config.yml|$HOME/.config/gh/config.yml
+symlink|$DOTFILES_DIR/config/claude/CLAUDE.md|$HOME/.claude/CLAUDE.md
+symlink|$DOTFILES_DIR/config/claude/statusline-command.sh|$HOME/.claude/statusline-command.sh
+symlink|$DOTFILES_DIR/config/claude/skill-lock.json|$HOME/.agents/.skill-lock.json
+plain-absent||$HOME/.claude/settings.json
+symlink|$DOTFILES_DIR/config/claude/output-styles|$HOME/.claude/output-styles
+symlink|$DOTFILES_DIR/config/claude/agents|$HOME/.claude/agents
+EOF
 
     # Link bin scripts
-    mkdir -p "${BIN_DIR}"
     for script in "$DOTFILES_DIR/bin"/*; do
         [ -f "$script" ] || continue
         chmod +x "$script"
-        link_file "$script" "${BIN_DIR}/$(basename "$script")"
+        deploy_symlink_target "$script" "${BIN_DIR}/$(basename "$script")"
     done
-
-    # Link VSCode settings
-    mkdir -p "${HOME}/.config/Code/User"
-    link_file "$DOTFILES_DIR/config/Code/settings.json" "${HOME}/.config/Code/User/settings.json"
-    link_file "$DOTFILES_DIR/config/Code/keybindings.json" "${HOME}/.config/Code/User/keybindings.json"
-
-    # Link Neovim config
-    link_file "$DOTFILES_DIR/config/nvim" "${HOME}/.config/nvim"
-
-    # Link Ruff config
-    link_file "$DOTFILES_DIR/config/ruff" "${HOME}/.config/ruff"
-
-    # Link GitHub CLI config (file only, not dir - to preserve hosts.yml with auth tokens)
-    mkdir -p "${HOME}/.config/gh"
-    link_file "$DOTFILES_DIR/config/gh/config.yml" "${HOME}/.config/gh/config.yml"
-
-    # Link shared agent instructions into tool-specific locations.
-    mkdir -p "${HOME}/.claude/plugins" "${HOME}/.claude/output-styles" "${HOME}/.claude/skills" "${HOME}/.agents" "${HOME}/.codex"
-    link_file "$DOTFILES_DIR/config/claude/CLAUDE.md" "${HOME}/.claude/CLAUDE.md"
-    link_file "$DOTFILES_DIR/config/claude/statusline-command.sh" "${HOME}/.claude/statusline-command.sh"
-
-    # Source of truth for `npx skills` lock — version it in the repo.
-    link_file "$DOTFILES_DIR/config/claude/skill-lock.json" "${HOME}/.agents/.skill-lock.json"
-
-    # settings.json is NOT symlinked — Claude Code writes to it during sessions,
-    # which would drift repo. sync-claude.sh generates it as a plain file from
-    # the template + manifest.
-    if [ -L "${HOME}/.claude/settings.json" ]; then
-        rm "${HOME}/.claude/settings.json"
-        echo "[INFO] Removed legacy settings.json symlink"
-    fi
-    link_file "$DOTFILES_DIR/config/claude/output-styles" "${HOME}/.claude/output-styles"
-    link_file "$DOTFILES_DIR/config/claude/agents" "${HOME}/.claude/agents"
 
     # Link custom skills from dotfiles
     for skill_dir in "$DOTFILES_DIR/config/claude/skills-custom"/*/; do
         [ -d "$skill_dir" ] || continue
         skill_name="$(basename "$skill_dir")"
-        link_file "$skill_dir" "${HOME}/.claude/skills/${skill_name}"
+        deploy_symlink_target "$skill_dir" "${HOME}/.claude/skills/${skill_name}"
     done
     # Link .skill compiled files
     for skill_file in "$DOTFILES_DIR/config/claude/skills-custom"/*.skill; do
-        [ -f "$skill_file" ] && link_file "$skill_file" "${HOME}/.claude/skills/$(basename "$skill_file")"
+        [ -f "$skill_file" ] && deploy_symlink_target "$skill_file" "${HOME}/.claude/skills/$(basename "$skill_file")"
     done
 
     # Sync shared agent config plus tool-specific adapters.
@@ -287,8 +297,7 @@ main() {
 
     # Setup git hooks for dotfiles repo
     if [ -f "$DOTFILES_DIR/hooks/post-merge" ]; then
-        mkdir -p "$DOTFILES_DIR/.git/hooks"
-        link_file "$DOTFILES_DIR/hooks/post-merge" "$DOTFILES_DIR/.git/hooks/post-merge"
+        deploy_symlink_target "$DOTFILES_DIR/hooks/post-merge" "$DOTFILES_DIR/.git/hooks/post-merge"
     fi
 
     echo "[INFO] Installation complete!"
