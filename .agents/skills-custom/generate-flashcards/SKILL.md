@@ -1,5 +1,5 @@
 ---
-name: flashcards
+name: generate-flashcards
 description: "Generate atomic flashcards from text, files, or URLs; JSON output; depth controls."
 argument-hint: "[content or file path or URL] [--depth low|medium|high] [--pages 1-10] [--lang pl|en|source|...]"
 ---

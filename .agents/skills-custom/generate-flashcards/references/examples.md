@@ -41,7 +41,7 @@ A: The 4-slot specificity system: (inline, ID, class, element). Higher slots alw
 
 ## Example Interaction
 
-**User**: `/flashcards https://example.com/react-hooks-guide`
+**User**: `/generate-flashcards https://example.com/react-hooks-guide`
 
 **Phase 1 Response**:
 

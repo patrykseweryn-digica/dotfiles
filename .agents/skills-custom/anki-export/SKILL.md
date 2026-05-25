@@ -6,12 +6,12 @@ argument-hint: "[flashcards.json] [--deck name] [--output file.apkg]"
 
 # Anki Export
 
-Convert JSON produced by `flashcards` into an Anki `.apkg` deck.
+Convert JSON produced by `generate-flashcards` into an Anki `.apkg` deck.
 
 ## Use When
 
 - User asks for Anki export, `.apkg`, Anki deck, or importing generated flashcards into Anki.
-- Input is already flashcard JSON. If the user provides text/PDF/URL instead, use `flashcards` first.
+- Input is already flashcard JSON. If the user provides text/PDF/URL instead, use `generate-flashcards` first.
 
 ## Workflow
 
@@ -40,4 +40,4 @@ Convert JSON produced by `flashcards` into an Anki `.apkg` deck.
 
 - Do not redesign the Anki card template unless the user asks.
 - Do not hand-edit `.apkg`; fix JSON or patch the converter.
-- Do not invent missing cards. If JSON is malformed or empty, ask whether to regenerate with `flashcards`.
+- Do not invent missing cards. If JSON is malformed or empty, ask whether to regenerate with `generate-flashcards`.
