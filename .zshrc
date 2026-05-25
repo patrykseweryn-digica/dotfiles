@@ -100,3 +100,8 @@ unset dotfiles_env_file
 export BUN_INSTALL="$HOME/.bun"
 [ -s "$BUN_INSTALL/_bun" ] && source "$BUN_INSTALL/_bun"
 export PATH="$BUN_INSTALL/bin:$PATH"
+
+# Added by LM Studio CLI (lms)
+export PATH="$PATH:/Users/patrykseweryn/.lmstudio/bin"
+# End of LM Studio CLI section
+
