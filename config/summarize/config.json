@@ -1,11 +1,12 @@
 {
   "model": "cli/codex/gpt-fast",
+  "prompt": "Format the answer cleanly. Start with a one-sentence TL;DR. Use the 80/20 rule: focus on the few points that explain most of the value, impact, or risk. Use short headings only when useful. Prefer concise bullets. Preserve key numbers, names, dates, and links. Avoid filler and generic summary prose.",
   "output": {
     "language": "auto",
-    "length": "long"
+    "length": "short"
   },
   "ui": {
-    "theme": "mono"
+    "theme": "moss"
   },
   "slides": {
     "enabled": false,
