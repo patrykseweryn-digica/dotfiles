@@ -210,8 +210,10 @@ setup_dotfiles() {
     mkdir -p "${HOME}/.claude/plugins" "${HOME}/.claude/output-styles" "${HOME}/.claude/skills" "${HOME}/.agents/skills" "${HOME}/.codex"
     if [ "$IS_MACOS" = true ]; then
         VSCODE_USER_DIR="${HOME}/Library/Application Support/Code/User"
+        GHOSTTY_CONFIG_TARGET="${HOME}/Library/Application Support/com.mitchellh.ghostty/config.ghostty"
     else
         VSCODE_USER_DIR="${HOME}/.config/Code/User"
+        GHOSTTY_CONFIG_TARGET="${HOME}/.config/ghostty/config"
     fi
 
     deploy_targets <<EOF
@@ -224,6 +226,7 @@ symlink|$DOTFILES_DIR/.vimrc|$HOME/.vimrc
 symlink|$DOTFILES_DIR/.aliases|$HOME/.aliases
 symlink|$DOTFILES_DIR/config/Code/settings.json|$VSCODE_USER_DIR/settings.json
 symlink|$DOTFILES_DIR/config/Code/keybindings.json|$VSCODE_USER_DIR/keybindings.json
+symlink|$DOTFILES_DIR/config/ghostty/config.ghostty|$GHOSTTY_CONFIG_TARGET
 symlink|$DOTFILES_DIR/config/nvim|$HOME/.config/nvim
 symlink|$DOTFILES_DIR/config/ruff|$HOME/.config/ruff
 symlink|$DOTFILES_DIR/config/gh/config.yml|$HOME/.config/gh/config.yml
@@ -290,6 +293,7 @@ main() {
     install_nvm || echo "[WARN] NVM installation had issues, continuing..."
     install_terminal_colors || echo "[WARN] Terminal color setup had issues, continuing..."
     install_claude_code || echo "[WARN] Claude Code installation had issues, continuing..."
+    install_macos_apps || echo "[WARN] macOS app setup had issues, continuing..."
 
     # Setup dotfile configurations
     setup_dotfiles
