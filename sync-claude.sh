@@ -3,10 +3,14 @@ set -eu
 
 DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MANIFEST="${DOTFILES_DIR}/config/claude/claude-manifest.json"
-CACHE_DIR="${HOME}/.cache/claude-skill-repos"
-RESOLVED_DIR="${CACHE_DIR}/resolved"
-SKILLS_DIR="${HOME}/.claude/skills"
-SETTINGS_FILE="${DOTFILES_DIR}/config/claude/settings.json"
+MCP_SERVERS="${DOTFILES_DIR}/.agents/mcp-servers.json"
+SKILL_LOCK_REPO="${DOTFILES_DIR}/.agents/skill-lock.json"
+SKILL_LOCK_LIVE="${HOME}/.agents/.skill-lock.json"
+AGENT_SKILLS_DIR="${HOME}/.agents/skills"
+CLAUDE_SKILLS_DIR="${HOME}/.claude/skills"
+OPENCODE_SKILLS_DIR="${OPENCODE_CONFIG_DIR:-${HOME}/.config/opencode}/skills"
+TEMPLATE_FILE="${DOTFILES_DIR}/config/claude/settings.json"
+SETTINGS_FILE="${HOME}/.claude/settings.json"
 
 QUIET=false
 
@@ -20,103 +24,188 @@ if [ ! -f "$MANIFEST" ]; then
     exit 1
 fi
 
+if [ ! -f "$MCP_SERVERS" ]; then
+    echo "[ERROR] MCP servers file not found: $MCP_SERVERS" >&2
+    exit 1
+fi
+
 log_info() {
     [ "$QUIET" = true ] && return
     echo "[INFO] $*"
 }
 
-generate_settings() {
-    [ -f "$SETTINGS_FILE" ] || { echo "[WARN] Settings file not found: $SETTINGS_FILE"; return; }
+cmd_settings_check() {
+    [ -f "$TEMPLATE_FILE" ] || { echo "[ERROR] Template not found: $TEMPLATE_FILE" >&2; return 1; }
+    if [ ! -f "$SETTINGS_FILE" ]; then
+        log_info "No $SETTINGS_FILE yet; skipping drift check"
+        return 0
+    fi
 
+    local extras
+    extras=$(jq -r --slurpfile tpl "$TEMPLATE_FILE" '
+        (($tpl[0] | keys) + ["enabledPlugins", "extraKnownMarketplaces", "mcpServers"]) as $allowed |
+        (keys - $allowed)[]
+    ' "$SETTINGS_FILE") || { echo "[ERROR] Failed to parse $SETTINGS_FILE" >&2; return 1; }
+
+    if [ -n "$extras" ]; then
+        echo "[ERROR] $SETTINGS_FILE has keys outside the template:" >&2
+        echo "$extras" | sed 's/^/  - /' >&2
+        echo "" >&2
+        echo "Add them to $TEMPLATE_FILE (then re-run install) or remove from live settings." >&2
+        return 1
+    fi
+    log_info "settings.json keys in sync with template"
+}
+
+generate_settings() {
+    [ -f "$TEMPLATE_FILE" ] || { echo "[ERROR] Template not found: $TEMPLATE_FILE" >&2; return 1; }
+
+    mkdir -p "$(dirname "$SETTINGS_FILE")"
     local tmp="${SETTINGS_FILE}.tmp"
 
-    jq -S --slurpfile m "$MANIFEST" '
+    jq -S --slurpfile m "$MANIFEST" --slurpfile mcp "$MCP_SERVERS" '
         .enabledPlugins = ($m[0].plugins | map({(.): true}) | add // {}) |
         .extraKnownMarketplaces = ($m[0].marketplaces // {} | to_entries |
             map({(.key): {"source": .value}}) | add // {}) |
-        .mcpServers = ($m[0].mcpServers // {} | to_entries |
+        .mcpServers = ($mcp[0] // {} | to_entries |
             map({(.key): (.value | del(.env))}) | add // {})
-    ' "$SETTINGS_FILE" > "$tmp" || { rm -f "$tmp"; echo "[ERROR] Failed to generate settings" >&2; return 1; }
+    ' "$TEMPLATE_FILE" > "$tmp" || { rm -f "$tmp"; echo "[ERROR] Failed to generate settings" >&2; return 1; }
 
-    if cmp -s "$tmp" "$SETTINGS_FILE"; then
+    if [ -f "$SETTINGS_FILE" ] && cmp -s "$tmp" "$SETTINGS_FILE"; then
         rm -f "$tmp"
     else
         mv "$tmp" "$SETTINGS_FILE"
-        log_info "Updated settings.json"
+        log_info "Wrote $SETTINGS_FILE"
     fi
 }
 
-sync_repos() {
-    local repos
-    repos=$(jq -r '.skills[] | .repo' "$MANIFEST" | sort -u)
+ensure_live_lock() {
+    mkdir -p "$(dirname "$SKILL_LOCK_LIVE")"
 
-    for repo in $repos; do
-        local repo_dir="${CACHE_DIR}/${repo//\//_}"
-        if [ -d "$repo_dir" ]; then
-            log_info "Updating repo $repo..."
-            git -C "$repo_dir" pull --ff-only --quiet 2>/dev/null || true
-        else
-            log_info "Cloning $repo..."
-            git clone --depth 1 --quiet "https://github.com/${repo}.git" "$repo_dir"
+    if [ -L "$SKILL_LOCK_LIVE" ]; then
+        local target
+        target=$(readlink "$SKILL_LOCK_LIVE")
+        if [ "$target" = "$SKILL_LOCK_REPO" ]; then
+            local backup_dir="${HOME}/.dotfiles-backup"
+            mkdir -p "$backup_dir"
+            local backup
+            backup="${backup_dir}/.skill-lock.json.legacy.$(date +%Y%m%d%H%M%S)"
+            cp -L "$SKILL_LOCK_LIVE" "$backup"
+            rm "$SKILL_LOCK_LIVE"
+            log_info "Removed legacy symlink, backup at $backup"
         fi
-    done
+    fi
+
+    [ -f "$SKILL_LOCK_REPO" ] || { echo "[ERROR] Repo skill-lock missing: $SKILL_LOCK_REPO" >&2; return 1; }
+
+    local tmp
+    tmp=$(mktemp)
+    if [ -f "$SKILL_LOCK_LIVE" ]; then
+        # Merge: repo defines skill set + intent; live contributes state fields (timestamps, hashes).
+        jq -s '
+          .[0] as $live | .[1] as $repo |
+          {
+            dismissed: $repo.dismissed,
+            skills: ($repo.skills | with_entries(
+              .key as $k |
+              .value = (($live.skills[$k] // {}) * .value)
+            ))
+          } + ($live | del(.skills, .dismissed))
+        ' "$SKILL_LOCK_LIVE" "$SKILL_LOCK_REPO" > "$tmp" || { rm -f "$tmp"; echo "[ERROR] Failed to merge live lock" >&2; return 1; }
+    else
+        cp "$SKILL_LOCK_REPO" "$tmp"
+    fi
+
+    if [ -f "$SKILL_LOCK_LIVE" ] && cmp -s "$tmp" "$SKILL_LOCK_LIVE"; then
+        rm -f "$tmp"
+    else
+        mv "$tmp" "$SKILL_LOCK_LIVE"
+        log_info "Wrote $SKILL_LOCK_LIVE from repo intent"
+    fi
 }
 
-resolve_skills() {
-    local skill_names
-    skill_names=$(jq -r '.skills | keys[]' "$MANIFEST")
+cmd_skills_install() {
+    [ -f "$SKILL_LOCK_LIVE" ] || { log_info "No skill-lock found; skipping skill install"; return 0; }
 
-    for name in $skill_names; do
-        local repo path repo_dir src dest
-        repo=$(jq -r ".skills[\"$name\"].repo" "$MANIFEST")
-        path=$(jq -r ".skills[\"$name\"].path" "$MANIFEST")
-        repo_dir="${CACHE_DIR}/${repo//\//_}"
-        src="${repo_dir}/${path}"
-        dest="${RESOLVED_DIR}/${name}"
+    # Drop stale symlinks pointing at the legacy cache so npx can rebuild them.
+    mkdir -p "$AGENT_SKILLS_DIR" "$CLAUDE_SKILLS_DIR" "$OPENCODE_SKILLS_DIR"
+    [ -d "$AGENT_SKILLS_DIR" ] && find "$AGENT_SKILLS_DIR" -maxdepth 1 -lname '*claude-skill-repos*' -delete 2>/dev/null || true
+    [ -d "$CLAUDE_SKILLS_DIR" ] && find "$CLAUDE_SKILLS_DIR" -maxdepth 1 -lname '*claude-skill-repos*' -delete 2>/dev/null || true
+    [ -d "$OPENCODE_SKILLS_DIR" ] && find "$OPENCODE_SKILLS_DIR" -maxdepth 1 -lname '*claude-skill-repos*' -delete 2>/dev/null || true
 
-        if [ ! -d "$src" ]; then
-            echo "[WARN] Skill source not found: $src"
+    local entries
+    entries=$(jq -r '.skills | to_entries[] | "\(.key)\t\(.value.source)"' "$SKILL_LOCK_LIVE")
+    [ -n "$entries" ] || { log_info "No skills in lock"; return 0; }
+
+    local name source
+    while IFS=$'\t' read -r name source; do
+        [ -n "$name" ] || continue
+        if [ -e "${AGENT_SKILLS_DIR}/${name}/SKILL.md" ] && [ -e "${CLAUDE_SKILLS_DIR}/${name}/SKILL.md" ] && [ -e "${OPENCODE_SKILLS_DIR}/${name}/SKILL.md" ]; then
             continue
         fi
+        if [ ! -e "${AGENT_SKILLS_DIR}/${name}/SKILL.md" ] && [ ! -e "${CLAUDE_SKILLS_DIR}/${name}/SKILL.md" ] && [ ! -e "${OPENCODE_SKILLS_DIR}/${name}/SKILL.md" ]; then
+            log_info "Installing skill: $name (from $source)"
+            if ! npx -y skills add -g "$source" --skill "$name" -y </dev/null >/dev/null 2>&1; then
+                echo "[WARN] Failed to install skill: $name (from $source)" >&2
+            fi
+        fi
 
-        rsync -a --delete "$src/" "$dest/"
-        log_info "Resolved skill: $name"
-    done
+        local source_dir=""
+        if [ -e "${AGENT_SKILLS_DIR}/${name}/SKILL.md" ]; then
+            source_dir="${AGENT_SKILLS_DIR}/${name}"
+        elif [ -e "${CLAUDE_SKILLS_DIR}/${name}/SKILL.md" ]; then
+            source_dir="${CLAUDE_SKILLS_DIR}/${name}"
+        elif [ -e "${OPENCODE_SKILLS_DIR}/${name}/SKILL.md" ]; then
+            source_dir="${OPENCODE_SKILLS_DIR}/${name}"
+        fi
+
+        if [ -n "$source_dir" ]; then
+            if [ ! -e "${AGENT_SKILLS_DIR}/${name}" ] && [ ! -L "${AGENT_SKILLS_DIR}/${name}" ]; then
+                ln -s "$source_dir" "${AGENT_SKILLS_DIR}/${name}"
+                log_info "Linked agent skill: $name -> $source_dir"
+            fi
+            if [ ! -e "${CLAUDE_SKILLS_DIR}/${name}" ] && [ ! -L "${CLAUDE_SKILLS_DIR}/${name}" ]; then
+                ln -s "$source_dir" "${CLAUDE_SKILLS_DIR}/${name}"
+                log_info "Linked Claude skill: $name -> $source_dir"
+            fi
+            if [ ! -e "${OPENCODE_SKILLS_DIR}/${name}" ] && [ ! -L "${OPENCODE_SKILLS_DIR}/${name}" ]; then
+                ln -s "$source_dir" "${OPENCODE_SKILLS_DIR}/${name}"
+                log_info "Linked OpenCode skill: $name -> $source_dir"
+            fi
+        fi
+
+        if [ ! -e "${AGENT_SKILLS_DIR}/${name}/SKILL.md" ] || [ ! -e "${CLAUDE_SKILLS_DIR}/${name}/SKILL.md" ] || [ ! -e "${OPENCODE_SKILLS_DIR}/${name}/SKILL.md" ]; then
+            echo "[WARN] Skill not available in all runtimes after install: $name" >&2
+        fi
+    done <<< "$entries"
+}
+
+cmd_skills_export() {
+    [ -f "$SKILL_LOCK_LIVE" ] || { log_info "No live skill-lock to export from"; return 0; }
+
+    local tmp
+    tmp=$(mktemp)
+    jq -S '{
+        skills: (.skills | map_values(del(.skillFolderHash, .installedAt, .updatedAt))),
+        dismissed: .dismissed
+    }' "$SKILL_LOCK_LIVE" > "$tmp" || { rm -f "$tmp"; echo "[ERROR] skills export failed" >&2; return 1; }
+
+    if [ -f "$SKILL_LOCK_REPO" ] && cmp -s "$tmp" "$SKILL_LOCK_REPO"; then
+        rm -f "$tmp"
+        log_info "Repo skill-lock already in sync"
+    else
+        mv "$tmp" "$SKILL_LOCK_REPO"
+        log_info "Updated $SKILL_LOCK_REPO from live lock"
+    fi
 }
 
 cmd_install() {
-    log_info "Installing skills and plugins from manifest..."
-    mkdir -p "$CACHE_DIR" "$RESOLVED_DIR" "$SKILLS_DIR"
+    log_info "Installing Claude Code config..."
+    mkdir -p "$AGENT_SKILLS_DIR" "$CLAUDE_SKILLS_DIR" "$OPENCODE_SKILLS_DIR"
 
-    sync_repos
-    resolve_skills
-
-    # Symlink marketplace skills (skip custom skills from dotfiles)
-    local skill_names
-    skill_names=$(jq -r '.skills | keys[]' "$MANIFEST")
-
-    for name in $skill_names; do
-        local dest="${RESOLVED_DIR}/${name}"
-        local link="${SKILLS_DIR}/${name}"
-
-        [ -d "$dest" ] || continue
-
-        if [ -L "$link" ]; then
-            local target
-            target=$(readlink "$link")
-            if [[ "$target" == *"$DOTFILES_DIR"* ]]; then
-                log_info "Skipping $name (custom skill from dotfiles)"
-                continue
-            fi
-            rm "$link"
-        elif [ -e "$link" ]; then
-            echo "[WARN] $link exists and is not a symlink, skipping"
-            continue
-        fi
-
-        ln -s "$dest" "$link"
-        log_info "Linked skill: $name"
-    done
+    ensure_live_lock
+    cmd_settings_check
+    generate_settings
 
     # Remove broken symlink that prevents plugin installation
     local plugins_json="${HOME}/.claude/plugins/installed_plugins.json"
@@ -125,10 +214,7 @@ cmd_install() {
         rm "$plugins_json"
     fi
 
-    # Generate deterministic settings.json from manifest
-    generate_settings
-
-    # Install plugins (requires claude CLI)
+    # Install marketplaces + plugins (requires claude CLI)
     if command -v claude >/dev/null 2>&1; then
         # Register missing marketplaces
         local known_mp_file="${HOME}/.claude/plugins/known_marketplaces.json"
@@ -168,17 +254,65 @@ cmd_install() {
         echo "[WARN] claude CLI not found, skipping plugin installation"
     fi
 
+    cmd_skills_install
+
     log_info "Sync install complete"
 }
 
 cmd_update() {
-    log_info "Updating cached skill repos..."
-    mkdir -p "$CACHE_DIR"
+    log_info "Updating skills via npx skills update -g..."
+    npx -y skills update -g "$@"
+}
 
-    sync_repos
-    resolve_skills
+cmd_export() {
+    local check_only=false
+    [ "${1:-}" = "--check" ] && check_only=true
 
-    log_info "Update complete"
+    local installed_json="${HOME}/.claude/plugins/installed_plugins.json"
+    local known_mp="${HOME}/.claude/plugins/known_marketplaces.json"
+
+    if [ ! -f "$installed_json" ]; then
+        log_info "No installed_plugins.json found, nothing to export"
+        return 0
+    fi
+
+    [ -f "$known_mp" ] || known_mp=/dev/null
+
+    local tmp
+    tmp=$(mktemp)
+    jq -S --slurpfile inst "$installed_json" \
+       --slurpfile km <(cat "$known_mp" 2>/dev/null || echo '{}') '
+        . as $m |
+        (($inst[0].plugins // {}) | keys) as $installed |
+        (($m.plugins // []) + ($installed - ($m.plugins // [])) | unique) as $new_plugins |
+        ($new_plugins | map(split("@")[1] // empty) | unique) as $used_mps |
+        ($used_mps - (($m.marketplaces // {}) | keys)) as $missing_mps |
+        ($missing_mps | map(
+            . as $name
+            | {($name): (($km[0] // {})[$name].source // null)}
+        ) | map(select(.[] != null)) | add // {}) as $new_mps |
+        .plugins = $new_plugins |
+        .marketplaces = (($m.marketplaces // {}) + $new_mps)
+    ' "$MANIFEST" > "$tmp" || { rm -f "$tmp"; echo "[ERROR] export failed" >&2; return 1; }
+
+    if cmp -s "$tmp" "$MANIFEST"; then
+        rm -f "$tmp"
+        log_info "Manifest already in sync with installed plugins"
+        return 0
+    fi
+
+    if [ "$check_only" = true ]; then
+        echo "[ERROR] Manifest drift detected. Installed plugins/marketplaces missing from manifest:" >&2
+        diff <(jq -S '{plugins, marketplaces}' "$MANIFEST") \
+             <(jq -S '{plugins, marketplaces}' "$tmp") >&2 || true
+        echo "" >&2
+        echo "Run: ./sync-claude.sh export" >&2
+        rm -f "$tmp"
+        return 1
+    fi
+
+    mv "$tmp" "$MANIFEST"
+    log_info "Updated manifest with installed plugins/marketplaces"
 }
 
 # Parse global flags
@@ -189,100 +323,33 @@ while [[ "${1:-}" == --* ]]; do
     esac
 done
 
-cmd_capture() {
-    log_info "Capturing local MCP server changes into manifest..."
-
-    local live_settings="${HOME}/.claude/settings.json"
-    [ -f "$live_settings" ] || { echo "[ERROR] Live settings not found: $live_settings" >&2; return 1; }
-
-    python3 -c "
-import json, sys
-
-settings_path = sys.argv[1]
-manifest_path = sys.argv[2]
-
-with open(settings_path) as f:
-    settings = json.load(f)
-
-with open(manifest_path) as f:
-    manifest = json.load(f)
-
-live = settings.get('mcpServers', {})
-old = manifest.get('mcpServers', {})
-
-# Normalize manifest format: strip env lists back to dicts for comparison
-def normalize(server):
-    s = dict(server)
-    if isinstance(s.get('env'), list):
-        s['env'] = s['env']
-    return s
-
-added, updated, removed = [], [], []
-
-for name, server in live.items():
-    if name not in old:
-        added.append(name)
-    else:
-        old_norm = normalize(old[name])
-        # Compare without env (settings.json has env stripped by generate_settings)
-        live_cmp = {k: v for k, v in server.items() if k != 'env'}
-        old_cmp = {k: v for k, v in old_norm.items() if k != 'env'}
-        if live_cmp != old_cmp:
-            updated.append(name)
-
-for name in old:
-    if name not in live:
-        removed.append(name)
-
-if not added and not updated and not removed:
-    print('[INFO] Manifest already up to date')
-    sys.exit(0)
-
-# Apply changes
-mcp = dict(old)
-for name in added:
-    mcp[name] = live[name]
-    print(f'  + {name}')
-for name in updated:
-    # Preserve env from manifest (not in settings.json)
-    env = old[name].get('env')
-    mcp[name] = live[name]
-    if env is not None:
-        mcp[name]['env'] = env
-    print(f'  ~ {name}')
-for name in removed:
-    del mcp[name]
-    print(f'  - {name}')
-
-manifest['mcpServers'] = mcp
-
-with open(manifest_path, 'w') as f:
-    json.dump(manifest, f, indent=2)
-    f.write('\n')
-
-print(f'[INFO] Manifest updated ({len(added)} added, {len(updated)} updated, {len(removed)} removed)')
-" "$live_settings" "$MANIFEST"
-
-    # Regenerate dotfiles settings.json from updated manifest
-    generate_settings
-}
-
 case "${1:-}" in
     install)
         cmd_install
         ;;
     update)
-        cmd_update
+        shift
+        cmd_update "$@"
         ;;
-    capture)
-        cmd_capture
+    export)
+        shift
+        cmd_export "$@"
+        ;;
+    export-skills)
+        cmd_skills_export
+        ;;
+    settings-check)
+        cmd_settings_check
         ;;
     *)
-        echo "Usage: $0 [--quiet] {install|update|capture}"
+        echo "Usage: $0 [--quiet] {install|update|export [--check]|export-skills|settings-check}"
         echo
-        echo "  install  Clone repos, resolve skills, install plugins, generate settings"
-        echo "  update   Pull latest skill repos and re-resolve"
-        echo "  capture  Capture local MCP server changes back into manifest"
+        echo "  install         Generate live skill-lock from repo intent, install marketplaces/plugins/skills"
+        echo "  update          Alias for: npx skills update -g (forwards extra args)"
+        echo "  export          Sync installed plugins/marketplaces into manifest"
+        echo "  export --check  Exit 1 if manifest is out of sync with installed plugins"
+        echo "  export-skills   Strip live skill-lock into repo (after npx skills add/update)"
+        echo "  settings-check  Exit 1 if ~/.claude/settings.json has keys outside the template"
         exit 1
         ;;
 esac

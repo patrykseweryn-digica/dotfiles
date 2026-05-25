@@ -5,3 +5,45 @@ repos:
       - id: shellcheck
         args: ["--severity=warning"]
         exclude: '^\.(p10k\.zsh|zshrc)$'
+  - repo: local
+    hooks:
+      - id: tool-plan-smoke
+        name: Tool install plan smoke test
+        description: Ensure Linux/macOS CLI tool install planning stays portable
+        entry: ./scripts/smoke-tool-plan.sh
+        language: system
+        pass_filenames: false
+      - id: agent-skill-sync-smoke
+        name: Agent skill sync smoke test
+        description: Ensure shared skills are visible to Codex, Claude Code, and OpenCode
+        entry: ./scripts/smoke-agent-skill-sync.sh
+        language: system
+        pass_filenames: false
+      - id: claude-manifest-sync
+        name: Claude manifest sync check
+        description: Ensure claude-manifest.json reflects installed plugins
+        entry: ./sync-claude.sh export --check
+        language: system
+        pass_filenames: false
+        always_run: true
+      - id: claude-settings-check
+        name: Claude settings drift check
+        description: Ensure ~/.claude/settings.json has no keys outside template + generated keys
+        entry: ./sync-claude.sh settings-check
+        language: system
+        pass_filenames: false
+        always_run: true
+      - id: codex-mcp-config-check
+        name: Codex MCP config sync check
+        description: Ensure ~/.codex/config.toml reflects shared MCP servers
+        entry: ./sync-agents.sh codex-check
+        language: system
+        pass_filenames: false
+        always_run: true
+      - id: opencode-config-check
+        name: OpenCode config sync check
+        description: Ensure ~/.config/opencode/opencode.json reflects shared instructions and MCP servers
+        entry: ./sync-agents.sh opencode-check
+        language: system
+        pass_filenames: false
+        always_run: true

@@ -1,117 +1,58 @@
 {
   "marketplaces": {
-    "impeccable": {
-      "source": "github",
-      "repo": "pbakaus/impeccable"
-    },
-    "ui-ux-pro-max-skill": {
-      "source": "github",
-      "repo": "nextlevelbuilder/ui-ux-pro-max-skill"
-    },
     "anthropic-agent-skills": {
-      "source": "github",
-      "repo": "anthropics/skills"
+      "repo": "anthropics/skills",
+      "source": "github"
+    },
+    "claude-plugins-official": {
+      "repo": "anthropics/claude-plugins-official",
+      "source": "github"
+    },
+    "impeccable": {
+      "repo": "pbakaus/impeccable",
+      "source": "github"
+    },
+    "last30days-skill": {
+      "repo": "mvanhorn/last30days-skill",
+      "source": "github"
     },
     "obsidian-skills": {
-      "source": "github",
-      "repo": "kepano/obsidian-skills"
-    }
-  },
-  "skills": {
-    "tdd": {
-      "repo": "mattpocock/skills",
-      "path": "tdd"
+      "repo": "kepano/obsidian-skills",
+      "source": "github"
     },
-    "write-a-skill": {
-      "repo": "mattpocock/skills",
-      "path": "write-a-skill"
+    "pydantic-skills": {
+      "repo": "pydantic/skills",
+      "source": "github"
     },
-    "design-an-interface": {
-      "repo": "mattpocock/skills",
-      "path": "design-an-interface"
-    },
-    "git-guardrails-claude-code": {
-      "repo": "mattpocock/skills",
-      "path": "git-guardrails-claude-code"
-    },
-    "request-refactor-plan": {
-      "repo": "mattpocock/skills",
-      "path": "request-refactor-plan"
-    },
-    "find-skills": {
-      "repo": "vercel-labs/skills",
-      "path": "skills/find-skills"
-    },
-    "prd-to-issues": {
-      "repo": "mattpocock/skills",
-      "path": "prd-to-issues"
-    },
-    "scaffold-exercises": {
-      "repo": "mattpocock/skills",
-      "path": "scaffold-exercises"
-    },
-    "write-a-prd": {
-      "repo": "mattpocock/skills",
-      "path": "write-a-prd"
-    },
-    "setup-pre-commit": {
-      "repo": "mattpocock/skills",
-      "path": "setup-pre-commit"
-    }
-  },
-  "mcpServers": {
-    "todoist": {
-      "type": "http",
-      "url": "https://ai.todoist.net/mcp"
-    },
-    "sequential-thinking": {
-      "type": "stdio",
-      "command": "npx",
-      "args": [
-        "-y",
-        "@modelcontextprotocol/server-sequential-thinking"
-      ]
-    },
-    "playwright": {
-      "type": "stdio",
-      "command": "npx",
-      "args": [
-        "-y",
-        "@playwright/mcp@latest"
-      ]
-    },
-    "chrome-devtools": {
-      "type": "stdio",
-      "command": "npx",
-      "args": [
-        "-y",
-        "chrome-devtools-mcp@latest",
-        "--browserUrl",
-        "http://127.0.0.1:9222"
-      ]
+    "ui-ux-pro-max-skill": {
+      "repo": "nextlevelbuilder/ui-ux-pro-max-skill",
+      "source": "github"
     }
   },
   "plugins": [
-    "context7@claude-plugins-official",
+    "ai@pydantic-skills",
+    "chrome-devtools-mcp@claude-plugins-official",
+    "claude-code-setup@claude-plugins-official",
+    "claude-md-management@claude-plugins-official",
     "code-review@claude-plugins-official",
     "code-simplifier@claude-plugins-official",
-    "claude-md-management@claude-plugins-official",
-    "pyright-lsp@claude-plugins-official",
-    "typescript-lsp@claude-plugins-official",
-    "feature-dev@claude-plugins-official",
-    "claude-code-setup@claude-plugins-official",
+    "context7@claude-plugins-official",
     "document-skills@anthropic-agent-skills",
-    "impeccable@impeccable",
-    "playwright@claude-plugins-official",
-    "supabase@claude-plugins-official",
+    "feature-dev@claude-plugins-official",
     "figma@claude-plugins-official",
-    "ui-ux-pro-max@ui-ux-pro-max-skill",
     "huggingface-skills@claude-plugins-official",
-    "skill-creator@claude-plugins-official",
-    "chrome-devtools-mcp@claude-plugins-official",
-    "security-guidance@claude-plugins-official",
-    "superpowers@claude-plugins-official",
+    "impeccable@impeccable",
+    "last30days@last30days-skill",
     "obsidian@obsidian-skills",
-    "pydantic-ai@claude-plugins-official"
+    "playwright@claude-plugins-official",
+    "pydantic-ai@claude-plugins-official",
+    "pyright-lsp@claude-plugins-official",
+    "ralph-loop@claude-plugins-official",
+    "security-guidance@claude-plugins-official",
+    "skill-creator@claude-plugins-official",
+    "supabase@claude-plugins-official",
+    "superpowers@claude-plugins-official",
+    "typescript-lsp@claude-plugins-official",
+    "ui-ux-pro-max@ui-ux-pro-max-skill"
   ]
 }

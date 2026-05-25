@@ -74,3 +74,5 @@ set -a; [[ -f ~/dotfiles/.env ]] && source ~/dotfiles/.env; set +a
 export BUN_INSTALL="$HOME/.bun"
 [ -s "$BUN_INSTALL/_bun" ] && source "$BUN_INSTALL/_bun"
 export PATH="$BUN_INSTALL/bin:$PATH"
+
+fpath+=~/.zfunc; autoload -Uz compinit; compinit

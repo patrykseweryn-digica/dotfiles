@@ -12,18 +12,13 @@ fi
 # Detect OS and architecture
 OS="$(uname -s)"     # "Linux" or "Darwin"
 ARCH="$(uname -m)"   # "x86_64" or "arm64"
+export ARCH
 export IS_MACOS=false
 export IS_LINUX=false
 if [ "$OS" = "Darwin" ]; then
     IS_MACOS=true
 elif [ "$OS" = "Linux" ]; then
     IS_LINUX=true
-fi
-
-# Detect if brew is available (independent of sudo — brew doesn't need sudo on macOS)
-HAS_BREW=false
-if command -v brew >/dev/null 2>&1; then
-    HAS_BREW=true
 fi
 
 # Installation directory for user-local installs
@@ -154,6 +149,51 @@ link_file() {
     echo "[INFO] Linked $target_path -> $source_path"
 }
 
+deploy_symlink_target() {
+    local source_path="$1"
+    local target_path="$2"
+
+    mkdir -p "$(dirname "$target_path")"
+    link_file "$source_path" "$target_path"
+}
+
+deploy_plain_absent_target() {
+    local target_path="$1"
+
+    if [ -L "$target_path" ]; then
+        rm "$target_path"
+        echo "[INFO] Removed legacy symlink: $target_path"
+    fi
+}
+
+deploy_target() {
+    local target_type="$1"
+    local source_path="$2"
+    local target_path="$3"
+
+    case "$target_type" in
+        symlink)
+            deploy_symlink_target "$source_path" "$target_path"
+            ;;
+        plain-absent)
+            deploy_plain_absent_target "$target_path"
+            ;;
+        *)
+            echo "[ERROR] Unknown managed target type: $target_type" >&2
+            return 1
+            ;;
+    esac
+}
+
+deploy_targets() {
+    local target_type source_path target_path
+
+    while IFS='|' read -r target_type source_path target_path; do
+        [ -n "$target_type" ] || continue
+        deploy_target "$target_type" "$source_path" "$target_path"
+    done
+}
+
 ensure_env_file
 
 for module in "${DOTFILES_DIR}/bootstrap.d"/*.sh; do
@@ -167,82 +207,45 @@ done
 setup_dotfiles() {
     echo "[INFO] Setting up dotfile configurations..."
 
-    # Ensure config directory exists
-    mkdir -p "${HOME}/.config"
-
-    # Link Git config
-    link_file "$DOTFILES_DIR/config/git" "${HOME}/.config/git"
-
-    # Link Python startup file
-    link_file "$DOTFILES_DIR/pythonrc.py" "${HOME}/.pythonrc.py"
-
-    # Link .zshrc
-    link_file "$DOTFILES_DIR/.zshrc" "${HOME}/.zshrc"
-
-    # Link .p10k.zsh
-    link_file "$DOTFILES_DIR/.p10k.zsh" "${HOME}/.p10k.zsh"
-
-    # Link .tmux.conf
-    link_file "$DOTFILES_DIR/.tmux.conf" "${HOME}/.tmux.conf"
-
-    # Link .vimrc
-    link_file "$DOTFILES_DIR/.vimrc" "${HOME}/.vimrc"
-
-    # Link .aliases
-    link_file "$DOTFILES_DIR/.aliases" "${HOME}/.aliases"
-
-    # Link bin scripts
-    mkdir -p "${BIN_DIR}"
-    for script in "$DOTFILES_DIR/bin"/*; do
-        [ -f "$script" ] || continue
-        chmod +x "$script"
-        link_file "$script" "${BIN_DIR}/$(basename "$script")"
-    done
-
-    # Link VSCode settings
+    mkdir -p "${HOME}/.claude/plugins" "${HOME}/.claude/output-styles" "${HOME}/.claude/skills" "${HOME}/.agents/skills" "${HOME}/.codex"
     if [ "$IS_MACOS" = true ]; then
         VSCODE_USER_DIR="${HOME}/Library/Application Support/Code/User"
     else
         VSCODE_USER_DIR="${HOME}/.config/Code/User"
     fi
-    mkdir -p "$VSCODE_USER_DIR"
-    link_file "$DOTFILES_DIR/config/Code/settings.json" "$VSCODE_USER_DIR/settings.json"
-    link_file "$DOTFILES_DIR/config/Code/keybindings.json" "$VSCODE_USER_DIR/keybindings.json"
 
-    # Link Neovim config
-    link_file "$DOTFILES_DIR/config/nvim" "${HOME}/.config/nvim"
+    deploy_targets <<EOF
+symlink|$DOTFILES_DIR/config/git|$HOME/.config/git
+symlink|$DOTFILES_DIR/pythonrc.py|$HOME/.pythonrc.py
+symlink|$DOTFILES_DIR/.zshrc|$HOME/.zshrc
+symlink|$DOTFILES_DIR/.p10k.zsh|$HOME/.p10k.zsh
+symlink|$DOTFILES_DIR/.tmux.conf|$HOME/.tmux.conf
+symlink|$DOTFILES_DIR/.vimrc|$HOME/.vimrc
+symlink|$DOTFILES_DIR/.aliases|$HOME/.aliases
+symlink|$DOTFILES_DIR/config/Code/settings.json|$VSCODE_USER_DIR/settings.json
+symlink|$DOTFILES_DIR/config/Code/keybindings.json|$VSCODE_USER_DIR/keybindings.json
+symlink|$DOTFILES_DIR/config/nvim|$HOME/.config/nvim
+symlink|$DOTFILES_DIR/config/ruff|$HOME/.config/ruff
+symlink|$DOTFILES_DIR/config/gh/config.yml|$HOME/.config/gh/config.yml
+symlink|$DOTFILES_DIR/config/claude/CLAUDE.md|$HOME/.claude/CLAUDE.md
+symlink|$DOTFILES_DIR/config/claude/statusline-command.sh|$HOME/.claude/statusline-command.sh
+plain-absent||$HOME/.claude/settings.json
+symlink|$DOTFILES_DIR/config/claude/output-styles|$HOME/.claude/output-styles
+symlink|$DOTFILES_DIR/config/claude/agents|$HOME/.claude/agents
+EOF
 
-    # Link Ruff config
-    link_file "$DOTFILES_DIR/config/ruff" "${HOME}/.config/ruff"
-
-    # Link GitHub CLI config (file only, not dir - to preserve hosts.yml with auth tokens)
-    mkdir -p "${HOME}/.config/gh"
-    link_file "$DOTFILES_DIR/config/gh/config.yml" "${HOME}/.config/gh/config.yml"
-
-    # Link Claude Code config
-    mkdir -p "${HOME}/.claude/plugins" "${HOME}/.claude/output-styles" "${HOME}/.claude/skills"
-    link_file "$DOTFILES_DIR/config/claude/CLAUDE.md" "${HOME}/.claude/CLAUDE.md"
-    link_file "$DOTFILES_DIR/config/claude/settings.json" "${HOME}/.claude/settings.json"
-    link_file "$DOTFILES_DIR/config/claude/statusline-command.sh" "${HOME}/.claude/statusline-command.sh"
-    link_file "$DOTFILES_DIR/config/claude/output-styles" "${HOME}/.claude/output-styles"
-    link_file "$DOTFILES_DIR/config/claude/agents" "${HOME}/.claude/agents"
-
-    # Link custom skills from dotfiles
-    for skill_dir in "$DOTFILES_DIR/config/claude/skills-custom"/*/; do
-        [ -d "$skill_dir" ] || continue
-        skill_name="$(basename "$skill_dir")"
-        link_file "$skill_dir" "${HOME}/.claude/skills/${skill_name}"
-    done
-    # Link .skill compiled files
-    for skill_file in "$DOTFILES_DIR/config/claude/skills-custom"/*.skill; do
-        [ -f "$skill_file" ] && link_file "$skill_file" "${HOME}/.claude/skills/$(basename "$skill_file")"
+    # Link bin scripts
+    for script in "$DOTFILES_DIR/bin"/*; do
+        [ -f "$script" ] || continue
+        chmod +x "$script"
+        deploy_symlink_target "$script" "${BIN_DIR}/$(basename "$script")"
     done
 
-    # Sync marketplace skills and plugins from manifest
-    if [ -x "$DOTFILES_DIR/sync-claude.sh" ]; then
-        "$DOTFILES_DIR/sync-claude.sh" install
+    # Sync shared agent config plus tool-specific adapters.
+    if [ -f "$DOTFILES_DIR/sync-agents.sh" ]; then
+        "$DOTFILES_DIR/sync-agents.sh" install
     else
-        echo "[WARN] sync-claude.sh not found or not executable, skipping skill/plugin sync"
+        echo "[WARN] sync-agents.sh not found, skipping agent config sync"
     fi
 
     echo "[INFO] Using environment variables defined in $ENV_FILE"
@@ -275,9 +278,7 @@ main() {
     load_env
 
     echo "[INFO] Starting dotfiles installation..."
-    echo "[INFO] OS: ${OS} (${ARCH})"
     echo "[INFO] Sudo available: ${HAS_SUDO}"
-    echo "[INFO] Brew available: ${HAS_BREW}"
     echo "[INFO] Install directory: ${INSTALL_DIR}"
     # Install tools (continue on non-critical failures)
     install_uv || echo "[WARN] uv installation had issues, continuing..."
@@ -301,8 +302,7 @@ main() {
 
     # Setup git hooks for dotfiles repo
     if [ -f "$DOTFILES_DIR/hooks/post-merge" ]; then
-        mkdir -p "$DOTFILES_DIR/.git/hooks"
-        link_file "$DOTFILES_DIR/hooks/post-merge" "$DOTFILES_DIR/.git/hooks/post-merge"
+        deploy_symlink_target "$DOTFILES_DIR/hooks/post-merge" "$DOTFILES_DIR/.git/hooks/post-merge"
     fi
 
     echo "[INFO] Installation complete!"
