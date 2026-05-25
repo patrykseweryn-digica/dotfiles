@@ -1,0 +1,25 @@
+{
+  "model": "cli/codex/gpt-fast",
+  "output": {
+    "language": "auto",
+    "length": "long"
+  },
+  "ui": {
+    "theme": "mono"
+  },
+  "slides": {
+    "enabled": false,
+    "max": 8,
+    "ocr": false,
+    "dir": "slides"
+  },
+  "cli": {
+    "enabled": [
+      "codex",
+      "claude"
+    ],
+    "autoFallback": {
+      "enabled": false
+    }
+  }
+}

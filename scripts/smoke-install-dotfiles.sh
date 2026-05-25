@@ -98,6 +98,7 @@ STUB
     [ -L "${home_dir}/${expected_code_dir}/settings.json" ] || fail "$os_name: missing VS Code settings symlink"
     [ -L "${home_dir}/${expected_ghostty_config}" ] || fail "$os_name: missing Ghostty config symlink"
     [ -L "${home_dir}/.claude/CLAUDE.md" ] || fail "$os_name: missing Claude instructions symlink"
+    [ -L "${home_dir}/.summarize/config.json" ] || fail "$os_name: missing summarize config symlink"
     [ -L "${home_dir}/.codex/AGENTS.md" ] || fail "$os_name: missing Codex instructions symlink"
     [ -L "${home_dir}/.config/opencode/AGENTS.md" ] || fail "$os_name: missing OpenCode instructions symlink"
     [ -f "${home_dir}/.codex/config.toml" ] || fail "$os_name: missing Codex config"

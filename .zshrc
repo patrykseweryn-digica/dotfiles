@@ -64,9 +64,6 @@ export NVM_DIR="$HOME/.nvm"
 # Python startup file (set at the end to override any other settings)
 export PYTHONSTARTUP="${HOME}/.pythonrc.py"
 
-# Summarize plugin default model
-export SUMMARIZE_MODEL="cli/claude"
-
 # Project templates
 new-project() {
   local name="${1?Usage: new-project <project-name>}"

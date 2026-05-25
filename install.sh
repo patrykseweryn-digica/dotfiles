@@ -206,7 +206,7 @@ setup_dotfiles() {
     echo "[INFO] Setting up dotfile configurations..."
 
     ensure_install_dirs
-    mkdir -p "${HOME}/.claude/plugins" "${HOME}/.claude/output-styles" "${HOME}/.claude/skills" "${HOME}/.agents/skills" "${HOME}/.codex"
+    mkdir -p "${HOME}/.claude/plugins" "${HOME}/.claude/output-styles" "${HOME}/.claude/skills" "${HOME}/.agents/skills" "${HOME}/.codex" "${HOME}/.summarize"
     if [ "$IS_MACOS" = true ]; then
         VSCODE_USER_DIR="${HOME}/Library/Application Support/Code/User"
         GHOSTTY_CONFIG_TARGET="${HOME}/Library/Application Support/com.mitchellh.ghostty/config.ghostty"
@@ -229,6 +229,7 @@ symlink|$DOTFILES_DIR/config/ghostty/config.ghostty|$GHOSTTY_CONFIG_TARGET
 symlink|$DOTFILES_DIR/config/nvim|$HOME/.config/nvim
 symlink|$DOTFILES_DIR/config/ruff|$HOME/.config/ruff
 symlink|$DOTFILES_DIR/config/gh/config.yml|$HOME/.config/gh/config.yml
+symlink|$DOTFILES_DIR/config/summarize/config.json|$HOME/.summarize/config.json
 symlink|$DOTFILES_DIR/config/claude/CLAUDE.md|$HOME/.claude/CLAUDE.md
 symlink|$DOTFILES_DIR/config/claude/statusline-command.sh|$HOME/.claude/statusline-command.sh
 plain-absent||$HOME/.claude/settings.json
