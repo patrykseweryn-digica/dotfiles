@@ -9,10 +9,6 @@
       "http://127.0.0.1:9222"
     ]
   },
-  "mermaid": {
-    "type": "http",
-    "url": "https://mcp.mermaid.ai/mcp"
-  },
   "playwright": {
     "type": "stdio",
     "command": "npx",
