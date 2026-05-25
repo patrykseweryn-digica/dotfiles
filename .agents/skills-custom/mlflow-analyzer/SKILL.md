@@ -1,82 +1,44 @@
 ---
 name: mlflow-analyzer
-description: |
-  Analyze MLflow classification experiments to identify best-performing feature sets and models.
-  Use when user asks to: analyze MLflow results, compare features, find best models, get experiment
-  conclusions, review classification performance, identify winning feature combinations, compare
-  feature importance across runs, or generate experiment reports.
+description: "Analyze traditional MLflow experiment runs, rankings, metrics, feature sets, and model candidates."
+argument-hint: "[experiment name or fetched-results.json]"
 ---
 
-# MLflow Experiment Analyzer
+# MLflow Analyzer
 
-Analyze classification experiments from MLflow to identify best feature sets, rank models by F1 score, and generate insights.
+Analyze traditional MLflow experiment runs. This skill is for training/evaluation runs, not GenAI traces.
 
-## Quick Start
+## Use When
 
-```bash
-# Fetch results from MLflow
-python scripts/fetch_mlflow_results.py <experiment_name> -o results.json
+- User asks which model, run, feature set, or hyperparameter setup performed best.
+- User wants a report from existing MLflow runs.
+- User wants classification experiment analysis: F1, per-class metrics, feature frequency, statistical comparison.
 
-# Analyze and generate report
-python scripts/analyze_results.py results.json --top-n 10
-```
+For GenAI traces, sessions, token usage, or agent quality, use the tracing/evaluation MLflow skills instead.
 
 ## Workflow
 
-### 1. Fetch Experiment Data
+1. Classify the analysis target:
+   - Existing fetched JSON: run `scripts/analyze_results.py` directly.
+   - MLflow experiment name/id: fetch first with `scripts/fetch_mlflow_results.py`.
+   - Classification metrics/feature sets: read `references/classification.md`.
+   - Metric definitions/statistical interpretation: read `references/metrics.md`.
+2. Fetch runs when needed:
+   ```bash
+   python scripts/fetch_mlflow_results.py <experiment-name> -o results.json
+   python scripts/fetch_mlflow_results.py --experiment-id <id> -o results.json
+   ```
+3. Analyze:
+   ```bash
+   python scripts/analyze_results.py results.json --top-n 10
+   python scripts/analyze_results.py results.json --format json
+   python scripts/analyze_results.py results.json --compare "featureA|featureB" "featureC|featureD"
+   ```
+4. Report rankings, metric caveats, feature-set evidence, sample sizes, and next experiment recommendations.
 
-```bash
-python scripts/fetch_mlflow_results.py <experiment_name> \
-  --host http://127.0.0.1 \
-  --port 8081 \
-  -o results.json
-```
+## Boundaries
 
-**Filtering options:**
-- `--status FINISHED` - Only completed runs
-- `--start-date 2024-01-01` - Runs after date
-- `--end-date 2024-12-31` - Runs before date
-- `--filter "params.config.model.class_name = 'random_forest'"` - MLflow filter syntax
-- `--download-artifacts` - Download SHAP/permutation importance HTML files
-
-### 2. Analyze Results
-
-```bash
-# Markdown report (default)
-python scripts/analyze_results.py results.json --top-n 10
-
-# JSON output
-python scripts/analyze_results.py results.json --format json
-
-# Compare two feature sets statistically
-python scripts/analyze_results.py results.json --compare "featureA|featureB" "featureC|featureD"
-```
-
-## Output Formats
-
-**Markdown report includes:**
-- Top N runs ranked by total F1 score
-- Feature frequency analysis (which features appear in top runs)
-- Per-class performance summary (mean, std, min, max F1)
-- Recommendations based on analysis
-
-**Statistical comparison:**
-- Mann-Whitney U test for comparing feature sets
-- Reports p-value and significance at α=0.05
-
-## Classes Tracked
-
-- `bird`, `multi_rotor_drone`, `fixed_wing_drone`, `airplane`, `total`
-
-## Metric Interpretation
-
-See [references/metrics.md](references/metrics.md) for metric definitions and statistical test interpretation.
-
-## Example Analysis Prompt
-
-> "Analyze my 'classification' experiment and tell me which features work best"
-
-Response workflow:
-1. Run fetch script to get results.json
-2. Run analyze script with --top-n 10
-3. Present markdown report with rankings, feature frequency, and recommendations
+- Do not use this for MLflow trace/session debugging.
+- Do not overstate statistical comparisons with small sample sizes.
+- Do not assume the drone/bird class schema unless the run metrics match it or the user asks for that project-specific analysis.
+- Prefer configurable script flags over editing scripts for one-off experiments.

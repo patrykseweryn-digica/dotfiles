@@ -41,7 +41,7 @@ Non-parametric test comparing two independent samples.
 - p < 0.05: Moderate evidence
 - p >= 0.05: Insufficient evidence
 
-## Classes in This Project
+## Default Project Classes
 
 | Class | Description |
 |-------|-------------|
@@ -50,6 +50,8 @@ Non-parametric test comparing two independent samples.
 | fixed_wing_drone | Fixed-wing UAVs |
 | airplane | Conventional aircraft |
 | total | Aggregate across all classes |
+
+These are defaults for the historical drone/bird classification project. Override them with `--classes` for other classifiers.
 
 ## Feature Importance Types
 
