@@ -1,4 +1,16 @@
 " vim-plug plugin manager
+let s:vim_plug_path = expand('~/.vim/autoload/plug.vim')
+let s:install_plugins = empty(glob(expand('~/.vim/plugged')))
+
+if empty(glob(s:vim_plug_path))
+  silent execute '!curl -fLo ' . shellescape(s:vim_plug_path) . ' --create-dirs https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim'
+  if v:shell_error
+    echoerr 'vim-plug is missing and could not be installed automatically'
+    finish
+  endif
+  let s:install_plugins = 1
+endif
+
 call plug#begin('~/.vim/plugged')
 
 " Status bar
@@ -66,7 +78,7 @@ nnoremap <C-l> <C-w>l
 " Clear search highlight
 nnoremap <leader><space> :nohlsearch<CR>
 
-" Install plugins on first launch
-if empty(glob('~/.vim/plugged'))
+" Install plugins on first launch after vim-plug is available
+if s:install_plugins
   autocmd VimEnter * PlugInstall --sync | source $MYVIMRC
 endif
