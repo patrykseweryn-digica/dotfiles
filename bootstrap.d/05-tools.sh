@@ -12,6 +12,26 @@ tool_plan_installed() {
     return 1
 }
 
+install_brew_package() {
+    local tool_name="$1"
+    local package_name="$2"
+
+    if [ -z "$package_name" ]; then
+        echo "[WARN] Could not install ${tool_name}: no Homebrew package configured"
+        return 1
+    fi
+
+    brew install "$package_name"
+}
+
+configure_git_lfs() {
+    if check_installed git && git lfs version >/dev/null 2>&1; then
+        git lfs install --skip-repo || echo "[WARN] Failed to configure git-lfs"
+    else
+        echo "[WARN] git-lfs installed but git lfs is not available"
+    fi
+}
+
 run_cli_tool_plan() {
     local tool_name="$1"
     local check_commands="$2"
@@ -29,7 +49,7 @@ run_cli_tool_plan() {
     if tool_plan_installed "$check_commands"; then
         echo "[INFO] ${tool_name} is already installed"
     elif command -v brew >/dev/null 2>&1; then
-        install_package_manager_package "$tool_name" "$apt_package" "$dnf_package" "$pacman_package" "$brew_package" || true
+        install_brew_package "$tool_name" "$brew_package" || true
         if [ -n "$post_install" ]; then
             "$post_install"
         fi
@@ -39,7 +59,9 @@ run_cli_tool_plan() {
             "$post_install"
         fi
     else
-        if [ -n "$github_installed_name" ]; then
+        if [ -z "$github_repo" ]; then
+            echo "[WARN] Skipping ${tool_name}: no package manager or GitHub fallback available"
+        elif [ -n "$github_installed_name" ]; then
             install_github_binary "$github_repo" "$github_tag" "$github_archive" "$github_binary" "$github_installed_name" || true
         else
             install_github_binary "$github_repo" "$github_tag" "$github_archive" "$github_binary" || true
@@ -82,10 +104,45 @@ install_core_cli_tools() {
         "fd-find" "fd-find" "fd" "fd" \
         "sharkdp/fd" "v10.2.0" "$(github_binary_pattern fd)" "fd" "" "link_fd_alias"
 
-    # jq (required by sync-claude.sh)
+    # jq (required by sync-agents.sh)
     run_cli_tool_plan "jq" "jq" \
         "jq" "jq" "jq" "jq" \
         "jqlang/jq" "jq-1.7.1" "$(github_binary_pattern jq)" "$(github_binary_pattern jq)" "jq"
+
+    # tmux (terminal multiplexer)
+    run_cli_tool_plan "tmux" "tmux" \
+        "tmux" "tmux" "tmux" "tmux" \
+        "" "" "" ""
+
+    # Neovim (modern Vim)
+    run_cli_tool_plan "neovim" "nvim" \
+        "neovim" "neovim" "neovim" "neovim" \
+        "" "" "" ""
+
+    # git-lfs (large file support for Git)
+    run_cli_tool_plan "git-lfs" "git-lfs" \
+        "git-lfs" "git-lfs" "git-lfs" "git-lfs" \
+        "" "" "" "" "" "configure_git_lfs"
+
+    # shfmt (shell formatter)
+    run_cli_tool_plan "shfmt" "shfmt" \
+        "shfmt" "shfmt" "shfmt" "shfmt" \
+        "" "" "" ""
+
+    # just (command runner)
+    run_cli_tool_plan "just" "just" \
+        "just" "just" "just" "just" \
+        "" "" "" ""
+
+    # hadolint (Dockerfile linter)
+    run_cli_tool_plan "hadolint" "hadolint" \
+        "" "hadolint" "hadolint" "hadolint" \
+        "" "" "" ""
+
+    # Bitwarden CLI (bw)
+    run_cli_tool_plan "bitwarden-cli" "bw" \
+        "" "" "bitwarden-cli" "bitwarden-cli" \
+        "" "" "" ""
 }
 
 install_tools() {

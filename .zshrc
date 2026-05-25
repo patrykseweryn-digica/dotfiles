@@ -20,6 +20,7 @@ plugins=(
 	python
 	docker
 	npm
+	fzf-tab
 	zsh-autosuggestions
 	zsh-syntax-highlighting
 	zsh-bat
