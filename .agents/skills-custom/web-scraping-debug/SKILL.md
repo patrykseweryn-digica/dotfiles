@@ -14,13 +14,12 @@ Use when a scraper already exists and is failing or producing bad data.
 2. Compare expected vs actual: status, response body, rendered DOM, network calls, output rows.
 3. Classify failure:
    - selector/parser drift: read `../web-scraping-scout/references/parsers.md`
-   - API contract or pagination drift: read `../web-scraping-scout/references/api-scraping.md` or `pagination.md`
-   - anti-bot/browser/proxy/auth: read `browsers.md`, `proxy.md`, or `auth.md`
-   - storage/schema issue: read `storage.md`
+   - API contract or pagination drift: read `../web-scraping-scout/references/api-scraping.md` or `../web-scraping-scout/references/pagination.md`
+   - anti-bot/browser/proxy/auth: read `../web-scraping-scout/references/browsers.md`, `../web-scraping-scout/references/proxy.md`, or `../web-scraping-scout/references/auth.md`
+   - storage/schema issue: read `../web-scraping-scout/references/storage.md`
 4. Fix the narrow cause; avoid rewriting from scratch unless the current method is dead.
 5. Add a regression check when practical: saved HTML/API fixture, sample output assertion, or smoke command.
 
 ## Verify
 
 Run project lint/type/test commands if present, then a small live sample. For output quality, hand off to `web-scraping-audit`.
-
