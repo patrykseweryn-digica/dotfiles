@@ -111,6 +111,7 @@
     "chrome-devtools-mcp@claude-plugins-official",
     "security-guidance@claude-plugins-official",
     "superpowers@claude-plugins-official",
-    "obsidian@obsidian-skills"
+    "obsidian@obsidian-skills",
+    "pydantic-ai@claude-plugins-official"
   ]
 }
