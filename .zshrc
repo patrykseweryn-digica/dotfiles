@@ -11,8 +11,10 @@ export PATH="${HOME}/.local/bin:${HOME}/.cargo/bin:$PATH"
 export ZSH="$HOME/.oh-my-zsh"
 ZSH_THEME="powerlevel10k/powerlevel10k"
 
-fpath+=${ZSH_CUSTOM:-${ZSH:-~/.oh-my-zsh}/custom}/plugins/zsh-completions/src
-fpath+=~/.zfunc
+zsh_completions_dir="${ZSH_CUSTOM:-${ZSH:-~/.oh-my-zsh}/custom}/plugins/zsh-completions/src"
+[[ ! -d "$zsh_completions_dir" ]] || fpath+=("$zsh_completions_dir")
+[[ ! -d "$HOME/.zfunc" ]] || fpath+=("$HOME/.zfunc")
+unset zsh_completions_dir
 
 plugins=(
 	git
@@ -26,16 +28,27 @@ plugins=(
 	zsh-bat
 	you-should-use
 )
-source $ZSH/oh-my-zsh.sh
+[[ ! -r "$ZSH/oh-my-zsh.sh" ]] || source "$ZSH/oh-my-zsh.sh"
+
+if ! whence -w compdef >/dev/null 2>&1; then
+  autoload -Uz compinit
+  compinit
+fi
 
 # SSH host completion from ~/.ssh/config
-zstyle ':completion:*:(ssh|scp|sftp):*' hosts $(awk '/^Host / && !/\*/ {print $2}' ~/.ssh/config)
+if [[ -r "$HOME/.ssh/config" ]]; then
+  zstyle ':completion:*:(ssh|scp|sftp):*' hosts ${(f)"$(awk '/^Host / && !/\*/ {print $2}' "$HOME/.ssh/config")"}
+fi
 
 # zoxide (smart cd, replaces z plugin)
-eval "$(zoxide init zsh)"
+if command -v zoxide >/dev/null 2>&1; then
+  eval "$(zoxide init zsh)"
+fi
 
 # uv shell completions
-eval "$(uv generate-shell-completion zsh)"
+if command -v uv >/dev/null 2>&1; then
+  eval "$(uv generate-shell-completion zsh)"
+fi
 
 # NVM
 export NVM_DIR="$HOME/.nvm"
@@ -65,8 +78,23 @@ new-project-digica() {
   uvx copier copy --trust gh:patrykseweryn-digica/python-repo-template "$name"
 }
 
-# Load environment variables from .env
-set -a; [[ -f ~/dotfiles/.env ]] && source ~/dotfiles/.env; set +a
+# Load environment variables from dotfiles .env
+dotfiles_env_file="${DOTFILES_ENV_FILE:-}"
+if [[ -z "$dotfiles_env_file" ]]; then
+  dotfiles_zshrc_path="${(%):-%x}"
+  if [[ -n "$dotfiles_zshrc_path" ]]; then
+    dotfiles_env_file="${dotfiles_zshrc_path:A:h}/.env"
+  else
+    dotfiles_env_file="$HOME/dotfiles/.env"
+  fi
+  unset dotfiles_zshrc_path
+fi
+if [[ -f "$dotfiles_env_file" ]]; then
+  set -a
+  source "$dotfiles_env_file"
+  set +a
+fi
+unset dotfiles_env_file
 
 # Local per-machine overrides (not tracked in dotfiles)
 [[ ! -f ~/.zshrc.local ]] || source ~/.zshrc.local
@@ -75,5 +103,3 @@ set -a; [[ -f ~/dotfiles/.env ]] && source ~/dotfiles/.env; set +a
 export BUN_INSTALL="$HOME/.bun"
 [ -s "$BUN_INSTALL/_bun" ] && source "$BUN_INSTALL/_bun"
 export PATH="$BUN_INSTALL/bin:$PATH"
-
-fpath+=~/.zfunc; autoload -Uz compinit; compinit

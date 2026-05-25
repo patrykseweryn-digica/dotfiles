@@ -26,18 +26,18 @@ INSTALL_DIR="${HOME}/.local"
 BIN_DIR="${INSTALL_DIR}/bin"
 OPT_DIR="${INSTALL_DIR}/opt"
 
-# Ensure directories exist
-mkdir -p "${BIN_DIR}" "${OPT_DIR}"
-
-# Add to PATH if not already there
-if [[ ":$PATH:" != *":${BIN_DIR}:"* ]]; then
-    export PATH="${BIN_DIR}:${PATH}"
-fi
-
 # Source installation modules
 DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENV_TEMPLATE="${DOTFILES_DIR}/.env.example"
-ENV_FILE="${DOTFILES_DIR}/.env"
+ENV_FILE="${DOTFILES_ENV_FILE:-${DOTFILES_DIR}/.env}"
+
+ensure_install_dirs() {
+    mkdir -p "${BIN_DIR}" "${OPT_DIR}"
+
+    if [[ ":$PATH:" != *":${BIN_DIR}:"* ]]; then
+        export PATH="${BIN_DIR}:${PATH}"
+    fi
+}
 
 ensure_env_file() {
     if [ ! -f "$ENV_TEMPLATE" ]; then
@@ -194,8 +194,6 @@ deploy_targets() {
     done
 }
 
-ensure_env_file
-
 for module in "${DOTFILES_DIR}/bootstrap.d"/*.sh; do
     if [ -f "$module" ]; then
         # shellcheck source=/dev/null
@@ -207,6 +205,7 @@ done
 setup_dotfiles() {
     echo "[INFO] Setting up dotfile configurations..."
 
+    ensure_install_dirs
     mkdir -p "${HOME}/.claude/plugins" "${HOME}/.claude/output-styles" "${HOME}/.claude/skills" "${HOME}/.agents/skills" "${HOME}/.codex"
     if [ "$IS_MACOS" = true ]; then
         VSCODE_USER_DIR="${HOME}/Library/Application Support/Code/User"
@@ -262,7 +261,9 @@ EOF
     fi
 
     # Setup SSH key
-    if [ -f "$DOTFILES_DIR/ssh.sh" ]; then
+    if [ "${DOTFILES_SKIP_SSH:-false}" = true ]; then
+        echo "[INFO] Skipping SSH setup"
+    elif [ -f "$DOTFILES_DIR/ssh.sh" ]; then
         echo "[INFO] Setting up SSH key..."
         "$DOTFILES_DIR/ssh.sh" "$EMAIL" "$WORK_EMAIL"
     else
@@ -278,6 +279,7 @@ main() {
         set -x
     fi
 
+    ensure_install_dirs
     load_env
 
     echo "[INFO] Starting dotfiles installation..."
@@ -292,8 +294,10 @@ main() {
     install_fonts || echo "[WARN] Font installation had issues, continuing..."
     install_nvm || echo "[WARN] NVM installation had issues, continuing..."
     install_terminal_colors || echo "[WARN] Terminal color setup had issues, continuing..."
+    if declare -f install_macos_apps >/dev/null 2>&1; then
+        install_macos_apps || echo "[WARN] macOS app installation had issues, continuing..."
+    fi
     install_claude_code || echo "[WARN] Claude Code installation had issues, continuing..."
-    install_macos_apps || echo "[WARN] macOS app setup had issues, continuing..."
 
     # Setup dotfile configurations
     setup_dotfiles
@@ -313,4 +317,6 @@ main() {
     echo "[INFO] Please restart your shell or run: source ~/.zshrc"
 }
 
-main "$@"
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+    main "$@"
+fi

@@ -13,6 +13,30 @@ repos:
         entry: ./scripts/smoke-tool-plan.sh
         language: system
         pass_filenames: false
+      - id: zsh-plan-smoke
+        name: Zsh install plan smoke test
+        description: Ensure zsh install picks Homebrew before source fallback when sudo is unavailable
+        entry: ./scripts/smoke-zsh-plan.sh
+        language: system
+        pass_filenames: false
+      - id: zshrc-startup-smoke
+        name: Zshrc startup smoke test
+        description: Ensure .zshrc can be sourced on a fresh machine without noisy missing-tool errors
+        entry: ./scripts/smoke-zshrc-startup.sh
+        language: system
+        pass_filenames: false
+      - id: agent-repo-layout-smoke
+        name: Agent repo layout smoke test
+        description: Ensure shared agent files stay canonical and tracked symlinks resolve
+        entry: ./scripts/smoke-agent-repo-layout.sh
+        language: system
+        pass_filenames: false
+      - id: install-dotfiles-smoke
+        name: Install dotfiles smoke test
+        description: Ensure setup_dotfiles links Linux/macOS targets and agent adapters in an isolated HOME
+        entry: ./scripts/smoke-install-dotfiles.sh
+        language: system
+        pass_filenames: false
       - id: macos-apps-smoke
         name: macOS apps smoke test
         description: Ensure macOS Brewfile, VS Code extensions, and Rectangle defaults are wired safely
@@ -28,14 +52,14 @@ repos:
       - id: claude-manifest-sync
         name: Claude manifest sync check
         description: Ensure claude-manifest.json reflects installed plugins
-        entry: ./sync-claude.sh export --check
+        entry: ./sync-agents.sh claude-export --check
         language: system
         pass_filenames: false
         always_run: true
       - id: claude-settings-check
         name: Claude settings drift check
         description: Ensure ~/.claude/settings.json has no keys outside template + generated keys
-        entry: ./sync-claude.sh settings-check
+        entry: ./sync-agents.sh claude-settings-check
         language: system
         pass_filenames: false
         always_run: true

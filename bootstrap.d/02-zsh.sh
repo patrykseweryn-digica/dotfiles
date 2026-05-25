@@ -17,6 +17,10 @@ install_zsh_from_package_manager() {
     fi
 }
 
+install_zsh_with_brew() {
+    brew install zsh
+}
+
 install_zsh_from_source() {
     echo "[WARN] No sudo access. Installing zsh from source to ${OPT_DIR}/zsh..."
 
@@ -73,7 +77,10 @@ install_zsh() {
         echo "[INFO] zsh is already installed"
         zsh --version
     else
-        if [ "$HAS_SUDO" = true ]; then
+        if command -v brew >/dev/null 2>&1; then
+            echo "[INFO] Installing zsh via Homebrew..."
+            install_zsh_with_brew
+        elif [ "$HAS_SUDO" = true ]; then
             echo "[INFO] Installing zsh via package manager..."
             install_zsh_from_package_manager
         else
