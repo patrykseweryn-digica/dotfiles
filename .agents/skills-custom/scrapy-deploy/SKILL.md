@@ -1,10 +1,6 @@
 ---
 name: scrapy-deploy
-description: >
-  Deploy Scrapy scrapers to Docker with monitoring. Use when user wants to deploy a scraper,
-  put a spider on a server, run a crawler in production, create a Dockerfile for scraping,
-  set up monitoring/alerts, or mentions "deploy scraper", "run spider on server", "dockerize scraper",
-  "monitor scraper", "scraper alerts".
+description: "Deploy existing Scrapy projects: Docker, server runs, cron scheduling, stats JSON, SpiderMon alerts, scraper monitoring."
 argument-hint: "[docker] [server]"
 ---
 
@@ -14,7 +10,7 @@ Deploy Scrapy projects to Docker with monitoring and scheduling.
 
 ## Context Check
 
-Verify this is a Scrapy project (look for `scrapy.cfg`). If not, tell the user to create one first with `/web-scraper-copilot`.
+Verify this is a Scrapy project (look for `scrapy.cfg`). If not, tell the user to create one first with `scrapy-build`.
 
 ## Deployment: Docker (Recommended)
 

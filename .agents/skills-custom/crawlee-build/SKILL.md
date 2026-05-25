@@ -1,20 +1,10 @@
 ---
-name: crawlee-copilot
-description: >
-  Generate production-ready web crawlers with crawlee-python — from simple BeautifulSoupCrawler
-  to AdaptivePlaywrightCrawler with anti-bot bypass. Handles TLS fingerprinting, SPA rendering,
-  API reverse engineering, and data validation. Always uses crawlee-python (never standalone scripts).
-  Use when user wants to: crawl a website, scrape data with crawlee, create a crawler,
-  extract data from web pages, handle anti-bot protection, bypass detection, reverse engineer
-  an API, or build a data extraction pipeline.
-  Triggers on: "crawl", "crawlee", "scrape", "spider", "web scraping", "extract data from site",
-  "parse website", any URL followed by "extract/scrape/get data", "bypass detection",
-  "adaptive crawler".
-  Also trigger when user pastes a URL and asks to get structured data from it.
+name: crawlee-build
+description: "Build crawlee-python crawlers when user explicitly asks for Crawlee, AdaptivePlaywrightCrawler, ParselCrawler, HttpCrawler, or crawlee-based scraping."
 argument-hint: "[url] [what to extract]"
 ---
 
-# Crawlee Copilot
+# Crawlee Build
 
 Reference files (`references/*.md`) contain code examples and API details.
 Read them only when the workflow directs you to — NOT all upfront.
