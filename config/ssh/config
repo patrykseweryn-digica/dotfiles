@@ -6,12 +6,14 @@ Host github-personal
     HostName github.com
     User git
     IdentityFile ~/.ssh/id_ed25519
+    IdentitiesOnly yes
 
 # Work GitHub account
 Host github-work
     HostName github.com
     User git
     IdentityFile ~/.ssh/id_ed25519_work
+    IdentitiesOnly yes
 
 Host gpu1 gpu2 gpu3 gpu4 gpu5 gpu6 gpu7 gpu8 gpu9 hercules atlas
     User pseweryn
