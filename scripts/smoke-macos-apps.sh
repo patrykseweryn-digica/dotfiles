@@ -26,6 +26,9 @@ mkdir -p "$stub_dir" "$(dirname "$vscode_cli")"
 : > "$code_log"
 : > "$defaults_log"
 
+ln -s "$(command -v mkdir)" "${stub_dir}/mkdir"
+ln -s "$(command -v ln)" "${stub_dir}/ln"
+
 cat > "${stub_dir}/brew" <<'STUB'
 #!/bin/sh
 if [ "$1" = "--prefix" ]; then
@@ -57,7 +60,7 @@ run_macos_apps_case() {
     (
         export DOTFILES_DIR
         export IS_MACOS="$is_macos"
-        export PATH="${stub_dir}:${brew_prefix}/bin:/usr/bin:/bin"
+        export PATH="${stub_dir}:${brew_prefix}/bin"
         export BREW_PREFIX="$brew_prefix"
         export VSCODE_CLI_PATH="$vscode_cli"
         export BREW_LOG="$brew_log"
