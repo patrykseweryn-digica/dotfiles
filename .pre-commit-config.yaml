@@ -13,6 +13,12 @@ repos:
         entry: ./scripts/smoke-tool-plan.sh
         language: system
         pass_filenames: false
+      - id: macos-apps-smoke
+        name: macOS apps smoke test
+        description: Ensure macOS Brewfile, VS Code extensions, and Rectangle defaults are wired safely
+        entry: ./scripts/smoke-macos-apps.sh
+        language: system
+        pass_filenames: false
       - id: agent-skill-sync-smoke
         name: Agent skill sync smoke test
         description: Ensure shared skills are visible to Codex, Claude Code, and OpenCode
