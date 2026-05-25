@@ -1,5 +1,5 @@
 ---
-name: obsidian-vault
+name: obsidian-notes
 description: "Search, create, edit, summarize, and organize notes in the user's Obsidian vault."
 ---
 
