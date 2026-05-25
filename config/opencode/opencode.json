@@ -2,5 +2,24 @@
   "$schema": "https://opencode.ai/config.json",
   "instructions": [
     "AGENTS.md"
-  ]
+  ],
+  "model": "ollama/qwen3.6:27b",
+  "provider": {
+    "ollama": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "Ollama (local)",
+      "options": {
+        "baseURL": "http://localhost:11434/v1"
+      },
+      "models": {
+        "qwen3.6:27b": {
+          "name": "Qwen 3.6 27B (local)",
+          "limit": {
+            "context": 262144,
+            "output": 65536
+          }
+        }
+      }
+    }
+  }
 }
