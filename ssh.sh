@@ -1,8 +1,9 @@
 #!/bin/bash
+set -euo pipefail
 
 # Usage: ssh.sh <personal-email> <work-email>
 
-if [ -z "$1" ] || [ -z "$2" ]; then
+if [ -z "${1:-}" ] || [ -z "${2:-}" ]; then
     echo "[ERROR] Usage: ssh.sh <personal-email> <work-email>" >&2
     exit 1
 fi
@@ -13,7 +14,14 @@ WORK_EMAIL="$2"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SSH_SRC="$SCRIPT_DIR/config/ssh/config"
 
-mkdir -p ~/.ssh
+SSH_DIR="$HOME/.ssh"
+CONFIG_D="$SSH_DIR/config.d"
+DOTFILES_LINK="$CONFIG_D/dotfiles.conf"
+MAIN_CONFIG="$SSH_DIR/config"
+STUB_CONTENT='Include config.d/*.conf'
+
+mkdir -p "$SSH_DIR" "$CONFIG_D"
+chmod 700 "$SSH_DIR" "$CONFIG_D"
 
 generate_key() {
     local key_path="$1"
@@ -32,8 +40,8 @@ generate_key() {
     fi
 }
 
-generate_key ~/.ssh/id_ed25519 "$PERSONAL_EMAIL" "personal"
-generate_key ~/.ssh/id_ed25519_work "$WORK_EMAIL" "work"
+generate_key "$SSH_DIR/id_ed25519" "$PERSONAL_EMAIL" "personal"
+generate_key "$SSH_DIR/id_ed25519_work" "$WORK_EMAIL" "work"
 
 # Start ssh-agent if not already running
 if [ -z "${SSH_AUTH_SOCK:-}" ]; then
@@ -46,41 +54,80 @@ else
 fi
 
 if [ "$(uname)" = "Darwin" ]; then
-    ssh-add --apple-use-keychain ~/.ssh/id_ed25519
-    ssh-add --apple-use-keychain ~/.ssh/id_ed25519_work
+    ssh-add --apple-use-keychain "$SSH_DIR/id_ed25519"
+    ssh-add --apple-use-keychain "$SSH_DIR/id_ed25519_work"
 else
-    ssh-add ~/.ssh/id_ed25519
-    ssh-add ~/.ssh/id_ed25519_work
+    ssh-add "$SSH_DIR/id_ed25519"
+    ssh-add "$SSH_DIR/id_ed25519_work"
 fi
 
-# Manage SSH config section between start/end markers
-touch ~/.ssh/config
+backup_path() {
+    local base="$1"
+    local ts
+    ts="$(date +%Y%m%d%H%M%S)"
+    local candidate="${base}.backup.${ts}"
+    local i=1
+    while [ -e "$candidate" ]; do
+        candidate="${base}.backup.${ts}.${i}"
+        i=$((i + 1))
+    done
+    printf '%s' "$candidate"
+}
 
-START_MARKER="# dotfiles-managed-start"
-END_MARKER="# dotfiles-managed-end"
+chmod 600 "$SSH_SRC"
 
-MANAGED_BLOCK="${START_MARKER}
-$(cat "$SSH_SRC")
-${END_MARKER}"
-
-if grep -qF "$START_MARKER" ~/.ssh/config; then
-    # Replace existing managed section
-    tmp="$(mktemp)"
-    awk -v start="$START_MARKER" -v end="$END_MARKER" -v block="$MANAGED_BLOCK" '
-        $0 == start { print block; skip=1; next }
-        $0 == end { skip=0; next }
-        !skip { print }
-    ' ~/.ssh/config > "$tmp"
-    mv "$tmp" ~/.ssh/config
-    chmod 600 ~/.ssh/config
-    echo "[INFO] Updated SSH config managed section"
+# Link config.d/dotfiles.conf -> repo
+if [ -L "$DOTFILES_LINK" ] && [ "$(readlink "$DOTFILES_LINK")" = "$SSH_SRC" ]; then
+    echo "[INFO] $DOTFILES_LINK already linked to $SSH_SRC"
 else
-    # Append managed section
-    printf '\n%s\n' "$MANAGED_BLOCK" >>~/.ssh/config
-    echo "[INFO] Appended SSH config from $SSH_SRC"
+    if [ -e "$DOTFILES_LINK" ] || [ -L "$DOTFILES_LINK" ]; then
+        if [ ! -L "$DOTFILES_LINK" ]; then
+            bk="$(backup_path "$DOTFILES_LINK")"
+            mv "$DOTFILES_LINK" "$bk"
+            echo "[INFO] Backed up $DOTFILES_LINK to $bk"
+        fi
+        rm -f "$DOTFILES_LINK"
+    fi
+    ln -s "$SSH_SRC" "$DOTFILES_LINK"
+    echo "[INFO] Linked $DOTFILES_LINK -> $SSH_SRC"
+fi
+
+# Ensure ~/.ssh/config is a stub including config.d/*.conf
+write_stub=0
+if [ -L "$MAIN_CONFIG" ]; then
+    # Legacy single-file symlink (e.g. -> repo config). Replace with stub.
+    target="$(readlink "$MAIN_CONFIG")"
+    bk="$(backup_path "$MAIN_CONFIG")"
+    mv "$MAIN_CONFIG" "$bk"
+    echo "[INFO] Replaced legacy symlink ($target). Old link saved as $bk"
+    write_stub=1
+elif [ -f "$MAIN_CONFIG" ]; then
+    if [ "$(cat "$MAIN_CONFIG")" = "$STUB_CONTENT" ]; then
+        echo "[INFO] $MAIN_CONFIG already correct stub"
+    else
+        bk="$(backup_path "$MAIN_CONFIG")"
+        mv "$MAIN_CONFIG" "$bk"
+        echo "[INFO] Backed up existing $MAIN_CONFIG to $bk"
+        write_stub=1
+    fi
+else
+    write_stub=1
+fi
+
+if [ "$write_stub" = 1 ]; then
+    printf '%s\n' "$STUB_CONTENT" > "$MAIN_CONFIG"
+    chmod 600 "$MAIN_CONFIG"
+    echo "[INFO] Wrote stub $MAIN_CONFIG"
+fi
+
+# Touch a local.conf placeholder so Include never warns on an empty config.d
+if [ ! -e "$CONFIG_D/local.conf" ]; then
+    touch "$CONFIG_D/local.conf"
+    chmod 600 "$CONFIG_D/local.conf"
+    echo "[INFO] Created empty $CONFIG_D/local.conf (machine-local, not in repo)"
 fi
 
 echo ""
 echo "[INFO] Add these public keys to your GitHub accounts:"
-echo "  Personal: $(cat ~/.ssh/id_ed25519.pub)"
-echo "  Work:     $(cat ~/.ssh/id_ed25519_work.pub)"
+echo "  Personal: $(cat "$SSH_DIR/id_ed25519.pub")"
+echo "  Work:     $(cat "$SSH_DIR/id_ed25519_work.pub")"
