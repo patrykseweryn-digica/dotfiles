@@ -32,6 +32,12 @@ configure_git_lfs() {
     fi
 }
 
+update_tldr_cache() {
+    if check_installed tldr; then
+        tldr --update 2>/dev/null || true
+    fi
+}
+
 run_cli_tool_plan() {
     local tool_name="$1"
     local check_commands="$2"
@@ -45,20 +51,21 @@ run_cli_tool_plan() {
     local github_binary="${10}"
     local github_installed_name="${11:-}"
     local post_install="${12:-}"
+    local installed=false
 
     if tool_plan_installed "$check_commands"; then
         echo "[INFO] ${tool_name} is already installed"
     elif command -v brew >/dev/null 2>&1; then
-        install_brew_package "$tool_name" "$brew_package" || true
-        if [ -n "$post_install" ]; then
-            "$post_install"
+        if install_brew_package "$tool_name" "$brew_package"; then
+            installed=true
         fi
     elif [ "$HAS_SUDO" = true ]; then
-        install_package_manager_package "$tool_name" "$apt_package" "$dnf_package" "$pacman_package" "$brew_package" || true
-        if [ -n "$post_install" ]; then
-            "$post_install"
+        if install_package_manager_package "$tool_name" "$apt_package" "$dnf_package" "$pacman_package" "$brew_package"; then
+            installed=true
         fi
-    else
+    fi
+
+    if ! tool_plan_installed "$check_commands" && [ "$installed" != true ]; then
         if [ -z "$github_repo" ]; then
             echo "[WARN] Skipping ${tool_name}: no package manager or GitHub fallback available"
         elif [ -n "$github_installed_name" ]; then
@@ -66,6 +73,10 @@ run_cli_tool_plan() {
         else
             install_github_binary "$github_repo" "$github_tag" "$github_archive" "$github_binary" || true
         fi
+    fi
+
+    if [ -n "$post_install" ]; then
+        "$post_install"
     fi
 }
 
@@ -145,40 +156,64 @@ install_core_cli_tools() {
         "" "" "" ""
 }
 
+install_eza() {
+    local github_repo=""
+    local github_tag=""
+    local github_archive=""
+    local github_binary=""
+
+    if [ "${IS_LINUX:-false}" = true ]; then
+        github_repo="eza-community/eza"
+        github_tag="v0.20.14"
+        github_archive="eza_x86_64-unknown-linux-gnu.tar.gz"
+        github_binary="eza"
+    fi
+
+    # eza (modern ls replacement)
+    run_cli_tool_plan "eza" "eza" \
+        "eza" "eza" "eza" "eza" \
+        "$github_repo" "$github_tag" "$github_archive" "$github_binary"
+}
+
+install_delta() {
+    # delta (syntax-highlighting git diff pager)
+    run_cli_tool_plan "delta" "delta" \
+        "" "" "" "git-delta" \
+        "dandavison/delta" "0.18.2" "$(github_binary_pattern delta)" "delta"
+}
+
+install_tealdeer() {
+    # tealdeer (tldr - practical command examples)
+    run_cli_tool_plan "tealdeer" "tldr" \
+        "tealdeer" "tealdeer" "tealdeer" "tealdeer" \
+        "tealdeer-rs/tealdeer" "v1.8.1" "$(github_binary_pattern tealdeer)" "$(github_binary_pattern tealdeer)" "tldr" "update_tldr_cache"
+}
+
+install_lazygit() {
+    # lazygit (TUI for git)
+    run_cli_tool_plan "lazygit" "lazygit" \
+        "" "" "lazygit" "lazygit" \
+        "jesseduffield/lazygit" "v0.59.0" "$(github_binary_pattern lazygit)" "lazygit"
+}
+
+install_xclip() {
+    # xclip (clipboard from terminal — Linux only, macOS has built-in pbcopy/pbpaste)
+    if [ "${IS_MACOS:-false}" = true ]; then
+        echo "[INFO] Skipping xclip (macOS uses built-in pbcopy/pbpaste)"
+        return 0
+    fi
+
+    run_cli_tool_plan "xclip" "xclip" \
+        "xclip" "xclip" "xclip" "xclip" \
+        "" "" "" ""
+}
+
 install_tools() {
     echo "[INFO] Installing CLI tools..."
 
     install_core_cli_tools
-
-    # eza (modern ls replacement)
-    if check_installed eza; then
-        echo "[INFO] eza is already installed"
-    elif command -v brew >/dev/null 2>&1; then
-        brew install eza
-    elif [ "$HAS_SUDO" = true ]; then
-        if command -v apt-get >/dev/null 2>&1; then
-            sudo apt-get install -y eza 2>/dev/null || true
-        elif command -v dnf >/dev/null 2>&1; then
-            sudo dnf install -y eza 2>/dev/null || true
-        elif command -v pacman >/dev/null 2>&1; then
-            sudo pacman -S --noconfirm eza
-        elif command -v brew >/dev/null 2>&1; then
-            brew install eza
-        fi
-    fi
-    # Fallback to GitHub binary (Linux only — no macOS binary available)
-    if ! check_installed eza && [ "${IS_LINUX:-false}" = true ]; then
-        install_github_binary "eza-community/eza" "v0.20.14" "eza_x86_64-unknown-linux-gnu.tar.gz" "eza" || true
-    fi
-
-    # delta (syntax-highlighting git diff pager)
-    if check_installed delta; then
-        echo "[INFO] delta is already installed"
-    elif command -v brew >/dev/null 2>&1; then
-        brew install git-delta
-    else
-        install_github_binary "dandavison/delta" "0.18.2" "$(github_binary_pattern delta)" "delta" || true
-    fi
+    install_eza
+    install_delta
 
     # zoxide (smart cd replacement)
     if check_installed zoxide; then
@@ -194,68 +229,9 @@ install_tools() {
         echo "[WARN] Skipping zoxide. Install manually: https://github.com/ajeetdsouza/zoxide#installation"
     fi
 
-    # tealdeer (tldr - practical command examples)
-    if check_installed tldr; then
-        echo "[INFO] tealdeer is already installed"
-    elif command -v brew >/dev/null 2>&1; then
-        brew install tealdeer
-    elif [ "$HAS_SUDO" = true ]; then
-        if command -v apt-get >/dev/null 2>&1; then
-            sudo apt-get install -y tealdeer
-        elif command -v dnf >/dev/null 2>&1; then
-            sudo dnf install -y tealdeer
-        elif command -v pacman >/dev/null 2>&1; then
-            sudo pacman -S --noconfirm tealdeer
-        elif command -v brew >/dev/null 2>&1; then
-            brew install tealdeer
-        else
-            echo "[WARN] Could not install tealdeer: no supported package manager"
-        fi
-    else
-        local pattern
-        pattern="$(github_binary_pattern tealdeer)"
-        install_github_binary "tealdeer-rs/tealdeer" "v1.8.1" "$pattern" "$pattern" "tldr" || true
-    fi
-    # Update tldr cache if freshly installed
-    if check_installed tldr; then
-        tldr --update 2>/dev/null || true
-    fi
-
-    # lazygit (TUI for git)
-    if check_installed lazygit; then
-        echo "[INFO] lazygit is already installed"
-    elif command -v brew >/dev/null 2>&1; then
-        brew install lazygit
-    elif [ "$HAS_SUDO" = true ]; then
-        if command -v pacman >/dev/null 2>&1; then
-            sudo pacman -S --noconfirm lazygit
-        else
-            install_github_binary "jesseduffield/lazygit" "v0.59.0" "$(github_binary_pattern lazygit)" "lazygit" || true
-        fi
-    else
-        install_github_binary "jesseduffield/lazygit" "v0.59.0" "$(github_binary_pattern lazygit)" "lazygit" || true
-    fi
-
-    # xclip (clipboard from terminal — Linux only, macOS has built-in pbcopy/pbpaste)
-    if [ "${IS_MACOS:-false}" = true ]; then
-        echo "[INFO] Skipping xclip (macOS uses built-in pbcopy/pbpaste)"
-    elif check_installed xclip; then
-        echo "[INFO] xclip is already installed"
-    elif [ "$HAS_SUDO" = true ]; then
-        if command -v apt-get >/dev/null 2>&1; then
-            sudo apt-get install -y xclip
-        elif command -v dnf >/dev/null 2>&1; then
-            sudo dnf install -y xclip
-        elif command -v pacman >/dev/null 2>&1; then
-            sudo pacman -S --noconfirm xclip
-        elif command -v brew >/dev/null 2>&1; then
-            brew install xclip
-        else
-            echo "[WARN] Could not install xclip: no supported package manager"
-        fi
-    else
-        echo "[WARN] Skipping xclip (no sudo available)"
-    fi
+    install_tealdeer
+    install_lazygit
+    install_xclip
 
     # tpm (tmux plugin manager)
     if [ -d "${HOME}/.tmux/plugins/tpm" ]; then
