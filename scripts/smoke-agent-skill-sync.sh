@@ -29,6 +29,11 @@ npx_home="${tmp_dir}/npx-home"
 npx_stub_dir="${tmp_dir}/npx-stubs"
 npx_log="${tmp_dir}/npx.log"
 legacy_home="${tmp_dir}/legacy-home"
+prune_home="${tmp_dir}/prune-home"
+prune_stub_dir="${tmp_dir}/prune-stubs"
+prune_project="${tmp_dir}/prune-project"
+prune_manifest="${tmp_dir}/prune-manifest.json"
+prune_log="${tmp_dir}/prune.log"
 env_home="${tmp_dir}/env-home"
 env_mcp_file="${tmp_dir}/mcp-with-env.json"
 repo_lock_copy="${tmp_dir}/skill-lock.json"
@@ -231,6 +236,81 @@ fi
 [ ! -L "${legacy_home}/.agents/.skill-lock.json" ] || fail "legacy live skill-lock symlink was not migrated to plain file"
 [ -f "${legacy_home}/.agents/.skill-lock.json" ] || fail "legacy live skill-lock migration did not create plain file"
 jq -e --slurpfile repo "$repo_lock_copy" '.skills | keys == ($repo[0].skills | keys)' "${legacy_home}/.agents/.skill-lock.json" >/dev/null || fail "migrated live skill-lock lost repo skill intent"
+
+
+mkdir -p "$prune_home/.claude/plugins" "$prune_stub_dir" "$prune_project"
+ln -s "$JQ_BIN" "${prune_stub_dir}/jq"
+: > "$prune_log"
+
+cat > "$prune_manifest" <<JSON
+{
+  "plugins": ["kept@official"],
+  "marketplaces": {
+    "official": {
+      "source": "github",
+      "repo": "example/official"
+    }
+  }
+}
+JSON
+
+cat > "${prune_home}/.claude/plugins/installed_plugins.json" <<JSON
+{
+  "plugins": {
+    "kept@official": [
+      {"scope": "user"}
+    ],
+    "extra@extra-mp": [
+      {"scope": "project", "projectPath": "$prune_project"}
+    ],
+    "orphan@official": [
+      {"scope": "user"}
+    ]
+  }
+}
+JSON
+
+cat > "${prune_home}/.claude/plugins/known_marketplaces.json" <<'JSON'
+{
+  "extra-mp": {"source": {"source": "github", "repo": "example/extra"}},
+  "official": {"source": {"source": "github", "repo": "example/official"}},
+  "unused-mp": {"source": {"source": "github", "repo": "example/unused"}}
+}
+JSON
+
+cat > "${prune_stub_dir}/claude" <<'STUB'
+#!/bin/sh
+printf '%s\t%s\n' "$PWD" "$*" >> "$CLAUDE_LOG"
+if [ "$*" = "plugin uninstall extra@extra-mp --scope project --keep-data -y" ]; then
+    echo 'Plugin "extra@extra-mp" is installed in user scope, not project. Use --scope user to uninstall.' >&2
+    exit 1
+fi
+STUB
+chmod +x "${prune_stub_dir}/claude"
+
+export HOME="$prune_home"
+export CLAUDE_MANIFEST="$prune_manifest"
+export CLAUDE_LOG="$prune_log"
+export PATH="${prune_stub_dir}:/usr/bin:/bin"
+
+if "${DOTFILES_DIR}/sync-agents.sh" --quiet claude-prune --check > "$sync_log" 2>&1; then
+    cat "$sync_log" >&2
+    fail "claude-prune --check should fail when live plugins or marketplaces are outside manifest"
+fi
+[ ! -s "$prune_log" ] || fail "claude-prune --check should not invoke claude CLI"
+grep -F "extra@extra-mp" "$sync_log" >/dev/null 2>&1 || fail "claude-prune --check did not report extra plugin"
+grep -F "unused-mp" "$sync_log" >/dev/null 2>&1 || fail "claude-prune --check did not report extra marketplace"
+
+if ! "${DOTFILES_DIR}/sync-agents.sh" --quiet claude-prune > "$sync_log" 2>&1; then
+    cat "$sync_log" >&2
+    fail "claude-prune failed with claude stub"
+fi
+
+grep -F "${prune_project}	plugin uninstall extra@extra-mp --scope project --keep-data -y" "$prune_log" >/dev/null 2>&1 || fail "claude-prune did not try project-scoped uninstall from its project path"
+grep -F "plugin uninstall extra@extra-mp --scope user --keep-data -y" "$prune_log" >/dev/null 2>&1 || fail "claude-prune did not fall back to user scope after project-scope mismatch"
+grep -F "plugin uninstall orphan@official --scope user --keep-data -y" "$prune_log" >/dev/null 2>&1 || fail "claude-prune did not uninstall user-scoped extra"
+grep -F "plugin marketplace remove extra-mp" "$prune_log" >/dev/null 2>&1 || fail "claude-prune did not remove extra marketplace"
+grep -F "plugin marketplace remove unused-mp" "$prune_log" >/dev/null 2>&1 || fail "claude-prune did not remove unused marketplace"
 
 cat > "$env_mcp_file" <<'JSON'
 {

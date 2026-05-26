@@ -20,5 +20,5 @@ sync-agents:
 check-agents:
     ./sync-agents.sh codex-check
     ./sync-agents.sh opencode-check
-    ./sync-agents.sh claude-export --check
+    ./sync-agents.sh claude-prune --check
     ./sync-agents.sh claude-settings-check

@@ -49,10 +49,10 @@ repos:
         entry: ./scripts/smoke-agent-skill-sync.sh
         language: system
         pass_filenames: false
-      - id: claude-manifest-sync
-        name: Claude manifest sync check
-        description: Ensure claude-manifest.json reflects installed plugins
-        entry: ./sync-agents.sh claude-export --check
+      - id: claude-plugin-prune
+        name: Claude plugin prune check
+        description: Ensure installed Claude plugins/marketplaces are declared in manifest
+        entry: ./sync-agents.sh claude-prune --check
         language: system
         pass_filenames: false
         always_run: true

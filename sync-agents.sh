@@ -541,6 +541,121 @@ cmd_claude_plugins_export() {
     log_info "Updated manifest with installed plugins/marketplaces"
 }
 
+try_claude_plugin_uninstall() {
+    local plugin="$1"
+    local scope="$2"
+    local project_path="$3"
+    local output_file
+    output_file="$(mktemp)"
+
+    if [ -n "$project_path" ] && [ -d "$project_path" ]; then
+        if ( cd "$project_path" && CLAUDECODE='' claude plugin uninstall "$plugin" --scope "$scope" --keep-data -y ) > "$output_file" 2>&1; then
+            rm -f "$output_file"
+            return 0
+        fi
+    elif CLAUDECODE='' claude plugin uninstall "$plugin" --scope "$scope" --keep-data -y > "$output_file" 2>&1; then
+        rm -f "$output_file"
+        return 0
+    fi
+
+    if [ "$scope" != "user" ]; then
+        log_info "Retrying plugin uninstall in user scope: $plugin"
+        if CLAUDECODE='' claude plugin uninstall "$plugin" --scope user --keep-data -y >> "$output_file" 2>&1; then
+            rm -f "$output_file"
+            return 0
+        fi
+    fi
+
+    cat "$output_file" >&2
+    rm -f "$output_file"
+    return 1
+}
+
+cmd_claude_plugins_prune() {
+    local check_only=false
+    [ "${1:-}" = "--check" ] && check_only=true
+
+    [ -f "$CLAUDE_MANIFEST" ] || { echo "[ERROR] Manifest not found: $CLAUDE_MANIFEST" >&2; return 1; }
+
+    local plugins_json="${HOME}/.claude/plugins/installed_plugins.json"
+    local known_mp="${HOME}/.claude/plugins/known_marketplaces.json"
+
+    if [ ! -f "$plugins_json" ] && [ ! -f "$known_mp" ]; then
+        log_info "No Claude plugin state found; nothing to prune"
+        return 0
+    fi
+
+    local extra_plugins=""
+    if [ -f "$plugins_json" ]; then
+        extra_plugins=$(jq -r --slurpfile m "$CLAUDE_MANIFEST" '
+            ($m[0].plugins // []) as $wanted |
+            [
+                (.plugins // {} | to_entries[] |
+                    .key as $plugin |
+                    select(($wanted | index($plugin)) | not) |
+                    .value[]? |
+                    [$plugin, (.scope // "user"), (.projectPath // "")]
+                )
+            ] | unique[] | @tsv
+        ' "$plugins_json") || { echo "[ERROR] Failed to parse $plugins_json" >&2; return 1; }
+    fi
+
+    local extra_marketplaces=""
+    if [ -f "$known_mp" ]; then
+        extra_marketplaces=$(jq -r --slurpfile m "$CLAUDE_MANIFEST" '
+            ($m[0].marketplaces // {} | keys) as $wanted |
+            keys[] as $marketplace |
+            select(($wanted | index($marketplace)) | not) |
+            $marketplace
+        ' "$known_mp") || { echo "[ERROR] Failed to parse $known_mp" >&2; return 1; }
+    fi
+
+    if [ -z "$extra_plugins" ] && [ -z "$extra_marketplaces" ]; then
+        log_info "Claude plugins and marketplaces match manifest"
+        return 0
+    fi
+
+    if [ "$check_only" = true ]; then
+        echo "[ERROR] Claude plugin state has entries outside manifest:" >&2
+        if [ -n "$extra_plugins" ]; then
+            echo "Extra plugins:" >&2
+            echo "$extra_plugins" | awk -F '\t' '{ print "  - " $1 " (scope: " $2 (($3 != "") ? ", path: " $3 : "") ")" }' >&2
+        fi
+        if [ -n "$extra_marketplaces" ]; then
+            echo "Extra marketplaces:" >&2
+            echo "$extra_marketplaces" | sed 's/^/  - /' >&2
+        fi
+        echo "" >&2
+        echo "Run: ./sync-agents.sh claude-prune" >&2
+        return 1
+    fi
+
+    command -v claude >/dev/null 2>&1 || { echo "[ERROR] claude CLI not found; cannot prune live plugins" >&2; return 1; }
+
+    local failed=false
+    local plugin scope project_path
+    while IFS=$'\t' read -r plugin scope project_path; do
+        [ -n "$plugin" ] || continue
+        log_info "Uninstalling plugin outside manifest: $plugin (scope: $scope)"
+        try_claude_plugin_uninstall "$plugin" "$scope" "$project_path" || failed=true
+    done <<< "$extra_plugins"
+
+    if [ "$failed" = true ]; then
+        echo "[ERROR] Failed to uninstall one or more Claude plugins; skipping marketplace prune" >&2
+        return 1
+    fi
+
+    local marketplace
+    while IFS= read -r marketplace; do
+        [ -n "$marketplace" ] || continue
+        log_info "Removing marketplace outside manifest: $marketplace"
+        CLAUDECODE='' claude plugin marketplace remove "$marketplace" || failed=true
+    done <<< "$extra_marketplaces"
+
+    [ "$failed" = false ] || return 1
+    log_info "Claude plugin prune complete"
+}
+
 cmd_lock_skills_export() {
     [ -f "$SKILL_LOCK_LIVE" ] || { log_info "No live skill-lock to export from"; return 0; }
 
@@ -669,6 +784,10 @@ case "${1:-}" in
         shift
         cmd_claude_plugins_export "$@"
         ;;
+    claude-prune)
+        shift
+        cmd_claude_plugins_prune "$@"
+        ;;
     skills-export)
         cmd_lock_skills_export
         ;;
@@ -676,7 +795,7 @@ case "${1:-}" in
         cmd_claude_settings_check
         ;;
     *)
-        echo "Usage: $0 [--quiet] {install|codex-install|codex-check|opencode-install|opencode-check|claude-install|claude-update|claude-export [--check]|skills-export|claude-settings-check}"
+        echo "Usage: $0 [--quiet] {install|codex-install|codex-check|opencode-install|opencode-check|claude-install|claude-update|claude-export [--check]|claude-prune [--check]|skills-export|claude-settings-check}"
         echo
         echo "  install          Sync shared agent config into Codex, OpenCode, and Claude"
         echo "  codex-install    Link AGENTS.md and generate Codex MCP config"
@@ -686,6 +805,7 @@ case "${1:-}" in
         echo "  claude-install   Link AGENTS.md, generate Claude settings, install plugins and skills"
         echo "  claude-update    Alias for: npx skills update -g (forwards extra args)"
         echo "  claude-export    Sync installed Claude plugins/marketplaces into manifest"
+        echo "  claude-prune     Remove Claude plugins/marketplaces not listed in manifest"
         echo "  skills-export    Strip live skill-lock into repo after skills add/update"
         echo "  claude-settings-check"
         echo "                  Exit 1 if ~/.claude/settings.json has keys outside the template"
