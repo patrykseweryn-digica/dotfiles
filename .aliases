@@ -64,6 +64,8 @@ gwa() {
 }
 
 # Terminal
+# Codex: keep TUI colors readable in cmux.
+alias codex='env -u NO_COLOR codex'
 alias gogh='bash -c "$(curl -sLo- https://git.io/vQgMr)"'
 
 # Claude Code
