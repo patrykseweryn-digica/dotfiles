@@ -1,6 +1,6 @@
 # README Standard
 
-Spec for an internal application repository README. README is the entry point — it links to deeper docs, never duplicates them.
+Spec for an internal application repository README. README is the entry point: it links to deeper docs and never duplicates them.
 
 ## Section order
 
@@ -26,29 +26,29 @@ Mandatory sections must appear. Recommended sections appear unless clearly N/A.
 - The quote answers "what is this and for whom" in <140 chars, no jargon.
 
 ### Why this exists
-- 2–4 sentences. The business problem and the user.
+- 2-4 sentences. The business problem and the user.
 - Bad: "A service to sync data." Good: "Finance needs invoices in BQ for reporting; this service pulls them from ERP hourly."
 
 ### Status
-- One line. Visual cue (🟢/🟡/🔴) + optional date or note.
-- Values: `Działa` / `WIP` / `Deprecated` (or English equivalents).
+- One line. Visual cue (`green` / `yellow` / `red`, emoji, or badge) plus optional date or note.
+- Values: `Working`, `WIP`, or `Deprecated`.
 
 ### Prerequisites
 - Bullet list. Tools and access required *before* setup.
 - Docker + Compose by default. Add `uv`, VPN, registry credentials, secrets-manager access as relevant.
 
 ### Quick start
-- A single fenced bash block, 3–5 numbered steps, ending in `docker compose up` (or project equivalent).
+- A single fenced bash block, 3-5 numbered steps, ending in `docker compose up` (or project equivalent).
 - Each step is a real, copy-pasteable command.
-- Canonical pattern: clone → `cp .env.example .env` → edit → `docker compose up --build`.
+- Canonical pattern: clone -> `cp .env.example .env` -> edit -> `docker compose up --build`.
 
 ### Verify it works
 - Bullets, each one a concrete check: healthcheck URL with `curl`, UI URL, smoke test command, log line to grep for.
-- Without this section, "I ran it" ≠ "it works".
+- Without this section, "I ran it" does not mean "it works".
 
 ### Configuration / secrets
 - Pointer to `.env.example`, nothing else.
-- Do not duplicate the env-var table in README — single source of truth lives in `.env.example` (variables, descriptions, where to obtain real values).
+- Do not duplicate the env-var table in README; single source of truth lives in `.env.example` (variables, descriptions, where to obtain real values).
 - Mention "don't commit `.env`" once.
 
 ### Common commands
@@ -56,10 +56,10 @@ Mandatory sections must appear. Recommended sections appear unless clearly N/A.
 - Each line has a `# comment` explaining what it does.
 
 ### Architecture in a pill
-- 2–3 sentences. Services listed from `docker-compose.yml`. Link to `docs/ARCHITECTURE.md` for depth.
+- 2-3 sentences. Services listed from `docker-compose.yml`. Link to `docs/ARCHITECTURE.md` for depth.
 
 ### Troubleshooting
-- 3–5 bullets. Format: **symptom** → fix command/action.
+- 3-5 bullets. Format: **symptom** -> fix command/action.
 - Cover the most common first-run failures: port conflict, missing env var, VPN/network, stale migrations.
 
 ### Owner / contact
@@ -69,30 +69,30 @@ Mandatory sections must appear. Recommended sections appear unless clearly N/A.
 ### Links
 Bullets, grouped by purpose. Cover at minimum:
 
-- **Dokumentacja / docs** — `docs/`, `ARCHITECTURE.md`, ewentualnie zewnętrzna wiki.
-- **Google Drive** — folder projektu (PRD-y, notatki, specyfikacje biznesowe).
-- **Slack** — kanał projektu/zespołu. Jeśli różni się od kanału z sekcji *Owner / contact*, oba mają być wymienione (np. `#invoice-sync` dla dyskusji + `#data-platform-alerts` dla incydentów).
-- **Issue tracker (Jira / Linear / GitHub Issues)** — link do projektu/boardu. Opcjonalne, jeśli zespół trackuje pracę gdzie indziej.
-- **Środowiska** — staging i prod URL.
-- **Monitoring** — dashboard Grafana / Datadog / inne.
+- **Docs** - `docs/`, `ARCHITECTURE.md`, or external wiki.
+- **Google Drive** - project folder for PRDs, notes, and business specs.
+- **Slack** - project or team channel. If incident escalation uses a different channel than *Owner / contact*, list both.
+- **Issue tracker** - Jira, Linear, GitHub Issues, or the board used by the team. Optional if work is tracked elsewhere.
+- **Environments** - staging and production URLs.
+- **Monitoring** - Grafana, Datadog, or equivalent dashboard.
 
-Zasady:
-- Dla każdej pozycji: jednoliniowy bullet w formacie `**Label** — <url>` lub `**Label** — <opis> <url>`.
-- Pomiń kategorię, której zespół nie używa (nie wstawiaj „N/A").
-- Jeśli użytkownik nie zna URL-a danej kategorii — `<!-- TODO: link do <kategoria> -->`.
+Rules:
+- Each item is a one-line bullet in format `**Label** - <url>` or `**Label** - <short note> <url>`.
+- Omit categories the team does not use; do not add `N/A`.
+- If the user does not know a URL, insert `<!-- TODO: link to <category> -->`.
 
 ## Audit rules (existing README)
 
 For each section above, mark it:
-- **Present & good** — leave alone.
-- **Present but weak** — placeholder text, single-line where multi is needed, generic phrasing. Offer to improve.
-- **Missing** — add via interview.
+- **Present & good** - leave alone.
+- **Present but weak** - placeholder text, single-line where multi is needed, generic phrasing. Offer to improve.
+- **Missing** - add via interview.
 
 Specific weak-signals:
 - "TODO: add description" or any literal TODO in body.
 - Quick-start that doesn't include `.env` setup.
 - Configuration section that re-lists env vars instead of linking to `.env.example`.
-- Missing healthcheck/smoke-test → user can't tell if it ran correctly.
+- Missing healthcheck/smoke-test -> user can't tell if it ran correctly.
 - No owner / contact line.
 
 ## Intentionally omitted (internal repos)
