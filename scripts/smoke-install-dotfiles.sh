@@ -35,6 +35,67 @@ smoke_source_has_no_home_side_effect() {
     rm -rf "$tmp_dir"
 }
 
+smoke_codex_npm_install_on_linux_only() {
+    local tmp_dir
+    local stub_dir
+    local npm_log
+
+    tmp_dir="$(mktemp -d)"
+    stub_dir="${tmp_dir}/stubs"
+    npm_log="${tmp_dir}/npm.log"
+
+    mkdir -p "${tmp_dir}/linux-home/.nvm" "${tmp_dir}/macos-home/.nvm" "$stub_dir"
+    : > "$npm_log"
+
+    cat > "${stub_dir}/npm" <<'STUB'
+#!/bin/sh
+echo "npm $*" >> "$NPM_LOG"
+STUB
+    chmod +x "${stub_dir}/npm"
+
+    cat > "${tmp_dir}/linux-home/.nvm/nvm.sh" <<'STUB'
+nvm() {
+    case "$1 $2" in
+        "ls default") echo "v22.0.0" ;;
+        "version default") echo "v22.0.0" ;;
+        *) return 0 ;;
+    esac
+}
+STUB
+    cp "${tmp_dir}/linux-home/.nvm/nvm.sh" "${tmp_dir}/macos-home/.nvm/nvm.sh"
+
+    (
+        export HOME="${tmp_dir}/linux-home"
+        export PATH="${stub_dir}:/usr/bin:/bin"
+        export NPM_LOG="$npm_log"
+        # shellcheck source=/dev/null
+        source "${DOTFILES_DIR}/install.sh"
+        export IS_LINUX=true
+        export IS_MACOS=false
+        install_nvm >/dev/null
+    )
+
+    grep -q "npm i -g @openai/codex@latest" "$npm_log" || fail "Linux: missing Codex npm install"
+
+    : > "$npm_log"
+    (
+        export HOME="${tmp_dir}/macos-home"
+        export PATH="${stub_dir}:/usr/bin:/bin"
+        export NPM_LOG="$npm_log"
+        # shellcheck source=/dev/null
+        source "${DOTFILES_DIR}/install.sh"
+        export IS_LINUX=false
+        export IS_MACOS=true
+        install_nvm >/dev/null
+    )
+
+    if grep -q "@openai/codex" "$npm_log"; then
+        fail "Darwin: Codex should stay managed by Homebrew cask"
+    fi
+
+    rm -rf "$tmp_dir"
+}
+
 run_case() {
     local os_name="$1"
     local expected_code_dir="$2"
@@ -114,6 +175,7 @@ STUB
 }
 
 smoke_source_has_no_home_side_effect
+smoke_codex_npm_install_on_linux_only
 run_case "Linux" ".config/Code/User" ".config/ghostty/config"
 run_case "Darwin" "Library/Application Support/Code/User" "Library/Application Support/com.mitchellh.ghostty/config.ghostty"
 

@@ -2,6 +2,15 @@
 
 NVM_VERSION="v0.40.1"
 
+install_global_npm_packages() {
+    echo "[INFO] Installing global npm packages..."
+    npm i -g @steipete/summarize || echo "[WARN] Failed to install @steipete/summarize"
+
+    if [ "${IS_LINUX:-false}" = true ]; then
+        npm i -g @openai/codex@latest || echo "[WARN] Failed to install @openai/codex"
+    fi
+}
+
 install_nvm() {
     echo "[INFO] Installing NVM and Node.js..."
 
@@ -33,7 +42,5 @@ install_nvm() {
         echo "[INFO] Node.js default version already set: $(nvm version default)"
     fi
 
-    # Install global npm packages
-    echo "[INFO] Installing global npm packages..."
-    npm i -g @steipete/summarize || echo "[WARN] Failed to install @steipete/summarize"
+    install_global_npm_packages
 }
