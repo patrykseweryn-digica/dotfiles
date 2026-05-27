@@ -166,20 +166,48 @@ ln -s "$JQ_BIN" "${npx_stub_dir}/jq"
 
 cat > "${npx_stub_dir}/npx" <<'STUB'
 #!/bin/sh
+source=""
 skill_name=""
+accept_openclaw=false
+first_arg=true
 
 while [ "$#" -gt 0 ]; do
+    if [ "$first_arg" = true ] && [ "$1" = "-y" ]; then
+        shift
+        continue
+    fi
+    if [ "$first_arg" = true ] && [ "$1" = "skills" ]; then
+        first_arg=false
+        shift
+        continue
+    fi
+    first_arg=false
+
     case "$1" in
+        add)
+            ;;
+        -g)
+            shift
+            source="$1"
+            ;;
         --skill)
             shift
             skill_name="$1"
+            ;;
+        --dangerously-accept-openclaw-risks)
+            accept_openclaw=true
             ;;
     esac
     shift
 done
 
 [ -n "$skill_name" ] || exit 1
-echo "npx install ${skill_name}" >> "$NPX_LOG"
+[ -n "$source" ] || exit 1
+if [ "$source" = "openclaw/agent-skills" ] && [ "$accept_openclaw" != true ]; then
+    exit 1
+fi
+
+echo "npx install ${source} ${skill_name}" >> "$NPX_LOG"
 mkdir -p "${HOME}/.claude/skills/${skill_name}"
 printf '# %s\n' "$skill_name" > "${HOME}/.claude/skills/${skill_name}/SKILL.md"
 STUB

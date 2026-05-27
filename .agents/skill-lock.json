@@ -9,6 +9,12 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/mlflow/skills.git"
     },
+    "agent-transcript": {
+      "skillPath": "skills/agent-transcript/SKILL.md",
+      "source": "openclaw/agent-skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/openclaw/agent-skills.git"
+    },
     "analyzing-mlflow-session": {
       "skillPath": "analyze-mlflow-chat-session/SKILL.md",
       "source": "mlflow/skills",
@@ -20,6 +26,12 @@
       "source": "mlflow/skills",
       "sourceType": "github",
       "sourceUrl": "https://github.com/mlflow/skills.git"
+    },
+    "autoreview": {
+      "skillPath": "skills/autoreview/SKILL.md",
+      "source": "openclaw/agent-skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/openclaw/agent-skills.git"
     },
     "building-pydantic-ai-agents": {
       "skillPath": "skills/building-pydantic-ai-agents/SKILL.md",
@@ -141,6 +153,12 @@
       "source": "mlflow/skills",
       "sourceType": "github",
       "sourceUrl": "https://github.com/mlflow/skills.git"
+    },
+    "session-viewer": {
+      "skillPath": "skills/session-viewer/SKILL.md",
+      "source": "openclaw/agent-skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/openclaw/agent-skills.git"
     },
     "setup-matt-pocock-skills": {
       "pluginName": "mattpocock-skills",

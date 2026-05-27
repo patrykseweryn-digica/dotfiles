@@ -441,19 +441,27 @@ cmd_lock_skills_install() {
     [ -d "$OPENCODE_SKILLS_DIR" ] && find "$OPENCODE_SKILLS_DIR" -maxdepth 1 -lname '*claude-skill-repos*' -delete 2>/dev/null || true
 
     local entries
-    entries=$(jq -r '.skills | to_entries[] | "\(.key)\t\(.value.source)"' "$SKILL_LOCK_LIVE")
+    entries=$(jq -r '.skills | to_entries[] | [.key, .value.source, (.value.sourceUrl // "")] | @tsv' "$SKILL_LOCK_LIVE")
     [ -n "$entries" ] || { log_info "No skills in lock"; return 0; }
 
-    local name source
-    while IFS=$'\t' read -r name source; do
+    local name source source_url
+    while IFS=$'\t' read -r name source source_url; do
         [ -n "$name" ] || continue
         if [ -e "${AGENT_SKILLS_DIR}/${name}/SKILL.md" ] && [ -e "${CLAUDE_SKILLS_DIR}/${name}/SKILL.md" ] && [ -e "${OPENCODE_SKILLS_DIR}/${name}/SKILL.md" ]; then
             continue
         fi
 
         if [ ! -e "${AGENT_SKILLS_DIR}/${name}/SKILL.md" ] && [ ! -e "${CLAUDE_SKILLS_DIR}/${name}/SKILL.md" ] && [ ! -e "${OPENCODE_SKILLS_DIR}/${name}/SKILL.md" ]; then
-            log_info "Installing skill: $name (from $source)"
-            if ! npx -y skills add -g "$source" --skill "$name" -y </dev/null >/dev/null 2>&1; then
+            local install_ok=false
+            if [ "$source" = "openclaw/agent-skills" ] || [ "$source_url" = "https://github.com/openclaw/agent-skills.git" ]; then
+                log_info "Installing skill: $name (from $source)"
+                npx -y skills add -g "$source" --skill "$name" --dangerously-accept-openclaw-risks -y </dev/null >/dev/null 2>&1 && install_ok=true
+            else
+                log_info "Installing skill: $name (from $source)"
+                npx -y skills add -g "$source" --skill "$name" -y </dev/null >/dev/null 2>&1 && install_ok=true
+            fi
+
+            if [ "$install_ok" != true ]; then
                 echo "[WARN] Failed to install skill: $name (from $source)" >&2
             fi
         fi
