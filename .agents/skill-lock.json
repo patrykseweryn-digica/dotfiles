@@ -27,12 +27,6 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/mlflow/skills.git"
     },
-    "autoreview": {
-      "skillPath": "skills/autoreview/SKILL.md",
-      "source": "openclaw/agent-skills",
-      "sourceType": "github",
-      "sourceUrl": "https://github.com/openclaw/agent-skills.git"
-    },
     "building-pydantic-ai-agents": {
       "skillPath": "skills/building-pydantic-ai-agents/SKILL.md",
       "source": "pydantic/skills",

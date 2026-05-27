@@ -56,7 +56,6 @@
 - `fix ci`: consent to pull, commit, push; fix/rerun/watch until CI green.
 - CI: `gh run list/view`; rerun/fix until green when asked.
 - `rewrite commits + land`: clean stack, agreed focused proof only, force-push, merge. No Codex review, PR-body proof polish, or CI babysitting unless asked.
-- Pre-land/pre-commit code changes: use `$autoreview` until no accepted/actionable findings remain, unless equivalent manual review already done, trivial/docs-only, or user opts out.
 - Replies: cite fix + file/line; resolve threads only after fix lands.
 - Issue fixed on `main` with proof: comment proof + commit/PR, then close.
 - User-facing fixes/landed PRs: changelog unless pure test/internal.
