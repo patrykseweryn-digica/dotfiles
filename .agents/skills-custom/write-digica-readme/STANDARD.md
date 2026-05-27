@@ -93,8 +93,9 @@ Conditional sections:
 - Without this section, "I ran it" does not mean "it works".
 
 ### Configuration / secrets
-- Pointer to `.env.example`, nothing else.
+- Pointer to `.env.example`.
 - Do not duplicate the env-var table in README; single source of truth lives in `.env.example` (variables, descriptions, where to obtain real values).
+- A short overview is allowed: categories such as API key, database URL, storage bucket, or client tenant.
 - Mention "don't commit `.env`" once.
 
 ### Common commands
@@ -152,11 +153,23 @@ Bullets, grouped by purpose. Cover at minimum:
 - **Issue tracker** - Jira, Linear, GitHub Issues, or the board used by the team. Optional if work is tracked elsewhere.
 - **Environments** - staging and production URLs.
 - **Monitoring** - Grafana, Datadog, or equivalent dashboard.
+- **Agent instructions** - link to `AGENTS.md` only if the file exists.
 
 Rules:
 - Each item is a one-line bullet in format `**Label** - <url>` or `**Label** - <short note> <url>`.
 - Omit categories the team does not use; do not add `N/A`.
 - If the user does not know a URL, insert `<!-- TODO: link to <category> -->`.
+- Do not duplicate `AGENTS.md` content in README.
+
+## Safety and verification
+
+- Verify cheap and safe commands locally when possible: tests, lint, typecheck, static config checks, smoke tests that do not touch real external systems.
+- Do not run deploy, publish, destructive database operations, production migrations, or real client integrations without explicit approval.
+- If a command is useful but not verified, mark it as expected/unverified in the closeout or TODOs.
+- Ask whether the README is internal-only or client-shareable when unclear.
+- Developer-first, client-safe by default: do not expose secrets, tokens, private customer data, or internal-only hostnames in client-shareable README content.
+- Slack, Jira, Drive, internal dashboards, and private environment URLs are fine for internal README files; omit, generalize, or split them for client-shareable README files.
+- Supporting files such as `.env.example` or deeper docs may be edited only after separate approval. README remains the primary scope.
 
 ## Audit rules (existing README)
 

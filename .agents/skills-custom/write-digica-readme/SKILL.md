@@ -19,6 +19,10 @@ Use only for explicit Digica README authoring or audit requests. Ignore incident
 - User may skip; skipped gaps become visible `<!-- TODO: ... -->` comments.
 - Work section by section; edit `README.md` after approval for each section.
 - README links to deeper docs; do not duplicate `.env.example` or architecture docs.
+- Verify cheap and safe commands locally when possible.
+- Ask before risky commands; otherwise mark them unverified.
+- Ask whether the README is internal-only or client-shareable when unclear.
+- Edit supporting files only after separate approval.
 - README-only edits do not require changelog updates.
 - Do not commit unless the user asks.
 
@@ -36,6 +40,7 @@ Use only for explicit Digica README authoring or audit requests. Ignore incident
    - checks: tests, pytest config, package scripts
    - data science signals: notebooks, `data/`, `datasets/`, `models/`, DVC, MLflow, training/evaluation scripts, ML dependencies
    - software signals: app entrypoints, API routes, frontend/backend scripts, services, migrations, deploy/infra config
+   - docs/safety signals: `AGENTS.md`, `.env.example`, deploy docs, runbooks, internal links
    - existing README headings
 3. Classify project type as software, data science, or mixed. Present evidence and ask for confirmation.
 4. Present mode, detected facts, and conflicts; ask for confirmation or corrections.
@@ -45,8 +50,9 @@ Use only for explicit Digica README authoring or audit requests. Ignore incident
    - show the proposed section or diff
    - ask for approval or one missing fact
    - write approved content immediately
-7. Use `<!-- TODO: <what is missing> -->` for skipped or unknown mandatory facts.
-8. Print a short closeout: changed sections, why, final effect, verified commands, TODOs, unverified items.
+7. Verify cheap/safe commands from proposed README sections when possible.
+8. Use `<!-- TODO: <what is missing> -->` for skipped or unknown mandatory facts.
+9. Print a short closeout: changed sections, why, final effect, verified commands, TODOs, unverified items.
 
 ## Weak Signals
 
