@@ -22,6 +22,18 @@ Spec for a Digica repository README. README is the entry point: it links to deep
 
 Mandatory sections must appear unless explicitly confirmed as not applicable. Unknown mandatory details become `<!-- TODO: ... -->` comments.
 
+## Visual standard
+
+- Audience: developers first, clients second.
+- Keep sections clean, ordered, concise, and easy to scan.
+- Prefer short bullets, short paragraphs, and concrete commands over long prose.
+- Use restrained icons in headings or bullets only when they improve scanning.
+- Avoid badge spam and marketing copy.
+- Always include the table of contents.
+- Consider a Mermaid diagram for every README. Include one when it clarifies architecture, pipeline, deployment, or app flow.
+- Mermaid diagrams should be minimal: show the core components or data flow, not every implementation detail.
+- For data science and mixed repos, one **Architecture & Pipeline** section is enough unless system architecture and ML/data pipeline are meaningfully different.
+
 ## Project type
 
 Classify the repo before building the section plan. Present evidence and ask the user to confirm.
@@ -91,6 +103,7 @@ Conditional sections:
 
 ### Architecture
 - 2-3 sentences. Services listed from `docker-compose.yml`. Link to `docs/ARCHITECTURE.md` for depth.
+- Include a simple Mermaid diagram when it makes the components or flow easier to understand.
 
 ### Data
 - Mandatory for data science and mixed repos; optional for software repos.
@@ -101,6 +114,7 @@ Conditional sections:
 - Mandatory for data science and mixed repos.
 - Explain the project flow from inputs through processing/training/inference/evaluation to outputs.
 - Keep Architecture and Pipeline together unless system architecture and ML pipeline are meaningfully different.
+- Prefer a small Mermaid flowchart for the pipeline when useful.
 
 ### Results / Evaluation
 - Mandatory for data science and mixed repos.
@@ -177,6 +191,7 @@ Specific weak-signals:
 - CONTRIBUTING.md prominence
 - Code of conduct
 - Marketing badges
+- Badge spam
 
 ## Cross-cutting rules
 
