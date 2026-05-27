@@ -9,32 +9,41 @@ Use only for explicit Digica README authoring or audit requests. Ignore incident
 
 ## Rules
 
+- Digica README default language is English.
 - Auto-detect first; ask only unresolved gaps.
 - Ask one question at a time.
 - Confirm detected facts before drafting.
-- Existing README: preserve good content; improve only missing or weak sections.
+- Existing README is working material to verify, not source of truth.
+- Repository files override README claims for technical facts.
+- Preserve good content; replace stale or weak sections.
 - User may skip; skipped gaps become visible `<!-- TODO: ... -->` comments.
-- Preview the full README or diff before writing; write only after explicit yes.
+- Work section by section; edit `README.md` after approval for each section.
 - README links to deeper docs; do not duplicate `.env.example` or architecture docs.
+- README-only edits do not require changelog updates.
+- Do not commit unless the user asks.
 
 ## Workflow
 
-1. Detect mode: `README.md` exists -> audit; missing -> new.
-2. Detect language from README, docs, and comments; ask once only if there is no signal.
-3. Inspect repo facts:
+1. Detect README mode:
+   - new: no `README.md`
+   - stale: existing README conflicts with repo facts
+   - weak: existing README is current but thin, unclear, or incomplete
+2. Inspect repo facts before asking:
    - manifests: `pyproject.toml`, `package.json`, `Cargo.toml`
    - runtime: `Dockerfile`, `docker-compose.yml`
    - config: `.env.example`
    - migrations: `alembic/`, `prisma/`, `migrations/`
    - checks: tests, pytest config, package scripts
    - existing README headings
-4. Present detection summary; ask for confirmation or corrections.
-5. Load [STANDARD.md](STANDARD.md); build a gap list. For existing READMEs, include only missing or weak sections.
-6. Interview gaps one by one. Offer `skip` every time.
-7. Draft using [STANDARD.md](STANDARD.md). Load [EXAMPLE.md](EXAMPLE.md) only if formatting or tone is unclear.
-8. Preview the full draft or diff; ask whether to write.
-9. Write `README.md`.
-10. Print TODO summary.
+3. Present mode, detected facts, and conflicts; ask for confirmation or corrections.
+4. Load [STANDARD.md](STANDARD.md); walk sections in Digica order.
+5. For each section:
+   - state what the repo already proves
+   - show the proposed section or diff
+   - ask for approval or one missing fact
+   - write approved content immediately
+6. Use `<!-- TODO: <what is missing> -->` for skipped or unknown mandatory facts.
+7. Print a short closeout: changed sections, why, final effect, verified commands, TODOs, unverified items.
 
 ## Weak Signals
 
@@ -43,3 +52,4 @@ Use only for explicit Digica README authoring or audit requests. Ignore incident
 - Configuration duplicates env vars instead of linking to `.env.example`.
 - Missing smoke or health verification.
 - Missing owner/contact.
+- Stale command, port, package manager, or runtime claims contradicted by repo files.

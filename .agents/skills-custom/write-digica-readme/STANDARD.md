@@ -1,23 +1,24 @@
 # README Standard
 
-Spec for an internal application repository README. README is the entry point: it links to deeper docs and never duplicates them.
+Spec for a Digica repository README. README is the entry point: it links to deeper docs and never duplicates them.
 
 ## Section order
 
 1. Title + one-line tagline (mandatory)
-2. Why this exists (mandatory)
-3. Status (mandatory)
-4. Prerequisites (mandatory)
-5. Quick start (mandatory)
-6. Verify it works (mandatory)
-7. Configuration / secrets (mandatory)
-8. Common commands (recommended)
-9. Architecture in a pill (recommended)
-10. Troubleshooting (recommended)
-11. Owner / contact (mandatory)
-12. Links (recommended)
+2. Table of contents (mandatory)
+3. Why this exists (mandatory)
+4. Status (mandatory)
+5. Prerequisites (mandatory)
+6. Quick start (mandatory)
+7. Verify it works (mandatory)
+8. Configuration / secrets (mandatory)
+9. Owner / contact (mandatory)
+10. Links (mandatory)
+11. Common commands (recommended)
+12. Architecture (recommended)
+13. Troubleshooting (recommended)
 
-Mandatory sections must appear. Recommended sections appear unless clearly N/A.
+Mandatory sections must appear unless explicitly confirmed as not applicable. Unknown mandatory details become `<!-- TODO: ... -->` comments.
 
 ## Per-section spec
 
@@ -25,13 +26,17 @@ Mandatory sections must appear. Recommended sections appear unless clearly N/A.
 - H1 with project name, then a single sentence quote (`>`).
 - The quote answers "what is this and for whom" in <140 chars, no jargon.
 
+### Table of contents
+- Always include a short table of contents after the tagline.
+- Link only top-level sections.
+
 ### Why this exists
 - 2-4 sentences. The business problem and the user.
 - Bad: "A service to sync data." Good: "Finance needs invoices in BQ for reporting; this service pulls them from ERP hourly."
 
 ### Status
 - One line. Visual cue (`green` / `yellow` / `red`, emoji, or badge) plus optional date or note.
-- Values: `Working`, `WIP`, or `Deprecated`.
+- Values: `Active`, `WIP`, `Maintenance`, or `Deprecated`.
 
 ### Prerequisites
 - Bullet list. Tools and access required *before* setup.
@@ -64,7 +69,7 @@ Mandatory sections must appear. Recommended sections appear unless clearly N/A.
 
 ### Owner / contact
 - One line. Team name + Slack channel + (optional) escalation path.
-- For internal repos this is often the single most-read line.
+- For Digica repos this is often the single most-read line.
 
 ### Links
 Bullets, grouped by purpose. Cover at minimum:
@@ -87,6 +92,7 @@ For each section above, mark it:
 - **Present & good** - leave alone.
 - **Present but weak** - placeholder text, single-line where multi is needed, generic phrasing. Offer to improve.
 - **Missing** - add via interview.
+- **Stale** - contradicts repository files or current user confirmation. Replace or remove.
 
 Specific weak-signals:
 - "TODO: add description" or any literal TODO in body.
@@ -94,8 +100,20 @@ Specific weak-signals:
 - Configuration section that re-lists env vars instead of linking to `.env.example`.
 - Missing healthcheck/smoke-test -> user can't tell if it ran correctly.
 - No owner / contact line.
+- README claims a package manager, command, port, runtime, or service that repo files contradict.
 
-## Intentionally omitted (internal repos)
+## Edit workflow
+
+- Work in the section order above, not in the existing README order.
+- Existing README prose is working material to verify, not source of truth.
+- Repository files are the source of truth for technical facts.
+- Show the proposed section or diff before writing it.
+- Write approved sections immediately instead of waiting for one final full rewrite.
+- Preserve good existing prose, but remove stale content. Git history is the archive.
+- README-only edits do not require changelog updates.
+- Do not commit unless the user asks.
+
+## Intentionally omitted
 
 - License section
 - CONTRIBUTING.md prominence
