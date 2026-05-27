@@ -13,6 +13,7 @@ smoke:
     ./scripts/smoke-install-dotfiles.sh
     ./scripts/smoke-macos-apps.sh
     ./scripts/smoke-agent-skill-sync.sh
+    ./scripts/smoke-web-scraping-skills.sh
 
 sync-agents:
     ./sync-agents.sh install
