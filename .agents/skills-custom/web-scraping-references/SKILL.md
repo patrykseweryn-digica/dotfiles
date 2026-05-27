@@ -10,6 +10,7 @@ Shared vocabulary and decision rules for scraping skills. Load only the referenc
 ## References
 
 - `references/lifecycle.md`: feasibility vs production, raw/parsed/curated/manifest/audit.
+- `references/feasibility-poc.md`: structured feasibility PoC project and `FEASIBILITY.md`.
 - `references/framework-choice.md`: Scrapy, Crawlee, standalone, and browser/API decisions.
 - `references/storage-policy.md`: JSONL, Parquet, DuckDB, Postgres, retention, append-only runs.
 - `references/quality-gates.md`: audits, acceptance checks, run-to-run comparisons.
