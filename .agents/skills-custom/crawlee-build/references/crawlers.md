@@ -11,7 +11,9 @@
 | Unknown/mixed | `AdaptivePlaywrightCrawler` | Tries HTTP first, falls back to browser |
 | API endpoint | `HttpCrawler` | Raw HTTP, no parsing overhead |
 
-## AdaptivePlaywrightCrawler (Recommended Default)
+## AdaptivePlaywrightCrawler (Mixed HTTP/Browser)
+
+Use when the approved Crawlee design needs both HTTP efficiency and browser fallback. It is not the default for ordinary HTTP/API/listing-detail production scraping; those usually belong in Scrapy.
 
 Tries HTTP-based crawling first, falls back to Playwright when content is missing.
 Uses unified `parsed_content` interface (BeautifulSoup object) regardless of mode.
