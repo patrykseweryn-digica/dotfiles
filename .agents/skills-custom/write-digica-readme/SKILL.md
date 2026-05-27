@@ -34,16 +34,19 @@ Use only for explicit Digica README authoring or audit requests. Ignore incident
    - config: `.env.example`
    - migrations: `alembic/`, `prisma/`, `migrations/`
    - checks: tests, pytest config, package scripts
+   - data science signals: notebooks, `data/`, `datasets/`, `models/`, DVC, MLflow, training/evaluation scripts, ML dependencies
+   - software signals: app entrypoints, API routes, frontend/backend scripts, services, migrations, deploy/infra config
    - existing README headings
-3. Present mode, detected facts, and conflicts; ask for confirmation or corrections.
-4. Load [STANDARD.md](STANDARD.md); walk sections in Digica order.
-5. For each section:
+3. Classify project type as software, data science, or mixed. Present evidence and ask for confirmation.
+4. Present mode, detected facts, and conflicts; ask for confirmation or corrections.
+5. Load [STANDARD.md](STANDARD.md); walk sections in Digica order for the confirmed project type.
+6. For each section:
    - state what the repo already proves
    - show the proposed section or diff
    - ask for approval or one missing fact
    - write approved content immediately
-6. Use `<!-- TODO: <what is missing> -->` for skipped or unknown mandatory facts.
-7. Print a short closeout: changed sections, why, final effect, verified commands, TODOs, unverified items.
+7. Use `<!-- TODO: <what is missing> -->` for skipped or unknown mandatory facts.
+8. Print a short closeout: changed sections, why, final effect, verified commands, TODOs, unverified items.
 
 ## Weak Signals
 

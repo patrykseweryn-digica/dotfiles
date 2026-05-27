@@ -17,8 +17,37 @@ Spec for a Digica repository README. README is the entry point: it links to deep
 11. Common commands (recommended)
 12. Architecture (recommended)
 13. Troubleshooting (recommended)
+14. Development workflow (conditional)
+15. Project structure (conditional)
 
 Mandatory sections must appear unless explicitly confirmed as not applicable. Unknown mandatory details become `<!-- TODO: ... -->` comments.
+
+## Project type
+
+Classify the repo before building the section plan. Present evidence and ask the user to confirm.
+
+- **Software** - app/service/tool signals: source entrypoints, API routes, frontend/backend scripts, Docker services, migrations, deploy or infra config.
+- **Data science** - ML/analytics signals: notebooks, `data/`, `datasets/`, `models/`, `artifacts/`, DVC, MLflow, training/evaluation scripts, pandas/polars/sklearn/torch/tensorflow/xgboost/lightgbm dependencies.
+- **Mixed** - both product/runtime and data science pipeline are meaningful.
+
+For all Digica repos, use the all-project mandatory sections above.
+
+For data science or mixed repos, also require:
+- Data
+- Architecture & Pipeline
+- Results / Evaluation
+
+For deployed software/app repos, also require:
+- Architecture
+- Deployment / Environments
+- Troubleshooting
+
+Conditional sections:
+- Common commands
+- Development workflow
+- Project structure
+- Agent instructions link
+- Mermaid diagram
 
 ## Per-section spec
 
@@ -60,12 +89,41 @@ Mandatory sections must appear unless explicitly confirmed as not applicable. Un
 - Fenced bash block. Test / lint / typecheck / shell-in-container / migrations.
 - Each line has a `# comment` explaining what it does.
 
-### Architecture in a pill
+### Architecture
 - 2-3 sentences. Services listed from `docker-compose.yml`. Link to `docs/ARCHITECTURE.md` for depth.
+
+### Data
+- Mandatory for data science and mixed repos; optional for software repos.
+- Explain what data is needed, where to get it, where to place it, and what must not be committed.
+- Mention refresh/regeneration steps when known.
+
+### Architecture & Pipeline
+- Mandatory for data science and mixed repos.
+- Explain the project flow from inputs through processing/training/inference/evaluation to outputs.
+- Keep Architecture and Pipeline together unless system architecture and ML pipeline are meaningfully different.
+
+### Results / Evaluation
+- Mandatory for data science and mixed repos.
+- State where results live and how to reproduce evaluation.
+- Explain what should be measured, the target goal, and why those metrics were chosen.
+- Do not include result tables in README; link to reports, trackers, notebooks, or dashboards.
+
+### Deployment / Environments
+- Mandatory for deployed apps/services.
+- Link or summarize staging/prod URLs, deploy ownership, logs, monitoring, and runbook/deploy docs.
+- Do not include long deploy procedures if deeper docs exist.
+
+### Development workflow
+- Add when the repo has real process beyond basic commands: migrations, data refresh, codegen, test-before-PR, or build artifacts.
+
+### Project structure
+- Add when folder layout is not obvious.
+- Keep it short: list important directories and what each is for, not a full tree.
 
 ### Troubleshooting
 - 3-5 bullets. Format: **symptom** -> fix command/action.
 - Cover the most common first-run failures: port conflict, missing env var, VPN/network, stale migrations.
+- For data science, cover missing data paths, access, dependency/native package issues, GPU/CPU mismatch, stale cache, or stale artifacts when relevant.
 
 ### Owner / contact
 - One line. Team name + Slack channel + (optional) escalation path.
