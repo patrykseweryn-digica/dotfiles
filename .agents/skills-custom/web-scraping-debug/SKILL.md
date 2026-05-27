@@ -10,16 +10,21 @@ Use when a scraper already exists and is failing or producing bad data.
 
 ## Diagnose
 
-1. Reproduce on the smallest URL/page/sample that fails.
-2. Compare expected vs actual: status, response body, rendered DOM, network calls, output rows.
-3. Classify failure:
+1. If the symptom is output quality, run or inspect `web-scraping-audit` first.
+2. Reproduce on the smallest saved raw sample, failure payload, fixture, URL, or page that fails. Prefer replay before live refetching.
+3. Compare expected vs actual: status, response body, rendered DOM, network calls, manifest row, parsed row, curated row, audit finding.
+4. Classify failure:
+   - fetch failure: status, timeout, retry exhaustion, DNS, TLS, proxy, rate limit
    - selector/parser drift: read `../web-scraping-scout/references/parsers.md`
-   - API contract or pagination drift: read `../web-scraping-scout/references/api-scraping.md` or `../web-scraping-scout/references/pagination.md`
-   - anti-bot/browser/proxy/auth: read `../web-scraping-scout/references/browsers.md`, `../web-scraping-scout/references/proxy.md`, or `../web-scraping-scout/references/auth.md`
-   - storage/schema issue: read `../web-scraping-scout/references/storage.md`
-4. Fix the narrow cause; avoid rewriting from scratch unless the current method is dead.
-5. Add a regression check when practical: saved HTML/API fixture, sample output assertion, or smoke command.
+   - API contract drift: read `../web-scraping-scout/references/api-scraping.md`
+   - pagination drift: read `../web-scraping-scout/references/pagination.md`
+   - validation/schema drift: compare model, parsed output, and curated output
+   - storage failure: read `../web-scraping-scout/references/storage.md`
+   - auth/login failure: read `../web-scraping-scout/references/auth.md`
+   - anti-bot/browser/proxy failure: read `../web-scraping-scout/references/browsers.md` or `../web-scraping-scout/references/proxy.md`
+5. Fix the narrow cause; avoid rewriting from scratch unless the current method is dead.
+6. Add a regression check when practical: saved HTML/API fixture, replay test, sample output assertion, or smoke command.
 
 ## Verify
 
-Run project lint/type/test commands if present, then a small live sample. For output quality, hand off to `web-scraping-audit`.
+Run project lint/type/test commands if present, replay the saved failure, then run the smallest live sample needed. Hand final output to `web-scraping-audit` when data trust is the question.
