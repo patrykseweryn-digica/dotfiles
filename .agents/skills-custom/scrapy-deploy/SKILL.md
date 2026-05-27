@@ -1,16 +1,24 @@
 ---
 name: scrapy-deploy
-description: "Deploy existing Scrapy projects: Docker, server runs, cron scheduling, stats JSON, SpiderMon alerts, scraper monitoring."
+description: "Deploy existing Scrapy projects with Docker, server runs, cron/systemd scheduling, stats JSON, optional SpiderMon alerts, audit/report references, retention notes, and runbook alignment."
 argument-hint: "[docker] [server]"
 ---
 
 # Scrapy Deploy
 
-Deploy Scrapy projects to Docker with monitoring and scheduling.
+Deploy Scrapy projects to Docker with monitoring and scheduling. Keep this Scrapy-specific; do not turn it into general production pipeline design.
 
 ## Context Check
 
 Verify this is a Scrapy project (look for `scrapy.cfg`). If not, tell the user to create one first with `scrapy-build`.
+
+If framework, lifecycle, storage, audit, or risk decisions are still open, route to `web-scraping-pipeline-design` before deployment work.
+
+Read shared references as needed:
+
+- `../web-scraping-references/references/operator-runbook.md`
+- `../web-scraping-references/references/storage-policy.md`
+- `../web-scraping-references/references/quality-gates.md`
 
 ## Deployment: Docker (Recommended)
 
@@ -99,7 +107,7 @@ SPIDERMON_SPIDER_CLOSE_MONITORS = (
 )
 ```
 
-### 3. Notifications (optional, ask user)
+### 3. Notifications (optional, env-driven)
 
 SpiderMon supports notifications on both failure AND success. Use `monitors_failed_actions` for errors and `monitors_passed_actions` for successful crawls.
 
@@ -108,7 +116,7 @@ Supported channels:
 - **Slack**: `SendSlackMessageSpiderFinished` — needs `SPIDERMON_SLACK_SENDER_TOKEN` + `SPIDERMON_SLACK_RECIPIENTS`
 - **Email**: `SendSmtpEmail` — needs SMTP config
 
-All tokens go in env vars (`.env` file + `python-dotenv`), never hardcoded.
+All tokens go in env vars (`.env` file + `python-dotenv`), never hardcoded. If alert env vars are absent, the scraper must still run without alerting.
 
 **IMPORTANT: Conditionally add notification actions** — SpiderMon raises `NotConfigured` if token env var is empty. Use conditional import in `monitors.py`:
 ```python
@@ -133,6 +141,30 @@ load_dotenv()
 
 Add `env_file: .env` to `docker-compose.yml`. Create `.env` with placeholders and add it to `.gitignore`.
 
+## Runbook Alignment
+
+When deploying, update or create the operator README/runbook with:
+
+- smoke/sample and full run commands
+- Docker/compose/server/cron/systemd commands
+- required env vars and secret names
+- output paths for manifest, parsed, curated, audit, raw samples, and failures
+- how to inspect stats JSON, audit reports, and logs
+- common deployment failures and first debug step
+- when output should not be trusted
+
+## Retention Notes
+
+Document retention for run artifacts:
+
+- manifests and stats JSON
+- parsed and curated outputs
+- audit reports
+- raw samples
+- failures
+
+Retention can be manual initially, but the policy must be explicit.
+
 ## Monitoring Scale Guide
 
 If user asks about monitoring options, present this progression:
@@ -150,4 +182,6 @@ Verify the deployment works:
 1. Run a test crawl on the server
 2. Check logs for errors
 3. Confirm stats JSON is being saved to `output/<spider>/stats/`
-4. Confirm SpiderMon runs and reports status in logs
+4. Confirm manifest/parsed/curated/audit output paths still match the runbook
+5. Confirm optional alerts are skipped cleanly when env vars are absent
+6. Confirm SpiderMon runs and reports status in logs when enabled
