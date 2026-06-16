@@ -1,3 +1,8 @@
+if [ -z "${ZSH_VERSION:-}" ]; then
+  echo "This file is for zsh. Run: exec zsh -l" >&2
+  return 1 2>/dev/null || exit 1
+fi
+
 # Enable Powerlevel10k instant prompt. Should stay close to the top of ~/.zshrc.
 # Initialization code that may require console input (password prompts, [y/n]
 # confirmations, etc.) must go above this block; everything else may go below.
@@ -104,4 +109,3 @@ export PATH="$BUN_INSTALL/bin:$PATH"
 # Added by LM Studio CLI (lms)
 export PATH="$PATH:/Users/patrykseweryn/.lmstudio/bin"
 # End of LM Studio CLI section
-

@@ -26,6 +26,20 @@ env_file="${tmp_dir}/missing.env"
 
 mkdir -p "$home_dir" "$zshenv"
 
+if HOME="$home_dir" DOTFILES_ENV_FILE="$env_file" bash -c "source '${DOTFILES_DIR}/.zshrc'" 2>"$stderr_log"; then
+    fail ".zshrc should reject bash"
+fi
+
+if ! grep -q "This file is for zsh. Run: exec zsh -l" "$stderr_log"; then
+    cat "$stderr_log" >&2
+    fail ".zshrc did not print bash guidance"
+fi
+
+if grep -E "bad substitution|command not found|syntax error" "$stderr_log" >/dev/null 2>&1; then
+    cat "$stderr_log" >&2
+    fail ".zshrc leaked zsh syntax errors under bash"
+fi
+
 if ! HOME="$home_dir" ZDOTDIR="$zshenv" DOTFILES_ENV_FILE="$env_file" zsh -df -c "source '${DOTFILES_DIR}/.zshrc'" 2>"$stderr_log"; then
     cat "$stderr_log" >&2
     fail ".zshrc failed in isolated HOME"

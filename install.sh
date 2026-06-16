@@ -316,7 +316,11 @@ main() {
     fi
 
     echo "[INFO] Installation complete!"
-    echo "[INFO] Please restart your shell or run: source ~/.zshrc"
+    if [ -n "${ZSH_VERSION:-}" ]; then
+        echo "[INFO] Please restart your shell or run: source ~/.zshrc"
+    else
+        echo "[INFO] Please restart your shell or run: exec zsh -l"
+    fi
 }
 
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
