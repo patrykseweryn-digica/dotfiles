@@ -302,6 +302,7 @@ main() {
 
     # Setup dotfile configurations
     setup_dotfiles
+    install_tmux_plugins || echo "[WARN] tmux plugin installation had issues, continuing..."
 
     # Setup pre-commit hooks
     if pre-commit --version >/dev/null 2>&1; then

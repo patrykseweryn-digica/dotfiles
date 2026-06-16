@@ -208,6 +208,24 @@ install_xclip() {
         "" "" "" ""
 }
 
+install_tpm() {
+    if [ -d "${HOME}/.tmux/plugins/tpm" ]; then
+        echo "[INFO] tpm is already installed"
+    else
+        echo "[INFO] Installing tpm..."
+        git clone https://github.com/tmux-plugins/tpm "${HOME}/.tmux/plugins/tpm" --depth=1 || echo "[WARN] Failed to install tpm"
+    fi
+}
+
+install_tmux_plugins() {
+    if [ -x "${HOME}/.tmux/plugins/tpm/bin/install_plugins" ]; then
+        echo "[INFO] Installing tmux plugins..."
+        "${HOME}/.tmux/plugins/tpm/bin/install_plugins" || echo "[WARN] Failed to install tmux plugins"
+    else
+        echo "[WARN] Skipping tmux plugins; tpm is not installed"
+    fi
+}
+
 install_tools() {
     echo "[INFO] Installing CLI tools..."
 
@@ -233,18 +251,7 @@ install_tools() {
     install_lazygit
     install_xclip
 
-    # tpm (tmux plugin manager)
-    if [ -d "${HOME}/.tmux/plugins/tpm" ]; then
-        echo "[INFO] tpm is already installed"
-    else
-        echo "[INFO] Installing tpm..."
-        git clone https://github.com/tmux-plugins/tpm "${HOME}/.tmux/plugins/tpm" --depth=1 || echo "[WARN] Failed to install tpm"
-    fi
-    # Install tmux plugins via tpm
-    if [ -x "${HOME}/.tmux/plugins/tpm/bin/install_plugins" ]; then
-        echo "[INFO] Installing tmux plugins..."
-        "${HOME}/.tmux/plugins/tpm/bin/install_plugins" || echo "[WARN] Failed to install tmux plugins"
-    fi
+    install_tpm
 
     # pre-commit (via uv)
     if pre-commit --version >/dev/null 2>&1; then

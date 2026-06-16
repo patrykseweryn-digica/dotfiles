@@ -96,6 +96,75 @@ STUB
     rm -rf "$tmp_dir"
 }
 
+smoke_tmux_plugins_install_after_setup_dotfiles() {
+    local tmp_dir
+    local home_dir
+    local stub_dir
+    local env_file
+    local npx_log
+    local tmux_log
+
+    tmp_dir="$(mktemp -d)"
+    home_dir="${tmp_dir}/home"
+    stub_dir="${tmp_dir}/stubs"
+    env_file="${tmp_dir}/dotfiles.env"
+    npx_log="${tmp_dir}/npx.log"
+    tmux_log="${tmp_dir}/tmux.log"
+
+    mkdir -p "${home_dir}/.tmux/plugins/tpm/bin" "$stub_dir"
+    ln -s "$JQ_BIN" "${stub_dir}/jq"
+    : > "$npx_log"
+    : > "$tmux_log"
+
+    cat > "${stub_dir}/npx" <<'STUB'
+#!/bin/sh
+echo "npx $*" >> "$NPX_LOG"
+exit 127
+STUB
+    chmod +x "${stub_dir}/npx"
+
+    cat > "${home_dir}/.tmux/plugins/tpm/bin/install_plugins" <<'STUB'
+#!/bin/sh
+if [ ! -L "$HOME/.tmux.conf" ]; then
+    echo "missing linked tmux config" >> "$TMUX_LOG"
+    exit 42
+fi
+echo "tmux plugins installed with $(readlink "$HOME/.tmux.conf")" >> "$TMUX_LOG"
+STUB
+    chmod +x "${home_dir}/.tmux/plugins/tpm/bin/install_plugins"
+
+    (
+        export HOME="$home_dir"
+        export PATH="${stub_dir}:/usr/bin:/bin"
+        export EMAIL="test@example.com"
+        export WORK_EMAIL="work@example.com"
+        export EDITOR="vim"
+        export CODEX_HOME="${HOME}/.codex"
+        export OPENCODE_CONFIG_DIR="${HOME}/.config/opencode"
+        export OPENCODE_CONFIG="${OPENCODE_CONFIG_DIR}/opencode.json"
+        export DOTFILES_SKIP_SSH=true
+        export DOTFILES_ENV_FILE="$env_file"
+        export NPX_LOG="$npx_log"
+        export TMUX_LOG="$tmux_log"
+
+        # shellcheck source=/dev/null
+        source "${DOTFILES_DIR}/install.sh"
+
+        export OS="Linux"
+        export ARCH="x86_64"
+        export IS_MACOS=false
+        export IS_LINUX=true
+
+        setup_dotfiles >/dev/null 2>&1
+        install_tmux_plugins >/dev/null 2>&1
+    )
+
+    grep -q "tmux plugins installed with ${DOTFILES_DIR}/.tmux.conf" "$tmux_log" ||
+        fail "tmux plugins were not installed after .tmux.conf was linked"
+
+    rm -rf "$tmp_dir"
+}
+
 run_case() {
     local os_name="$1"
     local expected_code_dir="$2"
@@ -176,6 +245,7 @@ STUB
 
 smoke_source_has_no_home_side_effect
 smoke_codex_npm_install_on_linux_only
+smoke_tmux_plugins_install_after_setup_dotfiles
 run_case "Linux" ".config/Code/User" ".config/ghostty/config"
 run_case "Darwin" "Library/Application Support/Code/User" "Library/Application Support/com.mitchellh.ghostty/config.ghostty"
 
