@@ -25,6 +25,17 @@
       "@modelcontextprotocol/server-sequential-thinking"
     ]
   },
+  "garmin": {
+    "type": "stdio",
+    "command": "uvx",
+    "args": [
+      "--python",
+      "3.12",
+      "--from",
+      "git+https://github.com/Taxuspt/garmin_mcp",
+      "garmin-mcp"
+    ]
+  },
   "todoist": {
     "type": "http",
     "url": "https://ai.todoist.net/mcp"
