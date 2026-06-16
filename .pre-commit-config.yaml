@@ -37,6 +37,12 @@ repos:
         entry: ./scripts/smoke-install-dotfiles.sh
         language: system
         pass_filenames: false
+      - id: ssh-config-smoke
+        name: SSH config smoke test
+        description: Ensure ssh setup preserves existing config unless replacement is explicit
+        entry: ./scripts/smoke-ssh-config.sh
+        language: system
+        pass_filenames: false
       - id: macos-apps-smoke
         name: macOS apps smoke test
         description: Ensure macOS Brewfile, VS Code extensions, and Rectangle defaults are wired safely

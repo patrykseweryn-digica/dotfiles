@@ -19,6 +19,15 @@ CONFIG_D="$SSH_DIR/config.d"
 DOTFILES_LINK="$CONFIG_D/dotfiles.conf"
 MAIN_CONFIG="$SSH_DIR/config"
 STUB_CONTENT='Include config.d/*.conf'
+SSH_CONFIG_MODE="${DOTFILES_SSH_CONFIG_MODE:-ask}"
+
+case "$SSH_CONFIG_MODE" in
+    ask | preserve | replace) ;;
+    *)
+        echo "[ERROR] DOTFILES_SSH_CONFIG_MODE must be one of: ask, preserve, replace" >&2
+        exit 1
+        ;;
+esac
 
 mkdir -p "$SSH_DIR" "$CONFIG_D"
 chmod 700 "$SSH_DIR" "$CONFIG_D"
@@ -74,6 +83,74 @@ backup_path() {
     printf '%s' "$candidate"
 }
 
+write_main_config_stub() {
+    printf '%s\n' "$STUB_CONTENT" > "$MAIN_CONFIG"
+    chmod 600 "$MAIN_CONFIG"
+    echo "[INFO] Wrote stub $MAIN_CONFIG"
+}
+
+main_config_has_dotfiles_include() {
+    [ -f "$MAIN_CONFIG" ] || return 1
+    grep -Eq '^[[:space:]]*Include[[:space:]]+config\.d/\*\.conf([[:space:]]|$)' "$MAIN_CONFIG"
+}
+
+should_replace_main_config() {
+    local answer
+
+    case "$SSH_CONFIG_MODE" in
+        replace)
+            return 0
+            ;;
+        preserve)
+            echo "[WARN] Preserving existing $MAIN_CONFIG (DOTFILES_SSH_CONFIG_MODE=preserve)"
+            return 1
+            ;;
+    esac
+
+    if [ ! -t 0 ]; then
+        echo "[WARN] Preserving existing $MAIN_CONFIG; set DOTFILES_SSH_CONFIG_MODE=replace to replace it non-interactively"
+        return 1
+    fi
+
+    printf "Replace %s with '%s'? Existing file will be backed up. [y/N] " "$MAIN_CONFIG" "$STUB_CONTENT" >&2
+    read -r answer
+    case "$answer" in
+        y | Y | yes | YES | Yes)
+            return 0
+            ;;
+        *)
+            echo "[WARN] Preserving existing $MAIN_CONFIG"
+            return 1
+            ;;
+    esac
+}
+
+ensure_main_ssh_config() {
+    local bk
+
+    if [ ! -e "$MAIN_CONFIG" ] && [ ! -L "$MAIN_CONFIG" ]; then
+        write_main_config_stub
+        return
+    fi
+
+    if [ -f "$MAIN_CONFIG" ] && [ "$(cat "$MAIN_CONFIG")" = "$STUB_CONTENT" ]; then
+        echo "[INFO] $MAIN_CONFIG already correct stub"
+        return
+    fi
+
+    if main_config_has_dotfiles_include; then
+        echo "[INFO] $MAIN_CONFIG already includes config.d/*.conf"
+        return
+    fi
+
+    if should_replace_main_config; then
+        bk="$(backup_path "$MAIN_CONFIG")"
+        mv "$MAIN_CONFIG" "$bk"
+        echo "[INFO] Backed up existing $MAIN_CONFIG to $bk"
+        write_main_config_stub
+    fi
+}
+
 chmod 600 "$SSH_SRC"
 
 # Link config.d/dotfiles.conf -> repo
@@ -92,33 +169,7 @@ else
     echo "[INFO] Linked $DOTFILES_LINK -> $SSH_SRC"
 fi
 
-# Ensure ~/.ssh/config is a stub including config.d/*.conf
-write_stub=0
-if [ -L "$MAIN_CONFIG" ]; then
-    # Legacy single-file symlink (e.g. -> repo config). Replace with stub.
-    target="$(readlink "$MAIN_CONFIG")"
-    bk="$(backup_path "$MAIN_CONFIG")"
-    mv "$MAIN_CONFIG" "$bk"
-    echo "[INFO] Replaced legacy symlink ($target). Old link saved as $bk"
-    write_stub=1
-elif [ -f "$MAIN_CONFIG" ]; then
-    if [ "$(cat "$MAIN_CONFIG")" = "$STUB_CONTENT" ]; then
-        echo "[INFO] $MAIN_CONFIG already correct stub"
-    else
-        bk="$(backup_path "$MAIN_CONFIG")"
-        mv "$MAIN_CONFIG" "$bk"
-        echo "[INFO] Backed up existing $MAIN_CONFIG to $bk"
-        write_stub=1
-    fi
-else
-    write_stub=1
-fi
-
-if [ "$write_stub" = 1 ]; then
-    printf '%s\n' "$STUB_CONTENT" > "$MAIN_CONFIG"
-    chmod 600 "$MAIN_CONFIG"
-    echo "[INFO] Wrote stub $MAIN_CONFIG"
-fi
+ensure_main_ssh_config
 
 # Touch a local.conf placeholder so Include never warns on an empty config.d
 if [ ! -e "$CONFIG_D/local.conf" ]; then
