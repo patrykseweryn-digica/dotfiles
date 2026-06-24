@@ -73,6 +73,37 @@ smoke_run_steps_preserve_errexit() {
     rm -rf "$tmp_dir"
 }
 
+smoke_configure_dotfiles_git_identity() {
+    local tmp_dir
+    local home_dir
+    local repo_dir
+    local ssh_command
+
+    tmp_dir="$(mktemp -d)"
+    home_dir="${tmp_dir}/home"
+    repo_dir="${tmp_dir}/dotfiles"
+    ssh_command="ssh -i ~/.ssh/id_ed25519_work -o IdentitiesOnly=yes"
+
+    mkdir -p "$home_dir" "$repo_dir"
+    git -C "$repo_dir" init -q
+
+    (
+        export HOME="$home_dir"
+        export WORK_EMAIL="work@example.com"
+        # shellcheck source=/dev/null
+        source "${DOTFILES_DIR}/install.sh"
+        DOTFILES_DIR="$repo_dir"
+        configure_dotfiles_git_identity >/dev/null
+    )
+
+    [ "$(git -C "$repo_dir" config --get user.email)" = "work@example.com" ] ||
+        fail "dotfiles repo user.email was not configured"
+    [ "$(git -C "$repo_dir" config --get core.sshCommand)" = "$ssh_command" ] ||
+        fail "dotfiles repo core.sshCommand was not configured"
+
+    rm -rf "$tmp_dir"
+}
+
 smoke_codex_npm_install_on_linux_only() {
     local tmp_dir
     local stub_dir
@@ -180,6 +211,7 @@ STUB
         export CODEX_HOME="${HOME}/.codex"
         export OPENCODE_CONFIG_DIR="${HOME}/.config/opencode"
         export OPENCODE_CONFIG="${OPENCODE_CONFIG_DIR}/opencode.json"
+        export DOTFILES_CONFIGURE_REPO_GIT=false
         export DOTFILES_SKIP_SSH=true
         export DOTFILES_ENV_FILE="$env_file"
         export NPX_LOG="$npx_log"
@@ -241,6 +273,7 @@ STUB
         export CODEX_HOME="${HOME}/.codex"
         export OPENCODE_CONFIG_DIR="${HOME}/.config/opencode"
         export OPENCODE_CONFIG="${OPENCODE_CONFIG_DIR}/opencode.json"
+        export DOTFILES_CONFIGURE_REPO_GIT=false
         export DOTFILES_SKIP_SSH=true
         export DOTFILES_ENV_FILE="$env_file"
         export NPX_LOG="$npx_log"
@@ -283,6 +316,7 @@ STUB
 
 smoke_source_has_no_home_side_effect
 smoke_run_steps_preserve_errexit
+smoke_configure_dotfiles_git_identity
 smoke_codex_npm_install_on_linux_only
 smoke_tmux_plugins_install_after_setup_dotfiles
 run_case "Linux" ".config/Code/User" ".config/ghostty/config"
