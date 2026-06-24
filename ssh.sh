@@ -71,45 +71,47 @@ write_main_config_stub() {
     echo "[INFO] Wrote stub $MAIN_CONFIG"
 }
 
+prepend_main_config_include() {
+    local bk
+    local tmp
+
+    bk="$(backup_path "$MAIN_CONFIG")"
+    cp -p "$MAIN_CONFIG" "$bk"
+    tmp="$(mktemp "${MAIN_CONFIG}.tmp.XXXXXX")"
+    {
+        printf '%s\n\n' "$STUB_CONTENT"
+        cat "$MAIN_CONFIG"
+    } > "$tmp"
+    mv "$tmp" "$MAIN_CONFIG"
+    chmod 600 "$MAIN_CONFIG"
+    echo "[INFO] Backed up existing $MAIN_CONFIG to $bk"
+    echo "[INFO] Prepended $STUB_CONTENT to $MAIN_CONFIG"
+}
+
 main_config_has_dotfiles_include() {
     [ -f "$MAIN_CONFIG" ] || return 1
     grep -Eq '^[[:space:]]*Include[[:space:]]+config\.d/\*\.conf([[:space:]]|$)' "$MAIN_CONFIG"
 }
 
-should_replace_main_config() {
-    local answer
-
+handle_main_config_without_include() {
     case "$SSH_CONFIG_MODE" in
         replace)
-            return 0
+            local bk
+            bk="$(backup_path "$MAIN_CONFIG")"
+            mv "$MAIN_CONFIG" "$bk"
+            echo "[INFO] Backed up existing $MAIN_CONFIG to $bk"
+            write_main_config_stub
             ;;
         preserve)
-            echo "[WARN] Preserving existing $MAIN_CONFIG (DOTFILES_SSH_CONFIG_MODE=preserve)"
-            return 1
+            echo "[WARN] Preserving existing $MAIN_CONFIG without $STUB_CONTENT (DOTFILES_SSH_CONFIG_MODE=preserve)"
             ;;
-    esac
-
-    if [ ! -t 0 ]; then
-        echo "[WARN] Preserving existing $MAIN_CONFIG; set DOTFILES_SSH_CONFIG_MODE=replace to replace it non-interactively"
-        return 1
-    fi
-
-    printf "Replace %s with '%s'? Existing file will be backed up. [y/N] " "$MAIN_CONFIG" "$STUB_CONTENT" >&2
-    read -r answer
-    case "$answer" in
-        y | Y | yes | YES | Yes)
-            return 0
-            ;;
-        *)
-            echo "[WARN] Preserving existing $MAIN_CONFIG"
-            return 1
+        ask)
+            prepend_main_config_include
             ;;
     esac
 }
 
 ensure_main_ssh_config() {
-    local bk
-
     if [ ! -e "$MAIN_CONFIG" ] && [ ! -L "$MAIN_CONFIG" ]; then
         write_main_config_stub
         return
@@ -125,12 +127,21 @@ ensure_main_ssh_config() {
         return
     fi
 
-    if should_replace_main_config; then
-        bk="$(backup_path "$MAIN_CONFIG")"
-        mv "$MAIN_CONFIG" "$bk"
-        echo "[INFO] Backed up existing $MAIN_CONFIG to $bk"
-        write_main_config_stub
+    handle_main_config_without_include
+}
+
+verify_main_ssh_config() {
+    if main_config_has_dotfiles_include; then
+        return 0
     fi
+
+    if [ "$SSH_CONFIG_MODE" = "preserve" ]; then
+        echo "[WARN] Dotfiles SSH config is linked but not active; add '$STUB_CONTENT' to $MAIN_CONFIG manually"
+        return 0
+    fi
+
+    echo "[ERROR] Dotfiles SSH config is not active; missing '$STUB_CONTENT' in $MAIN_CONFIG" >&2
+    return 1
 }
 
 chmod 600 "$SSH_SRC"
@@ -152,6 +163,7 @@ else
 fi
 
 ensure_main_ssh_config
+verify_main_ssh_config
 
 # Touch a local.conf placeholder so Include never warns on an empty config.d
 if [ ! -e "$CONFIG_D/local.conf" ]; then

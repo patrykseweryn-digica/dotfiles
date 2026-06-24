@@ -119,19 +119,36 @@ if ls "${home_include}/.ssh"/config.backup.* >/dev/null 2>&1; then
     fail "existing include config should not be backed up"
 fi
 
-# Existing config without Include: default ask in non-interactive mode preserves it.
+# Existing config without Include: default mode prepends Include and backs up old config.
+home_prepend="${tmp_dir}/home-prepend"
+mkdir -p "${home_prepend}/.ssh"
+cat > "${home_prepend}/.ssh/config" <<'EOF'
+Host legacy
+  HostName legacy.example.com
+EOF
+run_ssh_install "$home_prepend" ask "${tmp_dir}/prepend.log"
+assert_no_keys_added_during_install "${tmp_dir}/prepend.log"
+grep -Fq "Include config.d/*.conf" "${home_prepend}/.ssh/config" || fail "default mode did not add config.d include"
+grep -q "Host legacy" "${home_prepend}/.ssh/config" || fail "default mode did not preserve existing config body"
+ls "${home_prepend}/.ssh"/config.backup.* >/dev/null 2>&1 || fail "default mode did not back up old config"
+
+# Explicit preserve: leave existing config inactive, but only when requested.
 home_preserve="${tmp_dir}/home-preserve"
 mkdir -p "${home_preserve}/.ssh"
 cat > "${home_preserve}/.ssh/config" <<'EOF'
 Host legacy
   HostName legacy.example.com
 EOF
-run_ssh_install "$home_preserve" ask "${tmp_dir}/preserve.log"
+run_ssh_install "$home_preserve" preserve "${tmp_dir}/preserve.log"
 assert_no_keys_added_during_install "${tmp_dir}/preserve.log"
-grep -q "Host legacy" "${home_preserve}/.ssh/config" || fail "default ask mode should preserve existing config without TTY"
-if ls "${home_preserve}/.ssh"/config.backup.* >/dev/null 2>&1; then
-    fail "default ask mode should not back up preserved config"
+grep -q "Host legacy" "${home_preserve}/.ssh/config" || fail "preserve mode should preserve existing config"
+if grep -Fq "Include config.d/*.conf" "${home_preserve}/.ssh/config"; then
+    fail "preserve mode should not add config.d include"
 fi
+if ls "${home_preserve}/.ssh"/config.backup.* >/dev/null 2>&1; then
+    fail "preserve mode should not back up existing config"
+fi
+grep -q "Dotfiles SSH config is linked but not active" "${tmp_dir}/preserve.log.out" || fail "preserve mode should warn about inactive config"
 
 # Explicit replace: back up old config and write include stub.
 home_replace="${tmp_dir}/home-replace"
