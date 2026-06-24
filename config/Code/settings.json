@@ -57,7 +57,7 @@
   "chat.fontSize": 16,
   "chat.mcp.gallery.enabled": true,
   "chat.viewSessions.orientation": "stacked",
-  "claudeCode.preferredLocation": "panel",
+  "claudeCode.preferredLocation": "sidebar",
   "claudeCode.selectedModel": "default",
   "claudeCode.useTerminal": true,
   "diffEditor.renderSideBySide": false,
@@ -179,5 +179,6 @@
   },
   "workbench.colorTheme": "Monokai",
   "gitlens.ai.model": "vscode",
-  "gitlens.ai.vscode.model": "copilot:gpt-4.1"
+  "gitlens.ai.vscode.model": "copilot:gpt-4.1",
+  "chatgpt.composerEnterBehavior": "cmdIfMultiline"
 }
