@@ -20,13 +20,21 @@ require_text() {
 }
 
 require_frontmatter() {
-    ruby -ryaml -e '
-        ARGV.each do |path|
-          text = File.read(path)
-          match = text.match(/\A---\n(.*?)\n---/m) or abort("missing frontmatter: #{path}")
-          YAML.safe_load(match[1], permitted_classes: [Symbol])
-        end
-    ' "$@"
+    python3 - "$@" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+import yaml
+
+for raw_path in sys.argv[1:]:
+    path = Path(raw_path)
+    text = path.read_text(encoding="utf-8")
+    match = re.match(r"\A---\n(.*?)\n---", text, re.DOTALL)
+    if not match:
+        raise SystemExit(f"missing frontmatter: {path}")
+    yaml.safe_load(match.group(1))
+PY
 }
 
 skills=(
