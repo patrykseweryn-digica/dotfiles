@@ -194,6 +194,66 @@ deploy_targets() {
     done
 }
 
+RUN_STEP_RESULTS=()
+LAST_RUN_STEP_STATUS=0
+
+record_step_result() {
+    local label="$1"
+    local result="$2"
+
+    RUN_STEP_RESULTS+=("${result}|${label}")
+}
+
+print_step_summary() {
+    local result label
+
+    echo "[INFO] Installation step summary:"
+    for entry in "${RUN_STEP_RESULTS[@]}"; do
+        IFS='|' read -r result label <<<"$entry"
+        echo "[INFO]   ${result}: ${label}"
+    done
+}
+
+run_required_step() {
+    local label="$1"
+    shift
+
+    echo "[INFO] Running required step: ${label}"
+    set +e
+    ( set -e; "$@" )
+    LAST_RUN_STEP_STATUS=$?
+    set -e
+
+    if [ "$LAST_RUN_STEP_STATUS" -eq 0 ]; then
+        record_step_result "$label" "ok"
+    else
+        record_step_result "$label" "failed"
+        echo "[ERROR] Required step failed: ${label}" >&2
+    fi
+
+    return 0
+}
+
+run_optional_step() {
+    local label="$1"
+    shift
+
+    echo "[INFO] Running optional step: ${label}"
+    set +e
+    ( set -e; "$@" )
+    LAST_RUN_STEP_STATUS=$?
+    set -e
+
+    if [ "$LAST_RUN_STEP_STATUS" -eq 0 ]; then
+        record_step_result "$label" "ok"
+    else
+        record_step_result "$label" "failed"
+        echo "[WARN] Optional step failed: ${label}"
+    fi
+
+    return 0
+}
+
 for module in "${DOTFILES_DIR}/bootstrap.d"/*.sh; do
     if [ -f "$module" ]; then
         # shellcheck source=/dev/null
@@ -286,35 +346,49 @@ main() {
     echo "[INFO] Starting dotfiles installation..."
     echo "[INFO] Sudo available: ${HAS_SUDO}"
     echo "[INFO] Install directory: ${INSTALL_DIR}"
-    # Install tools (continue on non-critical failures)
-    install_uv || echo "[WARN] uv installation had issues, continuing..."
-    install_zsh || { echo "[ERROR] zsh installation failed, aborting"; return 1; }
-    install_oh_my_zsh || echo "[WARN] Oh My Zsh installation had issues, continuing..."
-    install_pipx || echo "[WARN] pipx installation had issues, continuing..."
-    install_tools || echo "[WARN] Some tools failed to install, continuing..."
-    install_fonts || echo "[WARN] Font installation had issues, continuing..."
-    install_nvm || echo "[WARN] NVM installation had issues, continuing..."
-    install_terminal_colors || echo "[WARN] Terminal color setup had issues, continuing..."
-    if declare -f install_macos_apps >/dev/null 2>&1; then
-        install_macos_apps || echo "[WARN] macOS app installation had issues, continuing..."
+    RUN_STEP_RESULTS=()
+
+    # Install tools. Required steps abort; optional failures are summarized.
+    run_optional_step "uv" install_uv
+    if [[ ":$PATH:" != *":${HOME}/.cargo/bin:"* ]]; then
+        export PATH="${HOME}/.cargo/bin:${PATH}"
     fi
-    install_claude_code || echo "[WARN] Claude Code installation had issues, continuing..."
+    run_required_step "zsh" install_zsh
+    if [ "$LAST_RUN_STEP_STATUS" -ne 0 ]; then
+        print_step_summary
+        return "$LAST_RUN_STEP_STATUS"
+    fi
+    run_optional_step "Oh My Zsh" install_oh_my_zsh
+    run_optional_step "pipx" install_pipx
+    run_optional_step "CLI tools" install_tools
+    run_optional_step "fonts" install_fonts
+    run_optional_step "NVM and Node.js" install_nvm
+    run_optional_step "terminal colors" install_terminal_colors
+    if declare -f install_macos_apps >/dev/null 2>&1; then
+        run_optional_step "macOS apps" install_macos_apps
+    fi
+    run_optional_step "Claude Code" install_claude_code
 
     # Setup dotfile configurations
-    setup_dotfiles
-    install_tmux_plugins || echo "[WARN] tmux plugin installation had issues, continuing..."
+    run_required_step "dotfile links" setup_dotfiles
+    if [ "$LAST_RUN_STEP_STATUS" -ne 0 ]; then
+        print_step_summary
+        return "$LAST_RUN_STEP_STATUS"
+    fi
+    run_optional_step "tmux plugins" install_tmux_plugins
 
     # Setup pre-commit hooks
     if pre-commit --version >/dev/null 2>&1; then
         echo "[INFO] Installing pre-commit hooks..."
-        pre-commit install -c "${DOTFILES_DIR}/.pre-commit-config.yaml"
+        run_optional_step "pre-commit hooks" pre-commit install -c "${DOTFILES_DIR}/.pre-commit-config.yaml"
     fi
 
     # Setup git hooks for dotfiles repo
     if [ -f "$DOTFILES_DIR/hooks/post-merge" ]; then
-        deploy_symlink_target "$DOTFILES_DIR/hooks/post-merge" "$DOTFILES_DIR/.git/hooks/post-merge"
+        run_optional_step "dotfiles git hooks" deploy_symlink_target "$DOTFILES_DIR/hooks/post-merge" "$DOTFILES_DIR/.git/hooks/post-merge"
     fi
 
+    print_step_summary
     echo "[INFO] Installation complete!"
     if [ -n "${ZSH_VERSION:-}" ]; then
         echo "[INFO] Please restart your shell or run: source ~/.zshrc"

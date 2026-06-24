@@ -35,6 +35,44 @@ smoke_source_has_no_home_side_effect() {
     rm -rf "$tmp_dir"
 }
 
+smoke_run_steps_preserve_errexit() {
+    local tmp_dir
+    local home_dir
+    local side_effect
+    local step_log
+    local rc
+
+    tmp_dir="$(mktemp -d)"
+    home_dir="${tmp_dir}/home"
+    side_effect="${tmp_dir}/side-effect"
+    step_log="${tmp_dir}/step.log"
+
+    mkdir -p "$home_dir"
+
+    (
+        export HOME="$home_dir"
+        # shellcheck source=/dev/null
+        source "${DOTFILES_DIR}/install.sh"
+
+        bad_step() {
+            false
+            echo "errexit was ignored" > "$side_effect"
+        }
+
+        run_optional_step "bad optional" bad_step > "$step_log" 2>&1
+        [ ! -e "$side_effect" ] || fail "optional step ignored errexit"
+        printf '%s\n' "${RUN_STEP_RESULTS[@]}" | grep -q "failed|bad optional" ||
+            fail "optional step failure was not recorded"
+
+        run_required_step "bad required" bad_step >> "$step_log" 2>&1
+        rc="$LAST_RUN_STEP_STATUS"
+        [ "$rc" -ne 0 ] || fail "required step failure was not recorded"
+        [ ! -e "$side_effect" ] || fail "required step ignored errexit"
+    )
+
+    rm -rf "$tmp_dir"
+}
+
 smoke_codex_npm_install_on_linux_only() {
     local tmp_dir
     local stub_dir
@@ -244,6 +282,7 @@ STUB
 }
 
 smoke_source_has_no_home_side_effect
+smoke_run_steps_preserve_errexit
 smoke_codex_npm_install_on_linux_only
 smoke_tmux_plugins_install_after_setup_dotfiles
 run_case "Linux" ".config/Code/User" ".config/ghostty/config"
