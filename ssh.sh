@@ -52,24 +52,6 @@ generate_key() {
 generate_key "$SSH_DIR/id_ed25519" "$PERSONAL_EMAIL" "personal"
 generate_key "$SSH_DIR/id_ed25519_work" "$WORK_EMAIL" "work"
 
-# Start ssh-agent if not already running
-if [ -z "${SSH_AUTH_SOCK:-}" ]; then
-    if ! eval "$(ssh-agent -s)"; then
-        echo "[ERROR] Failed to start ssh-agent" >&2
-        exit 1
-    fi
-else
-    echo "[INFO] Using existing ssh-agent"
-fi
-
-if [ "$(uname)" = "Darwin" ]; then
-    ssh-add --apple-use-keychain "$SSH_DIR/id_ed25519"
-    ssh-add --apple-use-keychain "$SSH_DIR/id_ed25519_work"
-else
-    ssh-add "$SSH_DIR/id_ed25519"
-    ssh-add "$SSH_DIR/id_ed25519_work"
-fi
-
 backup_path() {
     local base="$1"
     local ts
@@ -182,3 +164,6 @@ echo ""
 echo "[INFO] Add these public keys to your GitHub accounts:"
 echo "  Personal: $(cat "$SSH_DIR/id_ed25519.pub")"
 echo "  Work:     $(cat "$SSH_DIR/id_ed25519_work.pub")"
+echo ""
+echo "[INFO] SSH keys are loaded by ~/.zshrc on shell startup."
+echo "[INFO] To load them in this terminal now, run: exec zsh -l"

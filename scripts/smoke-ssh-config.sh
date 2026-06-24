@@ -79,6 +79,12 @@ assert_dotfiles_linked() {
     [ -f "${home_dir}/.ssh/config.d/local.conf" ] || fail "missing local ssh config placeholder"
 }
 
+assert_no_keys_added_during_install() {
+    local log_file="$1"
+
+    [ ! -s "$log_file" ] || fail "ssh.sh should not load keys directly"
+}
+
 tmp_dir="$(mktemp -d)"
 cleanup() {
     rm -rf "$tmp_dir"
@@ -95,6 +101,7 @@ mkdir -p "$home_no_config"
 run_ssh_install "$home_no_config" ask "${tmp_dir}/no-config.log"
 assert_keys_created "$home_no_config"
 assert_dotfiles_linked "$home_no_config"
+assert_no_keys_added_during_install "${tmp_dir}/no-config.log"
 [ "$(cat "${home_no_config}/.ssh/config")" = "Include config.d/*.conf" ] || fail "missing generated ssh config stub"
 
 # Existing config with Include: preserve it.
@@ -106,6 +113,7 @@ Host example
 Include config.d/*.conf
 EOF
 run_ssh_install "$home_include" ask "${tmp_dir}/include.log"
+assert_no_keys_added_during_install "${tmp_dir}/include.log"
 grep -q "Host example" "${home_include}/.ssh/config" || fail "existing include config was not preserved"
 if ls "${home_include}/.ssh"/config.backup.* >/dev/null 2>&1; then
     fail "existing include config should not be backed up"
@@ -119,6 +127,7 @@ Host legacy
   HostName legacy.example.com
 EOF
 run_ssh_install "$home_preserve" ask "${tmp_dir}/preserve.log"
+assert_no_keys_added_during_install "${tmp_dir}/preserve.log"
 grep -q "Host legacy" "${home_preserve}/.ssh/config" || fail "default ask mode should preserve existing config without TTY"
 if ls "${home_preserve}/.ssh"/config.backup.* >/dev/null 2>&1; then
     fail "default ask mode should not back up preserved config"
@@ -132,6 +141,7 @@ Host old
   HostName old.example.com
 EOF
 run_ssh_install "$home_replace" replace "${tmp_dir}/replace.log"
+assert_no_keys_added_during_install "${tmp_dir}/replace.log"
 [ "$(cat "${home_replace}/.ssh/config")" = "Include config.d/*.conf" ] || fail "replace mode did not write ssh config stub"
 ls "${home_replace}/.ssh"/config.backup.* >/dev/null 2>&1 || fail "replace mode did not back up old ssh config"
 

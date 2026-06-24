@@ -3,6 +3,81 @@ if [ -z "${ZSH_VERSION:-}" ]; then
   return 1 2>/dev/null || exit 1
 fi
 
+# SSH agent setup may prompt for passphrases, so keep it before p10k instant prompt.
+dotfiles_ssh_agent_live() {
+  [[ -n "${SSH_AUTH_SOCK:-}" ]] || return 1
+  ssh-add -l >/dev/null 2>&1
+  case $? in
+    0|1) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+dotfiles_ssh_key_loaded() {
+  local key="$1"
+  local pub="${key}.pub"
+  local fingerprint
+
+  [[ -r "$pub" ]] || return 1
+  command -v ssh-keygen >/dev/null 2>&1 || return 1
+  fingerprint="$(ssh-keygen -lf "$pub" 2>/dev/null | awk '{print $2}')" || return 1
+  [[ -n "$fingerprint" ]] || return 1
+  ssh-add -l 2>/dev/null | grep -Fq "$fingerprint"
+}
+
+dotfiles_ssh_add_key() {
+  local key="$1"
+
+  [[ -r "$key" ]] || return 0
+  dotfiles_ssh_key_loaded "$key" && return 0
+
+  if [[ "$(uname -s)" == "Darwin" ]]; then
+    ssh-add --apple-use-keychain -q "$key" >/dev/null 2>&1 ||
+      ssh-add -q "$key" >/dev/null 2>&1 ||
+      true
+  else
+    ssh-add -q "$key" >/dev/null 2>&1 || true
+  fi
+}
+
+dotfiles_start_ssh_agent() {
+  [[ "${DOTFILES_SKIP_SSH_AGENT:-false}" == "true" ]] && return 0
+  command -v ssh-agent >/dev/null 2>&1 || return 0
+  command -v ssh-add >/dev/null 2>&1 || return 0
+  [[ -r "$HOME/.ssh/id_ed25519" || -r "$HOME/.ssh/id_ed25519_work" ]] || return 0
+
+  local agent_env="$HOME/.ssh/agent.env"
+  local tmp_env
+  local agent_output
+
+  if ! dotfiles_ssh_agent_live && [[ -r "$agent_env" ]]; then
+    source "$agent_env" >/dev/null 2>&1 || true
+  fi
+
+  if ! dotfiles_ssh_agent_live; then
+    mkdir -p "$HOME/.ssh"
+    chmod 700 "$HOME/.ssh" 2>/dev/null || true
+    tmp_env="${agent_env}.$$"
+    agent_output="$(ssh-agent -s 2>/dev/null)" || return 0
+    print -r -- "$agent_output" | sed '/^echo /d' > "$tmp_env" || {
+      rm -f "$tmp_env"
+      return 0
+    }
+    chmod 600 "$tmp_env"
+    source "$tmp_env" >/dev/null 2>&1 || {
+      rm -f "$tmp_env"
+      return 0
+    }
+    mv "$tmp_env" "$agent_env"
+  fi
+
+  dotfiles_ssh_add_key "$HOME/.ssh/id_ed25519"
+  dotfiles_ssh_add_key "$HOME/.ssh/id_ed25519_work"
+}
+
+dotfiles_start_ssh_agent
+unfunction dotfiles_ssh_agent_live dotfiles_ssh_key_loaded dotfiles_ssh_add_key dotfiles_start_ssh_agent 2>/dev/null || true
+
 # Enable Powerlevel10k instant prompt. Should stay close to the top of ~/.zshrc.
 # Initialization code that may require console input (password prompts, [y/n]
 # confirmations, etc.) must go above this block; everything else may go below.
