@@ -38,6 +38,10 @@ env_home="${tmp_dir}/env-home"
 env_mcp_file="${tmp_dir}/mcp-with-env.json"
 repo_lock_copy="${tmp_dir}/skill-lock.json"
 manifest_copy="${tmp_dir}/claude-manifest.json"
+custom_export_home="${tmp_dir}/custom-export-home"
+custom_export_repo="${tmp_dir}/custom-export-repo"
+custom_export_lock="${tmp_dir}/custom-export-lock.json"
+custom_export_log="${tmp_dir}/custom-export.log"
 
 mkdir -p "$home_dir/.agents/skills" "$stub_dir"
 ln -s "$JQ_BIN" "${stub_dir}/jq"
@@ -124,6 +128,59 @@ done
 [ -e "${CODEX_HOME}/AGENTS.md" ] || fail "missing Codex AGENTS.md"
 [ -e "${HOME}/.claude/CLAUDE.md" ] || fail "missing Claude CLAUDE.md"
 [ -e "${OPENCODE_CONFIG_DIR}/AGENTS.md" ] || fail "missing OpenCode AGENTS.md"
+
+mkdir -p \
+    "${custom_export_home}/.agents/skills/live-custom" \
+    "${custom_export_home}/.agents/skills/locked-skill" \
+    "${custom_export_repo}/repo-linked"
+printf '# Live custom\n' > "${custom_export_home}/.agents/skills/live-custom/SKILL.md"
+printf '# Locked skill\n' > "${custom_export_home}/.agents/skills/locked-skill/SKILL.md"
+printf '# Repo linked\n' > "${custom_export_repo}/repo-linked/SKILL.md"
+ln -s "${custom_export_repo}/repo-linked" "${custom_export_home}/.agents/skills/repo-linked"
+cat > "$custom_export_lock" <<'JSON'
+{
+  "dismissed": {},
+  "skills": {
+    "locked-skill": {
+      "source": "example/skills"
+    }
+  }
+}
+JSON
+
+if HOME="$custom_export_home" SHARED_SKILLS_CUSTOM_DIR="$custom_export_repo" SKILL_LOCK_REPO="$custom_export_lock" PATH="${stub_dir}:/usr/bin:/bin" "${DOTFILES_DIR}/sync-agents.sh" --quiet custom-skills-export --check > "$custom_export_log" 2>&1; then
+    cat "$custom_export_log" >&2
+    fail "custom-skills-export --check should detect missing repo custom skill"
+fi
+grep -F "live-custom" "$custom_export_log" >/dev/null 2>&1 || fail "custom-skills-export --check did not report missing live custom skill"
+
+if ! HOME="$custom_export_home" SHARED_SKILLS_CUSTOM_DIR="$custom_export_repo" SKILL_LOCK_REPO="$custom_export_lock" PATH="${stub_dir}:/usr/bin:/bin" "${DOTFILES_DIR}/sync-agents.sh" --quiet custom-skills-export --dry-run > "$custom_export_log" 2>&1; then
+    cat "$custom_export_log" >&2
+    fail "custom-skills-export --dry-run failed"
+fi
+[ ! -e "${custom_export_repo}/live-custom/SKILL.md" ] || fail "custom-skills-export --dry-run wrote live custom skill"
+
+if ! HOME="$custom_export_home" SHARED_SKILLS_CUSTOM_DIR="$custom_export_repo" SKILL_LOCK_REPO="$custom_export_lock" PATH="${stub_dir}:/usr/bin:/bin" "${DOTFILES_DIR}/sync-agents.sh" --quiet custom-skills-export > "$custom_export_log" 2>&1; then
+    cat "$custom_export_log" >&2
+    fail "custom-skills-export failed"
+fi
+[ -e "${custom_export_repo}/live-custom/SKILL.md" ] || fail "custom-skills-export did not copy live custom skill"
+[ ! -e "${custom_export_repo}/locked-skill/SKILL.md" ] || fail "custom-skills-export copied lock-managed skill"
+
+printf '# Live custom v2\n' > "${custom_export_home}/.agents/skills/live-custom/SKILL.md"
+if HOME="$custom_export_home" SHARED_SKILLS_CUSTOM_DIR="$custom_export_repo" SKILL_LOCK_REPO="$custom_export_lock" PATH="${stub_dir}:/usr/bin:/bin" "${DOTFILES_DIR}/sync-agents.sh" --quiet custom-skills-export --check > "$custom_export_log" 2>&1; then
+    cat "$custom_export_log" >&2
+    fail "custom-skills-export --check should detect changed repo custom skill"
+fi
+if ! HOME="$custom_export_home" SHARED_SKILLS_CUSTOM_DIR="$custom_export_repo" SKILL_LOCK_REPO="$custom_export_lock" PATH="${stub_dir}:/usr/bin:/bin" "${DOTFILES_DIR}/sync-agents.sh" --quiet custom-skills-export live-custom > "$custom_export_log" 2>&1; then
+    cat "$custom_export_log" >&2
+    fail "custom-skills-export live-custom update failed"
+fi
+grep -F '# Live custom v2' "${custom_export_repo}/live-custom/SKILL.md" >/dev/null 2>&1 || fail "custom-skills-export did not update live custom skill"
+if ! HOME="$custom_export_home" SHARED_SKILLS_CUSTOM_DIR="$custom_export_repo" SKILL_LOCK_REPO="$custom_export_lock" PATH="${stub_dir}:/usr/bin:/bin" "${DOTFILES_DIR}/sync-agents.sh" --quiet custom-skills-export --check > "$custom_export_log" 2>&1; then
+    cat "$custom_export_log" >&2
+    fail "custom-skills-export --check failed after export"
+fi
 
 while IFS= read -r server_name; do
     [ -n "$server_name" ] || continue

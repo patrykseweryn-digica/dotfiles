@@ -4,7 +4,7 @@ set -eu
 DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 AGENTS_FILE="${DOTFILES_DIR}/.agents/AGENTS.md"
 MCP_SERVERS="${MCP_SERVERS:-${DOTFILES_DIR}/.agents/mcp-servers.json}"
-SHARED_SKILLS_CUSTOM_DIR="${DOTFILES_DIR}/.agents/skills-custom"
+SHARED_SKILLS_CUSTOM_DIR="${SHARED_SKILLS_CUSTOM_DIR:-${DOTFILES_DIR}/.agents/skills-custom}"
 CODEX_AGENTS_SOURCE="${DOTFILES_DIR}/config/codex/AGENTS.md"
 CLAUDE_AGENTS_SOURCE="${DOTFILES_DIR}/config/claude/CLAUDE.md"
 OPENCODE_AGENTS_SOURCE="${DOTFILES_DIR}/config/opencode/AGENTS.md"
@@ -104,6 +104,136 @@ cmd_custom_skills_install() {
     link_custom_skills "$AGENT_SKILLS_DIR"
     link_custom_skills "$CLAUDE_SKILLS_DIR"
     link_custom_skills "$OPENCODE_SKILLS_DIR"
+}
+
+is_locked_skill() {
+    local skill_name="$1"
+    local lock_file
+
+    for lock_file in "$SKILL_LOCK_LIVE" "$SKILL_LOCK_REPO"; do
+        [ -f "$lock_file" ] || continue
+        jq -e --arg name "$skill_name" '.skills[$name] != null' "$lock_file" >/dev/null 2>&1 && return 0
+    done
+
+    return 1
+}
+
+is_requested_skill() {
+    local skill_name="$1"
+    shift
+
+    [ "$#" -gt 0 ] || return 0
+
+    local requested
+    for requested in "$@"; do
+        [ "$requested" = "$skill_name" ] && return 0
+    done
+
+    return 1
+}
+
+cmd_custom_skills_export() {
+    local check_only=false
+    local dry_run=false
+    local requested=()
+
+    while [ "$#" -gt 0 ]; do
+        case "$1" in
+            --check)
+                check_only=true
+                ;;
+            -n|--dry-run)
+                dry_run=true
+                ;;
+            --)
+                shift
+                break
+                ;;
+            --*)
+                echo "[ERROR] Unknown custom-skills-export flag: $1" >&2
+                return 1
+                ;;
+            *)
+                requested+=("$1")
+                ;;
+        esac
+        shift
+    done
+
+    while [ "$#" -gt 0 ]; do
+        requested+=("$1")
+        shift
+    done
+
+    [ -d "$AGENT_SKILLS_DIR" ] || { log_info "No live agent skills dir: $AGENT_SKILLS_DIR"; return 0; }
+    [ "$check_only" = true ] || [ "$dry_run" = true ] || command -v rsync >/dev/null 2>&1 || { echo "[ERROR] rsync is required for custom-skills-export" >&2; return 1; }
+
+    local found_count=0
+    local drift_count=0
+    local failed=false
+    local skill_dir skill_path skill_name target_dir action action_label
+
+    for skill_dir in "$AGENT_SKILLS_DIR"/*/; do
+        [ -d "$skill_dir" ] || continue
+        skill_path="${skill_dir%/}"
+        skill_name="$(basename "$skill_path")"
+
+        is_requested_skill "$skill_name" "${requested[@]}" || continue
+        [ -f "${skill_path}/SKILL.md" ] || continue
+        [ ! -L "$skill_path" ] || continue
+        is_locked_skill "$skill_name" && continue
+
+        found_count=$((found_count + 1))
+        target_dir="${SHARED_SKILLS_CUSTOM_DIR}/${skill_name}"
+        action="same"
+
+        if [ -L "$target_dir" ]; then
+            echo "[ERROR] Refusing to overwrite symlink target: $target_dir" >&2
+            failed=true
+            continue
+        elif [ ! -e "$target_dir" ]; then
+            action="add"
+        elif ! diff -qr "$skill_path" "$target_dir" >/dev/null 2>&1; then
+            action="update"
+        fi
+
+        [ "$action" != "same" ] || { log_info "Custom skill already in sync: $skill_name"; continue; }
+
+        drift_count=$((drift_count + 1))
+        if [ "$check_only" = true ]; then
+            echo "[ERROR] Custom skill drift: $skill_name ($action)" >&2
+            failed=true
+        elif [ "$dry_run" = true ]; then
+            echo "[INFO] Would ${action} custom skill: $skill_name"
+        else
+            mkdir -p "$target_dir"
+            rsync -a --delete --exclude '.git/' "${skill_path}/" "${target_dir}/"
+            case "$action" in
+                add) action_label="Add" ;;
+                update) action_label="Update" ;;
+                *) action_label="$action" ;;
+            esac
+            log_info "$action_label custom skill: $skill_name"
+        fi
+    done
+
+    if [ "$found_count" -eq 0 ]; then
+        if [ "${#requested[@]}" -gt 0 ]; then
+            echo "[ERROR] No matching live custom skills found: ${requested[*]}" >&2
+            return 1
+        fi
+        log_info "No live custom skills to export"
+        return 0
+    fi
+
+    if [ "$failed" = true ]; then
+        [ "$check_only" = true ] && echo "Run: ./sync-agents.sh custom-skills-export" >&2
+        return 1
+    fi
+
+    if [ "$check_only" = true ] && [ "$drift_count" -eq 0 ]; then
+        log_info "Custom skills already in sync"
+    fi
 }
 
 render_codex_mcp_block() {
@@ -796,6 +926,10 @@ case "${1:-}" in
         shift
         cmd_claude_plugins_prune "$@"
         ;;
+    custom-skills-export)
+        shift
+        cmd_custom_skills_export "$@"
+        ;;
     skills-export)
         cmd_lock_skills_export
         ;;
@@ -803,7 +937,7 @@ case "${1:-}" in
         cmd_claude_settings_check
         ;;
     *)
-        echo "Usage: $0 [--quiet] {install|codex-install|codex-check|opencode-install|opencode-check|claude-install|claude-update|claude-export [--check]|claude-prune [--check]|skills-export|claude-settings-check}"
+        echo "Usage: $0 [--quiet] {install|codex-install|codex-check|opencode-install|opencode-check|claude-install|claude-update|claude-export [--check]|claude-prune [--check]|custom-skills-export [--check|--dry-run] [skill...]|skills-export|claude-settings-check}"
         echo
         echo "  install          Sync shared agent config into Codex, OpenCode, and Claude"
         echo "  codex-install    Link AGENTS.md and generate Codex MCP config"
@@ -814,6 +948,8 @@ case "${1:-}" in
         echo "  claude-update    Alias for: npx skills update -g (forwards extra args)"
         echo "  claude-export    Sync installed Claude plugins/marketplaces into manifest"
         echo "  claude-prune     Remove Claude plugins/marketplaces not listed in manifest"
+        echo "  custom-skills-export"
+        echo "                  Copy live custom skills from ~/.agents/skills into repo skills-custom"
         echo "  skills-export    Strip live skill-lock into repo after skills add/update"
         echo "  claude-settings-check"
         echo "                  Exit 1 if ~/.claude/settings.json has keys outside the template"

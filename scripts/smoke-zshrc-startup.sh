@@ -88,7 +88,7 @@ STUB
 
 chmod +x "${stub_dir}/ssh-agent" "${stub_dir}/ssh-add" "${stub_dir}/ssh-keygen"
 
-if ! HOME="$agent_home" PATH="${stub_dir}:/usr/bin:/bin" ZDOTDIR="$zshenv" DOTFILES_ENV_FILE="$env_file" SSH_AGENT_LOG="$agent_log" zsh -df -c "source '${DOTFILES_DIR}/.zshrc'" 2>"$stderr_log"; then
+if ! env -u SSH_AUTH_SOCK -u SSH_AGENT_PID HOME="$agent_home" PATH="${stub_dir}:/usr/bin:/bin" ZDOTDIR="$zshenv" DOTFILES_ENV_FILE="$env_file" SSH_AGENT_LOG="$agent_log" zsh -df -c "source '${DOTFILES_DIR}/.zshrc'" 2>"$stderr_log"; then
     cat "$stderr_log" >&2
     fail ".zshrc failed while starting ssh-agent"
 fi
