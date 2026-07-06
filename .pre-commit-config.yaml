@@ -59,8 +59,7 @@ repos:
         name: Web scraping skills smoke test
         description: Ensure web scraping skill routing, gates, and references stay aligned
         entry: ./scripts/smoke-web-scraping-skills.sh
-        language: python
-        additional_dependencies: [pyyaml]
+        language: system
         pass_filenames: false
       - id: claude-plugin-prune
         name: Claude plugin prune check

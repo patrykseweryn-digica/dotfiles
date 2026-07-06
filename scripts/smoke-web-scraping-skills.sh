@@ -21,19 +21,38 @@ require_text() {
 
 require_frontmatter() {
     python3 - "$@" <<'PY'
-import re
 import sys
 from pathlib import Path
-
-import yaml
 
 for raw_path in sys.argv[1:]:
     path = Path(raw_path)
     text = path.read_text(encoding="utf-8")
-    match = re.match(r"\A---\n(.*?)\n---", text, re.DOTALL)
-    if not match:
+    if not text.startswith("---\n"):
         raise SystemExit(f"missing frontmatter: {path}")
-    yaml.safe_load(match.group(1))
+
+    parts = text.split("\n---\n", 1)
+    if len(parts) != 2:
+        raise SystemExit(f"unterminated frontmatter: {path}")
+    block = parts[0].removeprefix("---\n")
+
+    keys = set()
+    for line in block.splitlines():
+        if not line or line.startswith("#"):
+            continue
+        if ":" not in line:
+            raise SystemExit(f"invalid frontmatter line in {path}: {line}")
+        key, value = line.split(":", 1)
+        if not key.replace("-", "_").isidentifier():
+            raise SystemExit(f"invalid frontmatter key in {path}: {key}")
+        value = value.strip()
+        if value.startswith(("'", '"')) and not value.endswith(value[0]):
+            raise SystemExit(f"unterminated frontmatter quote in {path}: {line}")
+        keys.add(key)
+
+    missing = {"name", "description"} - keys
+    if missing:
+        missing_keys = ", ".join(sorted(missing))
+        raise SystemExit(f"missing frontmatter keys in {path}: {missing_keys}")
 PY
 }
 
