@@ -27,6 +27,12 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/mlflow/skills.git"
     },
+    "browser-use": {
+      "skillPath": "skills/browser-use/SKILL.md",
+      "source": "steipete/agent-scripts",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/steipete/agent-scripts.git"
+    },
     "building-pydantic-ai-agents": {
       "skillPath": "skills/building-pydantic-ai-agents/SKILL.md",
       "source": "pydantic/skills",
@@ -40,6 +46,26 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/mattpocock/skills.git"
     },
+    "control-cli": {
+      "ref": "main",
+      "skillPath": "cursor-team-kit/skills/control-cli/SKILL.md",
+      "source": "cursor/plugins",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/cursor/plugins.git"
+    },
+    "create-cli": {
+      "skillPath": "skills/create-cli/SKILL.md",
+      "source": "steipete/agent-scripts",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/steipete/agent-scripts.git"
+    },
+    "deslop": {
+      "ref": "main",
+      "skillPath": "cursor-team-kit/skills/deslop/SKILL.md",
+      "source": "cursor/plugins",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/cursor/plugins.git"
+    },
     "diagnose": {
       "pluginName": "mattpocock-skills",
       "skillPath": "skills/engineering/diagnose/SKILL.md",
@@ -47,11 +73,37 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/mattpocock/skills.git"
     },
+    "fallow": {
+      "skillPath": "fallow/skills/fallow/SKILL.md",
+      "source": "fallow-rs/fallow-skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/fallow-rs/fallow-skills.git"
+    },
     "find-skills": {
       "skillPath": "skills/find-skills/SKILL.md",
       "source": "vercel-labs/skills",
       "sourceType": "github",
       "sourceUrl": "https://github.com/vercel-labs/skills.git"
+    },
+    "fix-ci": {
+      "ref": "main",
+      "skillPath": "cursor-team-kit/skills/fix-ci/SKILL.md",
+      "source": "cursor/plugins",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/cursor/plugins.git"
+    },
+    "fix-merge-conflicts": {
+      "ref": "main",
+      "skillPath": "cursor-team-kit/skills/fix-merge-conflicts/SKILL.md",
+      "source": "cursor/plugins",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/cursor/plugins.git"
+    },
+    "github-deep-review": {
+      "skillPath": "skills/github-deep-review/SKILL.md",
+      "source": "steipete/agent-scripts",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/steipete/agent-scripts.git"
     },
     "grill-me": {
       "pluginName": "mattpocock-skills",
@@ -142,6 +194,13 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/mlflow/skills.git"
     },
+    "review-and-ship": {
+      "ref": "main",
+      "skillPath": "cursor-team-kit/skills/review-and-ship/SKILL.md",
+      "source": "cursor/plugins",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/cursor/plugins.git"
+    },
     "searching-mlflow-docs": {
       "skillPath": "searching-mlflow-docs/SKILL.md",
       "source": "mlflow/skills",
@@ -161,12 +220,38 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/mattpocock/skills.git"
     },
+    "skill-cleaner": {
+      "skillPath": "skills/skill-cleaner/SKILL.md",
+      "source": "steipete/agent-scripts",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/steipete/agent-scripts.git"
+    },
+    "ssh-doctor": {
+      "skillPath": "skills/ssh-doctor/SKILL.md",
+      "source": "steipete/agent-scripts",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/steipete/agent-scripts.git"
+    },
     "tdd": {
       "pluginName": "mattpocock-skills",
       "skillPath": "skills/engineering/tdd/SKILL.md",
       "source": "mattpocock/skills",
       "sourceType": "github",
       "sourceUrl": "https://github.com/mattpocock/skills.git"
+    },
+    "teach": {
+      "pluginName": "mattpocock-skills",
+      "skillPath": "skills/productivity/teach/SKILL.md",
+      "source": "mattpocock/skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/mattpocock/skills.git"
+    },
+    "thermo-nuclear-code-quality-review": {
+      "ref": "main",
+      "skillPath": "cursor-team-kit/skills/thermo-nuclear-code-quality-review/SKILL.md",
+      "source": "cursor/plugins",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/cursor/plugins.git"
     },
     "to-issues": {
       "pluginName": "mattpocock-skills",
@@ -188,6 +273,27 @@
       "source": "mattpocock/skills",
       "sourceType": "github",
       "sourceUrl": "https://github.com/mattpocock/skills.git"
+    },
+    "verify-this": {
+      "ref": "main",
+      "skillPath": "cursor-team-kit/skills/verify-this/SKILL.md",
+      "source": "cursor/plugins",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/cursor/plugins.git"
+    },
+    "weekly-review": {
+      "ref": "main",
+      "skillPath": "cursor-team-kit/skills/weekly-review/SKILL.md",
+      "source": "cursor/plugins",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/cursor/plugins.git"
+    },
+    "what-did-i-get-done": {
+      "ref": "main",
+      "skillPath": "cursor-team-kit/skills/what-did-i-get-done/SKILL.md",
+      "source": "cursor/plugins",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/cursor/plugins.git"
     },
     "write-a-skill": {
       "pluginName": "mattpocock-skills",
