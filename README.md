@@ -10,22 +10,22 @@ details unless you are debugging them.
 ```bash
 just --list
 just check
-just agents
+just sync-agent-config
 just commit "chore: message" path/to/file
 ```
 
 ## Setup commands
 
 ```bash
-just bootstrap       # new machine: tools, links, agents, SSH, hooks
-just apply           # existing machine: links + agents, no tools, no SSH
-just ssh             # explicit SSH key/config setup
+just install          # new machine: tools, links, agents, SSH, hooks
+just install-dotfiles # existing machine: links + agents, no tools, no SSH
+just setup-ssh        # explicit SSH key/config setup
 ```
 
 ## What is what
 
 - `justfile`: command menu for humans.
-- `install.sh`: full bootstrap orchestrator.
+- `install.sh`: full setup orchestrator.
 - `bootstrap.d/*`: install modules sourced by `install.sh`.
 - `sync-agents.sh`: sync Codex, Claude, OpenCode, MCP, plugins, skills.
 - `ssh.sh`: SSH keys and `~/.ssh/config` setup.
@@ -38,14 +38,15 @@ just ssh             # explicit SSH key/config setup
 
 - Need to use repo: start with `just --list`.
 - Need to verify repo: `just check`.
-- Need to refresh agents: `just agents`.
-- Need a new machine: `just bootstrap`.
-- Need only dotfile links refreshed: `just apply`.
-- Need SSH changes: run `just ssh` explicitly.
+- Need to refresh agents: `just sync-agent-config`.
+- Need to verify agents: `just check-agent-config`.
+- Need a new machine: `just install`.
+- Need only dotfile links refreshed: `just install-dotfiles`.
+- Need SSH changes: run `just setup-ssh` explicitly.
 
 ## Advanced agent commands
 
-Usually use `just agents` and `just agents-check`.
+Usually use `just sync-agent-config` and `just check-agent-config`.
 
 Raw commands:
 

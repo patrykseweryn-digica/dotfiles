@@ -1,27 +1,24 @@
 set shell := ["bash", "-eu", "-o", "pipefail", "-c"]
 
 # Show the public command menu.
+[private]
 default:
     just --list
 
-# Full first-machine setup: tools, links, agents, SSH, hooks.
-bootstrap:
+# Full setup: tools, links, agent config, SSH, hooks.
+install:
     ./install.sh
 
-# Full setup with shell tracing.
-bootstrap-debug:
-    ./install.sh --debug
-
-# Apply links + agents; no tool install, no SSH.
-apply:
+# Install dotfile links and agent config only. No tools, no SSH.
+install-dotfiles:
     DOTFILES_SKIP_SSH=true bash -c 'source ./install.sh; load_env; setup_dotfiles'
 
 # Run the full repo verification suite.
 check:
     pre-commit run --all-files
 
-# Installer regression tests.
-smoke:
+# Test installer scripts without changing your real home config.
+test-install:
     ./scripts/smoke-tool-plan.sh
     ./scripts/smoke-zsh-plan.sh
     ./scripts/smoke-zshrc-startup.sh
@@ -32,39 +29,21 @@ smoke:
     ./scripts/smoke-agent-skill-sync.sh
     ./scripts/smoke-web-scraping-skills.sh
 
-# Sync shared agent config into Codex, OpenCode, and Claude.
-agents:
+# Sync Codex, OpenCode, and Claude config from repo files.
+sync-agent-config:
     ./sync-agents.sh install
 
-# Check live agent config drift.
-agents-check:
+# Check whether live agent config matches repo files.
+check-agent-config:
     ./sync-agents.sh codex-check
     ./sync-agents.sh opencode-check
     ./sync-agents.sh claude-prune --check
     ./sync-agents.sh claude-settings-check
 
-# Export live agent state back into repo-managed files.
-agents-export:
-    ./sync-agents.sh custom-skills-export
-    ./sync-agents.sh skills-export
-    ./sync-agents.sh claude-export
-
-# Explicit SSH setup. This can edit ~/.ssh/config.
-ssh:
+# Set up SSH keys and ~/.ssh/config.
+setup-ssh:
     set -a; . ./.env; set +a; ./ssh.sh "$EMAIL" "$WORK_EMAIL"
 
 # Path-limited commit helper.
 commit message +files:
     committer "{{message}}" {{files}}
-
-# Alias for `bootstrap`.
-install:
-    just bootstrap
-
-# Alias for `agents`.
-sync-agents:
-    just agents
-
-# Alias for `agents-check`.
-check-agents:
-    just agents-check
