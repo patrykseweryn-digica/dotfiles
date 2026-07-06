@@ -18,7 +18,7 @@ just commit "chore: message" path/to/file
 
 ```bash
 just install          # new machine: tools, links, agents, SSH, hooks
-just install-dotfiles # existing machine: links + agents, no tools, no SSH
+just update-dotfiles  # existing machine: links + agents, no tools, no SSH
 just setup-ssh        # explicit SSH key/config setup
 ```
 
@@ -41,7 +41,7 @@ just setup-ssh        # explicit SSH key/config setup
 - Need to refresh agents: `just sync-agent-config`.
 - Need to verify agents: `just check-agent-config`.
 - Need a new machine: `just install`.
-- Need only dotfile links refreshed: `just install-dotfiles`.
+- Need only dotfile links refreshed: `just update-dotfiles`.
 - Need SSH changes: run `just setup-ssh` explicitly.
 
 ## Advanced agent commands

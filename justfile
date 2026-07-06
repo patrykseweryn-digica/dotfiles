@@ -9,8 +9,8 @@ default:
 install:
     ./install.sh
 
-# Install dotfile links and agent config only. No tools, no SSH.
-install-dotfiles:
+# Update dotfile links and agent config only. No tools, no SSH.
+update-dotfiles:
     DOTFILES_SKIP_SSH=true bash -c 'source ./install.sh; load_env; setup_dotfiles'
 
 # Run the full repo verification suite.
