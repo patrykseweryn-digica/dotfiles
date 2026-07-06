@@ -100,8 +100,10 @@ fi
 
 [ -f "${agent_home}/.ssh/agent.env" ] || fail ".zshrc did not persist ssh-agent env"
 grep -F "ssh-add -q ${agent_home}/.ssh/id_ed25519" "$agent_log" >/dev/null 2>&1 ||
+    grep -F "ssh-add --apple-use-keychain -q ${agent_home}/.ssh/id_ed25519" "$agent_log" >/dev/null 2>&1 ||
     fail ".zshrc did not add personal SSH key"
 grep -F "ssh-add -q ${agent_home}/.ssh/id_ed25519_work" "$agent_log" >/dev/null 2>&1 ||
+    grep -F "ssh-add --apple-use-keychain -q ${agent_home}/.ssh/id_ed25519_work" "$agent_log" >/dev/null 2>&1 ||
     fail ".zshrc did not add work SSH key"
 
 echo "[INFO] .zshrc startup smoke test passed"

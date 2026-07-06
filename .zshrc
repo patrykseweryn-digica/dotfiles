@@ -184,3 +184,11 @@ export PATH="$BUN_INSTALL/bin:$PATH"
 # Added by LM Studio CLI (lms)
 export PATH="$PATH:/Users/patrykseweryn/.lmstudio/bin"
 # End of LM Studio CLI section
+
+# pnpm
+export PNPM_HOME="/Users/patrykseweryn/Library/pnpm"
+case ":$PATH:" in
+  *":$PNPM_HOME/bin:"*) ;;
+  *) export PATH="$PNPM_HOME/bin:$PATH" ;;
+esac
+# pnpm end

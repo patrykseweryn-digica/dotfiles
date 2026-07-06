@@ -9,6 +9,7 @@
   },
   "hooks": {},
   "language": "Polish",
+  "model": "sonnet",
   "permissions": {
     "allow": [
       "Read",
@@ -111,6 +112,7 @@
   },
   "preferredNotifChannel": "terminal_bell",
   "skipAutoPermissionPrompt": true,
+  "skipWorkflowUsageWarning": true,
   "statusLine": {
     "command": "bash $HOME/.claude/statusline-command.sh",
     "type": "command"

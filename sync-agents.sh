@@ -178,7 +178,9 @@ cmd_custom_skills_export() {
         skill_path="${skill_dir%/}"
         skill_name="$(basename "$skill_path")"
 
-        is_requested_skill "$skill_name" "${requested[@]}" || continue
+        if [ "${#requested[@]}" -gt 0 ]; then
+            is_requested_skill "$skill_name" "${requested[@]}" || continue
+        fi
         [ -f "${skill_path}/SKILL.md" ] || continue
         [ ! -L "$skill_path" ] || continue
         is_locked_skill "$skill_name" && continue
