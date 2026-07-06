@@ -29,12 +29,12 @@ test-install:
     ./scripts/smoke-agent-skill-sync.sh
     ./scripts/smoke-web-scraping-skills.sh
 
-# Sync Codex, OpenCode, and Claude config from repo files.
-sync-agent-config:
+# Update Codex, OpenCode, Claude, MCP, plugins, and skills.
+update-agents:
     ./sync-agents.sh install
 
-# Check whether live agent config matches repo files.
-check-agent-config:
+# Check whether live agent state matches repo files.
+check-agents:
     ./sync-agents.sh codex-check
     ./sync-agents.sh opencode-check
     ./sync-agents.sh claude-prune --check
@@ -44,6 +44,6 @@ check-agent-config:
 setup-ssh:
     set -a; . ./.env; set +a; ./ssh.sh "$EMAIL" "$WORK_EMAIL"
 
-# Path-limited commit helper.
-commit message +files:
+# Commit only the listed files.
+commit-files message +files:
     committer "{{message}}" {{files}}
