@@ -194,28 +194,6 @@ deploy_targets() {
     done
 }
 
-configure_dotfiles_git_identity() {
-    local ssh_command="ssh -i ~/.ssh/id_ed25519_work -o IdentitiesOnly=yes"
-
-    if [ "${DOTFILES_CONFIGURE_REPO_GIT:-true}" != true ]; then
-        return 0
-    fi
-
-    if ! command -v git >/dev/null 2>&1; then
-        echo "[WARN] git not found; skipping dotfiles repo Git identity"
-        return 0
-    fi
-
-    if ! git -C "$DOTFILES_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-        echo "[WARN] $DOTFILES_DIR is not a Git repo; skipping dotfiles repo Git identity"
-        return 0
-    fi
-
-    git -C "$DOTFILES_DIR" config user.email "$WORK_EMAIL"
-    git -C "$DOTFILES_DIR" config core.sshCommand "$ssh_command"
-    echo "[INFO] Configured dotfiles repo Git identity"
-}
-
 RUN_STEP_RESULTS=()
 LAST_RUN_STEP_STATUS=0
 
@@ -318,8 +296,6 @@ plain-absent||$HOME/.claude/settings.json
 symlink|$DOTFILES_DIR/config/claude/output-styles|$HOME/.claude/output-styles
 symlink|$DOTFILES_DIR/config/claude/agents|$HOME/.claude/agents
 EOF
-
-    configure_dotfiles_git_identity
 
     # Link bin scripts
     for script in "$DOTFILES_DIR/bin"/*; do
