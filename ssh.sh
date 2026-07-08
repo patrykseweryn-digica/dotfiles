@@ -19,12 +19,12 @@ CONFIG_D="$SSH_DIR/config.d"
 DOTFILES_LINK="$CONFIG_D/dotfiles.conf"
 MAIN_CONFIG="$SSH_DIR/config"
 STUB_CONTENT='Include config.d/*.conf'
-SSH_CONFIG_MODE="${DOTFILES_SSH_CONFIG_MODE:-ask}"
+SSH_CONFIG_MODE="${DOTFILES_SSH_CONFIG_MODE:-prepend}"
 
 case "$SSH_CONFIG_MODE" in
-    ask | preserve | replace) ;;
+    prepend | preserve | replace) ;;
     *)
-        echo "[ERROR] DOTFILES_SSH_CONFIG_MODE must be one of: ask, preserve, replace" >&2
+        echo "[ERROR] DOTFILES_SSH_CONFIG_MODE must be one of: prepend, preserve, replace" >&2
         exit 1
         ;;
 esac
@@ -105,7 +105,7 @@ handle_main_config_without_include() {
         preserve)
             echo "[WARN] Preserving existing $MAIN_CONFIG without $STUB_CONTENT (DOTFILES_SSH_CONFIG_MODE=preserve)"
             ;;
-        ask)
+        prepend)
             prepend_main_config_include
             ;;
     esac

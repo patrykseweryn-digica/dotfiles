@@ -4,7 +4,7 @@
     "command": "npx",
     "args": [
       "-y",
-      "chrome-devtools-mcp@latest",
+      "chrome-devtools-mcp@1.5.0",
       "--browserUrl",
       "http://127.0.0.1:9222"
     ]
@@ -14,7 +14,7 @@
     "command": "npx",
     "args": [
       "-y",
-      "@playwright/mcp@latest"
+      "@playwright/mcp@0.0.77"
     ]
   },
   "sequential-thinking": {
@@ -22,7 +22,7 @@
     "command": "npx",
     "args": [
       "-y",
-      "@modelcontextprotocol/server-sequential-thinking"
+      "@modelcontextprotocol/server-sequential-thinking@2026.7.4"
     ]
   },
   "garmin": {
@@ -32,7 +32,7 @@
       "--python",
       "3.12",
       "--from",
-      "git+https://github.com/Taxuspt/garmin_mcp",
+      "git+https://github.com/Taxuspt/garmin_mcp@2974244bfda1595b00836b3f942f579ec2d6f7d6",
       "garmin-mcp"
     ]
   },

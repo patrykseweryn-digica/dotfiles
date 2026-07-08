@@ -1,6 +1,0 @@
-#!/bin/bash
-# Auto-sync agent config after git pull/merge
-DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-if [ -f "$DOTFILES_DIR/sync-agents.sh" ]; then
-    "$DOTFILES_DIR/sync-agents.sh" install
-fi

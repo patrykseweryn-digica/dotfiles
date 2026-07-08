@@ -383,11 +383,6 @@ main() {
         run_optional_step "pre-commit hooks" pre-commit install -c "${DOTFILES_DIR}/.pre-commit-config.yaml"
     fi
 
-    # Setup git hooks for dotfiles repo
-    if [ -f "$DOTFILES_DIR/hooks/post-merge" ]; then
-        run_optional_step "dotfiles git hooks" deploy_symlink_target "$DOTFILES_DIR/hooks/post-merge" "$DOTFILES_DIR/.git/hooks/post-merge"
-    fi
-
     print_step_summary
     echo "[INFO] Installation complete!"
     if [ -n "${ZSH_VERSION:-}" ]; then

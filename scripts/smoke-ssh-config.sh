@@ -49,7 +49,7 @@ STUB
 
 run_ssh_install() {
     local home_dir="$1"
-    local mode="${2:-ask}"
+    local mode="${2:-prepend}"
     local log_file="$3"
 
     (
@@ -98,7 +98,7 @@ write_ssh_stubs "$STUB_DIR"
 # No existing ~/.ssh/config: write include stub.
 home_no_config="${tmp_dir}/home-no-config"
 mkdir -p "$home_no_config"
-run_ssh_install "$home_no_config" ask "${tmp_dir}/no-config.log"
+run_ssh_install "$home_no_config" prepend "${tmp_dir}/no-config.log"
 assert_keys_created "$home_no_config"
 assert_dotfiles_linked "$home_no_config"
 assert_no_keys_added_during_install "${tmp_dir}/no-config.log"
@@ -112,7 +112,7 @@ Host example
   HostName example.com
 Include config.d/*.conf
 EOF
-run_ssh_install "$home_include" ask "${tmp_dir}/include.log"
+run_ssh_install "$home_include" prepend "${tmp_dir}/include.log"
 assert_no_keys_added_during_install "${tmp_dir}/include.log"
 grep -q "Host example" "${home_include}/.ssh/config" || fail "existing include config was not preserved"
 if ls "${home_include}/.ssh"/config.backup.* >/dev/null 2>&1; then
@@ -126,7 +126,7 @@ cat > "${home_prepend}/.ssh/config" <<'EOF'
 Host legacy
   HostName legacy.example.com
 EOF
-run_ssh_install "$home_prepend" ask "${tmp_dir}/prepend.log"
+run_ssh_install "$home_prepend" prepend "${tmp_dir}/prepend.log"
 assert_no_keys_added_during_install "${tmp_dir}/prepend.log"
 grep -Fq "Include config.d/*.conf" "${home_prepend}/.ssh/config" || fail "default mode did not add config.d include"
 grep -q "Host legacy" "${home_prepend}/.ssh/config" || fail "default mode did not preserve existing config body"
