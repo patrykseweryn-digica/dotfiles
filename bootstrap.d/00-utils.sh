@@ -162,6 +162,22 @@ github_binary_pattern() {
                 echo "tealdeer-linux-x86_64-musl"
             fi
             ;;
+        just)
+            case "${os}:${arch}" in
+                Darwin:arm64 | Darwin:aarch64)
+                    echo "just-{tag}-aarch64-apple-darwin.tar.gz"
+                    ;;
+                Darwin:*)
+                    echo "just-{tag}-x86_64-apple-darwin.tar.gz"
+                    ;;
+                Linux:arm64 | Linux:aarch64)
+                    echo "just-{tag}-aarch64-unknown-linux-musl.tar.gz"
+                    ;;
+                *)
+                    echo "just-{tag}-x86_64-unknown-linux-musl.tar.gz"
+                    ;;
+            esac
+            ;;
         eza)
             echo "eza_x86_64-unknown-linux-gnu.tar.gz"
             ;;

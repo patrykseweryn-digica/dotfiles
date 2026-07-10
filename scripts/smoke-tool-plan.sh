@@ -448,6 +448,7 @@ smoke_github_fallback_plan() {
     assert_log_contains "$log_file" "github BurntSushi/ripgrep 15.1.0 ripgrep-{tag}-x86_64-unknown-linux-musl.tar.gz rg"
     assert_log_contains "$log_file" "github sharkdp/fd v10.2.0 fd-{tag}-x86_64-unknown-linux-gnu.tar.gz fd"
     assert_log_contains "$log_file" "github jqlang/jq jq-1.7.1 jq-linux-amd64 jq-linux-amd64 jq"
+    assert_log_contains "$log_file" "github casey/just 1.56.0 just-{tag}-x86_64-unknown-linux-musl.tar.gz just"
     assert_log_contains "$log_file" "github eza-community/eza v0.20.14 eza_x86_64-unknown-linux-gnu.tar.gz eza"
     assert_log_contains "$log_file" "github dandavison/delta 0.18.2 delta-{tag}-x86_64-unknown-linux-gnu.tar.gz delta"
     assert_log_contains "$log_file" "github tealdeer-rs/tealdeer v1.8.1 tealdeer-linux-x86_64-musl tealdeer-linux-x86_64-musl tldr"
@@ -474,6 +475,7 @@ smoke_macos_github_patterns() {
         [ "$(github_binary_pattern lazygit)" = "lazygit_{tag_no_v}_darwin_arm64.tar.gz" ] || fail "bad macOS lazygit archive pattern"
         [ "$(github_binary_pattern jq)" = "jq-macos-arm64" ] || fail "bad macOS jq archive pattern"
         [ "$(github_binary_pattern tealdeer)" = "tealdeer-macos-aarch64" ] || fail "bad macOS tealdeer archive pattern"
+        [ "$(github_binary_pattern just)" = "just-{tag}-aarch64-apple-darwin.tar.gz" ] || fail "bad macOS just archive pattern"
     )
 }
 

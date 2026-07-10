@@ -143,7 +143,7 @@ install_core_cli_tools() {
     # just (command runner)
     run_cli_tool_plan "just" "just" \
         "just" "just" "just" "just" \
-        "" "" "" ""
+        "casey/just" "1.56.0" "$(github_binary_pattern just)" "just"
 
     # hadolint (Dockerfile linter)
     run_cli_tool_plan "hadolint" "hadolint" \
