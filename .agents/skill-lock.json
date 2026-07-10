@@ -39,6 +39,13 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/pydantic/skills.git"
     },
+    "code-review": {
+      "pluginName": "mattpocock-skills",
+      "skillPath": "skills/engineering/code-review/SKILL.md",
+      "source": "mattpocock/skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/mattpocock/skills.git"
+    },
     "codebase-design": {
       "pluginName": "mattpocock-skills",
       "skillPath": "skills/engineering/codebase-design/SKILL.md",
