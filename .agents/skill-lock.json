@@ -125,7 +125,6 @@
       "sourceUrl": "https://github.com/mattpocock/skills.git"
     },
     "grill-with-docs": {
-      "pluginName": "mattpocock-skills",
       "skillPath": "skills/engineering/grill-with-docs/SKILL.md",
       "source": "mattpocock/skills",
       "sourceType": "github",
@@ -156,7 +155,6 @@
       "sourceUrl": "https://github.com/mattpocock/skills.git"
     },
     "implement": {
-      "pluginName": "mattpocock-skills",
       "skillPath": "skills/engineering/implement/SKILL.md",
       "source": "mattpocock/skills",
       "sourceType": "github",
@@ -205,7 +203,6 @@
       "sourceUrl": "https://github.com/mlflow/skills.git"
     },
     "research": {
-      "pluginName": "mattpocock-skills",
       "skillPath": "skills/engineering/research/SKILL.md",
       "source": "mattpocock/skills",
       "sourceType": "github",
@@ -254,14 +251,12 @@
       "sourceUrl": "https://github.com/steipete/agent-scripts.git"
     },
     "tdd": {
-      "pluginName": "mattpocock-skills",
       "skillPath": "skills/engineering/tdd/SKILL.md",
       "source": "mattpocock/skills",
       "sourceType": "github",
       "sourceUrl": "https://github.com/mattpocock/skills.git"
     },
     "teach": {
-      "pluginName": "mattpocock-skills",
       "skillPath": "skills/productivity/teach/SKILL.md",
       "source": "mattpocock/skills",
       "sourceType": "github",
@@ -275,14 +270,12 @@
       "sourceUrl": "https://github.com/cursor/plugins.git"
     },
     "to-spec": {
-      "pluginName": "mattpocock-skills",
       "skillPath": "skills/engineering/to-spec/SKILL.md",
       "source": "mattpocock/skills",
       "sourceType": "github",
       "sourceUrl": "https://github.com/mattpocock/skills.git"
     },
     "to-tickets": {
-      "pluginName": "mattpocock-skills",
       "skillPath": "skills/engineering/to-tickets/SKILL.md",
       "source": "mattpocock/skills",
       "sourceType": "github",
@@ -302,7 +295,6 @@
       "sourceUrl": "https://github.com/cursor/plugins.git"
     },
     "wayfinder": {
-      "pluginName": "mattpocock-skills",
       "skillPath": "skills/engineering/wayfinder/SKILL.md",
       "source": "mattpocock/skills",
       "sourceType": "github",
