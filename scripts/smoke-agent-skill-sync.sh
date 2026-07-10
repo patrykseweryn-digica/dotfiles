@@ -113,7 +113,7 @@ if ! PATH="${skills_update_stub_dir}:${stub_dir}:/usr/bin:/bin" \
     fail "skills-update failed"
 fi
 
-grep -Fx -- '-y skills update -g diagnosing-bugs' "$skills_update_log" >/dev/null || \
+grep -Fx -- '-y skills@1.5.15 update -g diagnosing-bugs' "$skills_update_log" >/dev/null || \
     fail "skills-update did not update shared global skills"
 
 if PATH="${skills_update_stub_dir}:${stub_dir}:/usr/bin:/bin" \
@@ -262,7 +262,7 @@ while [ "$#" -gt 0 ]; do
         shift
         continue
     fi
-    if [ "$first_arg" = true ] && [ "$1" = "skills" ]; then
+    if [ "$first_arg" = true ] && [ "$1" = "skills@1.5.15" ]; then
         first_arg=false
         shift
         continue
