@@ -815,8 +815,8 @@ cmd_lock_skills_export() {
     fi
 }
 
-cmd_claude_update() {
-    log_info "Updating skills via npx skills update -g..."
+cmd_skills_update() {
+    log_info "Updating global skills shared by Codex, OpenCode, and Claude..."
     npx -y skills update -g "$@"
 }
 
@@ -916,9 +916,9 @@ case "${1:-}" in
     claude-install)
         cmd_claude_install
         ;;
-    claude-update)
+    skills-update)
         shift
-        cmd_claude_update "$@"
+        cmd_skills_update "$@"
         ;;
     claude-export)
         shift
@@ -939,7 +939,7 @@ case "${1:-}" in
         cmd_claude_settings_check
         ;;
     *)
-        echo "Usage: $0 [--quiet] {install|codex-install|codex-check|opencode-install|opencode-check|claude-install|claude-update|claude-export [--check]|claude-prune [--check]|custom-skills-export [--check|--dry-run] [skill...]|skills-export|claude-settings-check}"
+        echo "Usage: $0 [--quiet] {install|codex-install|codex-check|opencode-install|opencode-check|claude-install|skills-update|claude-export [--check]|claude-prune [--check]|custom-skills-export [--check|--dry-run] [skill...]|skills-export|claude-settings-check}"
         echo
         echo "  install          Sync shared agent config into Codex, OpenCode, and Claude"
         echo "  codex-install    Link AGENTS.md and generate Codex MCP config"
@@ -947,7 +947,7 @@ case "${1:-}" in
         echo "  opencode-install Link AGENTS.md, skills, and generate OpenCode MCP config"
         echo "  opencode-check   Exit 1 if OpenCode config is out of sync"
         echo "  claude-install   Link AGENTS.md, generate Claude settings, install plugins and skills"
-        echo "  claude-update    Alias for: npx skills update -g (forwards extra args)"
+        echo "  skills-update    Update global skills shared by Codex, OpenCode, and Claude"
         echo "  claude-export    Sync installed Claude plugins/marketplaces into manifest"
         echo "  claude-prune     Remove Claude plugins/marketplaces not listed in manifest"
         echo "  custom-skills-export"

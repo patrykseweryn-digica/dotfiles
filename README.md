@@ -11,6 +11,7 @@ details unless you are debugging them.
 just --list
 just check
 just update-agents
+just update-skills
 just commit-files "chore: message" path/to/file
 ```
 
@@ -39,23 +40,8 @@ just setup-ssh        # explicit SSH key/config setup
 - Need to use repo: start with `just --list`.
 - Need to verify repo: `just check`.
 - Need to refresh agents: `just update-agents`.
+- Need to update shared skills: `just update-skills`.
 - Need to verify agents: `just check-agents`.
 - Need a new machine: `just install`.
 - Need only dotfile links refreshed: `just update-dotfiles`.
 - Need SSH changes: run `just setup-ssh` explicitly.
-
-## Advanced agent commands
-
-Usually use `just update-agents` and `just check-agents`.
-
-Raw commands:
-
-```bash
-./sync-agents.sh codex-install
-./sync-agents.sh opencode-install
-./sync-agents.sh claude-install
-./sync-agents.sh custom-skills-export
-./sync-agents.sh skills-export
-./sync-agents.sh claude-export
-./sync-agents.sh claude-prune --check
-```

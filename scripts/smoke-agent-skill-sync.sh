@@ -42,12 +42,21 @@ custom_export_home="${tmp_dir}/custom-export-home"
 custom_export_repo="${tmp_dir}/custom-export-repo"
 custom_export_lock="${tmp_dir}/custom-export-lock.json"
 custom_export_log="${tmp_dir}/custom-export.log"
+skills_update_stub_dir="${tmp_dir}/skills-update-stubs"
+skills_update_log="${tmp_dir}/skills-update.log"
 
-mkdir -p "$home_dir/.agents/skills" "$stub_dir"
+mkdir -p "$home_dir/.agents/skills" "$stub_dir" "$skills_update_stub_dir"
 ln -s "$JQ_BIN" "${stub_dir}/jq"
 cp "$LOCK_FILE" "$repo_lock_copy"
 cp "$CLAUDE_MANIFEST_FILE" "$manifest_copy"
 jq -r '.skills | keys[]' "$LOCK_FILE" > "$lock_names"
+
+cat > "${skills_update_stub_dir}/npx" <<'STUB'
+#!/bin/bash
+set -eu
+printf '%s\n' "$*" >> "$SKILLS_UPDATE_LOG"
+STUB
+chmod +x "${skills_update_stub_dir}/npx"
 
 # Pretend lock-managed skills already exist in the shared Codex-compatible runtime.
 # The smoke test should prove sync links them into Claude/OpenCode without needing npx.
@@ -96,6 +105,26 @@ if ! "${DOTFILES_DIR}/sync-agents.sh" --quiet skills-export > "$sync_log" 2>&1; 
 fi
 
 cmp -s "$repo_lock_copy" "$LOCK_FILE" || fail "skills-export changed isolated repo lock intent unexpectedly"
+
+if ! PATH="${skills_update_stub_dir}:${stub_dir}:/usr/bin:/bin" \
+    SKILLS_UPDATE_LOG="$skills_update_log" \
+    "${DOTFILES_DIR}/sync-agents.sh" --quiet skills-update diagnosing-bugs > "$sync_log" 2>&1; then
+    cat "$sync_log" >&2
+    fail "skills-update failed"
+fi
+
+grep -Fx -- '-y skills update -g diagnosing-bugs' "$skills_update_log" >/dev/null || \
+    fail "skills-update did not update shared global skills"
+
+if PATH="${skills_update_stub_dir}:${stub_dir}:/usr/bin:/bin" \
+    SKILLS_UPDATE_LOG="$skills_update_log" \
+    "${DOTFILES_DIR}/sync-agents.sh" --quiet claude-update > "$sync_log" 2>&1; then
+    fail "removed claude-update command should fail"
+fi
+
+if grep -F 'claude-update' "$sync_log" >/dev/null 2>&1; then
+    fail "removed claude-update command remains in help"
+fi
 
 if grep -F "Installing skill:" "$sync_log" >/dev/null 2>&1; then
     cat "$sync_log" >&2

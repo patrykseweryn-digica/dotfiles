@@ -29,8 +29,14 @@ test-install:
     ./scripts/smoke-agent-skill-sync.sh
     ./scripts/smoke-web-scraping-skills.sh
 
-# Update Codex, OpenCode, Claude, MCP, plugins, and skills.
+# Refresh Codex, OpenCode, and Claude configuration from repo state.
 update-agents:
+    ./sync-agents.sh install
+
+# Update shared global skills, persist the lock, and sync all runtimes.
+update-skills:
+    ./sync-agents.sh skills-update
+    ./sync-agents.sh skills-export
     ./sync-agents.sh install
 
 # Check whether live agent state matches repo files.
