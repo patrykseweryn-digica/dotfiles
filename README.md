@@ -12,7 +12,6 @@ just --list
 just check
 just update-agents
 just update-skills
-just commit-files "chore: message" path/to/file
 ```
 
 ## Setup commands
@@ -41,7 +40,6 @@ just setup-ssh        # explicit SSH key/config setup
 - Need to verify repo: `just check`.
 - Need to refresh agents: `just update-agents`.
 - Need to update shared skills: `just update-skills`.
-- Need to verify agents: `just check-agents`.
 - Need a new machine: `just install`.
 - Need only dotfile links refreshed: `just update-dotfiles`.
 - Need SSH changes: run `just setup-ssh` explicitly.
