@@ -1,0 +1,127 @@
+{
+  "marketplaces": {
+    "anthropic-agent-skills": {
+      "repo": "anthropics/skills",
+      "source": "github"
+    },
+    "claude-plugins-official": {
+      "repo": "anthropics/claude-plugins-official",
+      "source": "github"
+    },
+    "impeccable": {
+      "repo": "pbakaus/impeccable",
+      "source": "github"
+    },
+    "last30days-skill": {
+      "repo": "mvanhorn/last30days-skill",
+      "source": "github"
+    },
+    "obsidian-skills": {
+      "repo": "kepano/obsidian-skills",
+      "source": "github"
+    },
+    "pydantic-skills": {
+      "repo": "pydantic/skills",
+      "source": "github"
+    },
+    "ui-ux-pro-max-skill": {
+      "repo": "nextlevelbuilder/ui-ux-pro-max-skill",
+      "source": "github"
+    }
+  },
+  "plugins": {
+    "ai": {
+      "claude": "ai@pydantic-skills"
+    },
+    "chrome-devtools-mcp": {
+      "claude": "chrome-devtools-mcp@claude-plugins-official"
+    },
+    "claude-code-setup": {
+      "claude": "claude-code-setup@claude-plugins-official"
+    },
+    "claude-md-management": {
+      "claude": "claude-md-management@claude-plugins-official"
+    },
+    "code-review": {
+      "claude": "code-review@claude-plugins-official"
+    },
+    "code-simplifier": {
+      "claude": "code-simplifier@claude-plugins-official"
+    },
+    "context7": {
+      "claude": "context7@claude-plugins-official",
+      "codex": "plugin_asdk_app_69ef18c674308191a2f952431f91ea61"
+    },
+    "document-skills": {
+      "claude": "document-skills@anthropic-agent-skills"
+    },
+    "feature-dev": {
+      "claude": "feature-dev@claude-plugins-official"
+    },
+    "figma": {
+      "claude": "figma@claude-plugins-official",
+      "codex": "plugin_connector_68df038e0ba48191908c8434991bbac2"
+    },
+    "github": {
+      "codex": "plugin_connector_1p_1a69035c238881919c4190932b2df699"
+    },
+    "gmail": {
+      "codex": "plugin_connector_1p_95d39881713c8191931482a62d6edff9"
+    },
+    "google-calendar": {
+      "codex": "plugin_connector_1p_f8509de903288191b14a160c6c5d20b0"
+    },
+    "google-drive": {
+      "codex": "plugin_connector_1p_ab21a553bfbc81919ea8fd1858e3ffa7"
+    },
+    "hugging-face": {
+      "claude": "huggingface-skills@claude-plugins-official",
+      "codex": "plugin_asdk_app_6939e86417648191b7bda087d872685b"
+    },
+    "impeccable": {
+      "claude": "impeccable@impeccable"
+    },
+    "last30days": {
+      "claude": "last30days@last30days-skill"
+    },
+    "mermaid-chart": {
+      "codex": "plugin_asdk_app_696609ce0304819185fafa6a660e0f1e"
+    },
+    "obsidian": {
+      "claude": "obsidian@obsidian-skills"
+    },
+    "openai-templates": {
+      "codex": "plugin_connector_1p_2330815c823c8191941e5dc465bb899f"
+    },
+    "playwright": {
+      "claude": "playwright@claude-plugins-official"
+    },
+    "pydantic-ai": {
+      "claude": "pydantic-ai@claude-plugins-official"
+    },
+    "pyright-lsp": {
+      "claude": "pyright-lsp@claude-plugins-official"
+    },
+    "ralph-loop": {
+      "claude": "ralph-loop@claude-plugins-official"
+    },
+    "security-guidance": {
+      "claude": "security-guidance@claude-plugins-official"
+    },
+    "skill-creator": {
+      "claude": "skill-creator@claude-plugins-official"
+    },
+    "supabase": {
+      "claude": "supabase@claude-plugins-official"
+    },
+    "superpowers": {
+      "claude": "superpowers@claude-plugins-official"
+    },
+    "typescript-lsp": {
+      "claude": "typescript-lsp@claude-plugins-official"
+    },
+    "ui-ux-pro-max": {
+      "claude": "ui-ux-pro-max@ui-ux-pro-max-skill"
+    }
+  }
+}

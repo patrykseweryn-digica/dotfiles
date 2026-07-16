@@ -7,6 +7,7 @@
   "env": {
     "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
   },
+  "editorMode": "normal",
   "hooks": {},
   "language": "Polish",
   "model": "sonnet",

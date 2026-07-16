@@ -27,6 +27,12 @@ update-skills:
     ./sync-agents.sh skills-export
     ./sync-agents.sh install
 
+# Update plugins, persist their state, and sync all runtimes.
+update-plugins:
+    ./sync-agents.sh plugins-update
+    ./sync-agents.sh plugins-export
+    ./sync-agents.sh install
+
 # Set up SSH keys and ~/.ssh/config.
 setup-ssh:
     set -a; . ./.env; set +a; ./ssh.sh "$EMAIL" "$WORK_EMAIL"

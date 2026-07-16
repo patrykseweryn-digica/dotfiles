@@ -19,7 +19,10 @@ OPENCODE_CONFIG_DIR="${OPENCODE_CONFIG_DIR:-${HOME}/.config/opencode}"
 OPENCODE_CONFIG="${OPENCODE_CONFIG:-${OPENCODE_CONFIG_DIR}/opencode.json}"
 OPENCODE_AGENTS_FILE="${OPENCODE_CONFIG_DIR}/AGENTS.md"
 OPENCODE_SKILLS_DIR="${OPENCODE_CONFIG_DIR}/skills"
-CLAUDE_MANIFEST="${CLAUDE_MANIFEST:-${DOTFILES_DIR}/config/claude/claude-manifest.json}"
+PLUGIN_MANIFEST="${PLUGIN_MANIFEST:-${DOTFILES_DIR}/.agents/plugin-manifest.json}"
+CLAUDE_MANIFEST="${CLAUDE_MANIFEST:-${PLUGIN_MANIFEST}}"
+CODEX_PLUGIN_MANIFEST="${CODEX_PLUGIN_MANIFEST:-${PLUGIN_MANIFEST}}"
+CODEX_REMOTE_PLUGIN_CACHE="${CODEX_REMOTE_PLUGIN_CACHE:-${CODEX_HOME}/plugins/cache/openai-curated-remote}"
 CLAUDE_TEMPLATE_FILE="${CLAUDE_TEMPLATE_FILE:-${DOTFILES_DIR}/config/claude/settings.json}"
 CLAUDE_SETTINGS_FILE="${CLAUDE_SETTINGS_FILE:-${HOME}/.claude/settings.json}"
 SKILL_LOCK_REPO="${SKILL_LOCK_REPO:-${DOTFILES_DIR}/.agents/skill-lock.json}"
@@ -380,6 +383,201 @@ cmd_codex_check() {
     return 1
 }
 
+validate_plugin_manifest() {
+    local manifest_file="$1"
+
+    [ -f "$manifest_file" ] || {
+        echo "[ERROR] Manifest not found: $manifest_file" >&2
+        return 1
+    }
+
+    jq -e '
+        (.marketplaces | type) == "object" and
+        (.plugins | type) == "object" and
+        all(.plugins | to_entries[];
+            (.key | type) == "string" and (.key | length) > 0 and
+            (.value | type) == "object" and
+            ((.value | keys) - ["claude", "codex"] | length) == 0 and
+            (.value | length) > 0 and
+            (
+                .value.claude == null or
+                ((.value.claude | type) == "string" and
+                 (.value.claude | contains("@")))
+            ) and
+            (
+                .value.codex == null or
+                ((.value.codex | type) == "string" and
+                 (.value.codex | startswith("plugin_")))
+            )
+        ) and
+        ([.plugins[].claude] | map(select(. != null))) as $claude |
+        ([.plugins[].codex] | map(select(. != null))) as $codex |
+        (($claude | length) == ($claude | unique | length)) and
+        (($codex | length) == ($codex | unique | length))
+    ' "$manifest_file" >/dev/null || {
+        echo "[ERROR] Invalid shared plugin manifest: $manifest_file" >&2
+        return 1
+    }
+}
+
+render_codex_remote_plugins() {
+    local target_file="$1"
+    local rows
+    rows="$(mktemp)"
+    : > "$rows"
+
+    if [ -d "$CODEX_REMOTE_PLUGIN_CACHE" ]; then
+        local marker cache_name remote_plugin_id
+        for marker in "$CODEX_REMOTE_PLUGIN_CACHE"/*/.codex-remote-plugin-install.json; do
+            [ -f "$marker" ] || continue
+            cache_name="$(basename "$(dirname "$marker")")"
+            remote_plugin_id="$(jq -er '.remote_plugin_id | strings' "$marker")" || {
+                rm -f "$rows"
+                echo "[ERROR] Invalid Codex plugin marker: $marker" >&2
+                return 1
+            }
+            jq -cn \
+                --arg cache_name "$cache_name" \
+                --arg remote_plugin_id "$remote_plugin_id" \
+                '{cacheName: $cache_name, remotePluginId: $remote_plugin_id}' \
+                >> "$rows"
+        done
+    fi
+
+    jq -s 'sort_by(.remotePluginId)' "$rows" > "$target_file"
+    rm -f "$rows"
+}
+
+cmd_codex_plugins_check() {
+    validate_plugin_manifest "$CODEX_PLUGIN_MANIFEST" || return 1
+
+    if [ ! -d "$CODEX_REMOTE_PLUGIN_CACHE" ]; then
+        log_info "No Codex remote plugin state found; skipping drift check"
+        return 0
+    fi
+
+    local live wanted missing extra
+    live="$(mktemp)"
+    wanted="$(mktemp)"
+    render_codex_remote_plugins "$live" || {
+        rm -f "$live" "$wanted"
+        return 1
+    }
+    jq '[.plugins | to_entries[] |
+        select(.value.codex != null) | {
+            name: .key,
+            remotePluginId: .value.codex
+        }
+    ] | sort_by(.remotePluginId)' "$CODEX_PLUGIN_MANIFEST" > "$wanted"
+
+    missing=$(jq -rn \
+        --slurpfile wanted "$wanted" \
+        --slurpfile live "$live" '
+        ($live[0] | map(.remotePluginId)) as $live_ids |
+        $wanted[0][] as $plugin |
+        select(($live_ids | index($plugin.remotePluginId)) | not) |
+        [$plugin.name, $plugin.remotePluginId] | @tsv
+    ')
+    extra=$(jq -rn \
+        --slurpfile wanted "$wanted" \
+        --slurpfile live "$live" '
+        ($wanted[0] | map(.remotePluginId)) as $wanted_ids |
+        $live[0][] as $plugin |
+        select(($wanted_ids | index($plugin.remotePluginId)) | not) |
+        [$plugin.cacheName, $plugin.remotePluginId] | @tsv
+    ')
+    rm -f "$live" "$wanted"
+
+    if [ -z "$missing" ] && [ -z "$extra" ]; then
+        log_info "Codex remote plugins match manifest"
+        return 0
+    fi
+
+    echo "[ERROR] Codex remote plugin drift detected:" >&2
+    if [ -n "$missing" ]; then
+        echo "Missing plugins:" >&2
+        echo "$missing" | awk -F '\t' \
+            '{ print "  - " $1 " (" $2 ")" }' >&2
+    fi
+    if [ -n "$extra" ]; then
+        echo "Extra plugins:" >&2
+        echo "$extra" | awk -F '\t' \
+            '{ print "  - " $1 " (" $2 ")" }' >&2
+    fi
+    echo "" >&2
+    echo "Keep live state: ./sync-agents.sh plugins-export" >&2
+    echo "Keep manifest: uninstall extras and install missing plugins via /plugins" >&2
+    return 1
+}
+
+cmd_codex_plugins_export() {
+    validate_plugin_manifest "$CODEX_PLUGIN_MANIFEST" || return 1
+
+    if [ ! -d "$CODEX_REMOTE_PLUGIN_CACHE" ]; then
+        echo "[ERROR] No Codex remote plugin state: $CODEX_REMOTE_PLUGIN_CACHE" >&2
+        return 1
+    fi
+
+    local live tmp
+    live="$(mktemp)"
+    tmp="$(mktemp)"
+    render_codex_remote_plugins "$live" || {
+        rm -f "$live" "$tmp"
+        return 1
+    }
+
+    jq -S --slurpfile live "$live" '
+        (.plugins | to_entries |
+            map(select(.value.codex != null) | {
+                key: .value.codex,
+                value: .key
+            }) | from_entries
+        ) as $names |
+        ($live[0] | map({
+            key: ($names[.remotePluginId] // .cacheName),
+            value: .remotePluginId
+        }) | from_entries) as $codex |
+        .plugins as $plugins |
+        .plugins = reduce (
+            (($plugins | keys) + ($codex | keys) | unique)[]
+        ) as $name ({};
+            (($plugins[$name] // {}) | del(.codex)) as $other |
+            ($other + (
+                if $codex[$name] != null then
+                    {codex: $codex[$name]}
+                else
+                    {}
+                end
+            )) as $entry |
+            if ($entry | length) > 0 then
+                .[$name] = $entry
+            else
+                .
+            end
+        )
+    ' "$CODEX_PLUGIN_MANIFEST" > "$tmp"
+    rm -f "$live"
+
+    if cmp -s "$tmp" "$CODEX_PLUGIN_MANIFEST"; then
+        rm -f "$tmp"
+        log_info "Codex plugin manifest already in sync"
+        return 0
+    fi
+
+    mv "$tmp" "$CODEX_PLUGIN_MANIFEST"
+    log_info "Updated Codex plugin manifest from live state"
+}
+
+cmd_codex_plugins_update() {
+    command -v codex >/dev/null 2>&1 || {
+        echo "[ERROR] codex CLI not found; cannot update plugin marketplaces" >&2
+        return 1
+    }
+
+    log_info "Updating Codex plugin marketplaces..."
+    codex plugin marketplace upgrade
+}
+
 render_opencode_config() {
     local source_file="$1"
     local target_file="$2"
@@ -497,13 +695,16 @@ cmd_claude_settings_check() {
 
 generate_claude_settings() {
     [ -f "$CLAUDE_TEMPLATE_FILE" ] || { echo "[ERROR] Template not found: $CLAUDE_TEMPLATE_FILE" >&2; return 1; }
-    [ -f "$CLAUDE_MANIFEST" ] || { echo "[ERROR] Manifest not found: $CLAUDE_MANIFEST" >&2; return 1; }
+    validate_plugin_manifest "$CLAUDE_MANIFEST" || return 1
 
     mkdir -p "$(dirname "$CLAUDE_SETTINGS_FILE")"
     local tmp="${CLAUDE_SETTINGS_FILE}.tmp"
 
     jq -S --slurpfile m "$CLAUDE_MANIFEST" --slurpfile mcp "$MCP_SERVERS" '
-        .enabledPlugins = ($m[0].plugins | map({(.): true}) | add // {}) |
+        .enabledPlugins = ($m[0].plugins | to_entries |
+            map(select(.value.claude != null) | {
+                (.value.claude): true
+            }) | add // {}) |
         .extraKnownMarketplaces = ($m[0].marketplaces // {} | to_entries |
             map({(.key): {"source": .value}}) | add // {}) |
         .mcpServers = ($mcp[0] // {} | to_entries |
@@ -633,7 +834,7 @@ cmd_claude_plugins_export() {
     local check_only=false
     [ "${1:-}" = "--check" ] && check_only=true
 
-    [ -f "$CLAUDE_MANIFEST" ] || { echo "[ERROR] Manifest not found: $CLAUDE_MANIFEST" >&2; return 1; }
+    validate_plugin_manifest "$CLAUDE_MANIFEST" || return 1
 
     local installed_json="${HOME}/.claude/plugins/installed_plugins.json"
     local known_mp="${HOME}/.claude/plugins/known_marketplaces.json"
@@ -649,17 +850,43 @@ cmd_claude_plugins_export() {
     tmp=$(mktemp)
     jq -S --slurpfile inst "$installed_json" \
        --slurpfile km <(cat "$known_mp" 2>/dev/null || echo '{}') '
-        . as $m |
         (($inst[0].plugins // {}) | keys) as $installed |
-        (($m.plugins // []) + ($installed - ($m.plugins // [])) | unique) as $new_plugins |
-        ($new_plugins | map(split("@")[1] // empty) | unique) as $used_mps |
-        ($used_mps - (($m.marketplaces // {}) | keys)) as $missing_mps |
-        ($missing_mps | map(
-            . as $name
-            | {($name): (($km[0] // {})[$name].source // null)}
-        ) | map(select(.[] != null)) | add // {}) as $new_mps |
-        .plugins = $new_plugins |
-        .marketplaces = (($m.marketplaces // {}) + $new_mps)
+        (.plugins | to_entries |
+            map(select(.value.claude != null) | {
+                key: .value.claude,
+                value: .key
+            }) | from_entries
+        ) as $names |
+        (reduce $installed[] as $plugin ({};
+            ($names[$plugin] // ($plugin | split("@")[0])) as $preferred |
+            (if .[$preferred] == null then $preferred else $plugin end) as $name |
+            .[$name] = $plugin
+        )) as $claude |
+        (($km[0] // {}) | to_entries |
+            map(select(.value.source != null) | {
+                key: .key,
+                value: .value.source
+            }) | from_entries
+        ) as $marketplaces |
+        .plugins as $plugins |
+        .plugins = reduce (
+            (($plugins | keys) + ($claude | keys) | unique)[]
+        ) as $name ({};
+            (($plugins[$name] // {}) | del(.claude)) as $other |
+            ($other + (
+                if $claude[$name] != null then
+                    {claude: $claude[$name]}
+                else
+                    {}
+                end
+            )) as $entry |
+            if ($entry | length) > 0 then
+                .[$name] = $entry
+            else
+                .
+            end
+        ) |
+        .marketplaces = $marketplaces
     ' "$CLAUDE_MANIFEST" > "$tmp" || { rm -f "$tmp"; echo "[ERROR] export failed" >&2; return 1; }
 
     if cmp -s "$tmp" "$CLAUDE_MANIFEST"; then
@@ -669,7 +896,7 @@ cmd_claude_plugins_export() {
     fi
 
     if [ "$check_only" = true ]; then
-        echo "[ERROR] Manifest drift detected. Installed plugins/marketplaces missing from manifest:" >&2
+        echo "[ERROR] Installed Claude plugins/marketplaces differ from manifest:" >&2
         diff <(jq -S '{plugins, marketplaces}' "$CLAUDE_MANIFEST") \
              <(jq -S '{plugins, marketplaces}' "$tmp") >&2 || true
         echo "" >&2
@@ -679,7 +906,65 @@ cmd_claude_plugins_export() {
     fi
 
     mv "$tmp" "$CLAUDE_MANIFEST"
-    log_info "Updated manifest with installed plugins/marketplaces"
+    log_info "Updated manifest from installed Claude plugins/marketplaces"
+}
+
+try_claude_plugin_update() {
+    local plugin="$1"
+    local scope="$2"
+    local project_path="$3"
+
+    if [ -n "$project_path" ]; then
+        [ -d "$project_path" ] || {
+            echo "[ERROR] Claude plugin project path not found: $project_path" >&2
+            return 1
+        }
+        (cd "$project_path" && \
+            CLAUDECODE='' claude plugin update "$plugin" --scope "$scope")
+    else
+        CLAUDECODE='' claude plugin update "$plugin" --scope "$scope"
+    fi
+}
+
+cmd_claude_plugins_update() {
+    command -v claude >/dev/null 2>&1 || {
+        echo "[ERROR] claude CLI not found; cannot update plugins" >&2
+        return 1
+    }
+
+    log_info "Updating Claude plugin marketplaces..."
+    CLAUDECODE='' claude plugin marketplace update || return 1
+
+    local installed_json="${HOME}/.claude/plugins/installed_plugins.json"
+    if [ ! -f "$installed_json" ]; then
+        log_info "No installed Claude plugins to update"
+        return 0
+    fi
+
+    local installed
+    installed=$(jq -r '
+        [
+            (.plugins // {} | to_entries[] |
+                .key as $plugin |
+                .value[]? |
+                [$plugin, (.scope // "user"), (.projectPath // "")]
+            )
+        ] | unique[] | @tsv
+    ' "$installed_json") || {
+        echo "[ERROR] Failed to parse $installed_json" >&2
+        return 1
+    }
+
+    local failed=false
+    local plugin scope project_path
+    while IFS=$'\t' read -r plugin scope project_path; do
+        [ -n "$plugin" ] || continue
+        log_info "Updating Claude plugin: $plugin (scope: $scope)"
+        try_claude_plugin_update "$plugin" "$scope" "$project_path" || \
+            failed=true
+    done <<< "$installed"
+
+    [ "$failed" = false ]
 }
 
 try_claude_plugin_uninstall() {
@@ -716,7 +1001,7 @@ cmd_claude_plugins_prune() {
     local check_only=false
     [ "${1:-}" = "--check" ] && check_only=true
 
-    [ -f "$CLAUDE_MANIFEST" ] || { echo "[ERROR] Manifest not found: $CLAUDE_MANIFEST" >&2; return 1; }
+    validate_plugin_manifest "$CLAUDE_MANIFEST" || return 1
 
     local plugins_json="${HOME}/.claude/plugins/installed_plugins.json"
     local known_mp="${HOME}/.claude/plugins/known_marketplaces.json"
@@ -729,7 +1014,7 @@ cmd_claude_plugins_prune() {
     local extra_plugins=""
     if [ -f "$plugins_json" ]; then
         extra_plugins=$(jq -r --slurpfile m "$CLAUDE_MANIFEST" '
-            ($m[0].plugins // []) as $wanted |
+            ([$m[0].plugins[].claude] | map(select(. != null))) as $wanted |
             [
                 (.plugins // {} | to_entries[] |
                     .key as $plugin |
@@ -821,6 +1106,25 @@ cmd_skills_update() {
     npx -y "$SKILLS_CLI_PACKAGE" update -g "$@"
 }
 
+cmd_plugins_check() {
+    local failed=false
+    cmd_codex_plugins_check || failed=true
+    cmd_claude_plugins_prune --check || failed=true
+    [ "$failed" = false ]
+}
+
+cmd_plugins_export() {
+    cmd_codex_plugins_export
+    cmd_claude_plugins_export
+}
+
+cmd_plugins_update() {
+    local failed=false
+    cmd_codex_plugins_update || failed=true
+    cmd_claude_plugins_update || failed=true
+    [ "$failed" = false ]
+}
+
 cmd_claude_install() {
     log_info "Installing Claude agent config..."
     link_file "$CLAUDE_AGENTS_SOURCE" "$CLAUDE_AGENTS_FILE"
@@ -867,7 +1171,7 @@ cmd_claude_install() {
         [ -f "$plugins_json" ] && installed_keys=$(jq -r '.plugins | keys[]' "$plugins_json")
 
         local plugins
-        plugins=$(jq -r '.plugins[]' "$CLAUDE_MANIFEST")
+        plugins=$(jq -r '.plugins[].claude // empty' "$CLAUDE_MANIFEST")
         for plugin in $plugins; do
             echo "$installed_keys" | grep -qxF "$plugin" && continue
             log_info "Installing plugin: $plugin"
@@ -884,6 +1188,7 @@ cmd_claude_install() {
 
 cmd_install() {
     cmd_custom_skills_install
+    cmd_plugins_check
     cmd_codex_install
     cmd_opencode_install
     cmd_claude_install
@@ -907,6 +1212,21 @@ case "${1:-}" in
         ;;
     codex-check)
         cmd_codex_check
+        ;;
+    codex-plugins-check)
+        cmd_codex_plugins_check
+        ;;
+    codex-plugins-export)
+        cmd_codex_plugins_export
+        ;;
+    plugins-check)
+        cmd_plugins_check
+        ;;
+    plugins-export)
+        cmd_plugins_export
+        ;;
+    plugins-update)
+        cmd_plugins_update
         ;;
     opencode-install)
         cmd_opencode_install
@@ -940,11 +1260,18 @@ case "${1:-}" in
         cmd_claude_settings_check
         ;;
     *)
-        echo "Usage: $0 [--quiet] {install|codex-install|codex-check|opencode-install|opencode-check|claude-install|skills-update|claude-export [--check]|claude-prune [--check]|custom-skills-export [--check|--dry-run] [skill...]|skills-export|claude-settings-check}"
+        echo "Usage: $0 [--quiet] {install|plugins-check|plugins-export|plugins-update|codex-install|codex-check|codex-plugins-check|codex-plugins-export|opencode-install|opencode-check|claude-install|skills-update|claude-export [--check]|claude-prune [--check]|custom-skills-export [--check|--dry-run] [skill...]|skills-export|claude-settings-check}"
         echo
         echo "  install          Sync shared agent config into Codex, OpenCode, and Claude"
+        echo "  plugins-check    Check Codex and Claude against shared plugin manifest"
+        echo "  plugins-export   Export Codex and Claude into shared plugin manifest"
+        echo "  plugins-update   Update Codex marketplaces and installed Claude plugins"
         echo "  codex-install    Link AGENTS.md and generate Codex MCP config"
         echo "  codex-check      Exit 1 if Codex MCP config is out of sync"
+        echo "  codex-plugins-check"
+        echo "                  Exit 1 if remote Codex plugins differ from manifest"
+        echo "  codex-plugins-export"
+        echo "                  Replace manifest with current remote Codex plugins"
         echo "  opencode-install Link AGENTS.md, skills, and generate OpenCode MCP config"
         echo "  opencode-check   Exit 1 if OpenCode config is out of sync"
         echo "  claude-install   Link AGENTS.md, generate Claude settings, install plugins and skills"

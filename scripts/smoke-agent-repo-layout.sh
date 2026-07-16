@@ -24,8 +24,20 @@ EOF
 [ -L config/codex/AGENTS.md ] || fail "Codex AGENTS.md adapter must be a symlink"
 [ "$(readlink config/codex/AGENTS.md)" = "../../.agents/AGENTS.md" ] || fail "Codex AGENTS.md adapter points at wrong target"
 
+[ -f .agents/plugin-manifest.json ] || fail "Shared plugin manifest is missing"
+[ -L config/codex/plugin-manifest.json ] || fail "Codex plugin manifest adapter must be a symlink"
+[ "$(readlink config/codex/plugin-manifest.json)" = "../../.agents/plugin-manifest.json" ] || fail "Codex plugin manifest adapter points at wrong target"
+jq -e '
+    (.plugins | type) == "object" and
+    (.plugins.figma.codex | startswith("plugin_connector_")) and
+    (.plugins.figma.claude | contains("@"))
+' .agents/plugin-manifest.json >/dev/null || fail "Shared plugin manifest is invalid"
+
 [ -L config/claude/CLAUDE.md ] || fail "Claude CLAUDE.md adapter must be a symlink"
 [ "$(readlink config/claude/CLAUDE.md)" = "../../.agents/AGENTS.md" ] || fail "Claude CLAUDE.md adapter points at wrong target"
+
+[ -L config/claude/claude-manifest.json ] || fail "Claude plugin manifest adapter must be a symlink"
+[ "$(readlink config/claude/claude-manifest.json)" = "../../.agents/plugin-manifest.json" ] || fail "Claude plugin manifest adapter points at wrong target"
 
 [ -L config/opencode/AGENTS.md ] || fail "OpenCode AGENTS.md adapter must be a symlink"
 [ "$(readlink config/opencode/AGENTS.md)" = "../../.agents/AGENTS.md" ] || fail "OpenCode AGENTS.md adapter points at wrong target"

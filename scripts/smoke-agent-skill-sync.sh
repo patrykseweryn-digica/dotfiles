@@ -358,11 +358,15 @@ ln -s "$JQ_BIN" "${prune_stub_dir}/jq"
 
 cat > "$prune_manifest" <<JSON
 {
-  "plugins": ["kept@official"],
   "marketplaces": {
     "official": {
       "source": "github",
       "repo": "example/official"
+    }
+  },
+  "plugins": {
+    "kept": {
+      "claude": "kept@official"
     }
   }
 }

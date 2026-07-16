@@ -55,16 +55,28 @@ repos:
         entry: ./scripts/smoke-agent-skill-sync.sh
         language: system
         pass_filenames: false
+      - id: codex-plugin-sync-smoke
+        name: Codex plugin sync smoke test
+        description: Ensure Codex remote plugin drift and export stay symmetric
+        entry: ./scripts/smoke-codex-plugin-sync.sh
+        language: system
+        pass_filenames: false
+      - id: claude-plugin-sync-smoke
+        name: Claude plugin sync smoke test
+        description: Ensure Claude plugin update and export stay symmetric
+        entry: ./scripts/smoke-claude-plugin-sync.sh
+        language: system
+        pass_filenames: false
       - id: web-scraping-skills-smoke
         name: Web scraping skills smoke test
         description: Ensure web scraping skill routing, gates, and references stay aligned
         entry: ./scripts/smoke-web-scraping-skills.sh
         language: system
         pass_filenames: false
-      - id: claude-plugin-prune
-        name: Claude plugin prune check
-        description: Ensure installed Claude plugins/marketplaces are declared in manifest
-        entry: ./sync-agents.sh claude-prune --check
+      - id: agent-plugin-check
+        name: Shared agent plugin drift check
+        description: Ensure Codex and Claude match the shared plugin manifest
+        entry: ./sync-agents.sh plugins-check
         language: system
         pass_filenames: false
         always_run: true
