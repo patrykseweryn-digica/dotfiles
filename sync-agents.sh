@@ -19,6 +19,8 @@ OPENCODE_CONFIG_DIR="${OPENCODE_CONFIG_DIR:-${HOME}/.config/opencode}"
 OPENCODE_CONFIG="${OPENCODE_CONFIG:-${OPENCODE_CONFIG_DIR}/opencode.json}"
 OPENCODE_AGENTS_FILE="${OPENCODE_CONFIG_DIR}/AGENTS.md"
 OPENCODE_SKILLS_DIR="${OPENCODE_CONFIG_DIR}/skills"
+KIMI_HOME="${KIMI_CODE_HOME:-${HOME}/.kimi-code}"
+KIMI_MCP_CONFIG="${KIMI_MCP_CONFIG:-${KIMI_HOME}/mcp.json}"
 PLUGIN_MANIFEST="${PLUGIN_MANIFEST:-${DOTFILES_DIR}/.agents/plugin-manifest.json}"
 CLAUDE_MANIFEST="${CLAUDE_MANIFEST:-${PLUGIN_MANIFEST}}"
 CODEX_PLUGIN_MANIFEST="${CODEX_PLUGIN_MANIFEST:-${PLUGIN_MANIFEST}}"
@@ -392,6 +394,8 @@ validate_plugin_manifest() {
     }
 
     jq -e '
+        ([.plugins[].claude] | map(select(. != null))) as $claude |
+        ([.plugins[].codex] | map(select(. != null))) as $codex |
         (.marketplaces | type) == "object" and
         (.plugins | type) == "object" and
         all(.plugins | to_entries[];
@@ -410,8 +414,6 @@ validate_plugin_manifest() {
                  (.value.codex | startswith("plugin_")))
             )
         ) and
-        ([.plugins[].claude] | map(select(. != null))) as $claude |
-        ([.plugins[].codex] | map(select(. != null))) as $codex |
         (($claude | length) == ($claude | unique | length)) and
         (($codex | length) == ($codex | unique | length))
     ' "$manifest_file" >/dev/null || {
@@ -665,6 +667,69 @@ cmd_opencode_check() {
     echo "Run: ./sync-agents.sh opencode-install" >&2
     if [ -f "$OPENCODE_CONFIG" ]; then
         diff -u "$OPENCODE_CONFIG" "$tmp" >&2 || true
+    fi
+    rm -f "$tmp"
+    return 1
+}
+
+render_kimi_config() {
+    local source_file="$1"
+    local target_file="$2"
+
+    jq -S --slurpfile mcp "$MCP_SERVERS" '
+        ($mcp[0] | to_entries |
+            map({(.key): (
+                .value
+                | if ((.type // "") == "http") then
+                    {url}
+                else
+                    {command}
+                    + (if .args then {args} else {} end)
+                    + (if ((.env? // null) | type) == "object" and (.env | length) > 0 then {env} else {} end)
+                end
+            )}) | add // {}) as $servers |
+        (. // {}) | .mcpServers = $servers
+    ' < <(if [ -f "$source_file" ]; then cat "$source_file"; else echo '{}'; fi) > "$target_file"
+}
+
+cmd_kimi_install() {
+    log_info "Installing Kimi MCP config..."
+    mkdir -p "$KIMI_HOME"
+
+    local tmp
+    tmp="$(mktemp)"
+    render_kimi_config "$KIMI_MCP_CONFIG" "$tmp"
+
+    if [ -f "$KIMI_MCP_CONFIG" ] && cmp -s "$tmp" "$KIMI_MCP_CONFIG"; then
+        rm -f "$tmp"
+        log_info "Kimi MCP config already in sync"
+    else
+        mv "$tmp" "$KIMI_MCP_CONFIG"
+        log_info "Wrote $KIMI_MCP_CONFIG"
+    fi
+}
+
+cmd_kimi_check() {
+    local tmp
+
+    if [ ! -f "$KIMI_MCP_CONFIG" ]; then
+        log_info "No Kimi MCP config found; skipping drift check"
+        return 0
+    fi
+
+    tmp="$(mktemp)"
+    render_kimi_config "$KIMI_MCP_CONFIG" "$tmp"
+
+    if [ -f "$KIMI_MCP_CONFIG" ] && cmp -s "$tmp" "$KIMI_MCP_CONFIG"; then
+        rm -f "$tmp"
+        log_info "Kimi MCP config in sync"
+        return 0
+    fi
+
+    echo "[ERROR] Kimi MCP config drift detected: $KIMI_MCP_CONFIG" >&2
+    echo "Run: ./sync-agents.sh kimi-install" >&2
+    if [ -f "$KIMI_MCP_CONFIG" ]; then
+        diff -u "$KIMI_MCP_CONFIG" "$tmp" >&2 || true
     fi
     rm -f "$tmp"
     return 1
@@ -1191,6 +1256,7 @@ cmd_install() {
     cmd_plugins_check
     cmd_codex_install
     cmd_opencode_install
+    cmd_kimi_install
     cmd_claude_install
 
     log_info "Agent config sync complete"
@@ -1234,6 +1300,12 @@ case "${1:-}" in
     opencode-check)
         cmd_opencode_check
         ;;
+    kimi-install)
+        cmd_kimi_install
+        ;;
+    kimi-check)
+        cmd_kimi_check
+        ;;
     claude-install)
         cmd_claude_install
         ;;
@@ -1260,9 +1332,9 @@ case "${1:-}" in
         cmd_claude_settings_check
         ;;
     *)
-        echo "Usage: $0 [--quiet] {install|plugins-check|plugins-export|plugins-update|codex-install|codex-check|codex-plugins-check|codex-plugins-export|opencode-install|opencode-check|claude-install|skills-update|claude-export [--check]|claude-prune [--check]|custom-skills-export [--check|--dry-run] [skill...]|skills-export|claude-settings-check}"
+        echo "Usage: $0 [--quiet] {install|plugins-check|plugins-export|plugins-update|codex-install|codex-check|codex-plugins-check|codex-plugins-export|opencode-install|opencode-check|kimi-install|kimi-check|claude-install|skills-update|claude-export [--check]|claude-prune [--check]|custom-skills-export [--check|--dry-run] [skill...]|skills-export|claude-settings-check}"
         echo
-        echo "  install          Sync shared agent config into Codex, OpenCode, and Claude"
+        echo "  install          Sync shared agent config into Codex, OpenCode, Kimi, and Claude"
         echo "  plugins-check    Check Codex and Claude against shared plugin manifest"
         echo "  plugins-export   Export Codex and Claude into shared plugin manifest"
         echo "  plugins-update   Update Codex marketplaces and installed Claude plugins"
@@ -1274,6 +1346,8 @@ case "${1:-}" in
         echo "                  Replace manifest with current remote Codex plugins"
         echo "  opencode-install Link AGENTS.md, skills, and generate OpenCode MCP config"
         echo "  opencode-check   Exit 1 if OpenCode config is out of sync"
+        echo "  kimi-install     Generate Kimi MCP config (~/.kimi-code/mcp.json)"
+        echo "  kimi-check       Exit 1 if Kimi MCP config is out of sync"
         echo "  claude-install   Link AGENTS.md, generate Claude settings, install plugins and skills"
         echo "  skills-update    Update global skills shared by Codex, OpenCode, and Claude"
         echo "  claude-export    Sync installed Claude plugins/marketplaces into manifest"

@@ -28,7 +28,7 @@ just setup-ssh        # explicit SSH key/config setup
 - `justfile`: command menu for humans.
 - `install.sh`: full setup orchestrator.
 - `bootstrap.d/*`: install modules sourced by `install.sh`.
-- `sync-agents.sh`: sync Codex, Claude, OpenCode, MCP, plugins, skills.
+- `sync-agents.sh`: sync Codex, Claude, OpenCode, Kimi, MCP, plugins, skills.
 - `ssh.sh`: SSH keys and `~/.ssh/config` setup.
 - `scripts/smoke-*`: regression tests for installer behavior.
 - `bin/*`: commands linked into `~/.local/bin`.
