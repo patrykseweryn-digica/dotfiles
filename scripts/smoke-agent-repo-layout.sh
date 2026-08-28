@@ -42,6 +42,20 @@ jq -e '
 [ -L config/opencode/AGENTS.md ] || fail "OpenCode AGENTS.md adapter must be a symlink"
 [ "$(readlink config/opencode/AGENTS.md)" = "../../.agents/AGENTS.md" ] || fail "OpenCode AGENTS.md adapter points at wrong target"
 
+[ -L config/pi/AGENTS.md ] || fail "Pi AGENTS.md adapter must be a symlink"
+[ "$(readlink config/pi/AGENTS.md)" = "../../.agents/AGENTS.md" ] || fail "Pi AGENTS.md adapter points at wrong target"
+jq -e '
+    (.packages | type) == "array" and
+    (.packages | length) > 0 and
+    all(.packages[]; contains("@")) and
+    (keys - [
+        "defaultModel",
+        "defaultProvider",
+        "defaultThinkingLevel",
+        "packages"
+    ] | length) == 0
+' config/pi/settings.json >/dev/null || fail "Pi stable settings are invalid"
+
 [ -L config/claude/mcp-servers.json ] || fail "Claude MCP adapter must be a symlink"
 [ "$(readlink config/claude/mcp-servers.json)" = "../../.agents/mcp-servers.json" ] || fail "Claude MCP adapter points at wrong target"
 

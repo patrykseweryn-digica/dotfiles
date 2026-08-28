@@ -70,12 +70,14 @@ check_agent_links() {
 ${DOTFILES_DIR}/config/codex/AGENTS.md|${HOME}/.codex/AGENTS.md
 ${DOTFILES_DIR}/config/claude/CLAUDE.md|${HOME}/.claude/CLAUDE.md
 ${DOTFILES_DIR}/config/opencode/AGENTS.md|${HOME}/.config/opencode/AGENTS.md
+${DOTFILES_DIR}/config/pi/AGENTS.md|${HOME}/.pi/agent/AGENTS.md
 EOF
 
     for root in \
         "${HOME}/.agents/skills" \
         "${HOME}/.claude/skills" \
-        "${HOME}/.config/opencode/skills"; do
+        "${HOME}/.config/opencode/skills" \
+        "${HOME}/.pi/agent/skills"; do
         if [ ! -d "$root" ]; then
             echo "[ERROR] Missing skill directory: $root" >&2
             broken=true
@@ -97,6 +99,7 @@ EOF
 run_check "plugin drift" "$SYNC_AGENTS" plugins-check
 run_check "Claude settings" "$SYNC_AGENTS" claude-settings-check
 run_check "MCP drift" "$SYNC_AGENTS" mcp-check
+run_check "Pi settings and packages" "$SYNC_AGENTS" pi-check
 run_check "custom skill drift" \
     "$SYNC_AGENTS" custom-skills-export --check
 run_check "skill lock drift" check_skill_lock

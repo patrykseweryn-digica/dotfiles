@@ -147,6 +147,7 @@ while IFS= read -r skill_name; do
     [ -e "${HOME}/.agents/skills/${skill_name}/SKILL.md" ] || fail "missing shared skill: $skill_name"
     [ -e "${HOME}/.claude/skills/${skill_name}/SKILL.md" ] || fail "missing Claude skill: $skill_name"
     [ -e "${OPENCODE_CONFIG_DIR}/skills/${skill_name}/SKILL.md" ] || fail "missing OpenCode skill: $skill_name"
+    [ -e "${HOME}/.pi/agent/skills/${skill_name}/SKILL.md" ] || fail "missing Pi skill: $skill_name"
 done < "$lock_names"
 
 for skill_dir in "$CUSTOM_SKILLS_DIR"/*/; do
@@ -155,6 +156,7 @@ for skill_dir in "$CUSTOM_SKILLS_DIR"/*/; do
     [ -e "${HOME}/.agents/skills/${skill_name}/SKILL.md" ] || fail "missing shared custom skill: $skill_name"
     [ -e "${HOME}/.claude/skills/${skill_name}/SKILL.md" ] || fail "missing Claude custom skill: $skill_name"
     [ -e "${OPENCODE_CONFIG_DIR}/skills/${skill_name}/SKILL.md" ] || fail "missing OpenCode custom skill: $skill_name"
+    [ -e "${HOME}/.pi/agent/skills/${skill_name}/SKILL.md" ] || fail "missing Pi custom skill: $skill_name"
 done
 
 for skill_file in "$CUSTOM_SKILLS_DIR"/*.skill; do
@@ -163,11 +165,13 @@ for skill_file in "$CUSTOM_SKILLS_DIR"/*.skill; do
     [ -e "${HOME}/.agents/skills/${skill_name}" ] || fail "missing shared custom skill file: $skill_name"
     [ -e "${HOME}/.claude/skills/${skill_name}" ] || fail "missing Claude custom skill file: $skill_name"
     [ -e "${OPENCODE_CONFIG_DIR}/skills/${skill_name}" ] || fail "missing OpenCode custom skill file: $skill_name"
+    [ -e "${HOME}/.pi/agent/skills/${skill_name}" ] || fail "missing Pi custom skill file: $skill_name"
 done
 
 [ -e "${CODEX_HOME}/AGENTS.md" ] || fail "missing Codex AGENTS.md"
 [ -e "${HOME}/.claude/CLAUDE.md" ] || fail "missing Claude CLAUDE.md"
 [ -e "${OPENCODE_CONFIG_DIR}/AGENTS.md" ] || fail "missing OpenCode AGENTS.md"
+[ -e "${HOME}/.pi/agent/AGENTS.md" ] || fail "missing Pi AGENTS.md"
 
 mkdir -p \
     "${custom_export_home}/.agents/skills/live-custom" \
@@ -236,6 +240,10 @@ jq -e '
     (.mcpServers | keys | sort) == ($mcp[0] | keys | sort)
 ' --slurpfile mcp "$MCP_SERVERS_FILE" "${HOME}/.claude.json" \
     >/dev/null || fail "Claude user config does not reflect shared MCP servers"
+jq -e '
+    (.mcpServers | keys | sort) == ($mcp[0] | keys | sort)
+' --slurpfile mcp "$MCP_SERVERS_FILE" "${HOME}/.agents/mcp.json" \
+    >/dev/null || fail "Pi config does not reflect shared MCP servers"
 jq -e '
     (.permissions.allow // []) as $allow |
     ($allow | index("mcp__*") | not) and
@@ -324,6 +332,7 @@ while IFS= read -r skill_name; do
     [ -e "${HOME}/.agents/skills/${skill_name}/SKILL.md" ] || fail "npx-installed skill missing shared runtime: $skill_name"
     [ -e "${HOME}/.claude/skills/${skill_name}/SKILL.md" ] || fail "npx-installed skill missing Claude runtime: $skill_name"
     [ -e "${OPENCODE_CONFIG_DIR}/skills/${skill_name}/SKILL.md" ] || fail "npx-installed skill missing OpenCode runtime: $skill_name"
+    [ -e "${HOME}/.pi/agent/skills/${skill_name}/SKILL.md" ] || fail "npx-installed skill missing Pi runtime: $skill_name"
 done < "$lock_names"
 
 if [ "$(wc -l < "$npx_log" | tr -d ' ')" != "$(wc -l < "$lock_names" | tr -d ' ')" ]; then

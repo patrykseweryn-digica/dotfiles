@@ -1,0 +1,10 @@
+{
+  "defaultModel": "gpt-5.6-sol",
+  "defaultProvider": "openai-codex",
+  "defaultThinkingLevel": "high",
+  "packages": [
+    "git:github.com/DietrichGebert/ponytail@2ed6c52c9d7e5e56942508591085fd45dea277d3",
+    "git:github.com/ghoseb/pi-askuserquestion@e58609c9e9c8c4e8a0348c96eaad38dd7e6f0578",
+    "npm:pi-mcp-adapter@2.30.0"
+  ]
+}

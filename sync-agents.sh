@@ -9,6 +9,8 @@ CODEX_AGENTS_SOURCE="${DOTFILES_DIR}/config/codex/AGENTS.md"
 CLAUDE_AGENTS_SOURCE="${DOTFILES_DIR}/config/claude/CLAUDE.md"
 OPENCODE_AGENTS_SOURCE="${DOTFILES_DIR}/config/opencode/AGENTS.md"
 OPENCODE_TEMPLATE="${DOTFILES_DIR}/config/opencode/opencode.json"
+PI_AGENTS_SOURCE="${PI_AGENTS_SOURCE:-${DOTFILES_DIR}/config/pi/AGENTS.md}"
+PI_SETTINGS_TEMPLATE="${PI_SETTINGS_TEMPLATE:-${DOTFILES_DIR}/config/pi/settings.json}"
 CODEX_HOME="${CODEX_HOME:-${HOME}/.codex}"
 CODEX_CONFIG="${CODEX_CONFIG:-${CODEX_HOME}/config.toml}"
 CODEX_AGENTS_FILE="${CODEX_HOME}/AGENTS.md"
@@ -19,6 +21,11 @@ OPENCODE_CONFIG_DIR="${OPENCODE_CONFIG_DIR:-${HOME}/.config/opencode}"
 OPENCODE_CONFIG="${OPENCODE_CONFIG:-${OPENCODE_CONFIG_DIR}/opencode.json}"
 OPENCODE_AGENTS_FILE="${OPENCODE_CONFIG_DIR}/AGENTS.md"
 OPENCODE_SKILLS_DIR="${OPENCODE_CONFIG_DIR}/skills"
+PI_AGENT_DIR="${PI_CODING_AGENT_DIR:-${HOME}/.pi/agent}"
+PI_AGENTS_FILE="${PI_AGENT_DIR}/AGENTS.md"
+PI_SETTINGS_FILE="${PI_SETTINGS_FILE:-${PI_AGENT_DIR}/settings.json}"
+PI_SKILLS_DIR="${PI_SKILLS_DIR:-${PI_AGENT_DIR}/skills}"
+PI_MCP_CONFIG="${PI_MCP_CONFIG:-${HOME}/.agents/mcp.json}"
 KIMI_HOME="${KIMI_CODE_HOME:-${HOME}/.kimi-code}"
 KIMI_MCP_CONFIG="${KIMI_MCP_CONFIG:-${KIMI_HOME}/mcp.json}"
 PLUGIN_MANIFEST="${PLUGIN_MANIFEST:-${DOTFILES_DIR}/.agents/plugin-manifest.json}"
@@ -51,8 +58,13 @@ if [ ! -f "$MCP_SERVERS" ]; then
     exit 1
 fi
 
-if [ ! -e "$CODEX_AGENTS_SOURCE" ] || [ ! -e "$CLAUDE_AGENTS_SOURCE" ] || [ ! -e "$OPENCODE_AGENTS_SOURCE" ]; then
+if [ ! -e "$CODEX_AGENTS_SOURCE" ] || [ ! -e "$CLAUDE_AGENTS_SOURCE" ] || [ ! -e "$OPENCODE_AGENTS_SOURCE" ] || [ ! -e "$PI_AGENTS_SOURCE" ]; then
     echo "[ERROR] Tool-specific agent instruction symlinks are missing" >&2
+    exit 1
+fi
+
+if [ ! -f "$PI_SETTINGS_TEMPLATE" ]; then
+    echo "[ERROR] Pi settings template not found: $PI_SETTINGS_TEMPLATE" >&2
     exit 1
 fi
 
@@ -111,6 +123,7 @@ cmd_custom_skills_install() {
     link_custom_skills "$AGENT_SKILLS_DIR"
     link_custom_skills "$CLAUDE_SKILLS_DIR"
     link_custom_skills "$OPENCODE_SKILLS_DIR"
+    link_custom_skills "$PI_SKILLS_DIR"
 }
 
 is_locked_skill() {
@@ -393,11 +406,42 @@ collect_kimi_mcp() {
     ' "$KIMI_MCP_CONFIG"
 }
 
+collect_pi_mcp() {
+    [ -f "$PI_MCP_CONFIG" ] || return 0
+
+    jq -c '
+        (.mcpServers // {})
+        | to_entries[]
+        | select(.value.disabled != true)
+        | .key as $name
+        | .value
+        | if .url then
+            {
+                runtime: "pi",
+                name: $name,
+                server: {type: "http", url: .url}
+            }
+          elif .command then
+            {
+                runtime: "pi",
+                name: $name,
+                server: {
+                    type: "stdio",
+                    command: .command,
+                    args: (.args // [])
+                }
+            }
+          else empty
+          end
+    ' "$PI_MCP_CONFIG"
+}
+
 available_mcp_runtimes() {
     command -v codex >/dev/null 2>&1 && echo codex
     [ -f "$CLAUDE_USER_CONFIG" ] && echo claude
     [ -f "$OPENCODE_CONFIG" ] && echo opencode
     [ -f "$KIMI_MCP_CONFIG" ] && echo kimi
+    [ -f "$PI_MCP_CONFIG" ] && echo pi
     return 0
 }
 
@@ -406,6 +450,7 @@ collect_mcp_rows() {
     collect_claude_mcp || return 1
     collect_opencode_mcp || return 1
     collect_kimi_mcp || return 1
+    collect_pi_mcp || return 1
 }
 
 mcp_rows_to_inventory() {
@@ -971,6 +1016,56 @@ render_kimi_config() {
     ' < <(if [ -f "$source_file" ]; then cat "$source_file"; else echo '{}'; fi) > "$target_file"
 }
 
+render_pi_mcp_config() {
+    local source_file="$1"
+    local target_file="$2"
+
+    jq -S --slurpfile mcp "$MCP_SERVERS" '
+        (. // {})
+        | .mcpServers = reduce ($mcp[0] | to_entries[]) as $entry (
+            (.mcpServers // {});
+            .[$entry.key] as $live
+            | .[$entry.key] = (
+                (($live // {}) | del(.command, .args, .url, .type, .enabled, .disabled))
+                + ($entry.value
+                    | if ((.type // "") == "http") then
+                        {url}
+                      else
+                        {command, args: (.args // [])}
+                      end)
+                + (if (($entry.value.env? // null) | type) == "object" then
+                    {env: $entry.value.env}
+                  else
+                    {}
+                  end)
+            )
+        )
+    ' < <(
+        if [ -f "$source_file" ]; then
+            cat "$source_file"
+        else
+            echo '{}'
+        fi
+    ) > "$target_file"
+}
+
+sync_pi_mcp_config() {
+    mkdir -p "$(dirname "$PI_MCP_CONFIG")"
+
+    local tmp
+    tmp="$(mktemp)"
+    render_pi_mcp_config "$PI_MCP_CONFIG" "$tmp"
+
+    if [ -f "$PI_MCP_CONFIG" ] &&
+        cmp -s "$tmp" "$PI_MCP_CONFIG"; then
+        rm -f "$tmp"
+        log_info "Pi MCP config already in sync"
+    else
+        mv "$tmp" "$PI_MCP_CONFIG"
+        log_info "Wrote $PI_MCP_CONFIG"
+    fi
+}
+
 cmd_kimi_install() {
     log_info "Installing Kimi MCP config..."
     mkdir -p "$KIMI_HOME"
@@ -1075,6 +1170,7 @@ cmd_push_mcp() {
     sync_claude_mcp_permissions
     sync_opencode_mcp_config
     cmd_kimi_install
+    sync_pi_mcp_config
 }
 
 cmd_kimi_check() {
@@ -1203,10 +1299,11 @@ ensure_live_skill_lock() {
 cmd_lock_skills_install() {
     [ -f "$SKILL_LOCK_LIVE" ] || { log_info "No skill-lock found; skipping skill install"; return 0; }
 
-    mkdir -p "$AGENT_SKILLS_DIR" "$CLAUDE_SKILLS_DIR" "$OPENCODE_SKILLS_DIR"
+    mkdir -p "$AGENT_SKILLS_DIR" "$CLAUDE_SKILLS_DIR" "$OPENCODE_SKILLS_DIR" "$PI_SKILLS_DIR"
     [ -d "$AGENT_SKILLS_DIR" ] && find "$AGENT_SKILLS_DIR" -maxdepth 1 -lname '*claude-skill-repos*' -delete 2>/dev/null || true
     [ -d "$CLAUDE_SKILLS_DIR" ] && find "$CLAUDE_SKILLS_DIR" -maxdepth 1 -lname '*claude-skill-repos*' -delete 2>/dev/null || true
     [ -d "$OPENCODE_SKILLS_DIR" ] && find "$OPENCODE_SKILLS_DIR" -maxdepth 1 -lname '*claude-skill-repos*' -delete 2>/dev/null || true
+    [ -d "$PI_SKILLS_DIR" ] && find "$PI_SKILLS_DIR" -maxdepth 1 -lname '*claude-skill-repos*' -delete 2>/dev/null || true
 
     local entries
     entries=$(jq -r '.skills | to_entries[] | [.key, .value.source, (.value.sourceUrl // "")] | @tsv' "$SKILL_LOCK_LIVE")
@@ -1215,11 +1312,11 @@ cmd_lock_skills_install() {
     local name source source_url
     while IFS=$'\t' read -r name source source_url; do
         [ -n "$name" ] || continue
-        if [ -e "${AGENT_SKILLS_DIR}/${name}/SKILL.md" ] && [ -e "${CLAUDE_SKILLS_DIR}/${name}/SKILL.md" ] && [ -e "${OPENCODE_SKILLS_DIR}/${name}/SKILL.md" ]; then
+        if [ -e "${AGENT_SKILLS_DIR}/${name}/SKILL.md" ] && [ -e "${CLAUDE_SKILLS_DIR}/${name}/SKILL.md" ] && [ -e "${OPENCODE_SKILLS_DIR}/${name}/SKILL.md" ] && [ -e "${PI_SKILLS_DIR}/${name}/SKILL.md" ]; then
             continue
         fi
 
-        if [ ! -e "${AGENT_SKILLS_DIR}/${name}/SKILL.md" ] && [ ! -e "${CLAUDE_SKILLS_DIR}/${name}/SKILL.md" ] && [ ! -e "${OPENCODE_SKILLS_DIR}/${name}/SKILL.md" ]; then
+        if [ ! -e "${AGENT_SKILLS_DIR}/${name}/SKILL.md" ] && [ ! -e "${CLAUDE_SKILLS_DIR}/${name}/SKILL.md" ] && [ ! -e "${OPENCODE_SKILLS_DIR}/${name}/SKILL.md" ] && [ ! -e "${PI_SKILLS_DIR}/${name}/SKILL.md" ]; then
             local install_ok=false
             if [ "$source" = "openclaw/agent-skills" ] || [ "$source_url" = "https://github.com/openclaw/agent-skills.git" ]; then
                 log_info "Installing skill: $name (from $source)"
@@ -1244,6 +1341,8 @@ cmd_lock_skills_install() {
             source_dir="${CLAUDE_SKILLS_DIR}/${name}"
         elif [ -e "${OPENCODE_SKILLS_DIR}/${name}/SKILL.md" ]; then
             source_dir="${OPENCODE_SKILLS_DIR}/${name}"
+        elif [ -e "${PI_SKILLS_DIR}/${name}/SKILL.md" ]; then
+            source_dir="${PI_SKILLS_DIR}/${name}"
         fi
 
         if [ -n "$source_dir" ]; then
@@ -1259,9 +1358,13 @@ cmd_lock_skills_install() {
                 ln -s "$source_dir" "${OPENCODE_SKILLS_DIR}/${name}"
                 log_info "Linked OpenCode skill: $name -> $source_dir"
             fi
+            if [ ! -e "${PI_SKILLS_DIR}/${name}" ] && [ ! -L "${PI_SKILLS_DIR}/${name}" ]; then
+                ln -s "$source_dir" "${PI_SKILLS_DIR}/${name}"
+                log_info "Linked Pi skill: $name -> $source_dir"
+            fi
         fi
 
-        if [ ! -e "${AGENT_SKILLS_DIR}/${name}/SKILL.md" ] || [ ! -e "${CLAUDE_SKILLS_DIR}/${name}/SKILL.md" ] || [ ! -e "${OPENCODE_SKILLS_DIR}/${name}/SKILL.md" ]; then
+        if [ ! -e "${AGENT_SKILLS_DIR}/${name}/SKILL.md" ] || [ ! -e "${CLAUDE_SKILLS_DIR}/${name}/SKILL.md" ] || [ ! -e "${OPENCODE_SKILLS_DIR}/${name}/SKILL.md" ] || [ ! -e "${PI_SKILLS_DIR}/${name}/SKILL.md" ]; then
             echo "[WARN] Skill not available in all runtimes after install: $name" >&2
         fi
     done <<< "$entries"
@@ -1539,7 +1642,7 @@ cmd_lock_skills_export() {
 }
 
 cmd_skills_update() {
-    log_info "Updating global skills shared by Codex, OpenCode, and Claude..."
+    log_info "Updating global skills shared by Codex, Claude, Pi, and OpenCode..."
     "$SKILLS_CLI" update -g "$@"
 }
 
@@ -1646,6 +1749,128 @@ cmd_push_plugins() {
     [ "$failed" = false ]
 }
 
+render_pi_settings() {
+    local source_file="$1"
+    local target_file="$2"
+
+    jq -S --slurpfile wanted "$PI_SETTINGS_TEMPLATE" '
+        .lastChangelogVersion? as $last
+        | $wanted[0]
+        + if $last == null then
+            {}
+          else
+            {lastChangelogVersion: $last}
+          end
+    ' < <(
+        if [ -f "$source_file" ]; then
+            cat "$source_file"
+        else
+            echo '{}'
+        fi
+    ) > "$target_file"
+}
+
+sync_pi_settings() {
+    mkdir -p "$PI_AGENT_DIR"
+
+    local tmp
+    tmp="$(mktemp)"
+    render_pi_settings "$PI_SETTINGS_FILE" "$tmp"
+
+    if [ -f "$PI_SETTINGS_FILE" ] &&
+        cmp -s "$tmp" "$PI_SETTINGS_FILE"; then
+        rm -f "$tmp"
+        log_info "Pi settings already in sync"
+    else
+        mv "$tmp" "$PI_SETTINGS_FILE"
+        log_info "Wrote $PI_SETTINGS_FILE"
+    fi
+}
+
+pi_package_installed() {
+    local source="$1"
+    local spec package version repo ref host path target
+
+    case "$source" in
+        npm:*)
+            spec="${source#npm:}"
+            package="${spec%@*}"
+            version="${spec##*@}"
+            jq -e --arg version "$version" \
+                '.version == $version' \
+                "${PI_AGENT_DIR}/npm/node_modules/${package}/package.json" \
+                >/dev/null 2>&1
+            ;;
+        git:*)
+            spec="${source#git:}"
+            repo="${spec%@*}"
+            ref="${spec##*@}"
+            host="${repo%%/*}"
+            path="${repo#*/}"
+            target="${PI_AGENT_DIR}/git/${host}/${path}"
+            [ -d "${target}/.git" ] &&
+                [ "$(git -C "$target" rev-parse HEAD 2>/dev/null)" = "$ref" ]
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+restore_pi_packages() {
+    command -v pi >/dev/null 2>&1 || {
+        log_info "Pi CLI not installed; skipping package restore"
+        return 0
+    }
+
+    local package
+    while IFS= read -r package; do
+        [ -n "$package" ] || continue
+        if pi_package_installed "$package"; then
+            log_info "Pi package already installed: $package"
+        else
+            log_info "Installing Pi package: $package"
+            pi install "$package"
+        fi
+    done < <(jq -r '.packages[]' "$PI_SETTINGS_TEMPLATE")
+}
+
+cmd_pi_install() {
+    log_info "Installing Pi agent config..."
+    mkdir -p "$PI_AGENT_DIR" "$PI_SKILLS_DIR"
+    link_file "$PI_AGENTS_SOURCE" "$PI_AGENTS_FILE"
+    sync_pi_settings
+    restore_pi_packages
+    sync_pi_mcp_config
+}
+
+cmd_pi_check() {
+    [ -f "$PI_SETTINGS_FILE" ] || {
+        echo "[ERROR] Pi settings missing: $PI_SETTINGS_FILE" >&2
+        return 1
+    }
+
+    local tmp package failed=false
+    tmp="$(mktemp)"
+    render_pi_settings "$PI_SETTINGS_FILE" "$tmp"
+    if ! cmp -s "$tmp" "$PI_SETTINGS_FILE"; then
+        echo "[ERROR] Pi settings drift detected: $PI_SETTINGS_FILE" >&2
+        diff -u "$tmp" "$PI_SETTINGS_FILE" >&2 || true
+        failed=true
+    fi
+    rm -f "$tmp"
+
+    while IFS= read -r package; do
+        [ -n "$package" ] || continue
+        if ! pi_package_installed "$package"; then
+            echo "[ERROR] Pi package drift: $package" >&2
+            failed=true
+        fi
+    done < <(jq -r '.packages[]' "$PI_SETTINGS_TEMPLATE")
+
+    [ "$failed" = false ]
+}
+
 cmd_claude_install() {
     log_info "Installing Claude agent config..."
     link_file "$CLAUDE_AGENTS_SOURCE" "$CLAUDE_AGENTS_FILE"
@@ -1672,6 +1897,7 @@ cmd_install() {
     cmd_codex_install
     cmd_opencode_install
     cmd_kimi_install
+    cmd_pi_install
     cmd_claude_install
 
     log_info "Agent config sync complete"
@@ -1743,6 +1969,12 @@ case "${1:-}" in
     kimi-check)
         cmd_kimi_check
         ;;
+    pi-install)
+        cmd_pi_install
+        ;;
+    pi-check)
+        cmd_pi_check
+        ;;
     claude-install)
         cmd_claude_install
         ;;
@@ -1778,7 +2010,7 @@ case "${1:-}" in
         echo "  push-skills      Restore skills without version updates"
         echo "  pull-plugins     Preview plugin drift; approval stays in #13"
         echo "  push-plugins     Apply membership without version updates"
-        echo "  install          Sync shared agent config into Codex, OpenCode, Kimi, and Claude"
+        echo "  install          Sync shared agent config into Codex, Claude, Pi, OpenCode, and Kimi"
         echo "  plugins-check    Check Codex and Claude against shared plugin manifest"
         echo "  plugins-export   Export Codex and Claude into shared plugin manifest"
         echo "  plugins-update   Update Codex marketplaces and installed Claude plugins"
@@ -1792,8 +2024,10 @@ case "${1:-}" in
         echo "  opencode-check   Exit 1 if OpenCode config is out of sync"
         echo "  kimi-install     Generate Kimi MCP config (~/.kimi-code/mcp.json)"
         echo "  kimi-check       Exit 1 if Kimi MCP config is out of sync"
+        echo "  pi-install       Link instructions, restore settings and packages"
+        echo "  pi-check         Exit 1 if Pi settings or packages drift"
         echo "  claude-install   Link AGENTS.md, generate Claude settings, install plugins and skills"
-        echo "  skills-update    Update global skills shared by Codex, OpenCode, and Claude"
+        echo "  skills-update    Update global skills shared by Codex, Claude, Pi, and OpenCode"
         echo "  claude-export    Sync installed Claude plugins/marketplaces into manifest"
         echo "  claude-prune     Remove Claude plugins/marketplaces not listed in manifest"
         echo "  custom-skills-export"

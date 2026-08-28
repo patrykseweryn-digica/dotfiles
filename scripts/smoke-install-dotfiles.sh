@@ -142,6 +142,61 @@ STUB
     rm -rf "$tmp_dir"
 }
 
+smoke_pi_drift_check() {
+    local tmp_dir home_dir pi_dir template git_dir sha
+
+    tmp_dir="$(mktemp -d)"
+    home_dir="${tmp_dir}/home"
+    pi_dir="${home_dir}/.pi/agent"
+    template="${tmp_dir}/settings.json"
+    git_dir="${pi_dir}/git/example.test/example/package"
+
+    mkdir -p "$git_dir" "${pi_dir}/npm/node_modules/example-package"
+    printf 'fixture\n' > "${git_dir}/README.md"
+    (
+        unset GIT_INDEX_FILE
+        unset GIT_OBJECT_DIRECTORY
+        unset GIT_ALTERNATE_OBJECT_DIRECTORIES
+        git -C "$git_dir" init -q
+        git -C "$git_dir" add README.md
+        git -C "$git_dir" \
+            -c user.name=Test \
+            -c user.email=test@example.com \
+            commit -qm fixture
+        git -C "$git_dir" rev-parse HEAD > "${tmp_dir}/sha"
+    )
+    sha="$(cat "${tmp_dir}/sha")"
+
+    jq -n --arg sha "$sha" '{
+        packages: [
+            "git:example.test/example/package@\($sha)",
+            "npm:example-package@1.2.3"
+        ]
+    }' > "$template"
+    jq -S '. + {lastChangelogVersion: "local-only"}' "$template" \
+        > "${pi_dir}/settings.json"
+    printf '{"version":"1.2.3"}\n' \
+        > "${pi_dir}/npm/node_modules/example-package/package.json"
+
+    if ! HOME="$home_dir" \
+        PI_CODING_AGENT_DIR="$pi_dir" \
+        PI_SETTINGS_TEMPLATE="$template" \
+        "${DOTFILES_DIR}/sync-agents.sh" --quiet pi-check; then
+        fail "Pi check rejected matching settings and packages"
+    fi
+
+    rm "${pi_dir}/npm/node_modules/example-package/package.json"
+    if HOME="$home_dir" \
+        PI_CODING_AGENT_DIR="$pi_dir" \
+        PI_SETTINGS_TEMPLATE="$template" \
+        "${DOTFILES_DIR}/sync-agents.sh" --quiet pi-check \
+        >/dev/null 2>&1; then
+        fail "Pi check ignored missing package"
+    fi
+
+    rm -rf "$tmp_dir"
+}
+
 run_case() {
     local os_name="$1"
     local expected_code_dir="$2"
@@ -152,6 +207,7 @@ run_case() {
     local sync_log
     local env_file
     local npx_log
+    local pi_log
 
     tmp_dir="$(mktemp -d)"
     home_dir="${tmp_dir}/home"
@@ -159,10 +215,19 @@ run_case() {
     sync_log="${tmp_dir}/sync.log"
     env_file="${tmp_dir}/dotfiles.env"
     npx_log="${tmp_dir}/npx.log"
+    pi_log="${tmp_dir}/pi.log"
 
     mkdir -p "$home_dir" "$stub_dir"
     ln -s "$JQ_BIN" "${stub_dir}/jq"
     : > "$npx_log"
+    : > "$pi_log"
+    mkdir -p "${home_dir}/.pi/agent"
+    cat > "${home_dir}/.pi/agent/settings.json" <<'JSON'
+{
+  "lastChangelogVersion": "local-only",
+  "theme": "unmanaged"
+}
+JSON
 
     cat > "${stub_dir}/skills" <<'STUB'
 #!/bin/sh
@@ -170,6 +235,12 @@ echo "skills $*" >> "$NPX_LOG"
 exit 127
 STUB
     chmod +x "${stub_dir}/skills"
+
+    cat > "${stub_dir}/pi" <<'STUB'
+#!/bin/sh
+printf '%s\n' "$*" >> "$PI_LOG"
+STUB
+    chmod +x "${stub_dir}/pi"
 
     (
         export HOME="$home_dir"
@@ -183,6 +254,7 @@ STUB
         export DOTFILES_SKIP_SSH=true
         export DOTFILES_ENV_FILE="$env_file"
         export NPX_LOG="$npx_log"
+        export PI_LOG="$pi_log"
 
         # shellcheck source=/dev/null
         source "${DOTFILES_DIR}/install.sh"
@@ -208,6 +280,17 @@ STUB
     [ -L "${home_dir}/.summarize/config.json" ] || fail "$os_name: missing summarize config symlink"
     [ -L "${home_dir}/.codex/AGENTS.md" ] || fail "$os_name: missing Codex instructions symlink"
     [ -L "${home_dir}/.config/opencode/AGENTS.md" ] || fail "$os_name: missing OpenCode instructions symlink"
+    [ -L "${home_dir}/.pi/agent/AGENTS.md" ] || fail "$os_name: missing Pi instructions symlink"
+    [ -f "${home_dir}/.pi/agent/settings.json" ] || fail "$os_name: missing Pi settings"
+    jq -e --slurpfile wanted "${DOTFILES_DIR}/config/pi/settings.json" '
+        .lastChangelogVersion == "local-only" and
+        (del(.lastChangelogVersion) == $wanted[0])
+    ' "${home_dir}/.pi/agent/settings.json" >/dev/null || \
+        fail "$os_name: Pi stable settings or local changelog state differ"
+    while IFS= read -r package; do
+        grep -Fx "install $package" "$pi_log" >/dev/null || \
+            fail "$os_name: Pi package was not restored: $package"
+    done < <(jq -r '.packages[]' "${DOTFILES_DIR}/config/pi/settings.json")
     [ -f "${home_dir}/.codex/config.toml" ] || fail "$os_name: missing Codex config"
     [ -f "${home_dir}/.config/opencode/opencode.json" ] || fail "$os_name: missing OpenCode config"
 
@@ -224,6 +307,7 @@ STUB
 smoke_source_has_no_home_side_effect
 smoke_run_steps_preserve_errexit
 smoke_tmux_plugins_install_after_setup_dotfiles
+smoke_pi_drift_check
 run_case "Linux" ".config/Code/User" ".config/ghostty/config"
 run_case "Darwin" "Library/Application Support/Code/User" "Library/Application Support/com.mitchellh.ghostty/config.ghostty"
 

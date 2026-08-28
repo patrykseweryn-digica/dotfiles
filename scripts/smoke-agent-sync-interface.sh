@@ -21,10 +21,12 @@ claude_config="${home_dir}/.claude.json"
 claude_settings="${home_dir}/.claude/settings.json"
 opencode_config="${home_dir}/.config/opencode/opencode.json"
 kimi_config="${home_dir}/.kimi-code/mcp.json"
+pi_mcp="${home_dir}/.agents/mcp.json"
 mkdir -p \
     "${home_dir}/.codex" \
     "$(dirname "$opencode_config")" \
     "$(dirname "$kimi_config")" \
+    "$(dirname "$pi_mcp")" \
     "$stub_dir"
 
 cat > "$repo_mcp" <<'JSON'
@@ -104,6 +106,20 @@ cat > "$kimi_config" <<'JSON'
 }
 JSON
 
+cat > "$pi_mcp" <<'JSON'
+{
+  "keep": true,
+  "mcpServers": {
+    "shared": {"url": "https://shared.test/mcp"},
+    "pi-only": {
+      "command": "pi-server",
+      "args": [],
+      "env": {"SECRET_TOKEN": "must-not-enter-repo"}
+    }
+  }
+}
+JSON
+
 cat > "${stub_dir}/codex" <<'STUB'
 #!/bin/bash
 [ "$*" = "mcp list --json" ] || exit 1
@@ -120,6 +136,7 @@ OPENCODE_CONFIG_DIR="$(dirname "$opencode_config")"
 export OPENCODE_CONFIG_DIR
 export OPENCODE_CONFIG="$opencode_config"
 export KIMI_MCP_CONFIG="$kimi_config"
+export PI_MCP_CONFIG="$pi_mcp"
 export MCP_SERVERS="$repo_mcp"
 export PATH="${stub_dir}:/usr/bin:/bin"
 
@@ -136,7 +153,7 @@ grep -F 'codex-only' "${tmp_dir}/cancel.log" >/dev/null || \
 printf 'y\n' | "$SYNC" --quiet pull-mcp > "${tmp_dir}/pull.log"
 
 jq -e '
-  keys == ["claude-only", "codex-only", "kimi-only", "opencode-only", "shared"] and
+  keys == ["claude-only", "codex-only", "kimi-only", "opencode-only", "pi-only", "shared"] and
   .["claude-only"] == {
     type: "stdio", command: "claude-server", args: []
   }
@@ -195,6 +212,19 @@ cat > "$claude_settings" <<'JSON'
 JSON
 echo '{"keep":true}' > "$opencode_config"
 echo '{"keep":true}' > "$kimi_config"
+cat > "$pi_mcp" <<'JSON'
+{
+  "keep": true,
+  "mcpServers": {
+    "local": {
+      "command": "local-server",
+      "args": ["--stdio"],
+      "disabled": true,
+      "env": {"LOCAL_TOKEN": "keep-local"}
+    }
+  }
+}
+JSON
 
 "$SYNC" --quiet push-mcp
 
@@ -218,20 +248,29 @@ jq -e '.keep and (.mcp | keys) == ["local", "remote"]' \
     "$opencode_config" >/dev/null || fail "push-mcp omitted OpenCode MCP config"
 jq -e '.keep and (.mcpServers | keys) == ["local", "remote"]' \
     "$kimi_config" >/dev/null || fail "push-mcp omitted Kimi MCP config"
+jq -e '
+  .keep and
+  (.mcpServers | keys) == ["local", "remote"] and
+  .mcpServers.local.disabled == null and
+  .mcpServers.local.env.LOCAL_TOKEN == "keep-local"
+' "$pi_mcp" >/dev/null || \
+    fail "push-mcp omitted Pi MCP config or local credentials"
 
 pushed_hashes="$(sha256sum \
     "${CODEX_HOME}/config.toml" \
     "$claude_config" \
     "$claude_settings" \
     "$opencode_config" \
-    "$kimi_config")"
+    "$kimi_config" \
+    "$pi_mcp")"
 "$SYNC" --quiet push-mcp
 [ "$pushed_hashes" = "$(sha256sum \
     "${CODEX_HOME}/config.toml" \
     "$claude_config" \
     "$claude_settings" \
     "$opencode_config" \
-    "$kimi_config")" ] || fail "push-mcp is not idempotent"
+    "$kimi_config" \
+    "$pi_mcp")" ] || fail "push-mcp is not idempotent"
 
 cat > "$codex_mcp" <<'JSON'
 [

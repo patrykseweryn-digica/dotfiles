@@ -33,8 +33,9 @@ just push           # push MCP, skills, and plugins in order
 
 There is no broad `just pull`. MCP pull merges identical definitions and stops
 without writing on conflicts. Environment values, HTTP headers, credentials,
-OAuth state, and unsupported transports are not imported. Pi has no built-in
-MCP support, so its MCP adapter remains out of scope until issue `#12`.
+OAuth state, and unsupported transports are not imported. Pi receives stdio
+and HTTP servers through the pinned `pi-mcp-adapter` package. Its local MCP
+state lives in `~/.agents/mcp.json`.
 
 ## Agent tool versions
 
@@ -52,6 +53,12 @@ Code uses Anthropic's native installer with an exact version. `just install`
 installs the committed versions on a fresh machine. Configuration commands
 such as `just push` never resolve channels or update tool versions.
 
+`config/pi/settings.json` owns Pi's stable provider, model, thinking level, and
+pinned package list. Install keeps `auth.json`, sessions, `trust.json`, and
+changelog state local. Shared instructions are linked to
+`~/.pi/agent/AGENTS.md`. Shared skills are linked into
+`~/.pi/agent/skills/`.
+
 ## Setup commands
 
 ```bash
@@ -65,7 +72,8 @@ just setup-ssh        # explicit SSH key/config setup
 - `justfile`: command menu for humans.
 - `install.sh`: full setup orchestrator.
 - `bootstrap.d/*`: install modules sourced by `install.sh`.
-- `sync-agents.sh`: sync Codex, Claude, OpenCode, Kimi, MCP, plugins, skills.
+- `sync-agents.sh`: sync Codex, Claude, Pi, OpenCode, Kimi, MCP, plugins,
+  skills.
 - `ssh.sh`: SSH keys and `~/.ssh/config` setup.
 - `scripts/smoke-*`: regression tests for installer behavior.
 - `bin/*`: commands linked into `~/.local/bin`.

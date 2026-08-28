@@ -20,6 +20,7 @@ mkdir -p \
     "${home_dir}/.claude/skills" \
     "${home_dir}/.codex" \
     "${home_dir}/.config/opencode/skills" \
+    "${home_dir}/.pi/agent/skills" \
     "$stub_dir"
 
 cp "${DOTFILES_DIR}/.agents/skill-lock.json" \
@@ -30,6 +31,8 @@ ln -s "${DOTFILES_DIR}/config/claude/CLAUDE.md" \
     "${home_dir}/.claude/CLAUDE.md"
 ln -s "${DOTFILES_DIR}/config/opencode/AGENTS.md" \
     "${home_dir}/.config/opencode/AGENTS.md"
+ln -s "${DOTFILES_DIR}/config/pi/AGENTS.md" \
+    "${home_dir}/.pi/agent/AGENTS.md"
 
 cat > "${stub_dir}/sync-agents" <<'STUB'
 #!/bin/bash
@@ -62,6 +65,7 @@ for expected in \
     plugins-check \
     claude-settings-check \
     mcp-check \
+    pi-check \
     'custom-skills-export --check'; do
     grep -Fx "$expected" "$check_log" >/dev/null || \
         fail "doctor skipped: $expected"
