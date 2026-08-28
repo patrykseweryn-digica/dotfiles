@@ -10,6 +10,7 @@ details unless you are debugging them.
 ```bash
 just --list
 just check
+just doctor
 just update-agents
 just update-skills
 just update-plugins
@@ -39,6 +40,7 @@ just setup-ssh        # explicit SSH key/config setup
 
 - Need to use repo: start with `just --list`.
 - Need to verify repo: `just check`.
+- Need to check this machine for drift: `just doctor`.
 - Need to refresh agents: `just update-agents`.
 - Need to update shared skills: `just update-skills`.
 - Need to update shared Codex/Claude plugins: `just update-plugins`.

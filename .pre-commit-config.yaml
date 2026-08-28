@@ -73,31 +73,9 @@ repos:
         entry: ./scripts/smoke-web-scraping-skills.sh
         language: system
         pass_filenames: false
-      - id: agent-plugin-check
-        name: Shared agent plugin drift check
-        description: Ensure Codex and Claude match the shared plugin manifest
-        entry: ./sync-agents.sh plugins-check
+      - id: doctor-smoke
+        name: Live machine doctor smoke test
+        description: Ensure live drift checks stay outside commit-time hooks
+        entry: ./scripts/smoke-doctor.sh
         language: system
         pass_filenames: false
-        always_run: true
-      - id: claude-settings-check
-        name: Claude settings drift check
-        description: Ensure ~/.claude/settings.json has no keys outside template + generated keys
-        entry: ./sync-agents.sh claude-settings-check
-        language: system
-        pass_filenames: false
-        always_run: true
-      - id: codex-mcp-config-check
-        name: Codex MCP config sync check
-        description: Ensure ~/.codex/config.toml reflects shared MCP servers
-        entry: ./sync-agents.sh codex-check
-        language: system
-        pass_filenames: false
-        always_run: true
-      - id: opencode-config-check
-        name: OpenCode config sync check
-        description: Ensure ~/.config/opencode/opencode.json reflects shared instructions and MCP servers
-        entry: ./sync-agents.sh opencode-check
-        language: system
-        pass_filenames: false
-        always_run: true

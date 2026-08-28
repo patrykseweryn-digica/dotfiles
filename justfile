@@ -13,9 +13,13 @@ install:
 update-dotfiles:
     DOTFILES_SKIP_SSH=true bash -c 'source ./install.sh; load_env; setup_dotfiles'
 
-# Run the full repo verification suite.
+# Run deterministic repository checks.
 check:
     pre-commit run --all-files
+
+# Check this machine against repository intent.
+doctor:
+    ./scripts/doctor.sh
 
 # Refresh Codex, OpenCode, and Claude configuration from repo state.
 update-agents:
