@@ -134,6 +134,10 @@ fi
 export NVM_DIR="$HOME/.nvm"
 [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
 [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
+if command -v nvm >/dev/null 2>&1; then
+  # Pick the configured default in new shells instead of inheriting a stale NVM_BIN.
+  nvm use --silent default >/dev/null 2>&1
+fi
 
 # To customize prompt, run `p10k configure` or edit ~/.p10k.zsh.
 [[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh

@@ -45,6 +45,10 @@ export PATH="$HOME/.local/bin:$PATH"
 export NVM_DIR="$HOME/.nvm"
 [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
 [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
+if command -v nvm >/dev/null 2>&1; then
+  # Pick the configured default in new shells instead of inheriting a stale NVM_BIN.
+  nvm use --silent default >/dev/null 2>&1
+fi
 
 # Prompt: user:dir (branch) $
 parse_git_branch() {

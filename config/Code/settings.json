@@ -178,8 +178,6 @@
     "*.xlsx": "duckdb.dataFileViewer"
   },
   "workbench.colorTheme": "Monokai",
-  "gitlens.ai.model": "vscode",
-  "gitlens.ai.vscode.model": "copilot:gpt-4.1",
   "chatgpt.composerEnterBehavior": "cmdIfMultiline",
   "yaml.disableSchemaDetection": [
     "**/.github/workflows/*.yml",
@@ -188,5 +186,6 @@
     "**/.gitea/workflows/*.yaml",
     "**/.forgejo/workflows/*.yml",
     "**/.forgejo/workflows/*.yaml"
-  ]
+  ],
+  "chatgpt.followUpQueueMode": "steer"
 }
