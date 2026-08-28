@@ -14,6 +14,7 @@ just doctor
 just agent-versions
 just push
 just pull-mcp
+just pull-skills
 ```
 
 ## Sync direction
@@ -24,8 +25,8 @@ through category-specific pull commands.
 ```bash
 just pull-mcp       # preview live MCP state, then confirm
 just push-mcp       # repository MCP state -> runtimes
-just pull-skills    # preview drift; inventory approval stays in issue #10
-just push-skills    # restore skills without version updates
+just pull-skills    # preview live skills, then confirm repository changes
+just push-skills    # reconcile skills without version updates
 just pull-plugins   # preview drift; inventory approval stays in issue #13
 just push-plugins   # apply membership without upgrades
 just push           # push MCP, skills, and plugins in order
@@ -33,9 +34,14 @@ just push           # push MCP, skills, and plugins in order
 
 There is no broad `just pull`. MCP pull merges identical definitions and stops
 without writing on conflicts. Environment values, HTTP headers, credentials,
-OAuth state, and unsupported transports are not imported. Pi receives stdio
-and HTTP servers through the pinned `pi-mcp-adapter` package. Its local MCP
-state lives in `~/.agents/mcp.json`.
+OAuth state, and unsupported transports are not imported. Skill pull previews
+lock and custom-skill additions, removals, and replacements before asking for
+confirmation. Skill push removes unmanaged skills and stale links, then makes
+Codex, Claude Code, OpenCode, and Pi match the repository inventory. Neither
+command updates upstream skill versions.
+
+Pi receives stdio and HTTP servers through the pinned `pi-mcp-adapter` package.
+Its local MCP state lives in `~/.agents/mcp.json`.
 
 ## Agent tool versions
 
@@ -89,6 +95,7 @@ just setup-ssh        # explicit SSH key/config setup
 - Need to update agent tools: `just update-agent-tools`.
 - Need to apply repository state: `just push`.
 - Need to inspect runtime MCP additions: `just pull-mcp`.
+- Need to review live skill changes: `just pull-skills`.
 - Need a new machine: `just install`.
 - Need only dotfile links refreshed: `just update-dotfiles`.
 - Need SSH changes: run `just setup-ssh` explicitly.

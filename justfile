@@ -40,11 +40,11 @@ pull-mcp:
 push-mcp:
     "{{ sync_agents }}" push-mcp
 
-# Preview runtime skill drift. Inventory decisions remain in issue #10.
+# Preview runtime skills, then confirm the repository update.
 pull-skills:
     "{{ sync_agents }}" pull-skills
 
-# Restore repository skills without updating upstream versions.
+# Reconcile repository skills without updating upstream versions.
 push-skills:
     "{{ sync_agents }}" push-skills
 

@@ -78,6 +78,15 @@ log_info() {
     echo "[INFO] $*"
 }
 
+skill_runtime_rows() {
+    cat <<EOF
+Codex|$AGENT_SKILLS_DIR
+Claude|$CLAUDE_SKILLS_DIR
+OpenCode|$OPENCODE_SKILLS_DIR
+Pi|$PI_SKILLS_DIR
+EOF
+}
+
 link_file() {
     local source_path="$1"
     local target_path="$2"
@@ -120,10 +129,66 @@ link_custom_skills() {
 }
 
 cmd_custom_skills_install() {
-    link_custom_skills "$AGENT_SKILLS_DIR"
-    link_custom_skills "$CLAUDE_SKILLS_DIR"
-    link_custom_skills "$OPENCODE_SKILLS_DIR"
-    link_custom_skills "$PI_SKILLS_DIR"
+    local runtime root
+    while IFS='|' read -r runtime root; do
+        link_custom_skills "$root"
+    done < <(skill_runtime_rows)
+}
+
+normalize_skill_lock() {
+    jq -e -S '
+        select((.skills | type) == "object")
+        | {
+            skills: (.skills | map_values(
+                del(.skillFolderHash, .installedAt, .updatedAt)
+            )),
+            dismissed: (.dismissed // {})
+        }
+    ' "$1"
+}
+
+normalize_live_skill_lock() {
+    local source_file="$1"
+    local target_file="$2"
+    local normalized installed_names
+    normalized="$(mktemp)"
+    installed_names="$(mktemp)"
+
+    normalize_skill_lock "$source_file" > "$normalized" || {
+        rm -f "$normalized" "$installed_names"
+        return 1
+    }
+    write_live_skill_names "$AGENT_SKILLS_DIR" "$installed_names" || {
+        rm -f "$normalized" "$installed_names"
+        return 1
+    }
+    local status=0
+    jq -e -S --rawfile installed "$installed_names" '
+        ($installed | split("\n") | map(select(length > 0))) as $installed
+        | .skills |= (
+            to_entries
+            | map(
+                .key as $key
+                | (.value.skillPath // "" | split("/")) as $parts
+                | if ($installed | index($key)) != null then
+                    .
+                  elif ($parts | length) >= 2 and
+                       ($installed | index($parts[-2])) != null then
+                    .key = $parts[-2]
+                  else
+                    empty
+                  end
+            )
+            | group_by(.key)
+            | if any(.[]; length > 1) then
+                error("normalized skill names collide")
+              else
+                map(.[0]) | from_entries
+              end
+        )
+    ' "$normalized" > "$target_file" || status=$?
+    rm -f "$normalized" "$installed_names"
+    return "$status"
 }
 
 is_locked_skill() {
@@ -136,6 +201,86 @@ is_locked_skill() {
     done
 
     return 1
+}
+
+build_live_skill_inventory() {
+    local lock_target="$1"
+    local custom_target="$2"
+
+    [ -f "$SKILL_LOCK_LIVE" ] || {
+        echo "[ERROR] Missing live skill lock: $SKILL_LOCK_LIVE" >&2
+        return 1
+    }
+    [ -d "$AGENT_SKILLS_DIR" ] || {
+        echo "[ERROR] Missing live skill directory: $AGENT_SKILLS_DIR" >&2
+        return 1
+    }
+    command -v rsync >/dev/null 2>&1 || {
+        echo "[ERROR] rsync is required for skill reconciliation" >&2
+        return 1
+    }
+
+    normalize_live_skill_lock "$SKILL_LOCK_LIVE" "$lock_target" || {
+        echo "[ERROR] Invalid live skill lock: $SKILL_LOCK_LIVE" >&2
+        return 1
+    }
+    rm -rf "$custom_target"
+    mkdir -p "$custom_target"
+
+    local skill_path skill_name
+    for skill_path in "$AGENT_SKILLS_DIR"/*; do
+        [ -e "$skill_path" ] || continue
+        skill_name="$(basename "$skill_path")"
+        if jq -e --arg name "$skill_name" \
+            '.skills[$name] != null' "$lock_target" >/dev/null; then
+            continue
+        fi
+        is_locked_skill "$skill_name" && continue
+
+        if [ -d "$skill_path" ] && [ -f "${skill_path}/SKILL.md" ]; then
+            mkdir -p "${custom_target}/${skill_name}"
+            rsync -aL --delete --exclude '.git/' \
+                "${skill_path}/" "${custom_target}/${skill_name}/"
+        elif [ -f "$skill_path" ] && [[ "$skill_name" == *.skill ]]; then
+            cp -L "$skill_path" "${custom_target}/${skill_name}"
+        fi
+    done
+}
+
+write_expected_skill_names() {
+    local target_file="$1"
+    local skill_path
+
+    {
+        jq -r '.skills | keys[]' "$SKILL_LOCK_REPO"
+        for skill_path in "$SHARED_SKILLS_CUSTOM_DIR"/*/; do
+            [ -d "$skill_path" ] && basename "$skill_path"
+        done
+        for skill_path in "$SHARED_SKILLS_CUSTOM_DIR"/*.skill; do
+            [ -f "$skill_path" ] && basename "$skill_path"
+        done
+    } | sort -u > "$target_file"
+}
+
+write_live_skill_names() {
+    local root="$1"
+    local target_file="$2"
+    local skill_path skill_name
+
+    : > "$target_file"
+    [ -d "$root" ] || return 1
+
+    for skill_path in "$root"/*; do
+        if [ -L "$skill_path" ] && [ -e "$skill_path" ]; then
+            basename "$skill_path" >> "$target_file"
+        elif [ -d "$skill_path" ] && [ -f "${skill_path}/SKILL.md" ]; then
+            basename "$skill_path" >> "$target_file"
+        elif [ -f "$skill_path" ]; then
+            skill_name="$(basename "$skill_path")"
+            [[ "$skill_name" == *.skill ]] && echo "$skill_name" >> "$target_file"
+        fi
+    done
+    sort -u -o "$target_file" "$target_file"
 }
 
 is_requested_skill() {
@@ -1299,11 +1444,12 @@ ensure_live_skill_lock() {
 cmd_lock_skills_install() {
     [ -f "$SKILL_LOCK_LIVE" ] || { log_info "No skill-lock found; skipping skill install"; return 0; }
 
-    mkdir -p "$AGENT_SKILLS_DIR" "$CLAUDE_SKILLS_DIR" "$OPENCODE_SKILLS_DIR" "$PI_SKILLS_DIR"
-    [ -d "$AGENT_SKILLS_DIR" ] && find "$AGENT_SKILLS_DIR" -maxdepth 1 -lname '*claude-skill-repos*' -delete 2>/dev/null || true
-    [ -d "$CLAUDE_SKILLS_DIR" ] && find "$CLAUDE_SKILLS_DIR" -maxdepth 1 -lname '*claude-skill-repos*' -delete 2>/dev/null || true
-    [ -d "$OPENCODE_SKILLS_DIR" ] && find "$OPENCODE_SKILLS_DIR" -maxdepth 1 -lname '*claude-skill-repos*' -delete 2>/dev/null || true
-    [ -d "$PI_SKILLS_DIR" ] && find "$PI_SKILLS_DIR" -maxdepth 1 -lname '*claude-skill-repos*' -delete 2>/dev/null || true
+    local runtime root
+    while IFS='|' read -r runtime root; do
+        mkdir -p "$root"
+        find "$root" -maxdepth 1 -lname '*claude-skill-repos*' \
+            -delete 2>/dev/null || true
+    done < <(skill_runtime_rows)
 
     local entries
     entries=$(jq -r '.skills | to_entries[] | [.key, .value.source, (.value.sourceUrl // "")] | @tsv' "$SKILL_LOCK_LIVE")
@@ -1312,9 +1458,6 @@ cmd_lock_skills_install() {
     local name source source_url
     while IFS=$'\t' read -r name source source_url; do
         [ -n "$name" ] || continue
-        if [ -e "${AGENT_SKILLS_DIR}/${name}/SKILL.md" ] && [ -e "${CLAUDE_SKILLS_DIR}/${name}/SKILL.md" ] && [ -e "${OPENCODE_SKILLS_DIR}/${name}/SKILL.md" ] && [ -e "${PI_SKILLS_DIR}/${name}/SKILL.md" ]; then
-            continue
-        fi
 
         if [ ! -e "${AGENT_SKILLS_DIR}/${name}/SKILL.md" ] && [ ! -e "${CLAUDE_SKILLS_DIR}/${name}/SKILL.md" ] && [ ! -e "${OPENCODE_SKILLS_DIR}/${name}/SKILL.md" ] && [ ! -e "${PI_SKILLS_DIR}/${name}/SKILL.md" ]; then
             local install_ok=false
@@ -1346,22 +1489,12 @@ cmd_lock_skills_install() {
         fi
 
         if [ -n "$source_dir" ]; then
-            if [ ! -e "${AGENT_SKILLS_DIR}/${name}" ] && [ ! -L "${AGENT_SKILLS_DIR}/${name}" ]; then
-                ln -s "$source_dir" "${AGENT_SKILLS_DIR}/${name}"
-                log_info "Linked agent skill: $name -> $source_dir"
-            fi
-            if [ ! -e "${CLAUDE_SKILLS_DIR}/${name}" ] && [ ! -L "${CLAUDE_SKILLS_DIR}/${name}" ]; then
-                ln -s "$source_dir" "${CLAUDE_SKILLS_DIR}/${name}"
-                log_info "Linked Claude skill: $name -> $source_dir"
-            fi
-            if [ ! -e "${OPENCODE_SKILLS_DIR}/${name}" ] && [ ! -L "${OPENCODE_SKILLS_DIR}/${name}" ]; then
-                ln -s "$source_dir" "${OPENCODE_SKILLS_DIR}/${name}"
-                log_info "Linked OpenCode skill: $name -> $source_dir"
-            fi
-            if [ ! -e "${PI_SKILLS_DIR}/${name}" ] && [ ! -L "${PI_SKILLS_DIR}/${name}" ]; then
-                ln -s "$source_dir" "${PI_SKILLS_DIR}/${name}"
-                log_info "Linked Pi skill: $name -> $source_dir"
-            fi
+            local target_dir target_path
+            while IFS='|' read -r runtime target_dir; do
+                target_path="${target_dir}/${name}"
+                [ "$source_dir" = "$target_path" ] || \
+                    link_file "$source_dir" "$target_path"
+            done < <(skill_runtime_rows)
         fi
 
         if [ ! -e "${AGENT_SKILLS_DIR}/${name}/SKILL.md" ] || [ ! -e "${CLAUDE_SKILLS_DIR}/${name}/SKILL.md" ] || [ ! -e "${OPENCODE_SKILLS_DIR}/${name}/SKILL.md" ] || [ ! -e "${PI_SKILLS_DIR}/${name}/SKILL.md" ]; then
@@ -1666,15 +1799,155 @@ cmd_plugins_update() {
 }
 
 cmd_pull_skills() {
-    cmd_custom_skills_export --dry-run
-    echo "[ERROR] Skill inventory approval is tracked in issue #10" >&2
-    return 1
+    [ "$#" -eq 0 ] || {
+        echo "[ERROR] pull-skills takes no arguments" >&2
+        return 1
+    }
+
+    local candidate_dir candidate_lock candidate_custom changed=false reply
+    candidate_dir="$(mktemp -d)"
+    candidate_lock="${candidate_dir}/skill-lock.json"
+    candidate_custom="${candidate_dir}/skills-custom"
+    build_live_skill_inventory "$candidate_lock" "$candidate_custom" || {
+        rm -rf "$candidate_dir"
+        return 1
+    }
+
+    if ! cmp -s "$SKILL_LOCK_REPO" "$candidate_lock"; then
+        diff -u "$SKILL_LOCK_REPO" "$candidate_lock" || true
+        changed=true
+    fi
+    if ! diff -qr "$SHARED_SKILLS_CUSTOM_DIR" "$candidate_custom" \
+        >/dev/null 2>&1; then
+        diff -ruN "$SHARED_SKILLS_CUSTOM_DIR" "$candidate_custom" || true
+        changed=true
+    fi
+
+    if [ "$changed" = false ]; then
+        rm -rf "$candidate_dir"
+        log_info "Shared skill inventory already matches live state"
+        return 0
+    fi
+
+    printf 'Apply this skill inventory? [y/N] '
+    read -r reply || reply=""
+    case "$reply" in
+        y|Y|yes|YES)
+            cp "$candidate_lock" "$SKILL_LOCK_REPO"
+            mkdir -p "$SHARED_SKILLS_CUSTOM_DIR"
+            rsync -ac --delete \
+                "${candidate_custom}/" "$SHARED_SKILLS_CUSTOM_DIR/"
+            rm -rf "$candidate_dir"
+            log_info "Updated shared skill inventory from live state"
+            ;;
+        *)
+            rm -rf "$candidate_dir"
+            echo "[ERROR] Skill pull cancelled; repository unchanged" >&2
+            return 1
+            ;;
+    esac
+}
+
+prune_skill_dir() {
+    local root="$1"
+    local expected_file="$2"
+    local skill_path skill_name
+
+    mkdir -p "$root"
+    for skill_path in "$root"/*; do
+        [ -L "$skill_path" ] || [ -e "$skill_path" ] || continue
+        skill_name="$(basename "$skill_path")"
+
+        if [ -L "$skill_path" ] && [ ! -e "$skill_path" ]; then
+            rm "$skill_path"
+            log_info "Removed stale skill link: $skill_path"
+        elif { [ -L "$skill_path" ] ||
+                { [ -d "$skill_path" ] && [ -f "${skill_path}/SKILL.md" ]; } ||
+                { [ -f "$skill_path" ] && [[ "$skill_name" == *.skill ]]; }; } &&
+             ! grep -qxF "$skill_name" "$expected_file"; then
+            rm -rf "$skill_path"
+            log_info "Removed skill outside inventory: $skill_path"
+        fi
+    done
+}
+
+cmd_skills_check() {
+    local tmp_dir live_lock live_custom repo_lock expected actual
+    local root runtime missing extra stale failed=false
+    tmp_dir="$(mktemp -d)"
+    live_lock="${tmp_dir}/live-lock.json"
+    live_custom="${tmp_dir}/live-custom"
+    repo_lock="${tmp_dir}/repo-lock.json"
+    expected="${tmp_dir}/expected.txt"
+    actual="${tmp_dir}/actual.txt"
+
+    build_live_skill_inventory "$live_lock" "$live_custom" || {
+        rm -rf "$tmp_dir"
+        return 1
+    }
+    normalize_skill_lock "$SKILL_LOCK_REPO" > "$repo_lock" || {
+        rm -rf "$tmp_dir"
+        echo "[ERROR] Invalid repository skill lock: $SKILL_LOCK_REPO" >&2
+        return 1
+    }
+
+    if ! cmp -s "$repo_lock" "$live_lock"; then
+        echo "[ERROR] Live skill lock differs from repository intent" >&2
+        diff -u "$repo_lock" "$live_lock" >&2 || true
+        failed=true
+    fi
+    if ! diff -qr "$SHARED_SKILLS_CUSTOM_DIR" "$live_custom" \
+        >/dev/null 2>&1; then
+        echo "[ERROR] Live custom skills differ from repository intent" >&2
+        diff -ruN "$SHARED_SKILLS_CUSTOM_DIR" "$live_custom" >&2 || true
+        failed=true
+    fi
+
+    write_expected_skill_names "$expected"
+    while IFS='|' read -r runtime root; do
+        if ! write_live_skill_names "$root" "$actual"; then
+            echo "[ERROR] Missing ${runtime} skill directory: $root" >&2
+            failed=true
+            continue
+        fi
+
+        missing="$(comm -23 "$expected" "$actual")"
+        extra="$(comm -13 "$expected" "$actual")"
+        stale="$(find "$root" -mindepth 1 -maxdepth 1 -type l ! -exec test -e {} \; -print)"
+        if [ -n "$missing" ]; then
+            echo "[ERROR] ${runtime} missing skills:" >&2
+            echo "$missing" | sed 's/^/  - /' >&2
+            failed=true
+        fi
+        if [ -n "$extra" ]; then
+            echo "[ERROR] ${runtime} unmanaged skills:" >&2
+            echo "$extra" | sed 's/^/  - /' >&2
+            failed=true
+        fi
+        if [ -n "$stale" ]; then
+            echo "[ERROR] ${runtime} stale skill links:" >&2
+            echo "$stale" | sed 's/^/  - /' >&2
+            failed=true
+        fi
+    done < <(skill_runtime_rows)
+
+    rm -rf "$tmp_dir"
+    [ "$failed" = false ]
 }
 
 cmd_push_skills() {
+    local expected runtime root
+    expected="$(mktemp)"
+    write_expected_skill_names "$expected"
+    while IFS='|' read -r runtime root; do
+        prune_skill_dir "$root" "$expected"
+    done < <(skill_runtime_rows)
+    rm -f "$expected"
+
     cmd_custom_skills_install
     ensure_live_skill_lock
     cmd_lock_skills_install
+    cmd_skills_check
 }
 
 cmd_pull_plugins() {
@@ -1925,10 +2198,14 @@ case "${1:-}" in
         cmd_mcp_check
         ;;
     pull-skills)
-        cmd_pull_skills
+        shift
+        cmd_pull_skills "$@"
         ;;
     push-skills)
         cmd_push_skills
+        ;;
+    skills-check)
+        cmd_skills_check
         ;;
     pull-plugins)
         cmd_pull_plugins
@@ -2006,8 +2283,9 @@ case "${1:-}" in
         echo "  pull-mcp         Preview and confirm live MCP import"
         echo "  push-mcp         Render shared MCP state into runtimes"
         echo "  mcp-check        Compare normalized MCP state"
-        echo "  pull-skills      Preview skill drift; approval stays in #10"
-        echo "  push-skills      Restore skills without version updates"
+        echo "  pull-skills      Preview and confirm live skill import"
+        echo "  push-skills      Reconcile skills without version updates"
+        echo "  skills-check     Compare runtime skills with shared inventory"
         echo "  pull-plugins     Preview plugin drift; approval stays in #13"
         echo "  push-plugins     Apply membership without version updates"
         echo "  install          Sync shared agent config into Codex, Claude, Pi, OpenCode, and Kimi"

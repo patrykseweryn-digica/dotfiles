@@ -66,7 +66,7 @@ for expected in \
     claude-settings-check \
     mcp-check \
     pi-check \
-    'custom-skills-export --check'; do
+    skills-check; do
     grep -Fx "$expected" "$check_log" >/dev/null || \
         fail "doctor skipped: $expected"
 done
@@ -92,9 +92,11 @@ unset TOOL_DRIFT
 jq '.skills.extra = {source: "example/skills"}' \
     "${home_dir}/.agents/.skill-lock.json" > "${tmp_dir}/lock.json"
 mv "${tmp_dir}/lock.json" "${home_dir}/.agents/.skill-lock.json"
+FAIL_CHECK=skills-check
 if run_doctor; then
     fail "doctor passed with skill lock drift"
 fi
+unset FAIL_CHECK
 
 if grep -Eq \
     'agent-plugin-check|claude-settings-check|mcp-config-check' \

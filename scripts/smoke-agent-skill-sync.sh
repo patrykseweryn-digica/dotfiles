@@ -44,6 +44,11 @@ custom_export_lock="${tmp_dir}/custom-export-lock.json"
 custom_export_log="${tmp_dir}/custom-export.log"
 skills_update_stub_dir="${tmp_dir}/skills-update-stubs"
 skills_update_log="${tmp_dir}/skills-update.log"
+pull_home="${tmp_dir}/pull-home"
+pull_repo="${tmp_dir}/pull-repo"
+pull_lock="${tmp_dir}/pull-skill-lock.json"
+pull_live_lock="${pull_home}/.agents/.skill-lock.json"
+pull_log="${tmp_dir}/pull.log"
 
 mkdir -p "$home_dir/.agents/skills" "$stub_dir" "$skills_update_stub_dir"
 ln -s "$JQ_BIN" "${stub_dir}/jq"
@@ -117,6 +122,17 @@ grep -Fx -- 'update -g diagnosing-bugs' "$skills_update_log" >/dev/null || \
     fail "skills-update did not update shared global skills"
 
 : > "$skills_update_log"
+for skill_root in \
+    "${HOME}/.agents/skills" \
+    "${HOME}/.claude/skills" \
+    "${OPENCODE_CONFIG_DIR}/skills" \
+    "${HOME}/.pi/agent/skills"; do
+    mkdir -p "${skill_root}/outside-inventory"
+    printf '# Outside inventory\n' > \
+        "${skill_root}/outside-inventory/SKILL.md"
+    ln -s "${HOME}/missing-skill" "${skill_root}/stale-skill"
+done
+
 if ! PATH="${skills_update_stub_dir}:${stub_dir}:/usr/bin:/bin" \
     SKILLS_UPDATE_LOG="$skills_update_log" \
     "${DOTFILES_DIR}/sync-agents.sh" --quiet push-skills \
@@ -126,6 +142,61 @@ if ! PATH="${skills_update_stub_dir}:${stub_dir}:/usr/bin:/bin" \
 fi
 [ ! -s "$skills_update_log" ] || \
     fail "push-skills updated the skill manager or upstream skills"
+for skill_root in \
+    "${HOME}/.agents/skills" \
+    "${HOME}/.claude/skills" \
+    "${OPENCODE_CONFIG_DIR}/skills" \
+    "${HOME}/.pi/agent/skills"; do
+    [ ! -e "${skill_root}/outside-inventory" ] || \
+        fail "push-skills kept an unmanaged skill in ${skill_root}"
+    [ ! -L "${skill_root}/stale-skill" ] || \
+        fail "push-skills kept a stale link in ${skill_root}"
+done
+
+if ! "${DOTFILES_DIR}/sync-agents.sh" --quiet skills-check \
+    > "$sync_log" 2>&1; then
+    cat "$sync_log" >&2
+    fail "skills-check failed after push"
+fi
+
+cp "${HOME}/.agents/.skill-lock.json" \
+    "${tmp_dir}/live-lock-backup.json"
+mkdir -p "${HOME}/.agents/skills/extra"
+printf '# Extra\n' > "${HOME}/.agents/skills/extra/SKILL.md"
+jq '.skills.extra = {source: "example/skills"}' \
+    "${HOME}/.agents/.skill-lock.json" > \
+    "${tmp_dir}/live-lock-drift.json"
+mv "${tmp_dir}/live-lock-drift.json" \
+    "${HOME}/.agents/.skill-lock.json"
+if "${DOTFILES_DIR}/sync-agents.sh" --quiet skills-check \
+    > "$sync_log" 2>&1; then
+    fail "skills-check ignored live lock drift"
+fi
+mv "${tmp_dir}/live-lock-backup.json" \
+    "${HOME}/.agents/.skill-lock.json"
+rm -rf "${HOME}/.agents/skills/extra"
+
+mkdir -p "${OPENCODE_CONFIG_DIR}/skills/unmanaged"
+printf '# Unmanaged\n' > \
+    "${OPENCODE_CONFIG_DIR}/skills/unmanaged/SKILL.md"
+if "${DOTFILES_DIR}/sync-agents.sh" --quiet skills-check \
+    > "$sync_log" 2>&1; then
+    fail "skills-check ignored an unmanaged runtime skill"
+fi
+rm -rf "${OPENCODE_CONFIG_DIR}/skills/unmanaged"
+
+rm "${HOME}/.pi/agent/skills/$(head -n 1 "$lock_names")"
+if "${DOTFILES_DIR}/sync-agents.sh" --quiet skills-check \
+    > "$sync_log" 2>&1; then
+    fail "skills-check ignored a missing runtime skill"
+fi
+if ! PATH="${skills_update_stub_dir}:${stub_dir}:/usr/bin:/bin" \
+    SKILLS_UPDATE_LOG="$skills_update_log" \
+    "${DOTFILES_DIR}/sync-agents.sh" --quiet push-skills \
+    > "$sync_log" 2>&1; then
+    cat "$sync_log" >&2
+    fail "push-skills did not restore runtime drift"
+fi
 
 if PATH="${skills_update_stub_dir}:${stub_dir}:/usr/bin:/bin" \
     SKILLS_UPDATE_LOG="$skills_update_log" \
@@ -225,6 +296,99 @@ if ! HOME="$custom_export_home" SHARED_SKILLS_CUSTOM_DIR="$custom_export_repo" S
     cat "$custom_export_log" >&2
     fail "custom-skills-export --check failed after export"
 fi
+
+mkdir -p \
+    "${pull_home}/.agents/skills/new-locked" \
+    "${pull_home}/.agents/skills/live-custom" \
+    "${pull_home}/.agents/skills/changed-custom" \
+    "${pull_repo}/old-custom" \
+    "${pull_repo}/changed-custom"
+printf '# New locked\n' > \
+    "${pull_home}/.agents/skills/new-locked/SKILL.md"
+printf '# Live custom\n' > \
+    "${pull_home}/.agents/skills/live-custom/SKILL.md"
+printf '# Changed custom, live\n' > \
+    "${pull_home}/.agents/skills/changed-custom/SKILL.md"
+printf '# Old custom\n' > "${pull_repo}/old-custom/SKILL.md"
+printf '# Changed custom, repo\n' > \
+    "${pull_repo}/changed-custom/SKILL.md"
+cat > "$pull_lock" <<'JSON'
+{
+  "dismissed": {},
+  "skills": {
+    "old-locked": {
+      "source": "example/old",
+      "sourceType": "github"
+    }
+  }
+}
+JSON
+cat > "$pull_live_lock" <<'JSON'
+{
+  "dismissed": {"findSkillsPrompt": true},
+  "skills": {
+    "deleted-upstream": {
+      "source": "example/deleted",
+      "sourceType": "github"
+    },
+    "new-locked": {
+      "installedAt": "runtime-only",
+      "skillFolderHash": "runtime-only",
+      "source": "example/new",
+      "sourceType": "github",
+      "updatedAt": "runtime-only"
+    }
+  }
+}
+JSON
+
+if printf 'n\n' | HOME="$pull_home" \
+    SHARED_SKILLS_CUSTOM_DIR="$pull_repo" \
+    SKILL_LOCK_REPO="$pull_lock" \
+    PATH="${skills_update_stub_dir}:${stub_dir}:/usr/bin:/bin" \
+    SKILLS_UPDATE_LOG="$skills_update_log" \
+    "${DOTFILES_DIR}/sync-agents.sh" pull-skills \
+    > "$pull_log" 2>&1; then
+    fail "pull-skills should return non-zero when cancelled"
+fi
+grep -F 'old-locked' "$pull_log" >/dev/null || \
+    fail "pull-skills preview omitted a removed locked skill"
+grep -F 'new-locked' "$pull_log" >/dev/null || \
+    fail "pull-skills preview omitted an added locked skill"
+grep -F 'Changed custom, live' "$pull_log" >/dev/null || \
+    fail "pull-skills preview omitted changed custom content"
+jq -e '.skills | keys == ["old-locked"]' "$pull_lock" >/dev/null || \
+    fail "cancelled pull-skills changed the repository lock"
+[ -e "${pull_repo}/old-custom/SKILL.md" ] || \
+    fail "cancelled pull-skills removed a repository custom skill"
+
+if ! printf 'y\n' | HOME="$pull_home" \
+    SHARED_SKILLS_CUSTOM_DIR="$pull_repo" \
+    SKILL_LOCK_REPO="$pull_lock" \
+    PATH="${skills_update_stub_dir}:${stub_dir}:/usr/bin:/bin" \
+    SKILLS_UPDATE_LOG="$skills_update_log" \
+    "${DOTFILES_DIR}/sync-agents.sh" pull-skills \
+    > "$pull_log" 2>&1; then
+    cat "$pull_log" >&2
+    fail "confirmed pull-skills failed"
+fi
+jq -e '
+    (.skills | keys) == ["new-locked"] and
+    .skills["deleted-upstream"] == null and
+    .skills["new-locked"].installedAt == null and
+    .skills["new-locked"].skillFolderHash == null and
+    .skills["new-locked"].updatedAt == null
+' "$pull_lock" >/dev/null || \
+    fail "pull-skills did not normalize the live lock"
+[ -e "${pull_repo}/live-custom/SKILL.md" ] || \
+    fail "pull-skills did not import a custom skill"
+grep -F '# Changed custom, live' \
+    "${pull_repo}/changed-custom/SKILL.md" >/dev/null || \
+    fail "pull-skills did not replace changed custom content"
+[ ! -e "${pull_repo}/old-custom" ] || \
+    fail "pull-skills did not remove an absent custom skill"
+[ ! -s "$skills_update_log" ] || \
+    fail "pull-skills updated the skill manager or upstream skills"
 
 while IFS= read -r server_name; do
     [ -n "$server_name" ] || continue
