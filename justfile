@@ -43,7 +43,7 @@ push-skills:
 pull-plugins:
     "{{ sync_agents }}" pull-plugins
 
-# Verify plugin membership without updating plugin versions.
+# Apply plugin membership without updating plugin versions.
 push-plugins:
     "{{ sync_agents }}" push-plugins
 
