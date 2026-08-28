@@ -222,11 +222,15 @@ jq -e '
 ' --slurpfile mcp "$MCP_SERVERS_FILE" "$OPENCODE_CONFIG" >/dev/null || fail "OpenCode config does not reflect shared instructions and MCP servers"
 
 jq -e '
-    (.mcpServers | keys | sort) == ($mcp[0] | keys | sort) and
+    (.mcpServers | keys | sort) == ($mcp[0] | keys | sort)
+' --slurpfile mcp "$MCP_SERVERS_FILE" "${HOME}/.claude.json" \
+    >/dev/null || fail "Claude user config does not reflect shared MCP servers"
+jq -e '
     (.permissions.allow // []) as $allow |
     ($allow | index("mcp__*") | not) and
     (([$mcp[0] | keys[] | "mcp__\(.)__*"] - $allow) | length == 0)
-' --slurpfile mcp "$MCP_SERVERS_FILE" "${HOME}/.claude/settings.json" >/dev/null || fail "Claude settings do not reflect shared MCP servers and permissions"
+' --slurpfile mcp "$MCP_SERVERS_FILE" "${HOME}/.claude/settings.json" \
+    >/dev/null || fail "Claude settings do not reflect MCP permissions"
 
 while IFS= read -r server_name; do
     [ -n "$server_name" ] || continue
@@ -487,10 +491,12 @@ fi
 grep -F "[mcp_servers.env-stdio.env]" "${CODEX_HOME}/config.toml" >/dev/null 2>&1 || fail "Codex MCP env table missing"
 grep -F "ENV_TOKEN = \"literal-token\"" "${CODEX_HOME}/config.toml" >/dev/null 2>&1 || fail "Codex MCP env value missing"
 jq -e '.mcp["env-stdio"].environment.ENV_TOKEN == "literal-token"' "$OPENCODE_CONFIG" >/dev/null || fail "OpenCode MCP env value missing"
+jq -e '.mcpServers["env-stdio"].env.ENV_TOKEN == "literal-token"' \
+    "${HOME}/.claude.json" >/dev/null || fail "Claude MCP env value missing"
 jq -e '
-    .mcpServers["env-stdio"].env.ENV_TOKEN == "literal-token" and
     (.permissions.allow | index("mcp__env-stdio__*")) and
     (.permissions.allow | index("mcp__env-http__*"))
-' "${HOME}/.claude/settings.json" >/dev/null || fail "Claude MCP env value or permission missing"
+' "${HOME}/.claude/settings.json" \
+    >/dev/null || fail "Claude MCP permission missing"
 
 echo "[INFO] agent skill sync smoke test passed"

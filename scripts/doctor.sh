@@ -126,9 +126,7 @@ check_npm_version() {
 
 run_check "plugin drift" "$SYNC_AGENTS" plugins-check
 run_check "Claude settings" "$SYNC_AGENTS" claude-settings-check
-run_check "Codex MCP config" "$SYNC_AGENTS" codex-check
-run_check "OpenCode MCP config" "$SYNC_AGENTS" opencode-check
-run_check "Kimi MCP config" "$SYNC_AGENTS" kimi-check
+run_check "MCP drift" "$SYNC_AGENTS" mcp-check
 run_check "custom skill drift" \
     "$SYNC_AGENTS" custom-skills-export --check
 run_check "skill lock drift" check_skill_lock

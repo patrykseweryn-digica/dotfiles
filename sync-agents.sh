@@ -27,6 +27,7 @@ CODEX_PLUGIN_MANIFEST="${CODEX_PLUGIN_MANIFEST:-${PLUGIN_MANIFEST}}"
 CODEX_REMOTE_PLUGIN_CACHE="${CODEX_REMOTE_PLUGIN_CACHE:-${CODEX_HOME}/plugins/cache/openai-curated-remote}"
 CLAUDE_TEMPLATE_FILE="${CLAUDE_TEMPLATE_FILE:-${DOTFILES_DIR}/config/claude/settings.json}"
 CLAUDE_SETTINGS_FILE="${CLAUDE_SETTINGS_FILE:-${HOME}/.claude/settings.json}"
+CLAUDE_USER_CONFIG="${CLAUDE_USER_CONFIG:-${HOME}/.claude.json}"
 SKILL_LOCK_REPO="${SKILL_LOCK_REPO:-${DOTFILES_DIR}/.agents/skill-lock.json}"
 SKILL_LOCK_LIVE="${SKILL_LOCK_LIVE:-${HOME}/.agents/.skill-lock.json}"
 SKILLS_CLI_PACKAGE="skills@1.5.15"
@@ -244,6 +245,276 @@ cmd_custom_skills_export() {
     fi
 }
 
+normalize_mcp_inventory() {
+    jq -S '
+        with_entries(
+            .value = (
+                if (.value.type == "http") then
+                    {type: "http", url: .value.url}
+                else
+                    {
+                        type: "stdio",
+                        command: .value.command,
+                        args: (.value.args // [])
+                    }
+                end
+            )
+        )
+    ' "$1"
+}
+
+collect_codex_mcp() {
+    command -v codex >/dev/null 2>&1 || return 0
+
+    local raw
+    raw="$(mktemp)"
+    if ! codex mcp list --json > "$raw"; then
+        rm -f "$raw"
+        echo "[ERROR] Failed to read Codex MCP state" >&2
+        return 1
+    fi
+
+    jq -c '
+        .[]
+        | select(.enabled != false)
+        | .name as $name
+        | .transport
+        | if .type == "stdio" then
+            {
+                runtime: "codex",
+                name: $name,
+                server: {
+                    type: "stdio",
+                    command: .command,
+                    args: (.args // [])
+                }
+            }
+          elif (.type == "streamable_http" or
+                .type == "http" or
+                .type == "sse") then
+            {
+                runtime: "codex",
+                name: $name,
+                server: {type: "http", url: .url}
+            }
+          else empty
+          end
+    ' "$raw"
+    local status=$?
+    rm -f "$raw"
+    return "$status"
+}
+
+collect_claude_mcp() {
+    [ -f "$CLAUDE_USER_CONFIG" ] || return 0
+
+    jq -c '
+        (.mcpServers // {})
+        | to_entries[]
+        | .key as $name
+        | .value
+        | if .type == "stdio" then
+            {
+                runtime: "claude",
+                name: $name,
+                server: {
+                    type: "stdio",
+                    command: .command,
+                    args: (.args // [])
+                }
+            }
+          elif (.type == "http" or .type == "sse") then
+            {
+                runtime: "claude",
+                name: $name,
+                server: {type: "http", url: .url}
+            }
+          else empty
+          end
+    ' "$CLAUDE_USER_CONFIG"
+}
+
+collect_opencode_mcp() {
+    [ -f "$OPENCODE_CONFIG" ] || return 0
+
+    jq -c '
+        (.mcp // {})
+        | to_entries[]
+        | select(.value.enabled != false)
+        | .key as $name
+        | .value
+        | if .type == "local" then
+            {
+                runtime: "opencode",
+                name: $name,
+                server: {
+                    type: "stdio",
+                    command: .command[0],
+                    args: (.command[1:] // [])
+                }
+            }
+          elif .type == "remote" then
+            {
+                runtime: "opencode",
+                name: $name,
+                server: {type: "http", url: .url}
+            }
+          else empty
+          end
+    ' "$OPENCODE_CONFIG"
+}
+
+collect_kimi_mcp() {
+    [ -f "$KIMI_MCP_CONFIG" ] || return 0
+
+    jq -c '
+        (.mcpServers // {})
+        | to_entries[]
+        | .key as $name
+        | .value
+        | if .url then
+            {
+                runtime: "kimi",
+                name: $name,
+                server: {type: "http", url: .url}
+            }
+          elif .command then
+            {
+                runtime: "kimi",
+                name: $name,
+                server: {
+                    type: "stdio",
+                    command: .command,
+                    args: (.args // [])
+                }
+            }
+          else empty
+          end
+    ' "$KIMI_MCP_CONFIG"
+}
+
+available_mcp_runtimes() {
+    command -v codex >/dev/null 2>&1 && echo codex
+    [ -f "$CLAUDE_USER_CONFIG" ] && echo claude
+    [ -f "$OPENCODE_CONFIG" ] && echo opencode
+    [ -f "$KIMI_MCP_CONFIG" ] && echo kimi
+    return 0
+}
+
+collect_mcp_rows() {
+    collect_codex_mcp || return 1
+    collect_claude_mcp || return 1
+    collect_opencode_mcp || return 1
+    collect_kimi_mcp || return 1
+}
+
+mcp_rows_to_inventory() {
+    local rows_file="$1"
+    local runtime="${2:-}"
+
+    jq -S -s --arg runtime "$runtime" '
+        map(select($runtime == "" or .runtime == $runtime))
+        | sort_by(.name, .runtime)
+        | group_by(.name)
+        | map({key: .[0].name, value: .[0].server})
+        | from_entries
+    ' "$rows_file"
+}
+
+cmd_pull_mcp() {
+    [ "$#" -eq 0 ] || {
+        echo "[ERROR] pull-mcp takes no arguments" >&2
+        return 1
+    }
+
+    local rows runtimes conflicts candidate current reply
+    rows="$(mktemp)"
+    runtimes="$(available_mcp_runtimes)"
+    [ -n "$runtimes" ] || {
+        rm -f "$rows"
+        echo "[ERROR] No supported runtime MCP state found" >&2
+        return 1
+    }
+    collect_mcp_rows > "$rows" || {
+        rm -f "$rows"
+        return 1
+    }
+
+    conflicts=$(jq -s '
+        sort_by(.name, .runtime)
+        | group_by(.name)
+        | map(select((map(.server | tojson) | unique | length) > 1))
+        | map({
+            name: .[0].name,
+            definitions: map({runtime, server})
+        })
+    ' "$rows")
+    if [ "$(jq 'length' <<< "$conflicts")" -gt 0 ]; then
+        echo "[ERROR] Conflicting MCP definitions; repository unchanged:" >&2
+        jq -r '.[] | "  - \(.name): " +
+            ([.definitions[] | "\(.runtime)=\(.server | tojson)"] |
+             join(", "))' <<< "$conflicts" >&2
+        rm -f "$rows"
+        return 1
+    fi
+
+    candidate="$(mktemp)"
+    current="$(mktemp)"
+    mcp_rows_to_inventory "$rows" > "$candidate"
+    normalize_mcp_inventory "$MCP_SERVERS" > "$current"
+    rm -f "$rows"
+
+    if cmp -s "$current" "$candidate"; then
+        rm -f "$current" "$candidate"
+        log_info "Shared MCP inventory already matches live state"
+        return 0
+    fi
+
+    diff -u "$current" "$candidate" || true
+    printf 'Apply this MCP inventory? [y/N] '
+    read -r reply || reply=""
+    case "$reply" in
+        y|Y|yes|YES)
+            mv "$candidate" "$MCP_SERVERS"
+            rm -f "$current"
+            log_info "Updated $MCP_SERVERS from live state"
+            ;;
+        *)
+            rm -f "$current" "$candidate"
+            echo "[ERROR] MCP pull cancelled; repository unchanged" >&2
+            return 1
+            ;;
+    esac
+}
+
+cmd_mcp_check() {
+    local rows wanted actual runtime failed=false
+    rows="$(mktemp)"
+    wanted="$(mktemp)"
+    collect_mcp_rows > "$rows" || {
+        rm -f "$rows" "$wanted"
+        return 1
+    }
+    normalize_mcp_inventory "$MCP_SERVERS" > "$wanted"
+
+    while IFS= read -r runtime; do
+        [ -n "$runtime" ] || continue
+        actual="$(mktemp)"
+        mcp_rows_to_inventory "$rows" "$runtime" > "$actual"
+        if cmp -s "$wanted" "$actual"; then
+            log_info "${runtime} MCP state matches shared inventory"
+        else
+            echo "[ERROR] ${runtime} MCP drift detected" >&2
+            diff -u "$wanted" "$actual" >&2 || true
+            failed=true
+        fi
+        rm -f "$actual"
+    done < <(available_mcp_runtimes)
+
+    rm -f "$rows" "$wanted"
+    [ "$failed" = false ]
+}
+
 render_codex_mcp_block() {
     {
         echo "$MANAGED_START"
@@ -340,11 +611,8 @@ render_codex_config() {
     rm -f "$stripped" "$block"
 }
 
-cmd_codex_install() {
-    log_info "Installing Codex agent config..."
+sync_codex_mcp_config() {
     mkdir -p "$CODEX_HOME"
-
-    link_file "$CODEX_AGENTS_SOURCE" "$CODEX_AGENTS_FILE"
 
     local tmp
     tmp="$(mktemp)"
@@ -357,6 +625,13 @@ cmd_codex_install() {
         mv "$tmp" "$CODEX_CONFIG"
         log_info "Wrote $CODEX_CONFIG"
     fi
+}
+
+cmd_codex_install() {
+    log_info "Installing Codex agent config..."
+    mkdir -p "$CODEX_HOME"
+    link_file "$CODEX_AGENTS_SOURCE" "$CODEX_AGENTS_FILE"
+    sync_codex_mcp_config
 }
 
 cmd_codex_check() {
@@ -626,12 +901,8 @@ render_opencode_config() {
     ' "$source_file" > "$target_file"
 }
 
-cmd_opencode_install() {
-    log_info "Installing OpenCode agent config..."
-    mkdir -p "$OPENCODE_CONFIG_DIR" "$OPENCODE_SKILLS_DIR"
-
-    link_file "$OPENCODE_AGENTS_SOURCE" "$OPENCODE_AGENTS_FILE"
-    link_custom_skills "$OPENCODE_SKILLS_DIR"
+sync_opencode_mcp_config() {
+    mkdir -p "$OPENCODE_CONFIG_DIR"
 
     local tmp
     tmp="$(mktemp)"
@@ -644,6 +915,14 @@ cmd_opencode_install() {
         mv "$tmp" "$OPENCODE_CONFIG"
         log_info "Wrote $OPENCODE_CONFIG"
     fi
+}
+
+cmd_opencode_install() {
+    log_info "Installing OpenCode agent config..."
+    mkdir -p "$OPENCODE_CONFIG_DIR" "$OPENCODE_SKILLS_DIR"
+    link_file "$OPENCODE_AGENTS_SOURCE" "$OPENCODE_AGENTS_FILE"
+    link_custom_skills "$OPENCODE_SKILLS_DIR"
+    sync_opencode_mcp_config
 }
 
 cmd_opencode_check() {
@@ -709,6 +988,95 @@ cmd_kimi_install() {
     fi
 }
 
+sync_claude_mcp_permissions() {
+    local tmp
+    tmp="$(mktemp)"
+    mkdir -p "$(dirname "$CLAUDE_SETTINGS_FILE")"
+
+    jq -S --slurpfile mcp "$MCP_SERVERS" '
+        ($mcp[0] | keys | map("mcp__" + . + "__*")) as $wanted
+        | .permissions.allow = (
+            (.permissions.allow // [])
+            | map(select(
+                (startswith("mcp__") and endswith("__*")) | not
+            ))
+            | . + $wanted
+        )
+        | del(.mcpServers)
+    ' < <(
+        if [ -f "$CLAUDE_SETTINGS_FILE" ]; then
+            cat "$CLAUDE_SETTINGS_FILE"
+        else
+            echo '{}'
+        fi
+    ) > "$tmp" || {
+        rm -f "$tmp"
+        echo "[ERROR] Failed to render Claude MCP permissions" >&2
+        return 1
+    }
+
+    if [ -f "$CLAUDE_SETTINGS_FILE" ] &&
+        cmp -s "$tmp" "$CLAUDE_SETTINGS_FILE"; then
+        rm -f "$tmp"
+        log_info "Claude MCP permissions already in sync"
+    else
+        mv "$tmp" "$CLAUDE_SETTINGS_FILE"
+        log_info "Wrote MCP permissions to $CLAUDE_SETTINGS_FILE"
+    fi
+}
+
+sync_claude_mcp_config() {
+    local tmp
+    tmp="$(mktemp)"
+    mkdir -p "$(dirname "$CLAUDE_USER_CONFIG")"
+
+    jq -S --slurpfile mcp "$MCP_SERVERS" '
+        (. // {})
+        | .mcpServers = reduce ($mcp[0] | to_entries[]) as $entry (
+            (.mcpServers // {});
+            .[$entry.key] as $live
+            | .[$entry.key] = (
+                $entry.value
+                + if (($entry.value | has("env")) | not) and
+                     (($live.env? // null) != null) then
+                    {env: $live.env}
+                  else {} end
+                + if (($entry.value | has("headers")) | not) and
+                     (($live.headers? // null) != null) then
+                    {headers: $live.headers}
+                  else {} end
+            )
+        )
+    ' < <(
+        if [ -f "$CLAUDE_USER_CONFIG" ]; then
+            cat "$CLAUDE_USER_CONFIG"
+        else
+            echo '{}'
+        fi
+    ) > "$tmp" || {
+        rm -f "$tmp"
+        echo "[ERROR] Failed to render Claude MCP config" >&2
+        return 1
+    }
+
+    if [ -f "$CLAUDE_USER_CONFIG" ] &&
+        cmp -s "$tmp" "$CLAUDE_USER_CONFIG"; then
+        rm -f "$tmp"
+        log_info "Claude MCP config already in sync"
+    else
+        mv "$tmp" "$CLAUDE_USER_CONFIG"
+        log_info "Wrote $CLAUDE_USER_CONFIG"
+    fi
+}
+
+cmd_push_mcp() {
+    sync_codex_mcp_config
+    sync_claude_mcp_config
+    sync_claude_mcp_permissions
+    sync_opencode_mcp_config
+    cmd_kimi_install
+}
+
 cmd_kimi_check() {
     local tmp
 
@@ -744,7 +1112,10 @@ cmd_claude_settings_check() {
 
     local extras
     extras=$(jq -r --slurpfile tpl "$CLAUDE_TEMPLATE_FILE" '
-        (($tpl[0] | keys) + ["enabledPlugins", "extraKnownMarketplaces", "mcpServers"]) as $allowed |
+        (($tpl[0] | keys) + [
+            "enabledPlugins",
+            "extraKnownMarketplaces"
+        ]) as $allowed |
         (keys - $allowed)[]
     ' "$CLAUDE_SETTINGS_FILE") || { echo "[ERROR] Failed to parse $CLAUDE_SETTINGS_FILE" >&2; return 1; }
 
@@ -774,12 +1145,7 @@ generate_claude_settings() {
                 (.value.claude): true
             }) | add // {}) |
         .extraKnownMarketplaces = ($m[0].marketplaces // {} | to_entries |
-            map({(.key): {"source": .value}}) | add // {}) |
-        .mcpServers = ($mcp[0] // {} | to_entries |
-            map({(.key): (
-                .value
-                | if ((.env? // null) | type) == "object" then . else del(.env) end
-            )}) | add // {})
+            map({(.key): {"source": .value}}) | add // {})
     ' "$CLAUDE_TEMPLATE_FILE" > "$tmp" || { rm -f "$tmp"; echo "[ERROR] Failed to generate Claude settings" >&2; return 1; }
 
     if [ -f "$CLAUDE_SETTINGS_FILE" ] && cmp -s "$tmp" "$CLAUDE_SETTINGS_FILE"; then
@@ -1193,6 +1559,90 @@ cmd_plugins_update() {
     [ "$failed" = false ]
 }
 
+cmd_pull_skills() {
+    cmd_custom_skills_export --dry-run
+    echo "[ERROR] Skill inventory approval is tracked in issue #10" >&2
+    return 1
+}
+
+cmd_push_skills() {
+    cmd_custom_skills_install
+    ensure_live_skill_lock
+    cmd_lock_skills_install
+}
+
+cmd_pull_plugins() {
+    if cmd_plugins_check; then
+        log_info "Shared plugin manifest already matches live state"
+        return 0
+    fi
+    echo "[ERROR] Plugin inventory approval is tracked in issue #13" >&2
+    return 1
+}
+
+cmd_claude_plugins_push() {
+    validate_plugin_manifest "$CLAUDE_MANIFEST" || return 1
+    command -v claude >/dev/null 2>&1 || {
+        log_info "Claude CLI not installed; skipping plugin push"
+        return 0
+    }
+
+    local plugins_json="${HOME}/.claude/plugins/installed_plugins.json"
+    if [ -L "$plugins_json" ] && [ ! -e "$plugins_json" ]; then
+        rm "$plugins_json"
+    fi
+
+    local known_mp_file="${HOME}/.claude/plugins/known_marketplaces.json"
+    local known_mp_keys=""
+    [ -f "$known_mp_file" ] &&
+        known_mp_keys=$(jq -r 'keys[]' "$known_mp_file")
+
+    local failed=false mp_name mp_source mp_arg
+    while IFS= read -r mp_name; do
+        [ -n "$mp_name" ] || continue
+        echo "$known_mp_keys" | grep -qxF "$mp_name" && continue
+        mp_source=$(jq -r ".marketplaces[\"$mp_name\"].source" \
+            "$CLAUDE_MANIFEST")
+        case "$mp_source" in
+            github)
+                mp_arg=$(jq -r ".marketplaces[\"$mp_name\"].repo" \
+                    "$CLAUDE_MANIFEST")
+                ;;
+            git)
+                mp_arg=$(jq -r ".marketplaces[\"$mp_name\"].url" \
+                    "$CLAUDE_MANIFEST")
+                ;;
+            *)
+                echo "[ERROR] Unknown marketplace source: $mp_source" >&2
+                failed=true
+                continue
+                ;;
+        esac
+        log_info "Adding marketplace: $mp_name"
+        CLAUDECODE='' claude plugin marketplace add "$mp_arg" || failed=true
+    done < <(jq -r '.marketplaces | keys[]' "$CLAUDE_MANIFEST")
+
+    local installed_keys="" plugin
+    [ -f "$plugins_json" ] &&
+        installed_keys=$(jq -r '.plugins | keys[]' "$plugins_json")
+    while IFS= read -r plugin; do
+        [ -n "$plugin" ] || continue
+        echo "$installed_keys" | grep -qxF "$plugin" && continue
+        log_info "Installing plugin: $plugin"
+        CLAUDECODE='' claude plugin install "$plugin" || failed=true
+    done < <(jq -r '.plugins[].claude // empty' "$CLAUDE_MANIFEST")
+
+    [ "$failed" = false ] || return 1
+    cmd_claude_plugins_prune
+}
+
+cmd_push_plugins() {
+    local failed=false
+    cmd_codex_plugins_check || failed=true
+    cmd_claude_plugins_push || failed=true
+    [ "$failed" = false ]
+}
+
 cmd_claude_install() {
     log_info "Installing Claude agent config..."
     link_file "$CLAUDE_AGENTS_SOURCE" "$CLAUDE_AGENTS_FILE"
@@ -1205,50 +1655,9 @@ cmd_claude_install() {
     ensure_live_skill_lock
     cmd_claude_settings_check
     generate_claude_settings
+    sync_claude_mcp_config
 
-    local plugins_json="${HOME}/.claude/plugins/installed_plugins.json"
-    if [ -L "$plugins_json" ] && [ ! -e "$plugins_json" ]; then
-        log_info "Removing broken symlink: $plugins_json"
-        rm "$plugins_json"
-    fi
-
-    if command -v claude >/dev/null 2>&1; then
-        local known_mp_file="${HOME}/.claude/plugins/known_marketplaces.json"
-        local known_mp_keys=""
-        [ -f "$known_mp_file" ] && known_mp_keys=$(jq -r 'keys[]' "$known_mp_file")
-
-        local mp_names
-        mp_names=$(jq -r '.marketplaces | keys[]' "$CLAUDE_MANIFEST")
-        for mp_name in $mp_names; do
-            echo "$known_mp_keys" | grep -qxF "$mp_name" && continue
-            local mp_source mp_arg
-            mp_source=$(jq -r ".marketplaces[\"$mp_name\"].source" "$CLAUDE_MANIFEST")
-            if [ "$mp_source" = "github" ]; then
-                mp_arg=$(jq -r ".marketplaces[\"$mp_name\"].repo" "$CLAUDE_MANIFEST")
-            elif [ "$mp_source" = "git" ]; then
-                mp_arg=$(jq -r ".marketplaces[\"$mp_name\"].url" "$CLAUDE_MANIFEST")
-            else
-                echo "[WARN] Unknown marketplace source '$mp_source' for $mp_name"
-                continue
-            fi
-            log_info "Adding marketplace: $mp_name ($mp_arg)"
-            CLAUDECODE='' claude plugin marketplace add "$mp_arg" 2>&1 || echo "[WARN] Failed to add marketplace: $mp_name"
-        done
-
-        local installed_keys=""
-        [ -f "$plugins_json" ] && installed_keys=$(jq -r '.plugins | keys[]' "$plugins_json")
-
-        local plugins
-        plugins=$(jq -r '.plugins[].claude // empty' "$CLAUDE_MANIFEST")
-        for plugin in $plugins; do
-            echo "$installed_keys" | grep -qxF "$plugin" && continue
-            log_info "Installing plugin: $plugin"
-            CLAUDECODE='' claude plugin install "$plugin" 2>&1 || echo "[WARN] Failed to install plugin: $plugin"
-        done
-    else
-        echo "[WARN] claude CLI not found, skipping plugin installation"
-    fi
-
+    cmd_claude_plugins_push
     cmd_lock_skills_install
 
     log_info "Claude sync complete"
@@ -1275,6 +1684,28 @@ done
 case "${1:-}" in
     install)
         cmd_install
+        ;;
+    pull-mcp)
+        shift
+        cmd_pull_mcp "$@"
+        ;;
+    push-mcp)
+        cmd_push_mcp
+        ;;
+    mcp-check)
+        cmd_mcp_check
+        ;;
+    pull-skills)
+        cmd_pull_skills
+        ;;
+    push-skills)
+        cmd_push_skills
+        ;;
+    pull-plugins)
+        cmd_pull_plugins
+        ;;
+    push-plugins)
+        cmd_push_plugins
         ;;
     codex-install)
         cmd_codex_install
@@ -1335,8 +1766,15 @@ case "${1:-}" in
         cmd_claude_settings_check
         ;;
     *)
-        echo "Usage: $0 [--quiet] {install|plugins-check|plugins-export|plugins-update|codex-install|codex-check|codex-plugins-check|codex-plugins-export|opencode-install|opencode-check|kimi-install|kimi-check|claude-install|skills-update|claude-export [--check]|claude-prune [--check]|custom-skills-export [--check|--dry-run] [skill...]|skills-export|claude-settings-check}"
+        echo "Usage: $0 [--quiet] <command>"
         echo
+        echo "  pull-mcp         Preview and confirm live MCP import"
+        echo "  push-mcp         Render shared MCP state into runtimes"
+        echo "  mcp-check        Compare normalized MCP state"
+        echo "  pull-skills      Preview skill drift; approval stays in #10"
+        echo "  push-skills      Restore skills without version updates"
+        echo "  pull-plugins     Preview plugin drift; approval stays in #13"
+        echo "  push-plugins     Apply membership without version updates"
         echo "  install          Sync shared agent config into Codex, OpenCode, Kimi, and Claude"
         echo "  plugins-check    Check Codex and Claude against shared plugin manifest"
         echo "  plugins-export   Export Codex and Claude into shared plugin manifest"

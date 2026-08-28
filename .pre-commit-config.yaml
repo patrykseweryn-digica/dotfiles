@@ -79,3 +79,9 @@ repos:
         entry: ./scripts/smoke-doctor.sh
         language: system
         pass_filenames: false
+      - id: agent-sync-interface-smoke
+        name: Agent sync interface smoke test
+        description: Verify symmetric sync commands and normalized MCP behavior
+        entry: ./scripts/smoke-agent-sync-interface.sh
+        language: system
+        pass_filenames: false

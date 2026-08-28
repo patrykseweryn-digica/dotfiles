@@ -1,5 +1,7 @@
 set shell := ["bash", "-eu", "-o", "pipefail", "-c"]
 
+sync_agents := env_var_or_default("SYNC_AGENTS", "./sync-agents.sh")
+
 # Show the public command menu.
 [private]
 default:
@@ -21,21 +23,35 @@ check:
 doctor:
     ./scripts/doctor.sh
 
-# Refresh Codex, OpenCode, and Claude configuration from repo state.
-update-agents:
-    ./sync-agents.sh install
+# Preview runtime MCP state, then confirm the repository update.
+pull-mcp:
+    "{{ sync_agents }}" pull-mcp
 
-# Update shared global skills, persist the lock, and sync all runtimes.
-update-skills:
-    ./sync-agents.sh skills-update
-    ./sync-agents.sh skills-export
-    ./sync-agents.sh install
+# Render repository MCP state into supported runtimes.
+push-mcp:
+    "{{ sync_agents }}" push-mcp
 
-# Update plugins, persist their state, and sync all runtimes.
-update-plugins:
-    ./sync-agents.sh plugins-update
-    ./sync-agents.sh plugins-export
-    ./sync-agents.sh install
+# Preview runtime skill drift. Inventory decisions remain in issue #10.
+pull-skills:
+    "{{ sync_agents }}" pull-skills
+
+# Restore repository skills without updating upstream versions.
+push-skills:
+    "{{ sync_agents }}" push-skills
+
+# Preview runtime plugin drift. Inventory decisions remain in issue #13.
+pull-plugins:
+    "{{ sync_agents }}" pull-plugins
+
+# Verify plugin membership without updating plugin versions.
+push-plugins:
+    "{{ sync_agents }}" push-plugins
+
+# Push MCP, skill, and plugin repository state in order.
+push:
+    failed=false; for category in mcp skills plugins; do \
+        "{{ sync_agents }}" "push-${category}" || failed=true; \
+    done; [ "$failed" = false ]
 
 # Set up SSH keys and ~/.ssh/config.
 setup-ssh:

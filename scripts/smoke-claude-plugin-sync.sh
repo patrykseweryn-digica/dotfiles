@@ -144,6 +144,20 @@ chmod +x "${stub_dir}/codex" "${stub_dir}/claude"
 export PATH="${stub_dir}:/usr/bin:/bin"
 export PLUGIN_UPDATE_LOG="$update_log"
 
+"$DOTFILES_DIR/sync-agents.sh" --quiet push-plugins \
+    > "$sync_log" 2>&1 || {
+    cat "$sync_log" >&2
+    fail "Plugin push failed"
+}
+grep -F $'\tplugin install new@new-mp' "$update_log" \
+    >/dev/null || fail "Plugin push did not install missing membership"
+grep -F $'\tplugin uninstall project-plugin@keep-mp' "$update_log" \
+    >/dev/null || fail "Plugin push did not remove extra membership"
+if grep -F $'\tplugin update ' "$update_log" >/dev/null; then
+    fail "Plugin push upgraded a plugin"
+fi
+
+: > "$update_log"
 "$DOTFILES_DIR/sync-agents.sh" --quiet plugins-update \
     > "$sync_log" 2>&1 || {
     cat "$sync_log" >&2

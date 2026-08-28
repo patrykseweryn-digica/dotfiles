@@ -11,10 +11,29 @@ details unless you are debugging them.
 just --list
 just check
 just doctor
-just update-agents
-just update-skills
-just update-plugins
+just push
+just pull-mcp
 ```
+
+## Sync direction
+
+Repository state is authoritative when pushing. Runtime state is only imported
+through category-specific pull commands.
+
+```bash
+just pull-mcp       # preview live MCP state, then confirm
+just push-mcp       # repository MCP state -> runtimes
+just pull-skills    # preview drift; inventory approval stays in issue #10
+just push-skills    # restore skills without version updates
+just pull-plugins   # preview drift; inventory approval stays in issue #13
+just push-plugins   # apply membership without upgrades
+just push           # push MCP, skills, and plugins in order
+```
+
+There is no broad `just pull`. MCP pull merges identical definitions and stops
+without writing on conflicts. Environment values, HTTP headers, credentials,
+OAuth state, and unsupported transports are not imported. Pi has no built-in
+MCP support, so its MCP adapter remains out of scope until issue `#12`.
 
 ## Setup commands
 
@@ -41,9 +60,8 @@ just setup-ssh        # explicit SSH key/config setup
 - Need to use repo: start with `just --list`.
 - Need to verify repo: `just check`.
 - Need to check this machine for drift: `just doctor`.
-- Need to refresh agents: `just update-agents`.
-- Need to update shared skills: `just update-skills`.
-- Need to update shared Codex/Claude plugins: `just update-plugins`.
+- Need to apply repository state: `just push`.
+- Need to inspect runtime MCP additions: `just pull-mcp`.
 - Need a new machine: `just install`.
 - Need only dotfile links refreshed: `just update-dotfiles`.
 - Need SSH changes: run `just setup-ssh` explicitly.

@@ -70,9 +70,7 @@ run_doctor || { cat "${tmp_dir}/doctor.log" >&2; fail "doctor failed"; }
 for expected in \
     plugins-check \
     claude-settings-check \
-    codex-check \
-    opencode-check \
-    kimi-check \
+    mcp-check \
     'custom-skills-export --check'; do
     grep -Fx "$expected" "$check_log" >/dev/null || \
         fail "doctor skipped: $expected"
