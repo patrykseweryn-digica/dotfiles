@@ -37,19 +37,9 @@ printf '%s\n' "$*" >> "$DOCTOR_CHECK_LOG"
 [ "$*" != "${FAIL_CHECK:-}" ]
 STUB
 
-cat > "${stub_dir}/npm" <<'STUB'
+cat > "${stub_dir}/agent-tools" <<'STUB'
 #!/bin/bash
-printf '%s\n' "${LATEST_VERSION:-1.2.3}"
-STUB
-
-cat > "${stub_dir}/codex" <<'STUB'
-#!/bin/bash
-printf 'codex-cli 1.2.3\n'
-STUB
-
-cat > "${stub_dir}/claude" <<'STUB'
-#!/bin/bash
-printf '1.2.3 (Claude Code)\n'
+[ "${TOOL_DRIFT:-false}" = false ]
 STUB
 chmod +x "${stub_dir}"/*
 
@@ -58,9 +48,10 @@ run_doctor() {
     PATH="${stub_dir}:/usr/bin:/bin" \
     DOTFILES_DIR="$DOTFILES_DIR" \
     SYNC_AGENTS="${stub_dir}/sync-agents" \
+    AGENT_TOOLS="${stub_dir}/agent-tools" \
     DOCTOR_CHECK_LOG="$check_log" \
     FAIL_CHECK="${FAIL_CHECK:-}" \
-    LATEST_VERSION="${LATEST_VERSION:-1.2.3}" \
+    TOOL_DRIFT="${TOOL_DRIFT:-false}" \
     "$DOCTOR" > "${tmp_dir}/doctor.log" 2>&1
 }
 
@@ -88,11 +79,11 @@ if run_doctor; then
 fi
 rm "${home_dir}/.agents/skills/broken-link"
 
-LATEST_VERSION=9.9.9
+TOOL_DRIFT=true
 if run_doctor; then
     fail "doctor passed with version drift"
 fi
-unset LATEST_VERSION
+unset TOOL_DRIFT
 
 jq '.skills.extra = {source: "example/skills"}' \
     "${home_dir}/.agents/.skill-lock.json" > "${tmp_dir}/lock.json"

@@ -73,67 +73,6 @@ smoke_run_steps_preserve_errexit() {
     rm -rf "$tmp_dir"
 }
 
-smoke_codex_npm_install_on_linux_only() {
-    local tmp_dir
-    local stub_dir
-    local npm_log
-
-    tmp_dir="$(mktemp -d)"
-    stub_dir="${tmp_dir}/stubs"
-    npm_log="${tmp_dir}/npm.log"
-
-    mkdir -p "${tmp_dir}/linux-home/.nvm" "${tmp_dir}/macos-home/.nvm" "$stub_dir"
-    : > "$npm_log"
-
-    cat > "${stub_dir}/npm" <<'STUB'
-#!/bin/sh
-echo "npm $*" >> "$NPM_LOG"
-STUB
-    chmod +x "${stub_dir}/npm"
-
-    cat > "${tmp_dir}/linux-home/.nvm/nvm.sh" <<'STUB'
-nvm() {
-    case "$1 $2" in
-        "ls default") echo "v22.0.0" ;;
-        "version default") echo "v22.0.0" ;;
-        *) return 0 ;;
-    esac
-}
-STUB
-    cp "${tmp_dir}/linux-home/.nvm/nvm.sh" "${tmp_dir}/macos-home/.nvm/nvm.sh"
-
-    (
-        export HOME="${tmp_dir}/linux-home"
-        export PATH="${stub_dir}:/usr/bin:/bin"
-        export NPM_LOG="$npm_log"
-        # shellcheck source=/dev/null
-        source "${DOTFILES_DIR}/install.sh"
-        export IS_LINUX=true
-        export IS_MACOS=false
-        install_nvm >/dev/null
-    )
-
-    grep -q "npm i -g @openai/codex@latest" "$npm_log" || fail "Linux: missing Codex npm install"
-
-    : > "$npm_log"
-    (
-        export HOME="${tmp_dir}/macos-home"
-        export PATH="${stub_dir}:/usr/bin:/bin"
-        export NPM_LOG="$npm_log"
-        # shellcheck source=/dev/null
-        source "${DOTFILES_DIR}/install.sh"
-        export IS_LINUX=false
-        export IS_MACOS=true
-        install_nvm >/dev/null
-    )
-
-    if grep -q "@openai/codex" "$npm_log"; then
-        fail "Darwin: Codex should stay managed by Homebrew cask"
-    fi
-
-    rm -rf "$tmp_dir"
-}
-
 smoke_tmux_plugins_install_after_setup_dotfiles() {
     local tmp_dir
     local home_dir
@@ -154,12 +93,12 @@ smoke_tmux_plugins_install_after_setup_dotfiles() {
     : > "$npx_log"
     : > "$tmux_log"
 
-    cat > "${stub_dir}/npx" <<'STUB'
+    cat > "${stub_dir}/skills" <<'STUB'
 #!/bin/sh
-echo "npx $*" >> "$NPX_LOG"
+echo "skills $*" >> "$NPX_LOG"
 exit 127
 STUB
-    chmod +x "${stub_dir}/npx"
+    chmod +x "${stub_dir}/skills"
 
     cat > "${home_dir}/.tmux/plugins/tpm/bin/install_plugins" <<'STUB'
 #!/bin/sh
@@ -225,12 +164,12 @@ run_case() {
     ln -s "$JQ_BIN" "${stub_dir}/jq"
     : > "$npx_log"
 
-    cat > "${stub_dir}/npx" <<'STUB'
+    cat > "${stub_dir}/skills" <<'STUB'
 #!/bin/sh
-echo "npx $*" >> "$NPX_LOG"
+echo "skills $*" >> "$NPX_LOG"
 exit 127
 STUB
-    chmod +x "${stub_dir}/npx"
+    chmod +x "${stub_dir}/skills"
 
     (
         export HOME="$home_dir"
@@ -276,14 +215,14 @@ STUB
         fail "$os_name: Claude settings must be generated as a plain file, not symlinked"
     fi
     [ -f "${home_dir}/.claude/settings.json" ] || fail "$os_name: missing generated Claude settings"
-    [ -s "$npx_log" ] || fail "$os_name: sync should attempt lock-managed skill install and degrade cleanly when npx fails"
+    [ -s "$npx_log" ] || \
+        fail "$os_name: sync should tolerate failed skill installation"
 
     rm -rf "$tmp_dir"
 }
 
 smoke_source_has_no_home_side_effect
 smoke_run_steps_preserve_errexit
-smoke_codex_npm_install_on_linux_only
 smoke_tmux_plugins_install_after_setup_dotfiles
 run_case "Linux" ".config/Code/User" ".config/ghostty/config"
 run_case "Darwin" "Library/Application Support/Code/User" "Library/Application Support/com.mitchellh.ghostty/config.ghostty"

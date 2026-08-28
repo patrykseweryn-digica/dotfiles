@@ -30,7 +30,7 @@ CLAUDE_SETTINGS_FILE="${CLAUDE_SETTINGS_FILE:-${HOME}/.claude/settings.json}"
 CLAUDE_USER_CONFIG="${CLAUDE_USER_CONFIG:-${HOME}/.claude.json}"
 SKILL_LOCK_REPO="${SKILL_LOCK_REPO:-${DOTFILES_DIR}/.agents/skill-lock.json}"
 SKILL_LOCK_LIVE="${SKILL_LOCK_LIVE:-${HOME}/.agents/.skill-lock.json}"
-SKILLS_CLI_PACKAGE="skills@1.5.15"
+SKILLS_CLI="${SKILLS_CLI:-skills}"
 
 QUIET=false
 MANAGED_START="# dotfiles-managed-mcp-start"
@@ -1223,10 +1223,13 @@ cmd_lock_skills_install() {
             local install_ok=false
             if [ "$source" = "openclaw/agent-skills" ] || [ "$source_url" = "https://github.com/openclaw/agent-skills.git" ]; then
                 log_info "Installing skill: $name (from $source)"
-                npx -y "$SKILLS_CLI_PACKAGE" add -g "$source" --skill "$name" --dangerously-accept-openclaw-risks -y </dev/null >/dev/null 2>&1 && install_ok=true
+                "$SKILLS_CLI" add -g "$source" --skill "$name" \
+                    --dangerously-accept-openclaw-risks -y \
+                    </dev/null >/dev/null 2>&1 && install_ok=true
             else
                 log_info "Installing skill: $name (from $source)"
-                npx -y "$SKILLS_CLI_PACKAGE" add -g "$source" --skill "$name" -y </dev/null >/dev/null 2>&1 && install_ok=true
+                "$SKILLS_CLI" add -g "$source" --skill "$name" -y \
+                    </dev/null >/dev/null 2>&1 && install_ok=true
             fi
 
             if [ "$install_ok" != true ]; then
@@ -1537,7 +1540,7 @@ cmd_lock_skills_export() {
 
 cmd_skills_update() {
     log_info "Updating global skills shared by Codex, OpenCode, and Claude..."
-    npx -y "$SKILLS_CLI_PACKAGE" update -g "$@"
+    "$SKILLS_CLI" update -g "$@"
 }
 
 cmd_plugins_check() {

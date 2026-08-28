@@ -1,6 +1,7 @@
 set shell := ["bash", "-eu", "-o", "pipefail", "-c"]
 
 sync_agents := env_var_or_default("SYNC_AGENTS", "./sync-agents.sh")
+agent_tools := env_var_or_default("AGENT_TOOLS", "./scripts/agent-tools.sh")
 
 # Show the public command menu.
 [private]
@@ -22,6 +23,14 @@ check:
 # Check this machine against repository intent.
 doctor:
     ./scripts/doctor.sh
+
+# Report installed and expected agent tool versions.
+agent-versions:
+    "{{ agent_tools }}" report
+
+# Resolve configured channels, update pins, and install agent tools.
+update-agent-tools:
+    "{{ agent_tools }}" update
 
 # Preview runtime MCP state, then confirm the repository update.
 pull-mcp:

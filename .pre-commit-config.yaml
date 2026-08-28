@@ -85,3 +85,9 @@ repos:
         entry: ./scripts/smoke-agent-sync-interface.sh
         language: system
         pass_filenames: false
+      - id: agent-tools-smoke
+        name: Agent tools smoke test
+        description: Verify agent tool version policy
+        entry: ./scripts/smoke-agent-tools.sh
+        language: system
+        pass_filenames: false

@@ -51,12 +51,12 @@ cp "$LOCK_FILE" "$repo_lock_copy"
 cp "$CLAUDE_MANIFEST_FILE" "$manifest_copy"
 jq -r '.skills | keys[]' "$LOCK_FILE" > "$lock_names"
 
-cat > "${skills_update_stub_dir}/npx" <<'STUB'
+cat > "${skills_update_stub_dir}/skills" <<'STUB'
 #!/bin/bash
 set -eu
 printf '%s\n' "$*" >> "$SKILLS_UPDATE_LOG"
 STUB
-chmod +x "${skills_update_stub_dir}/npx"
+chmod +x "${skills_update_stub_dir}/skills"
 
 # Pretend lock-managed skills already exist in the shared Codex-compatible runtime.
 # The smoke test should prove sync links them into Claude/OpenCode without needing npx.
@@ -113,8 +113,19 @@ if ! PATH="${skills_update_stub_dir}:${stub_dir}:/usr/bin:/bin" \
     fail "skills-update failed"
 fi
 
-grep -Fx -- '-y skills@1.5.15 update -g diagnosing-bugs' "$skills_update_log" >/dev/null || \
+grep -Fx -- 'update -g diagnosing-bugs' "$skills_update_log" >/dev/null || \
     fail "skills-update did not update shared global skills"
+
+: > "$skills_update_log"
+if ! PATH="${skills_update_stub_dir}:${stub_dir}:/usr/bin:/bin" \
+    SKILLS_UPDATE_LOG="$skills_update_log" \
+    "${DOTFILES_DIR}/sync-agents.sh" --quiet push-skills \
+    > "$sync_log" 2>&1; then
+    cat "$sync_log" >&2
+    fail "push-skills failed"
+fi
+[ ! -s "$skills_update_log" ] || \
+    fail "push-skills updated the skill manager or upstream skills"
 
 if PATH="${skills_update_stub_dir}:${stub_dir}:/usr/bin:/bin" \
     SKILLS_UPDATE_LOG="$skills_update_log" \
@@ -257,25 +268,13 @@ mkdir -p "$npx_home" "$npx_stub_dir"
 ln -s "$JQ_BIN" "${npx_stub_dir}/jq"
 : > "$npx_log"
 
-cat > "${npx_stub_dir}/npx" <<'STUB'
+cat > "${npx_stub_dir}/skills" <<'STUB'
 #!/bin/sh
 source=""
 skill_name=""
 accept_openclaw=false
-first_arg=true
 
 while [ "$#" -gt 0 ]; do
-    if [ "$first_arg" = true ] && [ "$1" = "-y" ]; then
-        shift
-        continue
-    fi
-    if [ "$first_arg" = true ] && [ "$1" = "skills@1.5.15" ]; then
-        first_arg=false
-        shift
-        continue
-    fi
-    first_arg=false
-
     case "$1" in
         add)
             ;;
@@ -304,7 +303,7 @@ echo "npx install ${source} ${skill_name}" >> "$NPX_LOG"
 mkdir -p "${HOME}/.claude/skills/${skill_name}"
 printf '# %s\n' "$skill_name" > "${HOME}/.claude/skills/${skill_name}/SKILL.md"
 STUB
-chmod +x "${npx_stub_dir}/npx"
+chmod +x "${npx_stub_dir}/skills"
 
 export HOME="$npx_home"
 export CODEX_HOME="${HOME}/.codex"

@@ -363,11 +363,12 @@ main() {
     run_optional_step "CLI tools" install_tools
     run_optional_step "fonts" install_fonts
     run_optional_step "NVM and Node.js" install_nvm
+    run_optional_step "agent tools" \
+        "$DOTFILES_DIR/scripts/agent-tools.sh" install
     run_optional_step "terminal colors" install_terminal_colors
     if declare -f install_macos_apps >/dev/null 2>&1; then
         run_optional_step "macOS apps" install_macos_apps
     fi
-    run_optional_step "Claude Code" install_claude_code
 
     # Setup dotfile configurations
     run_required_step "dotfile links" setup_dotfiles

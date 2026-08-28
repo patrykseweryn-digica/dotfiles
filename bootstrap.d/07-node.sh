@@ -4,11 +4,8 @@ NVM_VERSION="v0.40.1"
 
 install_global_npm_packages() {
     echo "[INFO] Installing global npm packages..."
-    npm i -g @steipete/summarize || echo "[WARN] Failed to install @steipete/summarize"
-
-    if [ "${IS_LINUX:-false}" = true ]; then
-        npm i -g @openai/codex@latest || echo "[WARN] Failed to install @openai/codex"
-    fi
+    npm i -g @steipete/summarize || \
+        echo "[WARN] Failed to install @steipete/summarize"
 }
 
 install_nvm() {

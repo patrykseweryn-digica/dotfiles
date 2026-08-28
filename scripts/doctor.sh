@@ -4,6 +4,7 @@ set -uo pipefail
 default_dotfiles_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DOTFILES_DIR="${DOTFILES_DIR:-$default_dotfiles_dir}"
 SYNC_AGENTS="${SYNC_AGENTS:-${DOTFILES_DIR}/sync-agents.sh}"
+AGENT_TOOLS="${AGENT_TOOLS:-${DOTFILES_DIR}/scripts/agent-tools.sh}"
 REPO_SKILL_LOCK="${SKILL_LOCK_REPO:-${DOTFILES_DIR}/.agents/skill-lock.json}"
 LIVE_SKILL_LOCK="${SKILL_LOCK_LIVE:-${HOME}/.agents/.skill-lock.json}"
 failed=false
@@ -93,37 +94,6 @@ EOF
     [ "$broken" = false ]
 }
 
-check_npm_version() {
-    local label="$1"
-    local command_name="$2"
-    local package="$3"
-    local output current latest
-
-    command -v "$command_name" >/dev/null 2>&1 || {
-        echo "[ERROR] Missing ${label} CLI: $command_name" >&2
-        return 1
-    }
-    command -v npm >/dev/null 2>&1 || {
-        echo "[ERROR] npm is required for version checks" >&2
-        return 1
-    }
-
-    output=$("$command_name" --version 2>/dev/null) || return 1
-    if [[ "$output" =~ ([0-9]+\.[0-9]+\.[0-9]+) ]]; then
-        current="${BASH_REMATCH[1]}"
-    else
-        echo "[ERROR] Cannot parse ${label} version: $output" >&2
-        return 1
-    fi
-    latest=$(npm view "$package" version 2>/dev/null) || {
-        echo "[ERROR] Cannot fetch latest ${label} version" >&2
-        return 1
-    }
-
-    echo "[INFO] ${label}: installed ${current}, latest ${latest}"
-    [ "$current" = "$latest" ]
-}
-
 run_check "plugin drift" "$SYNC_AGENTS" plugins-check
 run_check "Claude settings" "$SYNC_AGENTS" claude-settings-check
 run_check "MCP drift" "$SYNC_AGENTS" mcp-check
@@ -131,10 +101,7 @@ run_check "custom skill drift" \
     "$SYNC_AGENTS" custom-skills-export --check
 run_check "skill lock drift" check_skill_lock
 run_check "agent links" check_agent_links
-run_check "Codex version" \
-    check_npm_version "Codex" codex "@openai/codex"
-run_check "Claude version" \
-    check_npm_version "Claude Code" claude "@anthropic-ai/claude-code"
+run_check "agent tool versions" "$AGENT_TOOLS" check
 
 if [ "$failed" = true ]; then
     echo "[ERROR] Live machine drift detected" >&2

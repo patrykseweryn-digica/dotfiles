@@ -1,0 +1,44 @@
+{
+  "tools": [
+    {
+      "channel": "latest",
+      "command": "pi",
+      "installer": "npm",
+      "name": "Pi",
+      "package": "@earendil-works/pi-coding-agent",
+      "version": "0.84.3"
+    },
+    {
+      "channel": "latest",
+      "command": "codex",
+      "installer": "npm",
+      "name": "Codex",
+      "package": "@openai/codex",
+      "version": "0.150.1"
+    },
+    {
+      "channel": "latest",
+      "command": "claude",
+      "installer": "claude-native",
+      "name": "Claude Code",
+      "package": "@anthropic-ai/claude-code",
+      "version": "2.1.250"
+    },
+    {
+      "channel": "latest",
+      "command": "opencode",
+      "installer": "npm",
+      "name": "OpenCode",
+      "package": "opencode-ai",
+      "version": "1.18.25"
+    },
+    {
+      "channel": "latest",
+      "command": "skills",
+      "installer": "npm",
+      "name": "Skill manager",
+      "package": "skills",
+      "version": "1.5.23"
+    }
+  ]
+}

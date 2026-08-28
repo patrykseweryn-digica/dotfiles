@@ -11,6 +11,7 @@ details unless you are debugging them.
 just --list
 just check
 just doctor
+just agent-versions
 just push
 just pull-mcp
 ```
@@ -34,6 +35,22 @@ There is no broad `just pull`. MCP pull merges identical definitions and stops
 without writing on conflicts. Environment values, HTTP headers, credentials,
 OAuth state, and unsupported transports are not imported. Pi has no built-in
 MCP support, so its MCP adapter remains out of scope until issue `#12`.
+
+## Agent tool versions
+
+`.agents/tool-versions.json` stores a moving channel and its exact resolved
+version. Fresh installs use the committed version, so they stay reproducible.
+Updating resolves each channel, writes new exact pins, then installs them.
+
+```bash
+just agent-versions      # compare installed tools with committed versions
+just update-agent-tools  # resolve channels, pin versions, install tools
+```
+
+Pi, Codex, OpenCode, and the skill manager use global npm packages. Claude
+Code uses Anthropic's native installer with an exact version. `just install`
+installs the committed versions on a fresh machine. Configuration commands
+such as `just push` never resolve channels or update tool versions.
 
 ## Setup commands
 
@@ -60,6 +77,8 @@ just setup-ssh        # explicit SSH key/config setup
 - Need to use repo: start with `just --list`.
 - Need to verify repo: `just check`.
 - Need to check this machine for drift: `just doctor`.
+- Need to inspect agent versions: `just agent-versions`.
+- Need to update agent tools: `just update-agent-tools`.
 - Need to apply repository state: `just push`.
 - Need to inspect runtime MCP additions: `just pull-mcp`.
 - Need a new machine: `just install`.
