@@ -766,6 +766,9 @@ generate_claude_settings() {
     local tmp="${CLAUDE_SETTINGS_FILE}.tmp"
 
     jq -S --slurpfile m "$CLAUDE_MANIFEST" --slurpfile mcp "$MCP_SERVERS" '
+        ($mcp[0] // {} | keys | map("mcp__" + . + "__*")) as $mcp_permissions |
+        .permissions.allow = ((.permissions.allow // []) as $allow |
+            $allow + ($mcp_permissions - $allow)) |
         .enabledPlugins = ($m[0].plugins | to_entries |
             map(select(.value.claude != null) | {
                 (.value.claude): true

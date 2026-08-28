@@ -19,7 +19,6 @@
       "WebFetch",
       "WebSearch",
       "Skill",
-      "mcp__*",
       "Bash(uv *)",
       "Bash(uvx *)",
       "Bash(npm *)",
