@@ -20,8 +20,14 @@ sync_log="${tmp_dir}/sync.log"
 stub_dir="${tmp_dir}/stubs"
 update_log="${tmp_dir}/update.log"
 project_dir="${tmp_dir}/project"
+codex_cache="${tmp_dir}/codex-cache"
 
-mkdir -p "${home_dir}/.claude/plugins" "$stub_dir" "$project_dir"
+mkdir -p \
+    "${home_dir}/.claude/plugins" \
+    "${codex_cache}/keep" \
+    "${codex_cache}/codex-new" \
+    "$stub_dir" \
+    "$project_dir"
 
 cat > "$manifest" <<'JSON'
 {
@@ -81,37 +87,81 @@ cat > "${home_dir}/.claude/plugins/known_marketplaces.json" <<'JSON'
 }
 JSON
 
+cat > "${codex_cache}/keep/.codex-remote-plugin-install.json" <<'JSON'
+{
+  "schema_version": 1,
+  "remote_plugin_id": "plugin_connector_keep"
+}
+JSON
+
+cat > "${codex_cache}/codex-new/.codex-remote-plugin-install.json" <<'JSON'
+{
+  "schema_version": 1,
+  "remote_plugin_id": "plugin_connector_new"
+}
+JSON
+
 export HOME="$home_dir"
+export PLUGIN_MANIFEST="$manifest"
 export CLAUDE_MANIFEST="$manifest"
+export CODEX_PLUGIN_MANIFEST="$manifest"
+export CODEX_REMOTE_PLUGIN_CACHE="$codex_cache"
 
-if "$DOTFILES_DIR/sync-agents.sh" --quiet claude-export --check \
+cp "$manifest" "${tmp_dir}/before-cancel.json"
+if printf 'n\n' | "$DOTFILES_DIR/sync-agents.sh" --quiet pull-plugins \
     > "$sync_log" 2>&1; then
-    fail "Claude plugin check should detect live-state drift"
+    fail "Plugin pull ignored cancelled confirmation"
 fi
+cmp -s "$manifest" "${tmp_dir}/before-cancel.json" || \
+    fail "Plugin pull wrote after cancelled confirmation"
+grep -F 'codex-new' "$sync_log" >/dev/null || \
+    fail "Plugin pull did not preview the repository diff"
 
-"$DOTFILES_DIR/sync-agents.sh" --quiet claude-export \
+printf 'y\n' | "$DOTFILES_DIR/sync-agents.sh" --quiet pull-plugins \
     > "$sync_log" 2>&1 || {
     cat "$sync_log" >&2
-    fail "Claude plugin export failed"
+    fail "Plugin pull failed"
 }
 
 jq -e '
     .plugins.keep.claude == "keep@keep-mp" and
     .plugins.keep.codex == "plugin_connector_keep" and
     .plugins.new.claude == "new@new-mp" and
-    .plugins["removed-shared"].codex ==
-        "plugin_connector_removed_shared" and
-    (.plugins["removed-shared"].claude == null) and
+    .plugins["codex-new"].codex == "plugin_connector_new" and
+    (.plugins["removed-shared"] == null) and
     (.plugins["removed-only"] == null) and
     (.marketplaces | keys) == ["keep-mp", "new-mp"] and
     .marketplaces["new-mp"].repo == "example/new"
-' "$manifest" >/dev/null || fail "Claude plugin export wrote wrong state"
+' "$manifest" >/dev/null || fail "Plugin pull wrote wrong state"
 
 "$DOTFILES_DIR/sync-agents.sh" --quiet claude-export --check \
     > "$sync_log" 2>&1 || {
     cat "$sync_log" >&2
     fail "Claude plugin check failed after export"
 }
+"$DOTFILES_DIR/sync-agents.sh" --quiet codex-plugins-check \
+    > "$sync_log" 2>&1 || {
+    cat "$sync_log" >&2
+    fail "Codex plugin check failed after pull"
+}
+
+cat > "${home_dir}/.claude/plugins/installed_plugins.json" <<'JSON'
+{
+  "plugins": {
+    "keep@keep-mp": [
+      {"scope": "user"}
+    ]
+  }
+}
+JSON
+if "$DOTFILES_DIR/sync-agents.sh" --quiet plugins-check \
+    > "$sync_log" 2>&1; then
+    fail "Plugin check ignored a missing Claude plugin"
+fi
+grep -F 'new@new-mp' "$sync_log" >/dev/null || \
+    fail "Plugin check did not report the missing Claude plugin"
+grep -F 'Run: just push-plugins' "$sync_log" >/dev/null || \
+    fail "Plugin check did not recommend authoritative push"
 
 cat > "${home_dir}/.claude/plugins/installed_plugins.json" <<JSON
 {

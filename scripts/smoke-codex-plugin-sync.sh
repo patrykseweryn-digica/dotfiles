@@ -69,6 +69,12 @@ grep -F "missing-plugin (plugin_connector_missing)" "$sync_log" \
     >/dev/null || fail "Codex plugin check did not report missing plugin"
 grep -F "unexpected-plugin (plugin_connector_extra)" "$sync_log" \
     >/dev/null || fail "Codex plugin check did not report extra plugin"
+grep -F 'Open Codex and enter: /plugins' "$sync_log" \
+    >/dev/null || fail "Codex plugin check omitted the interactive command"
+grep -F 'Complete OAuth when prompted' "$sync_log" \
+    >/dev/null || fail "Codex plugin check omitted OAuth instructions"
+grep -F 'Run again: just push-plugins' "$sync_log" \
+    >/dev/null || fail "Codex plugin check omitted the verification command"
 
 "$DOTFILES_DIR/sync-agents.sh" --quiet codex-plugins-export \
     > "$sync_log" 2>&1 || {
@@ -88,6 +94,21 @@ jq -e '
     cat "$sync_log" >&2
     fail "Codex plugin check failed after export"
 }
+
+cat > "${stub_dir}/codex" <<'STUB'
+#!/bin/bash
+exit 0
+STUB
+chmod +x "${stub_dir}/codex"
+export PATH="${stub_dir}:/usr/bin:/bin"
+export CODEX_REMOTE_PLUGIN_CACHE="${tmp_dir}/missing-cache"
+if "$DOTFILES_DIR/sync-agents.sh" --quiet codex-plugins-check \
+    > "$sync_log" 2>&1; then
+    fail "Codex plugin check passed without remote plugin state"
+fi
+grep -F 'figma (plugin_connector_keep)' "$sync_log" >/dev/null || \
+    fail "Codex plugin check did not report missing state"
+export CODEX_REMOTE_PLUGIN_CACHE="$cache"
 
 cat > "$plugin_list" <<'JSON'
 {

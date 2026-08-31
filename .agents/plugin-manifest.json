@@ -110,12 +110,6 @@
     "feature-dev": {
       "claude": "feature-dev@claude-plugins-official"
     },
-    "figma": {
-      "claude": "figma@claude-plugins-official"
-    },
-    "github": {
-      "codex": "plugin_connector_1p_1a69035c238881919c4190932b2df699"
-    },
     "gmail": {
       "codex": "plugin_connector_1p_95d39881713c8191931482a62d6edff9"
     },
@@ -124,9 +118,6 @@
     },
     "google-drive": {
       "codex": "plugin_connector_1p_ab21a553bfbc81919ea8fd1858e3ffa7"
-    },
-    "hugging-face": {
-      "claude": "huggingface-skills@claude-plugins-official"
     },
     "impeccable": {
       "claude": "impeccable@impeccable"
