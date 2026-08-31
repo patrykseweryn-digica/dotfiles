@@ -58,13 +58,6 @@
     "feature-dev": {
       "claude": "feature-dev@claude-plugins-official"
     },
-    "figma": {
-      "claude": "figma@claude-plugins-official",
-      "codex": "plugin_connector_68df038e0ba48191908c8434991bbac2"
-    },
-    "github": {
-      "codex": "plugin_connector_1p_1a69035c238881919c4190932b2df699"
-    },
     "gmail": {
       "codex": "plugin_connector_1p_95d39881713c8191931482a62d6edff9"
     },
@@ -73,10 +66,6 @@
     },
     "google-drive": {
       "codex": "plugin_connector_1p_ab21a553bfbc81919ea8fd1858e3ffa7"
-    },
-    "hugging-face": {
-      "claude": "huggingface-skills@claude-plugins-official",
-      "codex": "plugin_asdk_app_6939e86417648191b7bda087d872685b"
     },
     "impeccable": {
       "claude": "impeccable@impeccable"
@@ -95,6 +84,9 @@
     },
     "playwright": {
       "claude": "playwright@claude-plugins-official"
+    },
+    "plugin-management": {
+      "codex": "plugin_connector_1p_b3438d6beb9081918fba3625bc988128"
     },
     "pydantic-ai": {
       "claude": "pydantic-ai@claude-plugins-official"

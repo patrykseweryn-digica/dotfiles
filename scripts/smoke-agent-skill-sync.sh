@@ -94,6 +94,37 @@ if ! "${DOTFILES_DIR}/sync-agents.sh" --quiet install > "$sync_log" 2>&1; then
     fail "sync-agents.sh install failed"
 fi
 
+cat > "${stub_dir}/claude" <<'STUB'
+#!/bin/bash
+set -eu
+printf '%s\n' "$*" >> "$CLAUDE_INSTALL_LOG"
+STUB
+chmod +x "${stub_dir}/claude"
+claude_install_log="${tmp_dir}/claude-install.log"
+: > "$claude_install_log"
+if ! CLAUDE_INSTALL_LOG="$claude_install_log" \
+    "${DOTFILES_DIR}/sync-agents.sh" --quiet install \
+    > "$sync_log" 2>&1; then
+    cat "$sync_log" >&2
+    fail "install did not repair missing Claude plugin state"
+fi
+grep -F 'plugin install ' "$claude_install_log" >/dev/null || \
+    fail "install did not push missing Claude plugins"
+rm "${stub_dir}/claude"
+
+cat > "${stub_dir}/codex" <<'STUB'
+#!/bin/bash
+exit 0
+STUB
+chmod +x "${stub_dir}/codex"
+if "${DOTFILES_DIR}/sync-agents.sh" --quiet install \
+    > "$sync_log" 2>&1; then
+    fail "install ignored missing Codex remote plugins"
+fi
+grep -F 'Open Codex and enter: /plugins' "$sync_log" >/dev/null || \
+    fail "install omitted manual Codex plugin steps"
+rm "${stub_dir}/codex"
+
 if ! "${DOTFILES_DIR}/sync-agents.sh" --quiet claude-settings-check > "$sync_log" 2>&1; then
     cat "$sync_log" >&2
     fail "claude-settings-check failed after install"

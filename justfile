@@ -48,7 +48,7 @@ pull-skills:
 push-skills:
     "{{ sync_agents }}" push-skills
 
-# Preview runtime plugin drift. Inventory decisions remain in issue #13.
+# Preview runtime plugins, then confirm the repository update.
 pull-plugins:
     "{{ sync_agents }}" pull-plugins
 

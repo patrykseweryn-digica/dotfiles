@@ -27,7 +27,7 @@ just pull-mcp       # preview live MCP state, then confirm
 just push-mcp       # repository MCP state -> runtimes
 just pull-skills    # preview live skills, then confirm repository changes
 just push-skills    # reconcile skills without version updates
-just pull-plugins   # preview drift; inventory approval stays in issue #13
+just pull-plugins   # preview live plugins, then confirm repository changes
 just push-plugins   # apply membership without upgrades
 just push           # push MCP, skills, and plugins in order
 ```
@@ -39,6 +39,13 @@ lock and custom-skill additions, removals, and replacements before asking for
 confirmation. Skill push removes unmanaged skills and stale links, then makes
 Codex, Claude Code, OpenCode, and Pi match the repository inventory. Neither
 command updates upstream skill versions.
+
+Plugin pull combines supported Codex remote and Claude plugin membership,
+shows the manifest diff, and writes only after confirmation. That explicit
+pull makes the shared manifest authoritative. Plugin push uses Claude's CLI
+for membership changes. Codex remote plugins still require `/plugins`; drift
+stops with the plugin names, OAuth step, and verification command. Pull and
+push never update marketplaces, plugins, or agent CLIs.
 
 Pi receives stdio and HTTP servers through the pinned `pi-mcp-adapter` package.
 Its local MCP state lives in `~/.agents/mcp.json`.

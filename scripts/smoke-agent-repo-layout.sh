@@ -29,8 +29,8 @@ EOF
 [ "$(readlink config/codex/plugin-manifest.json)" = "../../.agents/plugin-manifest.json" ] || fail "Codex plugin manifest adapter points at wrong target"
 jq -e '
     (.plugins | type) == "object" and
-    (.plugins.figma.codex | startswith("plugin_connector_")) and
-    (.plugins.figma.claude | contains("@"))
+    any(.plugins[]; (.codex? // "") | startswith("plugin_")) and
+    any(.plugins[]; (.claude? // "") | contains("@"))
 ' .agents/plugin-manifest.json >/dev/null || fail "Shared plugin manifest is invalid"
 
 [ -L config/claude/CLAUDE.md ] || fail "Claude CLAUDE.md adapter must be a symlink"

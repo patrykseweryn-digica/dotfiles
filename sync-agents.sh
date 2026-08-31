@@ -915,10 +915,19 @@ render_codex_remote_plugins() {
     rm -f "$rows"
 }
 
+codex_plugin_state_available() {
+    [ -d "$CODEX_REMOTE_PLUGIN_CACHE" ] ||
+        command -v codex >/dev/null 2>&1
+}
+
+claude_plugin_state_available() {
+    [ -f "$1" ] || command -v claude >/dev/null 2>&1
+}
+
 cmd_codex_plugins_check() {
     validate_plugin_manifest "$CODEX_PLUGIN_MANIFEST" || return 1
 
-    if [ ! -d "$CODEX_REMOTE_PLUGIN_CACHE" ]; then
+    if ! codex_plugin_state_available; then
         log_info "No Codex remote plugin state found; skipping drift check"
         return 0
     fi
@@ -972,17 +981,25 @@ cmd_codex_plugins_check() {
             '{ print "  - " $1 " (" $2 ")" }' >&2
     fi
     echo "" >&2
-    echo "Keep live state: ./sync-agents.sh plugins-export" >&2
-    echo "Keep manifest: uninstall extras and install missing plugins via /plugins" >&2
+    echo "Manual Codex steps:" >&2
+    echo "  - Open Codex and enter: /plugins" >&2
+    if [ -n "$missing" ]; then
+        echo "  - Install the missing plugins listed above" >&2
+        echo "  - Complete OAuth when prompted" >&2
+    fi
+    if [ -n "$extra" ]; then
+        echo "  - Remove the extra plugins listed above" >&2
+    fi
+    echo "  - Run again: just push-plugins" >&2
     return 1
 }
 
 cmd_codex_plugins_export() {
     validate_plugin_manifest "$CODEX_PLUGIN_MANIFEST" || return 1
 
-    if [ ! -d "$CODEX_REMOTE_PLUGIN_CACHE" ]; then
-        echo "[ERROR] No Codex remote plugin state: $CODEX_REMOTE_PLUGIN_CACHE" >&2
-        return 1
+    if ! codex_plugin_state_available; then
+        log_info "No Codex remote plugin state found; skipping export"
+        return 0
     fi
 
     local live tmp
@@ -1512,10 +1529,12 @@ cmd_claude_plugins_export() {
     local installed_json="${HOME}/.claude/plugins/installed_plugins.json"
     local known_mp="${HOME}/.claude/plugins/known_marketplaces.json"
 
-    if [ ! -f "$installed_json" ]; then
+    if ! claude_plugin_state_available "$installed_json"; then
         log_info "No installed_plugins.json found, nothing to export"
         return 0
     fi
+
+    [ -f "$installed_json" ] || installed_json=/dev/null
 
     [ -f "$known_mp" ] || known_mp=/dev/null
 
@@ -1573,7 +1592,7 @@ cmd_claude_plugins_export() {
         diff <(jq -S '{plugins, marketplaces}' "$CLAUDE_MANIFEST") \
              <(jq -S '{plugins, marketplaces}' "$tmp") >&2 || true
         echo "" >&2
-        echo "Run: ./sync-agents.sh claude-export" >&2
+        echo "Run: just push-plugins" >&2
         rm -f "$tmp"
         return 1
     fi
@@ -1782,13 +1801,13 @@ cmd_skills_update() {
 cmd_plugins_check() {
     local failed=false
     cmd_codex_plugins_check || failed=true
-    cmd_claude_plugins_prune --check || failed=true
+    cmd_claude_plugins_export --check || failed=true
     [ "$failed" = false ]
 }
 
 cmd_plugins_export() {
-    cmd_codex_plugins_export
-    cmd_claude_plugins_export
+    cmd_codex_plugins_export || return 1
+    cmd_claude_plugins_export || return 1
 }
 
 cmd_plugins_update() {
@@ -1951,12 +1970,53 @@ cmd_push_skills() {
 }
 
 cmd_pull_plugins() {
-    if cmd_plugins_check; then
+    [ "$#" -eq 0 ] || {
+        echo "[ERROR] pull-plugins takes no arguments" >&2
+        return 1
+    }
+    validate_plugin_manifest "$PLUGIN_MANIFEST" || return 1
+
+    local claude_plugins candidate reply requested_quiet
+    claude_plugins="${HOME}/.claude/plugins/installed_plugins.json"
+    if ! codex_plugin_state_available &&
+        ! claude_plugin_state_available "$claude_plugins"; then
+        echo "[ERROR] No supported live plugin state found" >&2
+        return 1
+    fi
+
+    candidate="$(mktemp)"
+    cp "$PLUGIN_MANIFEST" "$candidate"
+    local CODEX_PLUGIN_MANIFEST="$candidate"
+    local CLAUDE_MANIFEST="$candidate"
+    requested_quiet="$QUIET"
+    QUIET=true
+    if ! cmd_plugins_export; then
+        rm -f "$candidate"
+        return 1
+    fi
+    QUIET="$requested_quiet"
+
+    if cmp -s "$PLUGIN_MANIFEST" "$candidate"; then
+        rm -f "$candidate"
         log_info "Shared plugin manifest already matches live state"
         return 0
     fi
-    echo "[ERROR] Plugin inventory approval is tracked in issue #13" >&2
-    return 1
+
+    diff -u "$PLUGIN_MANIFEST" "$candidate" || true
+    printf 'Apply this plugin inventory? [y/N] '
+    read -r reply || reply=""
+    case "$reply" in
+        y|Y|yes|YES)
+            cp "$candidate" "$PLUGIN_MANIFEST"
+            rm -f "$candidate"
+            log_info "Updated shared plugin manifest from live state"
+            ;;
+        *)
+            rm -f "$candidate"
+            echo "[ERROR] Plugin pull cancelled; repository unchanged" >&2
+            return 1
+            ;;
+    esac
 }
 
 cmd_claude_plugins_push() {
@@ -2166,12 +2226,12 @@ cmd_claude_install() {
 
 cmd_install() {
     cmd_custom_skills_install
-    cmd_plugins_check
     cmd_codex_install
     cmd_opencode_install
     cmd_kimi_install
     cmd_pi_install
     cmd_claude_install
+    cmd_codex_plugins_check
 
     log_info "Agent config sync complete"
 }
@@ -2208,7 +2268,8 @@ case "${1:-}" in
         cmd_skills_check
         ;;
     pull-plugins)
-        cmd_pull_plugins
+        shift
+        cmd_pull_plugins "$@"
         ;;
     push-plugins)
         cmd_push_plugins
@@ -2286,7 +2347,7 @@ case "${1:-}" in
         echo "  pull-skills      Preview and confirm live skill import"
         echo "  push-skills      Reconcile skills without version updates"
         echo "  skills-check     Compare runtime skills with shared inventory"
-        echo "  pull-plugins     Preview plugin drift; approval stays in #13"
+        echo "  pull-plugins     Preview and confirm live plugin import"
         echo "  push-plugins     Apply membership without version updates"
         echo "  install          Sync shared agent config into Codex, Claude, Pi, OpenCode, and Kimi"
         echo "  plugins-check    Check Codex and Claude against shared plugin manifest"
