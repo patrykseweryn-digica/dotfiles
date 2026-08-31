@@ -94,20 +94,11 @@
     "pyright-lsp": {
       "claude": "pyright-lsp@claude-plugins-official"
     },
-    "ralph-loop": {
-      "claude": "ralph-loop@claude-plugins-official"
-    },
     "security-guidance": {
       "claude": "security-guidance@claude-plugins-official"
     },
     "skill-creator": {
       "claude": "skill-creator@claude-plugins-official"
-    },
-    "supabase": {
-      "claude": "supabase@claude-plugins-official"
-    },
-    "superpowers": {
-      "claude": "superpowers@claude-plugins-official"
     },
     "typescript-lsp": {
       "claude": "typescript-lsp@claude-plugins-official"
