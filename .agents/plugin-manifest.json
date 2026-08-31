@@ -88,9 +88,6 @@
     "plugin-management": {
       "codex": "plugin_connector_1p_b3438d6beb9081918fba3625bc988128"
     },
-    "pydantic-ai": {
-      "claude": "pydantic-ai@claude-plugins-official"
-    },
     "pyright-lsp": {
       "claude": "pyright-lsp@claude-plugins-official"
     },
