@@ -32,6 +32,10 @@ agent-versions:
 update-agent-tools:
     "{{ agent_tools }}" update
 
+# Preview live portable Codex settings, then confirm the repository update.
+pull-codex-settings:
+    "{{ sync_agents }}" pull-codex-settings
+
 # Preview runtime MCP state, then confirm the repository update.
 pull-mcp:
     "{{ sync_agents }}" pull-mcp
