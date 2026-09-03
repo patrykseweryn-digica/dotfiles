@@ -29,6 +29,8 @@ ln -s "${DOTFILES_DIR}/config/codex/AGENTS.md" \
     "${home_dir}/.codex/AGENTS.md"
 ln -s "${DOTFILES_DIR}/config/claude/CLAUDE.md" \
     "${home_dir}/.claude/CLAUDE.md"
+ln -s "${DOTFILES_DIR}/config/claude/settings.local.json" \
+    "${home_dir}/.claude/settings.local.json"
 ln -s "${DOTFILES_DIR}/config/opencode/AGENTS.md" \
     "${home_dir}/.config/opencode/AGENTS.md"
 ln -s "${DOTFILES_DIR}/config/pi/AGENTS.md" \
@@ -63,6 +65,7 @@ run_doctor || { cat "${tmp_dir}/doctor.log" >&2; fail "doctor failed"; }
 
 for expected in \
     plugins-check \
+    codex-check \
     claude-settings-check \
     mcp-check \
     pi-check \

@@ -82,6 +82,10 @@ Global preferences in `.agents/AGENTS.md` are linked to
 with `CLAUDE.md` linking to it for Claude. Shared skills are linked into
 `~/.pi/agent/skills/`.
 
+`config/codex/settings.toml` owns portable Codex settings; project trust,
+notices, and hook hashes stay local. Claude settings come from
+`config/claude/`.
+
 ## Setup commands
 
 ```bash
@@ -110,7 +114,9 @@ and restarts its daemon. No repository gates or agent hooks are configured.
 - `scripts/smoke-*`: regression tests for installer behavior.
 - `bin/*`: commands linked into `~/.local/bin`.
 - `config/*`: files linked into `$HOME`.
-- `.agents/*`: shared agent instructions, MCP servers, skill lock.
+- `.agents/*`: shared instructions, MCP servers, skill lock, plugin inventory.
+  The plugin manifest covers Claude membership plus Codex remote and
+  marketplace plugins.
 
 ## Rule of thumb
 

@@ -1,4 +1,50 @@
 {
+  "codexMarketplaces": {
+    "anthropic-agent-skills": "https://github.com/anthropics/skills.git",
+    "claude-plugins-official": "https://github.com/anthropics/claude-plugins-official.git",
+    "context-mode": "https://github.com/mksglu/context-mode.git",
+    "impeccable": "https://github.com/pbakaus/impeccable.git",
+    "last30days-skill": "https://github.com/mvanhorn/last30days-skill.git",
+    "obsidian-skills": "https://github.com/kepano/obsidian-skills.git",
+    "ponytail": "https://github.com/DietrichGebert/ponytail.git",
+    "pydantic-skills": "https://github.com/pydantic/skills.git",
+    "ui-ux-pro-max-skill": "https://github.com/nextlevelbuilder/ui-ux-pro-max-skill.git"
+  },
+  "codexPlugins": [
+    "browser@openai-bundled",
+    "chrome-devtools-mcp@claude-plugins-official",
+    "chrome@openai-bundled",
+    "claude-code-setup@claude-plugins-official",
+    "claude-md-management@claude-plugins-official",
+    "code-review@claude-plugins-official",
+    "code-simplifier@claude-plugins-official",
+    "codex-app-tools@openai-bundled",
+    "context7@claude-plugins-official",
+    "document-skills@anthropic-agent-skills",
+    "documents@openai-primary-runtime",
+    "feature-dev@claude-plugins-official",
+    "figma@claude-plugins-official",
+    "huggingface-skills@claude-plugins-official",
+    "impeccable@impeccable",
+    "last30days@last30days-skill",
+    "logfire@pydantic-skills",
+    "obsidian@obsidian-skills",
+    "pdf@openai-primary-runtime",
+    "playwright@claude-plugins-official",
+    "ponytail@ponytail",
+    "presentations@openai-primary-runtime",
+    "pyright-lsp@claude-plugins-official",
+    "ralph-loop@claude-plugins-official",
+    "security-guidance@claude-plugins-official",
+    "sites@openai-bundled",
+    "skill-creator@claude-plugins-official",
+    "spreadsheets@openai-primary-runtime",
+    "supabase@claude-plugins-official",
+    "template-creator@openai-primary-runtime",
+    "typescript-lsp@claude-plugins-official",
+    "ui-ux-pro-max@ui-ux-pro-max-skill",
+    "visualize@openai-bundled"
+  ],
   "marketplaces": {
     "anthropic-agent-skills": {
       "repo": "anthropics/skills",
@@ -33,6 +79,9 @@
     "ai": {
       "claude": "ai@pydantic-skills"
     },
+    "app-6943b73823548191a9f9216c6790c453": {
+      "codex": "plugin_asdk_app_6943b73823548191a9f9216c6790c453"
+    },
     "chrome-devtools-mcp": {
       "claude": "chrome-devtools-mcp@claude-plugins-official"
     },
@@ -51,6 +100,9 @@
     "context7": {
       "claude": "context7@claude-plugins-official",
       "codex": "plugin_asdk_app_69ef18c674308191a2f952431f91ea61"
+    },
+    "deep-research-work": {
+      "codex": "plugin_connector_1p_ae06492f57648191bd558c9c45188734"
     },
     "document-skills": {
       "claude": "document-skills@anthropic-agent-skills"

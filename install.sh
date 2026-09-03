@@ -299,6 +299,7 @@ symlink|$DOTFILES_DIR/config/summarize/config.json|$HOME/.summarize/config.json
 symlink|$DOTFILES_DIR/config/claude/CLAUDE.md|$HOME/.claude/CLAUDE.md
 symlink|$DOTFILES_DIR/config/claude/statusline-command.sh|$HOME/.claude/statusline-command.sh
 plain-absent||$HOME/.claude/settings.json
+symlink|$DOTFILES_DIR/config/claude/settings.local.json|$HOME/.claude/settings.local.json
 symlink|$DOTFILES_DIR/config/claude/output-styles|$HOME/.claude/output-styles
 symlink|$DOTFILES_DIR/config/claude/agents|$HOME/.claude/agents
 EOF
