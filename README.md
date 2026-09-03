@@ -13,6 +13,7 @@ just check
 just doctor
 just agent-versions
 just push
+just pull-codex-settings
 just pull-mcp
 just pull-skills
 ```
@@ -23,6 +24,7 @@ Repository state is authoritative when pushing. Runtime state is only imported
 through category-specific pull commands.
 
 ```bash
+just pull-codex-settings # preview live Codex preferences, then confirm
 just pull-mcp       # preview live MCP state, then confirm
 just push-mcp       # repository MCP state -> runtimes
 just pull-skills    # preview live skills, then confirm repository changes
@@ -32,13 +34,16 @@ just push-plugins   # apply membership without upgrades
 just push           # push MCP, skills, and plugins in order
 ```
 
-There is no broad `just pull`. MCP pull merges identical definitions and stops
-without writing on conflicts. Environment values, HTTP headers, credentials,
-OAuth state, and unsupported transports are not imported. Skill pull previews
-lock and custom-skill additions, removals, and replacements before asking for
-confirmation. Skill push removes unmanaged skills and stale links, then makes
-Codex, Claude Code, OpenCode, and Pi match the repository inventory. Neither
-command updates upstream skill versions.
+There is no broad `just pull`. After saving a model or reasoning default in
+Codex, run `just pull-codex-settings`. MCP pull merges identical definitions
+and stops without writing on conflicts. Environment values, HTTP headers,
+credentials, OAuth state, and unsupported transports are not imported.
+Skill pull previews lock and custom-skill additions, removals, and replacements
+before asking for confirmation. Doctor ignores Codex's active model and
+reasoning selection; repository values remain install defaults. Skill push
+removes unmanaged skills and stale links, then makes Codex, Claude Code,
+OpenCode, and Pi match the repository inventory. Neither command updates
+upstream skill versions.
 
 Plugin pull combines supported Codex remote and Claude plugin membership,
 shows the manifest diff, and writes only after confirmation. That explicit
@@ -126,6 +131,7 @@ and restarts its daemon. No repository gates or agent hooks are configured.
 - Need to inspect agent versions: `just agent-versions`.
 - Need to update agent tools: `just update-agent-tools`.
 - Need to apply repository state: `just push`.
+- Changed Codex model/preferences interactively: `just pull-codex-settings`.
 - Need to inspect runtime MCP additions: `just pull-mcp`.
 - Need to review live skill changes: `just pull-skills`.
 - Need a new machine: `just install`.

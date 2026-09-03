@@ -307,6 +307,15 @@ is_requested_skill() {
     return 1
 }
 
+diff_custom_skills() {
+    diff \
+        -x '.git' \
+        -x '__pycache__' \
+        -x '*.pyc' \
+        -x '.DS_Store' \
+        "$@"
+}
+
 cmd_custom_skills_export() {
     local check_only=false
     local dry_run=false
@@ -376,11 +385,7 @@ cmd_custom_skills_export() {
             continue
         elif [ ! -e "$target_dir" ]; then
             action="add"
-        elif ! diff -qr \
-            -x '.git' \
-            -x '__pycache__' \
-            -x '*.pyc' \
-            -x '.DS_Store' \
+        elif ! diff_custom_skills -qr \
             "$skill_path" "$target_dir" >/dev/null 2>&1; then
             action="update"
         fi
@@ -808,25 +813,33 @@ strip_codex_managed_mcp() {
     ' "$source_file"
 }
 
-strip_codex_managed_settings() {
-    local source_file="$1"
-    local root_keys sections
-
-    root_keys="$(awk '
+codex_managed_root_keys() {
+    awk '
         /^\[/ { exit }
         /^[A-Za-z0-9_-]+[[:space:]]*=/ {
             sub(/[[:space:]]*=.*/, "")
             printf "%s ", $0
         }
-    ' "$CODEX_SETTINGS_TEMPLATE")"
-    sections="$(awk '
+    ' "$CODEX_SETTINGS_TEMPLATE"
+}
+
+codex_managed_sections() {
+    awk '
         /^\[[^]]+\]$/ {
             line = $0
             sub(/^\[/, "", line)
             sub(/\]$/, "", line)
             printf "%s ", line
         }
-    ' "$CODEX_SETTINGS_TEMPLATE")"
+    ' "$CODEX_SETTINGS_TEMPLATE"
+}
+
+strip_codex_managed_settings() {
+    local source_file="$1"
+    local root_keys sections
+
+    root_keys="$(codex_managed_root_keys)"
+    sections="$(codex_managed_sections)"
 
     [ -f "$source_file" ] || return 0
 
@@ -865,6 +878,98 @@ strip_codex_managed_settings() {
 
         { print }
     ' "$source_file"
+}
+
+render_codex_settings_from_live() {
+    local source_file="$1"
+    local target_file="$2"
+    local root_keys sections raw
+
+    root_keys="$(codex_managed_root_keys)"
+    sections="$(codex_managed_sections)"
+    raw="$(mktemp)"
+
+    awk -v root_keys="$root_keys" -v sections="$sections" '
+        BEGIN {
+            split(root_keys, root_key)
+            split(sections, managed_section)
+            root = 1
+            selected = 0
+        }
+
+        function listed(value, values, i) {
+            for (i in values) {
+                if (values[i] == value) return 1
+            }
+            return 0
+        }
+
+        /^\[[^]]+\]$/ {
+            root = 0
+            section = $0
+            sub(/^\[/, "", section)
+            sub(/\]$/, "", section)
+            selected = listed(section, managed_section)
+            if (selected) print
+            next
+        }
+
+        selected { print; next }
+
+        root && /^[A-Za-z0-9_-]+[[:space:]]*=/ {
+            key = $0
+            sub(/[[:space:]]*=.*/, "", key)
+            if (listed(key, root_key)) print
+        }
+    ' "$source_file" > "$raw"
+
+    awk '
+        /^\[/ {
+            if (seen) print ""
+            print
+            seen = 1
+            next
+        }
+        NF {
+            print
+            seen = 1
+        }
+    ' "$raw" > "$target_file"
+    rm -f "$raw"
+}
+
+cmd_pull_codex_settings() {
+    [ -f "$CODEX_CONFIG" ] || {
+        echo "[ERROR] Codex config not found: $CODEX_CONFIG" >&2
+        return 1
+    }
+
+    local candidate without_mcp reply
+    candidate="$(mktemp)"
+    without_mcp="$(mktemp)"
+    strip_codex_managed_mcp "$CODEX_CONFIG" > "$without_mcp"
+    render_codex_settings_from_live "$without_mcp" "$candidate"
+    rm -f "$without_mcp"
+    if cmp -s "$CODEX_SETTINGS_TEMPLATE" "$candidate"; then
+        rm -f "$candidate"
+        log_info "Codex settings already match live state"
+        return 0
+    fi
+
+    diff -u "$CODEX_SETTINGS_TEMPLATE" "$candidate" || true
+    printf 'Apply these Codex settings? [y/N] '
+    read -r reply || reply=""
+    case "$reply" in
+        y|Y|yes|YES)
+            mv "$candidate" "$CODEX_SETTINGS_TEMPLATE"
+            log_info "Updated $CODEX_SETTINGS_TEMPLATE from live state"
+            ;;
+        *)
+            rm -f "$candidate"
+            echo "[ERROR] Codex settings pull cancelled" >&2
+            return 1
+            ;;
+    esac
 }
 
 render_codex_config() {
@@ -923,29 +1028,39 @@ cmd_codex_install() {
     sync_codex_mcp_config
 }
 
+normalize_codex_config_for_check() {
+    awk '
+        /^(model|model_reasoning_effort)[[:space:]]*=/ { next }
+        { print }
+    ' "$1"
+}
+
 cmd_codex_check() {
-    local tmp
+    local expected current_check expected_check
 
     if [ ! -f "$CODEX_CONFIG" ]; then
         log_info "No Codex config found; skipping drift check"
         return 0
     fi
 
-    tmp="$(mktemp)"
-    render_codex_config "$CODEX_CONFIG" "$tmp"
+    expected="$(mktemp)"
+    current_check="$(mktemp)"
+    expected_check="$(mktemp)"
+    render_codex_config "$CODEX_CONFIG" "$expected"
+    normalize_codex_config_for_check "$CODEX_CONFIG" > "$current_check"
+    normalize_codex_config_for_check "$expected" > "$expected_check"
 
-    if [ -f "$CODEX_CONFIG" ] && cmp -s "$tmp" "$CODEX_CONFIG"; then
-        rm -f "$tmp"
+    if cmp -s "$current_check" "$expected_check"; then
+        rm -f "$expected" "$current_check" "$expected_check"
         log_info "Codex config in sync"
         return 0
     fi
 
     echo "[ERROR] Codex config drift detected: $CODEX_CONFIG" >&2
-    echo "Run: ./sync-agents.sh codex-install" >&2
-    if [ -f "$CODEX_CONFIG" ]; then
-        diff -u "$CODEX_CONFIG" "$tmp" >&2 || true
-    fi
-    rm -f "$tmp"
+    echo "Keep live: ./sync-agents.sh pull-codex-settings" >&2
+    echo "Keep repository: ./sync-agents.sh codex-install" >&2
+    diff -u "$current_check" "$expected_check" >&2 || true
+    rm -f "$expected" "$current_check" "$expected_check"
     return 1
 }
 
@@ -2182,9 +2297,11 @@ cmd_pull_skills() {
         diff -u "$SKILL_LOCK_REPO" "$candidate_lock" || true
         changed=true
     fi
-    if ! diff -qr "$SHARED_SKILLS_CUSTOM_DIR" "$candidate_custom" \
+    if ! diff_custom_skills -qr \
+        "$SHARED_SKILLS_CUSTOM_DIR" "$candidate_custom" \
         >/dev/null 2>&1; then
-        diff -ruN "$SHARED_SKILLS_CUSTOM_DIR" "$candidate_custom" || true
+        diff_custom_skills -ruN \
+            "$SHARED_SKILLS_CUSTOM_DIR" "$candidate_custom" || true
         changed=true
     fi
 
@@ -2261,10 +2378,12 @@ cmd_skills_check() {
         diff -u "$repo_lock" "$live_lock" >&2 || true
         failed=true
     fi
-    if ! diff -qr "$SHARED_SKILLS_CUSTOM_DIR" "$live_custom" \
+    if ! diff_custom_skills -qr \
+        "$SHARED_SKILLS_CUSTOM_DIR" "$live_custom" \
         >/dev/null 2>&1; then
         echo "[ERROR] Live custom skills differ from repository intent" >&2
-        diff -ruN "$SHARED_SKILLS_CUSTOM_DIR" "$live_custom" >&2 || true
+        diff_custom_skills -ruN \
+            "$SHARED_SKILLS_CUSTOM_DIR" "$live_custom" >&2 || true
         failed=true
     fi
 
@@ -2647,6 +2766,9 @@ while [[ "${1:-}" == --* ]]; do
 done
 
 case "${1:-}" in
+pull-codex-settings)
+    cmd_pull_codex_settings
+    ;;
 install)
     cmd_install
     ;;
@@ -2744,6 +2866,8 @@ claude-settings-check)
 *)
     echo "Usage: $0 [--quiet] <command>"
     echo
+    echo "  pull-codex-settings"
+    echo "                  Preview and confirm live Codex settings import"
     echo "  pull-mcp         Preview and confirm live MCP import"
     echo "  push-mcp         Render shared MCP state into runtimes"
     echo "  mcp-check        Compare normalized MCP state"
@@ -2756,8 +2880,8 @@ claude-settings-check)
     echo "  plugins-check    Check Codex and Claude against shared plugin manifest"
     echo "  plugins-export   Export Codex and Claude into shared plugin manifest"
     echo "  plugins-update   Update Codex marketplaces and installed Claude plugins"
-    echo "  codex-install    Link AGENTS.md and generate Codex MCP config"
-    echo "  codex-check      Exit 1 if Codex MCP config is out of sync"
+    echo "  codex-install    Link AGENTS.md and generate Codex config"
+    echo "  codex-check      Exit 1 if Codex config is out of sync"
     echo "  codex-plugins-check"
     echo "                  Exit 1 if remote Codex plugins differ from manifest"
     echo "  codex-plugins-export"
@@ -2776,7 +2900,7 @@ claude-settings-check)
     echo "                  Copy live custom skills from ~/.agents/skills into repo skills-custom"
     echo "  skills-export    Strip live skill-lock into repo after skills add/update"
     echo "  claude-settings-check"
-    echo "                  Exit 1 if ~/.claude/settings.json has keys outside the template"
+    echo "                  Exit 1 if Claude settings differ from the template"
     exit 1
     ;;
 esac
