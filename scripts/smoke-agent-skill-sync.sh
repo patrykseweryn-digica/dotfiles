@@ -38,6 +38,7 @@ env_home="${tmp_dir}/env-home"
 env_mcp_file="${tmp_dir}/mcp-with-env.json"
 repo_lock_copy="${tmp_dir}/skill-lock.json"
 manifest_copy="${tmp_dir}/claude-manifest.json"
+codex_settings_copy="${tmp_dir}/codex-settings.toml"
 custom_export_home="${tmp_dir}/custom-export-home"
 custom_export_repo="${tmp_dir}/custom-export-repo"
 custom_export_lock="${tmp_dir}/custom-export-lock.json"
@@ -54,6 +55,7 @@ mkdir -p "$home_dir/.agents/skills" "$stub_dir" "$skills_update_stub_dir"
 ln -s "$JQ_BIN" "${stub_dir}/jq"
 cp "$LOCK_FILE" "$repo_lock_copy"
 cp "$CLAUDE_MANIFEST_FILE" "$manifest_copy"
+cp "${DOTFILES_DIR}/config/codex/settings.toml" "$codex_settings_copy"
 jq -r '.skills | keys[]' "$LOCK_FILE" > "$lock_names"
 
 cat > "${skills_update_stub_dir}/skills" <<'STUB'
@@ -77,6 +79,7 @@ export OPENCODE_CONFIG_DIR="${HOME}/.config/opencode"
 export OPENCODE_CONFIG="${OPENCODE_CONFIG_DIR}/opencode.json"
 export SKILL_LOCK_REPO="$repo_lock_copy"
 export CLAUDE_MANIFEST="$manifest_copy"
+export CODEX_SETTINGS_TEMPLATE="$codex_settings_copy"
 export PATH="${stub_dir}:/usr/bin:/bin"
 
 if ! "${DOTFILES_DIR}/sync-agents.sh" --quiet codex-check > "$sync_log" 2>&1; then
@@ -98,13 +101,32 @@ if ! "${DOTFILES_DIR}/sync-agents.sh" --quiet codex-check > "$sync_log" 2>&1; th
     cat "$sync_log" >&2
     fail "codex-check failed after install"
 fi
-cp "${CODEX_HOME}/config.toml" "${tmp_dir}/codex-config.json"
 sed -i 's/^model = .*/model = "drift"/' "${CODEX_HOME}/config.toml"
+if ! "${DOTFILES_DIR}/sync-agents.sh" --quiet codex-check \
+    > "$sync_log" 2>&1; then
+    cat "$sync_log" >&2
+    fail "codex-check treated an active model selection as drift"
+fi
+sed -i 's/^personality = .*/personality = "drift"/' \
+    "${CODEX_HOME}/config.toml"
 if "${DOTFILES_DIR}/sync-agents.sh" --quiet codex-check \
     > "$sync_log" 2>&1; then
     fail "codex-check ignored portable setting drift"
 fi
-mv "${tmp_dir}/codex-config.json" "${CODEX_HOME}/config.toml"
+if ! printf 'y\n' | "${DOTFILES_DIR}/sync-agents.sh" \
+    pull-codex-settings > "$sync_log" 2>&1; then
+    cat "$sync_log" >&2
+    fail "pull-codex-settings failed"
+fi
+grep -F 'model = "drift"' "$codex_settings_copy" >/dev/null ||
+    fail "pull-codex-settings did not import the live model"
+grep -F 'personality = "drift"' "$codex_settings_copy" >/dev/null ||
+    fail "pull-codex-settings did not import the live personality"
+if ! "${DOTFILES_DIR}/sync-agents.sh" --quiet codex-check \
+    > "$sync_log" 2>&1; then
+    cat "$sync_log" >&2
+    fail "codex-check failed after settings pull"
+fi
 
 if ! "${DOTFILES_DIR}/sync-agents.sh" --quiet claude-settings-check > "$sync_log" 2>&1; then
     cat "$sync_log" >&2
@@ -415,6 +437,19 @@ grep -F '# Changed custom, live' \
     fail "pull-skills did not remove an absent custom skill"
 [ ! -s "$skills_update_log" ] || \
     fail "pull-skills updated the skill manager or upstream skills"
+
+mkdir -p "${pull_repo}/changed-custom/__pycache__"
+printf 'cache\n' > \
+    "${pull_repo}/changed-custom/__pycache__/generated.cpython-312.pyc"
+if ! HOME="$pull_home" \
+    SHARED_SKILLS_CUSTOM_DIR="$pull_repo" \
+    SKILL_LOCK_REPO="$pull_lock" \
+    PATH="${skills_update_stub_dir}:${stub_dir}:/usr/bin:/bin" \
+    "${DOTFILES_DIR}/sync-agents.sh" --quiet pull-skills \
+    > "$pull_log" 2>&1; then
+    cat "$pull_log" >&2
+    fail "pull-skills treated Python cache as drift"
+fi
 
 while IFS= read -r server_name; do
     [ -n "$server_name" ] || continue
