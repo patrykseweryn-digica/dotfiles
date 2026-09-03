@@ -1277,7 +1277,7 @@ cmd_codex_remote_plugins_export() {
     log_info "Updated Codex remote plugin manifest from live state"
 }
 
-codex_plugin_state_available() {
+codex_marketplace_plugin_state_available() {
     [ -n "${CODEX_PLUGIN_LIST_FILE:-}" ] ||
         command -v codex >/dev/null 2>&1
 }
@@ -1327,7 +1327,7 @@ render_codex_marketplaces() {
 }
 
 cmd_codex_marketplace_plugins_check() {
-    codex_plugin_state_available || {
+    codex_marketplace_plugin_state_available || {
         log_info "No Codex marketplace plugin state found; skipping drift check"
         return 0
     }
@@ -1367,7 +1367,7 @@ cmd_codex_marketplace_plugins_check() {
 }
 
 cmd_codex_marketplace_plugins_export() {
-    codex_plugin_state_available || {
+    codex_marketplace_plugin_state_available || {
         log_info "No Codex marketplace plugin state found; skipping export"
         return 0
     }
@@ -1402,7 +1402,7 @@ cmd_codex_plugins_check() {
 }
 
 cmd_codex_plugins_export() {
-    cmd_codex_remote_plugins_export
+    cmd_codex_remote_plugins_export || return 1
     cmd_codex_marketplace_plugins_export
 }
 
@@ -2444,7 +2444,7 @@ cmd_pull_plugins() {
     local claude_plugins candidate reply requested_quiet
     claude_plugins="${HOME}/.claude/plugins/installed_plugins.json"
     if ! codex_remote_plugin_state_available &&
-        ! codex_plugin_state_available &&
+        ! codex_marketplace_plugin_state_available &&
         ! claude_plugin_state_available "$claude_plugins"; then
         echo "[ERROR] No supported live plugin state found" >&2
         return 1

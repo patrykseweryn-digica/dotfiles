@@ -95,6 +95,17 @@ jq -e '
     fail "Codex plugin check failed after export"
 }
 
+if ! HOME="${tmp_dir}/remote-only-home" \
+    PATH="/usr/bin:/bin" \
+    PLUGIN_MANIFEST="$manifest" \
+    CODEX_PLUGIN_LIST_FILE='' \
+    CODEX_MARKETPLACE_LIST_FILE='' \
+    "$DOTFILES_DIR/sync-agents.sh" --quiet pull-plugins \
+    > "$sync_log" 2>&1; then
+    cat "$sync_log" >&2
+    fail "Plugin pull ignored remote-only Codex state"
+fi
+
 cat > "${stub_dir}/codex" <<'STUB'
 #!/bin/bash
 exit 0
