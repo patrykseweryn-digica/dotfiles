@@ -6,7 +6,7 @@
       "installer": "npm",
       "name": "Pi",
       "package": "@earendil-works/pi-coding-agent",
-      "version": "0.84.3"
+      "version": "0.84.4"
     },
     {
       "channel": "latest",
@@ -14,7 +14,7 @@
       "installer": "npm",
       "name": "Codex",
       "package": "@openai/codex",
-      "version": "0.150.1"
+      "version": "0.153.0"
     },
     {
       "channel": "latest",
@@ -22,7 +22,7 @@
       "installer": "claude-native",
       "name": "Claude Code",
       "package": "@anthropic-ai/claude-code",
-      "version": "2.1.250"
+      "version": "2.1.259"
     },
     {
       "channel": "latest",
@@ -30,7 +30,7 @@
       "installer": "npm",
       "name": "OpenCode",
       "package": "opencode-ai",
-      "version": "1.18.25"
+      "version": "1.18.27"
     },
     {
       "channel": "latest",

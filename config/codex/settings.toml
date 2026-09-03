@@ -1,0 +1,34 @@
+model = "gpt-5.6-terra"
+model_verbosity = "low"
+model_reasoning_effort = "high"
+approvals_reviewer = "guardian_subagent"
+service_tier = "fast"
+plan_mode_reasoning_effort = "high"
+personality = "pragmatic"
+
+[tui]
+status_line = [
+    "model-with-reasoning",
+    "current-dir",
+    "model",
+    "project-name",
+    "git-branch",
+    "pull-request-number",
+]
+status_line_use_colors = true
+
+[features]
+terminal_resize_reflow = true
+js_repl = false
+
+[shell_environment_policy]
+inherit = "core"
+
+[shell_environment_policy.set]
+CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS = "1"
+
+[desktop]
+external-agent-import-sync-enabled = true
+conversationDetailMode = "STEPS_COMMANDS"
+ambient-suggestions-enabled = true
+followUpQueueMode = "queue"

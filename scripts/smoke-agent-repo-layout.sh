@@ -29,12 +29,17 @@ EOF
 [ "$(readlink config/codex/plugin-manifest.json)" = "../../.agents/plugin-manifest.json" ] || fail "Codex plugin manifest adapter points at wrong target"
 jq -e '
     (.plugins | type) == "object" and
-    (.plugins.figma.codex | startswith("plugin_connector_")) and
-    (.plugins.figma.claude | contains("@"))
+    any(.plugins[]; (.codex? // "") | startswith("plugin_")) and
+    any(.plugins[]; (.claude? // "") | contains("@")) and
+    ((.codexPlugins // []) | type) == "array" and
+    ((.codexMarketplaces // {}) | type) == "object"
 ' .agents/plugin-manifest.json >/dev/null || fail "Shared plugin manifest is invalid"
+
+[ -f config/codex/settings.toml ] || fail "Codex settings template is missing"
 
 [ -L config/claude/CLAUDE.md ] || fail "Claude CLAUDE.md adapter must be a symlink"
 [ "$(readlink config/claude/CLAUDE.md)" = "../../.agents/AGENTS.md" ] || fail "Claude CLAUDE.md adapter points at wrong target"
+[ -f config/claude/settings.local.json ] || fail "Claude local settings are missing"
 
 [ -L config/claude/claude-manifest.json ] || fail "Claude plugin manifest adapter must be a symlink"
 [ "$(readlink config/claude/claude-manifest.json)" = "../../.agents/plugin-manifest.json" ] || fail "Claude plugin manifest adapter points at wrong target"

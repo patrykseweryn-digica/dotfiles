@@ -17,8 +17,14 @@ trap cleanup EXIT
 manifest="${tmp_dir}/plugin-manifest.json"
 cache="${tmp_dir}/cache"
 sync_log="${tmp_dir}/sync.log"
+plugin_list="${tmp_dir}/plugin-list.json"
+marketplace_list="${tmp_dir}/marketplace-list.json"
+stub_dir="${tmp_dir}/stubs"
+plugin_log="${tmp_dir}/plugin.log"
 
-mkdir -p "$cache/figma" "$cache/unexpected-plugin"
+mkdir -p "$cache/figma" "$cache/unexpected-plugin" "$stub_dir"
+printf '{"installed":[]}\n' > "$plugin_list"
+printf '{"marketplaces":[]}\n' > "$marketplace_list"
 
 cat > "$manifest" <<'JSON'
 {
@@ -51,6 +57,8 @@ JSON
 
 export CODEX_PLUGIN_MANIFEST="$manifest"
 export CODEX_REMOTE_PLUGIN_CACHE="$cache"
+export CODEX_PLUGIN_LIST_FILE="$plugin_list"
+export CODEX_MARKETPLACE_LIST_FILE="$marketplace_list"
 
 if "$DOTFILES_DIR/sync-agents.sh" --quiet codex-plugins-check \
     > "$sync_log" 2>&1; then
@@ -80,5 +88,102 @@ jq -e '
     cat "$sync_log" >&2
     fail "Codex plugin check failed after export"
 }
+
+cat > "$plugin_list" <<'JSON'
+{
+  "installed": [
+    {
+      "pluginId": "keep@official",
+      "installed": true,
+      "enabled": true,
+      "marketplaceSource": {"sourceType": "git"}
+    }
+  ]
+}
+JSON
+cat > "$marketplace_list" <<'JSON'
+{
+  "marketplaces": [
+    {
+      "name": "official",
+      "marketplaceSource": {
+        "sourceType": "git",
+        "source": "https://example.test/official.git"
+      }
+    },
+    {
+      "name": "built-in",
+      "marketplaceSource": {
+        "sourceType": "local",
+        "source": "/tmp/built-in"
+      }
+    }
+  ]
+}
+JSON
+"$DOTFILES_DIR/sync-agents.sh" --quiet codex-plugins-export \
+    > "$sync_log" 2>&1 || {
+    cat "$sync_log" >&2
+    fail "Codex marketplace plugin export failed"
+}
+jq -e '
+    .codexPlugins == ["keep@official"] and
+    .codexMarketplaces == {
+      official: "https://example.test/official.git"
+    }
+' "$manifest" >/dev/null ||
+    fail "Codex marketplace plugin export wrote wrong state"
+
+cat > "$plugin_list" <<'JSON'
+{
+  "installed": [
+    {
+      "pluginId": "extra@extra",
+      "installed": true,
+      "enabled": true,
+      "marketplaceSource": {"sourceType": "git"}
+    }
+  ]
+}
+JSON
+cat > "$marketplace_list" <<'JSON'
+{
+  "marketplaces": [
+    {
+      "name": "extra",
+      "marketplaceSource": {
+        "sourceType": "git",
+        "source": "https://example.test/extra.git"
+      }
+    }
+  ]
+}
+JSON
+cat > "${stub_dir}/codex" <<'STUB'
+#!/bin/bash
+printf '%s\n' "$*" >> "$CODEX_PLUGIN_LOG"
+STUB
+cat > "${stub_dir}/claude" <<'STUB'
+#!/bin/bash
+exit 0
+STUB
+chmod +x "${stub_dir}/codex" "${stub_dir}/claude"
+mkdir -p "${tmp_dir}/home"
+: > "$plugin_log"
+HOME="${tmp_dir}/home" PATH="${stub_dir}:$PATH" \
+    CODEX_PLUGIN_LOG="$plugin_log" \
+    "$DOTFILES_DIR/sync-agents.sh" --quiet push-plugins \
+    > "$sync_log" 2>&1 || {
+    cat "$sync_log" >&2
+    fail "Codex marketplace plugin push failed"
+}
+for command in \
+    "plugin marketplace add https://example.test/official.git" \
+    "plugin add keep@official" \
+    "plugin remove extra@extra" \
+    "plugin marketplace remove extra"; do
+    grep -Fx "$command" "$plugin_log" >/dev/null ||
+        fail "Codex marketplace plugin push omitted: $command"
+done
 
 echo "[INFO] Codex plugin sync smoke test passed"

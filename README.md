@@ -60,10 +60,11 @@ installs the committed versions on a fresh machine. Configuration commands
 such as `just push` never resolve channels or update tool versions.
 
 `config/pi/settings.json` owns Pi's stable provider, model, thinking level, and
-pinned package list. Install keeps `auth.json`, sessions, `trust.json`, and
-changelog state local. Shared instructions are linked to
-`~/.pi/agent/AGENTS.md`. Shared skills are linked into
-`~/.pi/agent/skills/`.
+pinned package list. `config/codex/settings.toml` owns portable Codex settings;
+project trust, notices, and hook hashes stay local. Claude's global and local
+settings come from `config/claude/`. Install keeps credentials, sessions,
+trust, and changelog state local. Shared instructions and skills are linked
+into each runtime.
 
 ## Setup commands
 
@@ -84,7 +85,9 @@ just setup-ssh        # explicit SSH key/config setup
 - `scripts/smoke-*`: regression tests for installer behavior.
 - `bin/*`: commands linked into `~/.local/bin`.
 - `config/*`: files linked into `$HOME`.
-- `.agents/*`: shared agent instructions, MCP servers, skill lock.
+- `.agents/*`: shared instructions, MCP servers, skill lock, plugin inventory.
+  The plugin manifest covers Claude membership plus Codex remote and
+  marketplace plugins.
 
 ## Rule of thumb
 

@@ -10,7 +10,7 @@
   "editorMode": "normal",
   "hooks": {},
   "language": "Polish",
-  "model": "sonnet",
+  "model": "opus",
   "permissions": {
     "allow": [
       "Read",
