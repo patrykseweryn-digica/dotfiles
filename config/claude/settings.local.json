@@ -1,0 +1,43 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__plugin_context7_context7__query-docs",
+      "mcp__obsidian__obsidian_list_files_in_dir",
+      "mcp__obsidian__obsidian_get_file_contents",
+      "mcp__obsidian__obsidian_append_content",
+      "mcp__obsidian__obsidian_complex_search",
+      "mcp__obsidian__obsidian_batch_get_file_contents",
+      "mcp__garmin__get_activities",
+      "mcp__garmin__get_activity_hr_in_timezones",
+      "mcp__garmin__get_sleep_data",
+      "mcp__garmin__get_weekly_stress",
+      "mcp__garmin__get_body_battery",
+      "mcp__garmin__get_training_status",
+      "mcp__garmin__get_training_readiness",
+      "mcp__garmin__get_daily_steps",
+      "mcp__garmin__get_body_composition",
+      "mcp__garmin__get_hrv_data",
+      "mcp__garmin__get_stats_and_body",
+      "mcp__garmin__get_rhr_day",
+      "mcp__garmin__get_spo2_data",
+      "mcp__garmin__get_sleep_summary",
+      "mcp__garmin__get_weekly_steps",
+      "mcp__garmin__get_respiration_summary",
+      "mcp__garmin__get_heart_rates_summary",
+      "mcp__garmin__get_stress_summary",
+      "Bash(export SUMMARIZE_MODEL=\"anthropic/claude-sonnet-4-5\")",
+      "Bash(summarize --model anthropic/claude-sonnet-4-5 --verbose https://example.com)",
+      "mcp__garmin__get_race_predictions",
+      "mcp__garmin__get_endurance_score",
+      "mcp__exa__web_search_exa",
+      "mcp__exa__web_fetch_exa"
+    ]
+  },
+  "enableAllProjectMcpServers": false,
+  "enabledPlugins": {
+    "qmd@qmd": false,
+    "superpowers@claude-plugins-official": false
+  },
+  "outputStyle": "concise",
+  "prefersReducedMotion": true
+}

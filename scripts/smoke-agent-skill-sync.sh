@@ -125,10 +125,32 @@ grep -F 'Open Codex and enter: /plugins' "$sync_log" >/dev/null || \
     fail "install omitted manual Codex plugin steps"
 rm "${stub_dir}/codex"
 
+if ! "${DOTFILES_DIR}/sync-agents.sh" --quiet codex-check > "$sync_log" 2>&1; then
+    cat "$sync_log" >&2
+    fail "codex-check failed after install"
+fi
+cp "${CODEX_HOME}/config.toml" "${tmp_dir}/codex-config.json"
+sed -i 's/^model = .*/model = "drift"/' "${CODEX_HOME}/config.toml"
+if "${DOTFILES_DIR}/sync-agents.sh" --quiet codex-check \
+    > "$sync_log" 2>&1; then
+    fail "codex-check ignored portable setting drift"
+fi
+mv "${tmp_dir}/codex-config.json" "${CODEX_HOME}/config.toml"
+
 if ! "${DOTFILES_DIR}/sync-agents.sh" --quiet claude-settings-check > "$sync_log" 2>&1; then
     cat "$sync_log" >&2
     fail "claude-settings-check failed after install"
 fi
+cp "${HOME}/.claude/settings.json" "${tmp_dir}/claude-settings.json"
+jq '.model = "drift"' "${HOME}/.claude/settings.json" \
+    > "${tmp_dir}/claude-settings-drift.json"
+mv "${tmp_dir}/claude-settings-drift.json" \
+    "${HOME}/.claude/settings.json"
+if "${DOTFILES_DIR}/sync-agents.sh" --quiet claude-settings-check \
+    > "$sync_log" 2>&1; then
+    fail "claude-settings-check ignored value drift"
+fi
+mv "${tmp_dir}/claude-settings.json" "${HOME}/.claude/settings.json"
 
 if ! "${DOTFILES_DIR}/sync-agents.sh" --quiet claude-export --check > "$sync_log" 2>&1; then
     cat "$sync_log" >&2
@@ -280,6 +302,9 @@ mkdir -p \
     "${custom_export_home}/.agents/skills/locked-skill" \
     "${custom_export_repo}/repo-linked"
 printf '# Live custom\n' > "${custom_export_home}/.agents/skills/live-custom/SKILL.md"
+mkdir -p "${custom_export_home}/.agents/skills/live-custom/__pycache__"
+printf 'generated\n' > \
+    "${custom_export_home}/.agents/skills/live-custom/__pycache__/junk.pyc"
 printf '# Locked skill\n' > "${custom_export_home}/.agents/skills/locked-skill/SKILL.md"
 printf '# Repo linked\n' > "${custom_export_repo}/repo-linked/SKILL.md"
 ln -s "${custom_export_repo}/repo-linked" "${custom_export_home}/.agents/skills/repo-linked"
@@ -311,6 +336,7 @@ if ! HOME="$custom_export_home" SHARED_SKILLS_CUSTOM_DIR="$custom_export_repo" S
     fail "custom-skills-export failed"
 fi
 [ -e "${custom_export_repo}/live-custom/SKILL.md" ] || fail "custom-skills-export did not copy live custom skill"
+[ ! -e "${custom_export_repo}/live-custom/__pycache__" ] || fail "custom-skills-export copied generated Python cache"
 [ ! -e "${custom_export_repo}/locked-skill/SKILL.md" ] || fail "custom-skills-export copied lock-managed skill"
 
 printf '# Live custom v2\n' > "${custom_export_home}/.agents/skills/live-custom/SKILL.md"

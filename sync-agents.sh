@@ -13,6 +13,7 @@ PI_AGENTS_SOURCE="${PI_AGENTS_SOURCE:-${DOTFILES_DIR}/config/pi/AGENTS.md}"
 PI_SETTINGS_TEMPLATE="${PI_SETTINGS_TEMPLATE:-${DOTFILES_DIR}/config/pi/settings.json}"
 CODEX_HOME="${CODEX_HOME:-${HOME}/.codex}"
 CODEX_CONFIG="${CODEX_CONFIG:-${CODEX_HOME}/config.toml}"
+CODEX_SETTINGS_TEMPLATE="${CODEX_SETTINGS_TEMPLATE:-${DOTFILES_DIR}/config/codex/settings.toml}"
 CODEX_AGENTS_FILE="${CODEX_HOME}/AGENTS.md"
 CLAUDE_AGENTS_FILE="${HOME}/.claude/CLAUDE.md"
 CLAUDE_SKILLS_DIR="${HOME}/.claude/skills"
@@ -65,6 +66,11 @@ fi
 
 if [ ! -f "$PI_SETTINGS_TEMPLATE" ]; then
     echo "[ERROR] Pi settings template not found: $PI_SETTINGS_TEMPLATE" >&2
+    exit 1
+fi
+
+if [ ! -f "$CODEX_SETTINGS_TEMPLATE" ]; then
+    echo "[ERROR] Codex settings template not found: $CODEX_SETTINGS_TEMPLATE" >&2
     exit 1
 fi
 
@@ -239,7 +245,11 @@ build_live_skill_inventory() {
 
         if [ -d "$skill_path" ] && [ -f "${skill_path}/SKILL.md" ]; then
             mkdir -p "${custom_target}/${skill_name}"
-            rsync -aL --delete --exclude '.git/' \
+            rsync -aL --delete \
+                --exclude '.git/' \
+                --exclude '__pycache__/' \
+                --exclude '*.pyc' \
+                --exclude '.DS_Store' \
                 "${skill_path}/" "${custom_target}/${skill_name}/"
         elif [ -f "$skill_path" ] && [[ "$skill_name" == *.skill ]]; then
             cp -L "$skill_path" "${custom_target}/${skill_name}"
@@ -366,7 +376,12 @@ cmd_custom_skills_export() {
             continue
         elif [ ! -e "$target_dir" ]; then
             action="add"
-        elif ! diff -qr "$skill_path" "$target_dir" >/dev/null 2>&1; then
+        elif ! diff -qr \
+            -x '.git' \
+            -x '__pycache__' \
+            -x '*.pyc' \
+            -x '.DS_Store' \
+            "$skill_path" "$target_dir" >/dev/null 2>&1; then
             action="update"
         fi
 
@@ -383,7 +398,12 @@ cmd_custom_skills_export() {
             echo "[INFO] Would ${action} custom skill: $skill_name"
         else
             mkdir -p "$target_dir"
-            rsync -a --delete --exclude '.git/' "${skill_path}/" "${target_dir}/"
+            rsync -a --delete \
+                --exclude '.git/' \
+                --exclude '__pycache__/' \
+                --exclude '*.pyc' \
+                --exclude '.DS_Store' \
+                "${skill_path}/" "${target_dir}/"
             case "$action" in
             add) action_label="Add" ;;
             update) action_label="Update" ;;
@@ -699,7 +719,15 @@ cmd_mcp_check() {
     while IFS= read -r runtime; do
         [ -n "$runtime" ] || continue
         actual="$(mktemp)"
-        mcp_rows_to_inventory "$rows" "$runtime" >"$actual"
+        mcp_rows_to_inventory "$rows" "$runtime" > "$actual"
+        if [ "$runtime" = "codex" ]; then
+            jq -S --slurpfile wanted "$wanted" '
+                with_entries(
+                    select(.key as $key | $wanted[0] | has($key))
+                )
+            ' "$actual" > "${actual}.managed"
+            mv "${actual}.managed" "$actual"
+        fi
         if cmp -s "$wanted" "$actual"; then
             log_info "${runtime} MCP state matches shared inventory"
         else
@@ -780,34 +808,96 @@ strip_codex_managed_mcp() {
     ' "$source_file"
 }
 
+strip_codex_managed_settings() {
+    local source_file="$1"
+    local root_keys sections
+
+    root_keys="$(awk '
+        /^\[/ { exit }
+        /^[A-Za-z0-9_-]+[[:space:]]*=/ {
+            sub(/[[:space:]]*=.*/, "")
+            printf "%s ", $0
+        }
+    ' "$CODEX_SETTINGS_TEMPLATE")"
+    sections="$(awk '
+        /^\[[^]]+\]$/ {
+            line = $0
+            sub(/^\[/, "", line)
+            sub(/\]$/, "", line)
+            printf "%s ", line
+        }
+    ' "$CODEX_SETTINGS_TEMPLATE")"
+
+    [ -f "$source_file" ] || return 0
+
+    awk -v root_keys="$root_keys" -v sections="$sections" '
+        BEGIN {
+            split(root_keys, root_key)
+            split(sections, managed_section)
+            root = 1
+            skip = 0
+        }
+
+        function listed(value, values, i) {
+            for (i in values) {
+                if (values[i] == value) return 1
+            }
+            return 0
+        }
+
+        /^\[[^]]+\]$/ {
+            root = 0
+            section = $0
+            sub(/^\[/, "", section)
+            sub(/\]$/, "", section)
+            skip = listed(section, managed_section)
+            if (!skip) print
+            next
+        }
+
+        skip { next }
+
+        root && /^[A-Za-z0-9_-]+[[:space:]]*=/ {
+            key = $0
+            sub(/[[:space:]]*=.*/, "", key)
+            if (listed(key, root_key)) next
+        }
+
+        { print }
+    ' "$source_file"
+}
+
 render_codex_config() {
     local source_file="$1"
     local target_file="$2"
-    local stripped
-    local block
+    local without_mcp stripped combined block
 
+    without_mcp="$(mktemp)"
     stripped="$(mktemp)"
+    combined="$(mktemp)"
     block="$(mktemp)"
-    strip_codex_managed_mcp "$source_file" >"$stripped"
-    render_codex_mcp_block >"$block"
+    strip_codex_managed_mcp "$source_file" > "$without_mcp"
+    strip_codex_managed_settings "$without_mcp" > "$stripped"
+    render_codex_mcp_block > "$block"
+
+    cat "$CODEX_SETTINGS_TEMPLATE" > "$combined"
+    printf '\n\n' >> "$combined"
+    cat "$stripped" >> "$combined"
+    printf '\n\n' >> "$combined"
+    cat "$block" >> "$combined"
 
     awk '
         NF {
-            while (blank_lines > 0) {
-                print ""
-                blank_lines--
-            }
+            if (seen && blank) print ""
             print
+            seen = 1
+            blank = 0
             next
         }
-        { blank_lines++ }
-    ' "$stripped" >"$target_file"
-    if [ -s "$target_file" ]; then
-        printf '\n\n' >>"$target_file"
-    fi
-    cat "$block" >>"$target_file"
+        { blank = 1 }
+    ' "$combined" > "$target_file"
 
-    rm -f "$stripped" "$block"
+    rm -f "$without_mcp" "$stripped" "$combined" "$block"
 }
 
 sync_codex_mcp_config() {
@@ -819,7 +909,7 @@ sync_codex_mcp_config() {
 
     if [ -f "$CODEX_CONFIG" ] && cmp -s "$tmp" "$CODEX_CONFIG"; then
         rm -f "$tmp"
-        log_info "Codex MCP config already in sync"
+        log_info "Codex config already in sync"
     else
         mv "$tmp" "$CODEX_CONFIG"
         log_info "Wrote $CODEX_CONFIG"
@@ -846,11 +936,11 @@ cmd_codex_check() {
 
     if [ -f "$CODEX_CONFIG" ] && cmp -s "$tmp" "$CODEX_CONFIG"; then
         rm -f "$tmp"
-        log_info "Codex MCP config in sync"
+        log_info "Codex config in sync"
         return 0
     fi
 
-    echo "[ERROR] Codex MCP config drift detected: $CODEX_CONFIG" >&2
+    echo "[ERROR] Codex config drift detected: $CODEX_CONFIG" >&2
     echo "Run: ./sync-agents.sh codex-install" >&2
     if [ -f "$CODEX_CONFIG" ]; then
         diff -u "$CODEX_CONFIG" "$tmp" >&2 || true
@@ -871,6 +961,17 @@ validate_plugin_manifest() {
         ([.plugins[].claude] | map(select(. != null))) as $claude |
         ([.plugins[].codex] | map(select(. != null))) as $codex |
         (.marketplaces | type) == "object" and
+        ((.codexMarketplaces // {}) | type) == "object" and
+        all((.codexMarketplaces // {}) | to_entries[];
+            (.key | type) == "string" and (.key | length) > 0 and
+            (.value | type) == "string" and (.value | length) > 0
+        ) and
+        ((.codexPlugins // []) | type) == "array" and
+        all((.codexPlugins // [])[];
+            type == "string" and contains("@")
+        ) and
+        (((.codexPlugins // []) | length) ==
+         ((.codexPlugins // []) | unique | length)) and
         (.plugins | type) == "object" and
         all(.plugins | to_entries[];
             (.key | type) == "string" and (.key | length) > 0 and
@@ -924,7 +1025,7 @@ render_codex_remote_plugins() {
     rm -f "$rows"
 }
 
-codex_plugin_state_available() {
+codex_remote_plugin_state_available() {
     [ -d "$CODEX_REMOTE_PLUGIN_CACHE" ] ||
         command -v codex >/dev/null 2>&1
 }
@@ -933,10 +1034,10 @@ claude_plugin_state_available() {
     [ -f "$1" ] || command -v claude >/dev/null 2>&1
 }
 
-cmd_codex_plugins_check() {
+cmd_codex_remote_plugins_check() {
     validate_plugin_manifest "$CODEX_PLUGIN_MANIFEST" || return 1
 
-    if ! codex_plugin_state_available; then
+    if ! codex_remote_plugin_state_available; then
         log_info "No Codex remote plugin state found; skipping drift check"
         return 0
     fi
@@ -1003,10 +1104,10 @@ cmd_codex_plugins_check() {
     return 1
 }
 
-cmd_codex_plugins_export() {
+cmd_codex_remote_plugins_export() {
     validate_plugin_manifest "$CODEX_PLUGIN_MANIFEST" || return 1
 
-    if ! codex_plugin_state_available; then
+    if ! codex_remote_plugin_state_available; then
         log_info "No Codex remote plugin state found; skipping export"
         return 0
     fi
@@ -1058,7 +1159,200 @@ cmd_codex_plugins_export() {
     fi
 
     mv "$tmp" "$CODEX_PLUGIN_MANIFEST"
-    log_info "Updated Codex plugin manifest from live state"
+    log_info "Updated Codex remote plugin manifest from live state"
+}
+
+codex_plugin_state_available() {
+    [ -n "${CODEX_PLUGIN_LIST_FILE:-}" ] ||
+        command -v codex >/dev/null 2>&1
+}
+
+read_codex_plugin_state() {
+    if [ -n "${CODEX_PLUGIN_LIST_FILE:-}" ]; then
+        cat "$CODEX_PLUGIN_LIST_FILE"
+    else
+        codex plugin list --json
+    fi
+}
+
+read_codex_marketplace_state() {
+    if [ -n "${CODEX_MARKETPLACE_LIST_FILE:-}" ]; then
+        cat "$CODEX_MARKETPLACE_LIST_FILE"
+    else
+        codex plugin marketplace list --json
+    fi
+}
+
+render_codex_plugins() {
+    read_codex_plugin_state | jq -e -S '
+        [.installed[] |
+            select(
+                .installed == true and
+                .enabled == true and
+                (
+                    .marketplaceSource.sourceType == "git" or
+                    .marketplaceSource.sourceType == "local"
+                )
+            ) |
+            .pluginId
+        ] | unique
+    '
+}
+
+render_codex_marketplaces() {
+    read_codex_marketplace_state | jq -e -S '
+        [.marketplaces[] |
+            select(.marketplaceSource.sourceType == "git") |
+            {
+                key: .name,
+                value: .marketplaceSource.source
+            }
+        ] | from_entries
+    '
+}
+
+cmd_codex_marketplace_plugins_check() {
+    codex_plugin_state_available || {
+        log_info "No Codex marketplace plugin state found; skipping drift check"
+        return 0
+    }
+
+    local live_plugins live_marketplaces wanted_plugins wanted_marketplaces
+    local failed=false
+    live_plugins="$(mktemp)"
+    live_marketplaces="$(mktemp)"
+    wanted_plugins="$(mktemp)"
+    wanted_marketplaces="$(mktemp)"
+
+    render_codex_plugins > "$live_plugins" || failed=true
+    render_codex_marketplaces > "$live_marketplaces" || failed=true
+    jq -S '.codexPlugins // [] | unique' "$CODEX_PLUGIN_MANIFEST" \
+        > "$wanted_plugins"
+    jq -S '.codexMarketplaces // {}' "$CODEX_PLUGIN_MANIFEST" \
+        > "$wanted_marketplaces"
+
+    if [ "$failed" = false ] &&
+        ! cmp -s "$wanted_plugins" "$live_plugins"; then
+        echo "[ERROR] Codex marketplace plugin drift detected" >&2
+        diff -u "$wanted_plugins" "$live_plugins" >&2 || true
+        failed=true
+    fi
+    if [ "$failed" = false ] &&
+        ! cmp -s "$wanted_marketplaces" "$live_marketplaces"; then
+        echo "[ERROR] Codex marketplace drift detected" >&2
+        diff -u "$wanted_marketplaces" "$live_marketplaces" >&2 || true
+        failed=true
+    fi
+
+    rm -f "$live_plugins" "$live_marketplaces" \
+        "$wanted_plugins" "$wanted_marketplaces"
+    [ "$failed" = false ] &&
+        log_info "Codex marketplace plugins match manifest"
+    [ "$failed" = false ]
+}
+
+cmd_codex_marketplace_plugins_export() {
+    codex_plugin_state_available || {
+        log_info "No Codex marketplace plugin state found; skipping export"
+        return 0
+    }
+
+    local plugins marketplaces tmp
+    plugins="$(mktemp)"
+    marketplaces="$(mktemp)"
+    tmp="$(mktemp)"
+    render_codex_plugins > "$plugins"
+    render_codex_marketplaces > "$marketplaces"
+    jq -S --slurpfile plugins "$plugins" \
+        --slurpfile marketplaces "$marketplaces" '
+        .codexPlugins = $plugins[0]
+        | .codexMarketplaces = $marketplaces[0]
+    ' "$CODEX_PLUGIN_MANIFEST" > "$tmp"
+    rm -f "$plugins" "$marketplaces"
+
+    if cmp -s "$tmp" "$CODEX_PLUGIN_MANIFEST"; then
+        rm -f "$tmp"
+        log_info "Codex marketplace plugin manifest already in sync"
+    else
+        mv "$tmp" "$CODEX_PLUGIN_MANIFEST"
+        log_info "Updated Codex marketplace plugin manifest from live state"
+    fi
+}
+
+cmd_codex_plugins_check() {
+    local failed=false
+    cmd_codex_remote_plugins_check || failed=true
+    cmd_codex_marketplace_plugins_check || failed=true
+    [ "$failed" = false ]
+}
+
+cmd_codex_plugins_export() {
+    cmd_codex_remote_plugins_export
+    cmd_codex_marketplace_plugins_export
+}
+
+cmd_codex_marketplace_plugins_push() {
+    command -v codex >/dev/null 2>&1 || {
+        echo "[ERROR] codex CLI not found; cannot reconcile plugins" >&2
+        return 1
+    }
+
+    local live_plugins live_marketplaces wanted_plugins wanted_marketplaces
+    local plugin marketplace source failed=false
+    live_plugins="$(mktemp)"
+    live_marketplaces="$(mktemp)"
+    wanted_plugins="$(mktemp)"
+    wanted_marketplaces="$(mktemp)"
+    render_codex_plugins > "$live_plugins"
+    render_codex_marketplaces > "$live_marketplaces"
+    jq -r '.codexPlugins // [] | unique[]' "$CODEX_PLUGIN_MANIFEST" \
+        > "$wanted_plugins"
+    jq -r '.codexMarketplaces // {} | keys[]' "$CODEX_PLUGIN_MANIFEST" \
+        > "$wanted_marketplaces"
+
+    while IFS= read -r marketplace; do
+        [ -n "$marketplace" ] || continue
+        jq -e --arg name "$marketplace" 'has($name)' \
+            "$live_marketplaces" >/dev/null && continue
+        source="$(jq -r --arg name "$marketplace" \
+            '.codexMarketplaces[$name]' "$CODEX_PLUGIN_MANIFEST")"
+        log_info "Adding Codex marketplace: $marketplace"
+        codex plugin marketplace add "$source" || failed=true
+    done < "$wanted_marketplaces"
+
+    while IFS= read -r plugin; do
+        [ -n "$plugin" ] || continue
+        jq -e --arg plugin "$plugin" 'index($plugin) != null' \
+            "$live_plugins" >/dev/null && continue
+        log_info "Adding Codex plugin: $plugin"
+        codex plugin add "$plugin" || failed=true
+    done < "$wanted_plugins"
+
+    jq -r '.[]' "$live_plugins" | while IFS= read -r plugin; do
+        [ -n "$plugin" ] || continue
+        grep -qxF "$plugin" "$wanted_plugins" && continue
+        log_info "Removing Codex plugin: $plugin"
+        codex plugin remove "$plugin" || exit 1
+    done || failed=true
+
+    jq -r 'keys[]' "$live_marketplaces" |
+        while IFS= read -r marketplace; do
+            [ -n "$marketplace" ] || continue
+            grep -qxF "$marketplace" "$wanted_marketplaces" && continue
+            log_info "Removing Codex marketplace: $marketplace"
+            codex plugin marketplace remove "$marketplace" || exit 1
+        done || failed=true
+
+    rm -f "$live_plugins" "$live_marketplaces" \
+        "$wanted_plugins" "$wanted_marketplaces"
+    [ "$failed" = false ]
+}
+
+cmd_codex_plugins_push() {
+    local failed=false
+    cmd_codex_remote_plugins_check || failed=true
+    cmd_codex_marketplace_plugins_push || failed=true
+    [ "$failed" = false ]
 }
 
 cmd_codex_plugins_update() {
@@ -1370,47 +1664,14 @@ cmd_kimi_check() {
     return 1
 }
 
-cmd_claude_settings_check() {
-    [ -f "$CLAUDE_TEMPLATE_FILE" ] || {
-        echo "[ERROR] Template not found: $CLAUDE_TEMPLATE_FILE" >&2
-        return 1
-    }
-    if [ ! -f "$CLAUDE_SETTINGS_FILE" ]; then
-        log_info "No $CLAUDE_SETTINGS_FILE yet; skipping drift check"
-        return 0
-    fi
+render_claude_settings() {
+    local target_file="$1"
 
-    local extras
-    extras=$(jq -r --slurpfile tpl "$CLAUDE_TEMPLATE_FILE" '
-        (($tpl[0] | keys) + [
-            "enabledPlugins",
-            "extraKnownMarketplaces"
-        ]) as $allowed |
-        (keys - $allowed)[]
-    ' "$CLAUDE_SETTINGS_FILE") || {
-        echo "[ERROR] Failed to parse $CLAUDE_SETTINGS_FILE" >&2
-        return 1
-    }
-
-    if [ -n "$extras" ]; then
-        echo "[ERROR] $CLAUDE_SETTINGS_FILE has keys outside the template:" >&2
-        echo "$extras" | sed 's/^/  - /' >&2
-        echo "" >&2
-        echo "Add them to $CLAUDE_TEMPLATE_FILE (then re-run install) or remove from live settings." >&2
-        return 1
-    fi
-    log_info "settings.json keys in sync with template"
-}
-
-generate_claude_settings() {
     [ -f "$CLAUDE_TEMPLATE_FILE" ] || {
         echo "[ERROR] Template not found: $CLAUDE_TEMPLATE_FILE" >&2
         return 1
     }
     validate_plugin_manifest "$CLAUDE_MANIFEST" || return 1
-
-    mkdir -p "$(dirname "$CLAUDE_SETTINGS_FILE")"
-    local tmp="${CLAUDE_SETTINGS_FILE}.tmp"
 
     jq -S --slurpfile m "$CLAUDE_MANIFEST" --slurpfile mcp "$MCP_SERVERS" '
         ($mcp[0] // {} | keys | map("mcp__" + . + "__*")) as $mcp_permissions |
@@ -1422,13 +1683,43 @@ generate_claude_settings() {
             }) | add // {}) |
         .extraKnownMarketplaces = ($m[0].marketplaces // {} | to_entries |
             map({(.key): {"source": .value}}) | add // {})
-    ' "$CLAUDE_TEMPLATE_FILE" >"$tmp" || {
-        rm -f "$tmp"
-        echo "[ERROR] Failed to generate Claude settings" >&2
+    ' "$CLAUDE_TEMPLATE_FILE" > "$target_file"
+}
+
+cmd_claude_settings_check() {
+    if [ ! -f "$CLAUDE_SETTINGS_FILE" ]; then
+        log_info "No $CLAUDE_SETTINGS_FILE yet; skipping drift check"
+        return 0
+    fi
+
+    local expected
+    expected="$(mktemp)"
+    render_claude_settings "$expected" || {
+        rm -f "$expected"
         return 1
     }
+    if cmp -s "$expected" "$CLAUDE_SETTINGS_FILE"; then
+        rm -f "$expected"
+        log_info "Claude settings match template"
+        return 0
+    fi
 
-    if [ -f "$CLAUDE_SETTINGS_FILE" ] && cmp -s "$tmp" "$CLAUDE_SETTINGS_FILE"; then
+    echo "[ERROR] Claude settings drift detected: $CLAUDE_SETTINGS_FILE" >&2
+    diff -u "$expected" "$CLAUDE_SETTINGS_FILE" >&2 || true
+    rm -f "$expected"
+    return 1
+}
+
+generate_claude_settings() {
+    mkdir -p "$(dirname "$CLAUDE_SETTINGS_FILE")"
+    local tmp="${CLAUDE_SETTINGS_FILE}.tmp"
+
+    render_claude_settings "$tmp" || {
+        rm -f "$tmp"
+        return 1
+    }
+    if [ -f "$CLAUDE_SETTINGS_FILE" ] &&
+        cmp -s "$tmp" "$CLAUDE_SETTINGS_FILE"; then
         rm -f "$tmp"
     else
         mv "$tmp" "$CLAUDE_SETTINGS_FILE"
@@ -2033,7 +2324,8 @@ cmd_pull_plugins() {
 
     local claude_plugins candidate reply requested_quiet
     claude_plugins="${HOME}/.claude/plugins/installed_plugins.json"
-    if ! codex_plugin_state_available &&
+    if ! codex_remote_plugin_state_available &&
+        ! codex_plugin_state_available &&
         ! claude_plugin_state_available "$claude_plugins"; then
         echo "[ERROR] No supported live plugin state found" >&2
         return 1
@@ -2132,7 +2424,7 @@ cmd_claude_plugins_push() {
 
 cmd_push_plugins() {
     local failed=false
-    cmd_codex_plugins_check || failed=true
+    cmd_codex_plugins_push || failed=true
     cmd_claude_plugins_push || failed=true
     [ "$failed" = false ]
 }
@@ -2320,7 +2612,6 @@ cmd_claude_install() {
     mkdir -p "$AGENT_SKILLS_DIR" "$CLAUDE_SKILLS_DIR" "$OPENCODE_SKILLS_DIR"
 
     ensure_live_skill_lock
-    cmd_claude_settings_check
     generate_claude_settings
     sync_claude_mcp_config
 

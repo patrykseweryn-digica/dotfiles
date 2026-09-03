@@ -32,6 +32,7 @@ check_agent_links() {
     done <<EOF
 ${DOTFILES_DIR}/config/codex/AGENTS.md|${HOME}/.codex/AGENTS.md
 ${DOTFILES_DIR}/config/claude/CLAUDE.md|${HOME}/.claude/CLAUDE.md
+${DOTFILES_DIR}/config/claude/settings.local.json|${HOME}/.claude/settings.local.json
 ${DOTFILES_DIR}/config/opencode/AGENTS.md|${HOME}/.config/opencode/AGENTS.md
 ${DOTFILES_DIR}/config/pi/AGENTS.md|${HOME}/.pi/agent/AGENTS.md
 EOF
@@ -54,6 +55,7 @@ EOF
 }
 
 run_check "plugin drift" "$SYNC_AGENTS" plugins-check
+run_check "Codex settings" "$SYNC_AGENTS" codex-check
 run_check "Claude settings" "$SYNC_AGENTS" claude-settings-check
 run_check "MCP drift" "$SYNC_AGENTS" mcp-check
 run_check "Pi settings and packages" "$SYNC_AGENTS" pi-check
