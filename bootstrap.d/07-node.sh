@@ -7,7 +7,8 @@ install_global_npm_packages() {
 
     echo "[INFO] Installing global npm packages..."
     # acpx is required by backpass.
-    for package in @steipete/summarize gnhf backpass lavish-axi acpx; do
+    for package in @steipete/summarize gnhf backpass lavish-axi acpx \
+        gh-axi chrome-devtools-axi tasks-axi quota-axi; do
         npm i -g "${package}@latest" ||
             echo "[WARN] Failed to install ${package}@latest"
     done

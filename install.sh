@@ -10,8 +10,8 @@ if command -v sudo >/dev/null 2>&1 && sudo -n true 2>/dev/null; then
 fi
 
 # Detect OS and architecture
-OS="$(uname -s)"     # "Linux" or "Darwin"
-ARCH="$(uname -m)"   # "x86_64" or "arm64"
+OS="$(uname -s)"   # "Linux" or "Darwin"
+ARCH="$(uname -m)" # "x86_64" or "arm64"
 export ARCH
 export IS_MACOS=false
 export IS_LINUX=false
@@ -172,16 +172,16 @@ deploy_target() {
     local target_path="$3"
 
     case "$target_type" in
-        symlink)
-            deploy_symlink_target "$source_path" "$target_path"
-            ;;
-        plain-absent)
-            deploy_plain_absent_target "$target_path"
-            ;;
-        *)
-            echo "[ERROR] Unknown managed target type: $target_type" >&2
-            return 1
-            ;;
+    symlink)
+        deploy_symlink_target "$source_path" "$target_path"
+        ;;
+    plain-absent)
+        deploy_plain_absent_target "$target_path"
+        ;;
+    *)
+        echo "[ERROR] Unknown managed target type: $target_type" >&2
+        return 1
+        ;;
     esac
 }
 
@@ -220,7 +220,10 @@ run_required_step() {
 
     echo "[INFO] Running required step: ${label}"
     set +e
-    ( set -e; "$@" )
+    (
+        set -e
+        "$@"
+    )
     LAST_RUN_STEP_STATUS=$?
     set -e
 
@@ -240,7 +243,10 @@ run_optional_step() {
 
     echo "[INFO] Running optional step: ${label}"
     set +e
-    ( set -e; "$@" )
+    (
+        set -e
+        "$@"
+    )
     LAST_RUN_STEP_STATUS=$?
     set -e
 
@@ -362,6 +368,7 @@ main() {
     run_optional_step "pipx" install_pipx
     run_optional_step "CLI tools" install_tools
     run_optional_step "Herdr (latest)" install_herdr
+    run_optional_step "Treehouse (latest)" install_treehouse
     run_optional_step "no-mistakes (latest)" install_no_mistakes
     run_optional_step "fonts" install_fonts
     run_optional_step "NVM and Node.js" install_nvm

@@ -118,17 +118,17 @@ install_tools() {
 
         echo "[INFO] Installing $name $expected..."
         case "$installer" in
-            npm)
-                if [ "$command_name" = pi ]; then
-                    npm install -g --ignore-scripts "$install_spec" || failed=true
-                else
-                    npm install -g "$install_spec" || failed=true
-                fi
-                ;;
-            claude-native)
-                curl -fsSL "$CLAUDE_INSTALL_URL" |
-                    bash -s -- "$expected" || failed=true
-                ;;
+        npm)
+            if [ "$command_name" = pi ]; then
+                npm install -g --ignore-scripts "$install_spec" || failed=true
+            else
+                npm install -g "$install_spec" || failed=true
+            fi
+            ;;
+        claude-native)
+            curl -fsSL "$CLAUDE_INSTALL_URL" |
+                bash -s -- "$expected" || failed=true
+            ;;
         esac
     done < <(tool_rows)
 
@@ -159,7 +159,7 @@ update_tools() {
                     .
                 end
             )
-        ' "$current" > "$next"
+        ' "$current" >"$next"
         mv "$next" "$current"
     done < <(tool_rows)
 
@@ -175,20 +175,20 @@ update_tools() {
 
 validate_manifest
 case "${1:-}" in
-    report)
-        report_versions false
-        ;;
-    check)
-        report_versions true
-        ;;
-    install)
-        install_tools
-        ;;
-    update)
-        update_tools
-        ;;
-    *)
-        echo "Usage: $0 {report|check|install|update}" >&2
-        exit 1
-        ;;
+report)
+    report_versions false
+    ;;
+check)
+    report_versions true
+    ;;
+install)
+    install_tools
+    ;;
+update)
+    update_tools
+    ;;
+*)
+    echo "Usage: $0 {report|check|install|update}" >&2
+    exit 1
+    ;;
 esac

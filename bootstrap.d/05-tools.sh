@@ -233,6 +233,13 @@ install_herdr() {
     HERDR_INSTALL_DIR="$BIN_DIR" sh -c "$installer"
 }
 
+install_treehouse() {
+    local installer
+
+    installer="$(curl -fsSL https://kunchenguid.github.io/treehouse/install.sh)" || return 1
+    sh -c "$installer"
+}
+
 install_no_mistakes() {
     local installer
 

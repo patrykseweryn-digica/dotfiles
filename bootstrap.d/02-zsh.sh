@@ -62,7 +62,7 @@ add_ssh_auto_zsh_snippet() {
         fi
         cat <<'EOF' >>"$f"
 # Auto-start zsh for SSH sessions (dotfiles)
-if [ -n "$SSH_CONNECTION" ] && [ -z "$ZSH_VERSION" ] && command -v zsh >/dev/null 2>&1; then
+if [ "${-#*i}" != "$-" ] && [ -n "$SSH_CONNECTION" ] && [ -z "$ZSH_VERSION" ] && command -v zsh >/dev/null 2>&1; then
   exec zsh -l
 fi
 EOF

@@ -56,15 +56,15 @@ smoke_run_steps_preserve_errexit() {
 
         bad_step() {
             false
-            echo "errexit was ignored" > "$side_effect"
+            echo "errexit was ignored" >"$side_effect"
         }
 
-        run_optional_step "bad optional" bad_step > "$step_log" 2>&1
+        run_optional_step "bad optional" bad_step >"$step_log" 2>&1
         [ ! -e "$side_effect" ] || fail "optional step ignored errexit"
         printf '%s\n' "${RUN_STEP_RESULTS[@]}" | grep -q "failed|bad optional" ||
             fail "optional step failure was not recorded"
 
-        run_required_step "bad required" bad_step >> "$step_log" 2>&1
+        run_required_step "bad required" bad_step >>"$step_log" 2>&1
         rc="$LAST_RUN_STEP_STATUS"
         [ "$rc" -ne 0 ] || fail "required step failure was not recorded"
         [ ! -e "$side_effect" ] || fail "required step ignored errexit"
@@ -90,17 +90,17 @@ smoke_tmux_plugins_install_after_setup_dotfiles() {
 
     mkdir -p "${home_dir}/.tmux/plugins/tpm/bin" "$stub_dir"
     ln -s "$JQ_BIN" "${stub_dir}/jq"
-    : > "$npx_log"
-    : > "$tmux_log"
+    : >"$npx_log"
+    : >"$tmux_log"
 
-    cat > "${stub_dir}/skills" <<'STUB'
+    cat >"${stub_dir}/skills" <<'STUB'
 #!/bin/sh
 echo "skills $*" >> "$NPX_LOG"
 exit 127
 STUB
     chmod +x "${stub_dir}/skills"
 
-    cat > "${home_dir}/.tmux/plugins/tpm/bin/install_plugins" <<'STUB'
+    cat >"${home_dir}/.tmux/plugins/tpm/bin/install_plugins" <<'STUB'
 #!/bin/sh
 if [ ! -L "$HOME/.tmux.conf" ]; then
     echo "missing linked tmux config" >> "$TMUX_LOG"
@@ -152,7 +152,7 @@ smoke_pi_drift_check() {
     git_dir="${pi_dir}/git/example.test/example/package"
 
     mkdir -p "$git_dir" "${pi_dir}/npm/node_modules/example-package"
-    printf 'fixture\n' > "${git_dir}/README.md"
+    printf 'fixture\n' >"${git_dir}/README.md"
     (
         unset GIT_INDEX_FILE
         unset GIT_OBJECT_DIRECTORY
@@ -163,7 +163,7 @@ smoke_pi_drift_check() {
             -c user.name=Test \
             -c user.email=test@example.com \
             commit -qm fixture
-        git -C "$git_dir" rev-parse HEAD > "${tmp_dir}/sha"
+        git -C "$git_dir" rev-parse HEAD >"${tmp_dir}/sha"
     )
     sha="$(cat "${tmp_dir}/sha")"
 
@@ -172,11 +172,11 @@ smoke_pi_drift_check() {
             "git:example.test/example/package@\($sha)",
             "npm:example-package@1.2.3"
         ]
-    }' > "$template"
+    }' >"$template"
     jq -c '. + {lastChangelogVersion: "local-only"}' "$template" \
-        > "${pi_dir}/settings.json"
+        >"${pi_dir}/settings.json"
     printf '{"version":"1.2.3"}\n' \
-        > "${pi_dir}/npm/node_modules/example-package/package.json"
+        >"${pi_dir}/npm/node_modules/example-package/package.json"
 
     if ! HOME="$home_dir" \
         PI_CODING_AGENT_DIR="$pi_dir" \
@@ -185,7 +185,7 @@ smoke_pi_drift_check() {
         fail "Pi check rejected matching settings and packages"
     fi
 
-    jq '. + {hideThinkingBlock: false}' "${pi_dir}/settings.json" > "${tmp_dir}/drift.json"
+    jq '. + {hideThinkingBlock: false}' "${pi_dir}/settings.json" >"${tmp_dir}/drift.json"
     mv "${tmp_dir}/drift.json" "${pi_dir}/settings.json"
     if HOME="$home_dir" PI_CODING_AGENT_DIR="$pi_dir" \
         PI_SETTINGS_TEMPLATE="$template" \
@@ -227,24 +227,24 @@ run_case() {
 
     mkdir -p "$home_dir" "$stub_dir"
     ln -s "$JQ_BIN" "${stub_dir}/jq"
-    : > "$npx_log"
-    : > "$pi_log"
+    : >"$npx_log"
+    : >"$pi_log"
     mkdir -p "${home_dir}/.pi/agent"
-    cat > "${home_dir}/.pi/agent/settings.json" <<'JSON'
+    cat >"${home_dir}/.pi/agent/settings.json" <<'JSON'
 {
   "lastChangelogVersion": "local-only",
   "theme": "unmanaged"
 }
 JSON
 
-    cat > "${stub_dir}/skills" <<'STUB'
+    cat >"${stub_dir}/skills" <<'STUB'
 #!/bin/sh
 echo "skills $*" >> "$NPX_LOG"
 exit 127
 STUB
     chmod +x "${stub_dir}/skills"
 
-    cat > "${stub_dir}/pi" <<'STUB'
+    cat >"${stub_dir}/pi" <<'STUB'
 #!/bin/sh
 printf '%s\n' "$*" >> "$PI_LOG"
 STUB
@@ -277,7 +277,7 @@ STUB
             export IS_LINUX=true
         fi
 
-        setup_dotfiles > "$sync_log" 2>&1
+        setup_dotfiles >"$sync_log" 2>&1
     )
 
     [ -L "${home_dir}/.zshrc" ] || fail "$os_name: missing .zshrc symlink"
@@ -293,10 +293,10 @@ STUB
     jq -e --slurpfile wanted "${DOTFILES_DIR}/config/pi/settings.json" '
         .lastChangelogVersion == "local-only" and
         (del(.lastChangelogVersion) == $wanted[0])
-    ' "${home_dir}/.pi/agent/settings.json" >/dev/null || \
+    ' "${home_dir}/.pi/agent/settings.json" >/dev/null ||
         fail "$os_name: Pi stable settings or local changelog state differ"
     while IFS= read -r package; do
-        grep -Fx "install $package" "$pi_log" >/dev/null || \
+        grep -Fx "install $package" "$pi_log" >/dev/null ||
             fail "$os_name: Pi package was not restored: $package"
     done < <(jq -r '.packages[]' "${DOTFILES_DIR}/config/pi/settings.json")
     for resource in themes/rose-pine-moon.json extensions/terminal-title.ts; do
@@ -314,7 +314,7 @@ STUB
         fail "$os_name: Claude settings must be generated as a plain file, not symlinked"
     fi
     [ -f "${home_dir}/.claude/settings.json" ] || fail "$os_name: missing generated Claude settings"
-    [ -s "$npx_log" ] || \
+    [ -s "$npx_log" ] ||
         fail "$os_name: sync should tolerate failed skill installation"
 
     rm -rf "$tmp_dir"

@@ -6,8 +6,8 @@ AGENT_TOOLS="${DOTFILES_DIR}/scripts/agent-tools.sh"
 JUST_BIN="$(command -v just)"
 
 fail() {
-    echo "[ERROR] $*" >&2
-    exit 1
+  echo "[ERROR] $*" >&2
+  exit 1
 }
 
 tmp_dir="$(mktemp -d)"
@@ -19,7 +19,7 @@ npm_log="${tmp_dir}/npm.log"
 native_log="${tmp_dir}/native.log"
 mkdir -p "$stub_dir"
 
-cat > "$manifest" <<'JSON'
+cat >"$manifest" <<'JSON'
 {
   "tools": [
     {
@@ -66,7 +66,7 @@ cat > "$manifest" <<'JSON'
 JSON
 
 for command_name in pi codex claude opencode skills; do
-    cat > "${stub_dir}/${command_name}" <<'STUB'
+  cat >"${stub_dir}/${command_name}" <<'STUB'
 #!/bin/bash
 name="$(basename "$0" | tr '[:lower:]' '[:upper:]')"
 variable="${name}_VERSION"
@@ -74,7 +74,7 @@ printf '%s %s\n' "$(basename "$0")" "${!variable:-1.2.3}"
 STUB
 done
 
-cat > "${stub_dir}/npm" <<'STUB'
+cat >"${stub_dir}/npm" <<'STUB'
 #!/bin/bash
 if [ "$1" = view ]; then
     [ "${REGISTRY_FAIL:-false}" = false ] || exit 1
@@ -84,7 +84,7 @@ else
 fi
 STUB
 
-cat > "${stub_dir}/curl" <<'STUB'
+cat >"${stub_dir}/curl" <<'STUB'
 #!/bin/bash
 cat <<'INSTALLER'
 #!/bin/bash
@@ -100,13 +100,13 @@ export PATH="${stub_dir}:/usr/bin:/bin"
 
 "$AGENT_TOOLS" check
 AGENT_TOOLS="$AGENT_TOOLS" \
-    "$JUST_BIN" --justfile "${DOTFILES_DIR}/justfile" agent-versions |
-    grep -F 'OpenCode' >/dev/null || fail "version report omitted OpenCode"
+  "$JUST_BIN" --justfile "${DOTFILES_DIR}/justfile" agent-versions |
+  grep -F 'OpenCode' >/dev/null || fail "version report omitted OpenCode"
 
 CODEX_VERSION=1.2.2
 export CODEX_VERSION
-if "$AGENT_TOOLS" check > "${tmp_dir}/drift.log" 2>&1; then
-    fail "version check ignored drift"
+if "$AGENT_TOOLS" check >"${tmp_dir}/drift.log" 2>&1; then
+  fail "version check ignored drift"
 fi
 unset CODEX_VERSION
 
@@ -116,43 +116,43 @@ CLAUDE_VERSION=1.0.0
 OPENCODE_VERSION=1.0.0
 SKILLS_VERSION=1.0.0
 export PI_VERSION CODEX_VERSION CLAUDE_VERSION OPENCODE_VERSION SKILLS_VERSION
-: > "$npm_log"
-: > "$native_log"
+: >"$npm_log"
+: >"$native_log"
 "$AGENT_TOOLS" install
 
-grep -Fx 'install -g --ignore-scripts @example/pi@latest' "$npm_log" >/dev/null || \
-    fail "Pi did not install latest"
+grep -Fx 'install -g --ignore-scripts @example/pi@latest' "$npm_log" >/dev/null ||
+  fail "Pi did not install latest"
 for package in @example/codex opencode-ai skills; do
-    grep -Fx "install -g ${package}@1.2.3" "$npm_log" >/dev/null || \
-        fail "exact npm version not installed: $package"
+  grep -Fx "install -g ${package}@1.2.3" "$npm_log" >/dev/null ||
+    fail "exact npm version not installed: $package"
 done
-grep -Fx '1.2.3' "$native_log" >/dev/null || \
-    fail "exact Claude version not installed"
+grep -Fx '1.2.3' "$native_log" >/dev/null ||
+  fail "exact Claude version not installed"
 
 LATEST_VERSION=2.0.0 AGENT_TOOLS="$AGENT_TOOLS" \
-    "$JUST_BIN" --justfile "${DOTFILES_DIR}/justfile" update-agent-tools
+  "$JUST_BIN" --justfile "${DOTFILES_DIR}/justfile" update-agent-tools
 jq -e 'all(.tools[]; if .command == "pi" then
     .channel == "latest" and (has("version") | not)
-    else .version == "2.0.0" end)' "$manifest" >/dev/null || \
-    fail "update did not resolve moving channels into exact versions"
+    else .version == "2.0.0" end)' "$manifest" >/dev/null ||
+  fail "update did not resolve moving channels into exact versions"
 
 export PI_VERSION=2.0.0 CODEX_VERSION=2.0.0 CLAUDE_VERSION=2.0.0
 export OPENCODE_VERSION=2.0.0 SKILLS_VERSION=2.0.0
-: > "$npm_log"
+: >"$npm_log"
 LATEST_VERSION=2.0.0 "$AGENT_TOOLS" install
 [ ! -s "$npm_log" ] || fail "current tools reinstalled"
 LATEST_VERSION=3.0.0 "$AGENT_TOOLS" install
-[ "$(cat "$npm_log")" = 'install -g --ignore-scripts @example/pi@latest' ] || \
-    fail "moving latest updated tools other than Pi"
+[ "$(cat "$npm_log")" = 'install -g --ignore-scripts @example/pi@latest' ] ||
+  fail "moving latest updated tools other than Pi"
 for action in report check install; do
-    if REGISTRY_FAIL=true "$AGENT_TOOLS" "$action" >/dev/null 2>&1; then
-        fail "$action hid registry failure"
-    fi
+  if REGISTRY_FAIL=true "$AGENT_TOOLS" "$action" >/dev/null 2>&1; then
+    fail "$action hid registry failure"
+  fi
 done
 
 if grep -En 'agent-tools|npm view|@latest' \
-    "${DOTFILES_DIR}/sync-agents.sh" >/dev/null; then
-    fail "configuration push path can update agent tool versions"
+  "${DOTFILES_DIR}/sync-agents.sh" >/dev/null; then
+  fail "configuration push path can update agent tool versions"
 fi
 
 echo "[INFO] agent tools smoke test passed"

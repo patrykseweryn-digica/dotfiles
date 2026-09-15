@@ -36,12 +36,12 @@ assert_log_not_contains() {
 write_package_manager_stubs() {
     local stub_dir="$1"
 
-    cat > "${stub_dir}/sudo" <<'STUB'
+    cat >"${stub_dir}/sudo" <<'STUB'
 #!/bin/sh
 "$@"
 STUB
 
-    cat > "${stub_dir}/apt-get" <<'STUB'
+    cat >"${stub_dir}/apt-get" <<'STUB'
 #!/bin/sh
 echo "apt-get $*" >> "$SMOKE_LOG"
 
@@ -84,13 +84,13 @@ STUB
 write_linuxbrew_stubs() {
     local stub_dir="$1"
 
-    cat > "${stub_dir}/apt-get" <<'STUB'
+    cat >"${stub_dir}/apt-get" <<'STUB'
 #!/bin/sh
 echo "apt-get $*" >> "$SMOKE_LOG"
 exit 1
 STUB
 
-    cat > "${stub_dir}/brew" <<'STUB'
+    cat >"${stub_dir}/brew" <<'STUB'
 #!/bin/sh
 echo "brew $*" >> "$SMOKE_LOG"
 
@@ -135,7 +135,7 @@ if [ "$1" = "install" ]; then
 fi
 STUB
 
-    cat > "${stub_dir}/sudo" <<'STUB'
+    cat >"${stub_dir}/sudo" <<'STUB'
 #!/bin/sh
 echo "sudo $*" >> "$SMOKE_LOG"
 exit 1
@@ -156,7 +156,7 @@ smoke_package_manager_plan() {
     log_file="${tmp_dir}/actions.log"
 
     mkdir -p "$stub_dir" "$bin_dir"
-    : > "$log_file"
+    : >"$log_file"
     write_package_manager_stubs "$stub_dir"
 
     (
@@ -170,8 +170,8 @@ smoke_package_manager_plan() {
 
             found="$(command -v "$1" 2>/dev/null || true)"
             case "$found" in
-                "${BIN_DIR}"/* | "${stub_dir}"/*) return 0 ;;
-                *) return 1 ;;
+            "${BIN_DIR}"/* | "${stub_dir}"/*) return 0 ;;
+            *) return 1 ;;
             esac
         }
 
@@ -213,7 +213,7 @@ smoke_linuxbrew_without_sudo_plan() {
     log_file="${tmp_dir}/actions.log"
 
     mkdir -p "$stub_dir" "$bin_dir"
-    : > "$log_file"
+    : >"$log_file"
     write_linuxbrew_stubs "$stub_dir"
 
     (
@@ -227,8 +227,8 @@ smoke_linuxbrew_without_sudo_plan() {
 
             found="$(command -v "$1" 2>/dev/null || true)"
             case "$found" in
-                "${BIN_DIR}"/* | "${stub_dir}"/*) return 0 ;;
-                *) return 1 ;;
+            "${BIN_DIR}"/* | "${stub_dir}"/*) return 0 ;;
+            *) return 1 ;;
             esac
         }
 
@@ -275,7 +275,7 @@ smoke_remaining_tool_plan() {
     log_file="${tmp_dir}/actions.log"
 
     mkdir -p "$stub_dir" "$bin_dir"
-    : > "$log_file"
+    : >"$log_file"
     write_package_manager_stubs "$stub_dir"
 
     (
@@ -289,13 +289,13 @@ smoke_remaining_tool_plan() {
 
             found="$(command -v "$1" 2>/dev/null || true)"
             case "$found" in
-                "${BIN_DIR}"/* | "${stub_dir}"/*) return 0 ;;
-                *) return 1 ;;
+            "${BIN_DIR}"/* | "${stub_dir}"/*) return 0 ;;
+            *) return 1 ;;
             esac
         }
 
         install_github_binary() {
-            echo "github $*" >> "$log_file"
+            echo "github $*" >>"$log_file"
         }
 
         export SMOKE_LOG="$log_file"
@@ -339,19 +339,19 @@ smoke_installed_tools_are_skipped() {
     log_file="${tmp_dir}/actions.log"
 
     mkdir -p "$stub_dir" "$bin_dir"
-    : > "$log_file"
+    : >"$log_file"
 
     for installed_tool in fzf bat rg fd jq tmux nvim git-lfs shfmt just hadolint bw eza delta tldr lazygit xclip; do
-        printf '#!/bin/sh\n' > "${bin_dir}/${installed_tool}"
+        printf '#!/bin/sh\n' >"${bin_dir}/${installed_tool}"
         chmod +x "${bin_dir}/${installed_tool}"
     done
 
-    cat > "${stub_dir}/brew" <<'STUB'
+    cat >"${stub_dir}/brew" <<'STUB'
 #!/bin/sh
 echo "brew $*" >> "$SMOKE_LOG"
 STUB
 
-    cat > "${stub_dir}/apt-get" <<'STUB'
+    cat >"${stub_dir}/apt-get" <<'STUB'
 #!/bin/sh
 echo "apt-get $*" >> "$SMOKE_LOG"
 STUB
@@ -369,13 +369,13 @@ STUB
 
             found="$(command -v "$1" 2>/dev/null || true)"
             case "$found" in
-                "${BIN_DIR}"/* | "${stub_dir}"/*) return 0 ;;
-                *) return 1 ;;
+            "${BIN_DIR}"/* | "${stub_dir}"/*) return 0 ;;
+            *) return 1 ;;
             esac
         }
 
         install_github_binary() {
-            echo "github $*" >> "$log_file"
+            echo "github $*" >>"$log_file"
         }
 
         export SMOKE_LOG="$log_file"
@@ -413,7 +413,7 @@ smoke_github_fallback_plan() {
     log_file="${tmp_dir}/actions.log"
 
     mkdir -p "$bin_dir"
-    : > "$log_file"
+    : >"$log_file"
 
     (
         # shellcheck source=/dev/null
@@ -426,7 +426,7 @@ smoke_github_fallback_plan() {
         }
 
         install_github_binary() {
-            echo "github $*" >> "$log_file"
+            echo "github $*" >>"$log_file"
         }
 
         # shellcheck disable=SC2034
@@ -496,16 +496,16 @@ smoke_direct_binary_install() {
 
             while [ "$#" -gt 0 ]; do
                 case "$1" in
-                    -o)
-                        shift
-                        output_path="$1"
-                        ;;
+                -o)
+                    shift
+                    output_path="$1"
+                    ;;
                 esac
                 shift
             done
 
             [ -n "$output_path" ] || return 1
-            printf '#!/bin/sh\n' > "$output_path"
+            printf '#!/bin/sh\n' >"$output_path"
         }
 
         # shellcheck disable=SC2034
@@ -542,12 +542,15 @@ smoke_latest_workflow_tools() {
         }
 
         install_herdr
+        install_treehouse
         install_no_mistakes
         install_global_npm_packages >"${tmp_dir}/npm-output.log"
         assert_log_contains "$SMOKE_LOG" "curl -fsSL https://herdr.dev/install.sh"
+        assert_log_contains "$SMOKE_LOG" "curl -fsSL https://kunchenguid.github.io/treehouse/install.sh"
         assert_log_contains "$SMOKE_LOG" "curl -fsSL https://raw.githubusercontent.com/kunchenguid/no-mistakes/main/docs/install.sh"
         [ "$(grep -Fxc "install $BIN_DIR" "$SMOKE_LOG")" -eq 2 ] || fail "native install paths differ"
-        for package in @steipete/summarize gnhf backpass lavish-axi acpx; do
+        for package in @steipete/summarize gnhf backpass lavish-axi acpx \
+            gh-axi chrome-devtools-axi tasks-axi quota-axi; do
             assert_log_contains "$SMOKE_LOG" "npm i -g ${package}@latest"
         done
         assert_log_contains "${tmp_dir}/npm-output.log" "[WARN] Failed to install gnhf@latest"
@@ -558,7 +561,7 @@ smoke_latest_workflow_tools() {
             printf '%s\n' 'echo unexpected >> "$SMOKE_LOG"'
             return 22
         }
-        if install_herdr || install_no_mistakes; then
+        if install_herdr || install_treehouse || install_no_mistakes; then
             fail "native installer ignored download failure"
         fi
         [ ! -s "$SMOKE_LOG" ] || fail "partial installer executed"
