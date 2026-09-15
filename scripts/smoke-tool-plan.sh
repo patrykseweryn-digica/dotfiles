@@ -560,7 +560,7 @@ INSTALLER
         install_treehouse
         install_no_mistakes
         assert_log_contains "$SMOKE_LOG" "curl -fsSL https://hermes-agent.nousresearch.com/install.sh -o"
-        assert_log_contains "$SMOKE_LOG" "hermes --skip-setup --skip-browser --skip-computer-use"
+        assert_log_contains "$SMOKE_LOG" "hermes --skip-setup --skip-computer-use"
         assert_log_contains "$SMOKE_LOG" "curl -fsSL https://herdr.dev/install.sh"
         assert_log_contains "$SMOKE_LOG" "curl -fsSL https://kunchenguid.github.io/treehouse/install.sh"
         assert_log_contains "$SMOKE_LOG" "curl -fsSL https://raw.githubusercontent.com/kunchenguid/no-mistakes/main/docs/install.sh"
