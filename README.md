@@ -74,8 +74,9 @@ changelog state local. Fast Mode remains off by default; its existing local
 preference is untouched. No runtime state or credentials are imported.
 Apply only Pi with `./sync-agents.sh pi-install`; check semantic JSON and
 installed package versions with `./sync-agents.sh pi-check`.
-Shared instructions are linked to
-`~/.pi/agent/AGENTS.md`. Shared skills are linked into
+Global preferences in `.agents/AGENTS.md` are linked to
+`~/.pi/agent/AGENTS.md`. Repository-only instructions live in root `AGENTS.md`,
+with `CLAUDE.md` linking to it for Claude. Shared skills are linked into
 `~/.pi/agent/skills/`.
 
 ## Setup commands

@@ -18,8 +18,16 @@ done <<EOF
 $tracked_symlinks
 EOF
 
-[ -L AGENTS.md ] || fail "root AGENTS.md must link to shared .agents/AGENTS.md"
-[ "$(readlink AGENTS.md)" = ".agents/AGENTS.md" ] || fail "root AGENTS.md points at wrong target"
+[ -f AGENTS.md ] && [ ! -L AGENTS.md ] || fail "root AGENTS.md must be repo-local"
+[ -L CLAUDE.md ] || fail "root CLAUDE.md must link to repo-local AGENTS.md"
+[ "$(readlink CLAUDE.md)" = "AGENTS.md" ] || fail "root CLAUDE.md points at wrong target"
+if grep -q 'docs/agents/' .agents/AGENTS.md; then
+    fail "global instructions must not include dotfiles-only documentation"
+fi
+for doc in issue-tracker triage-labels domain; do
+    [ -f "docs/agents/$doc.md" ] || fail "missing repo-local doc: $doc"
+    grep -Fq "docs/agents/$doc.md" AGENTS.md || fail "missing repo-local pointer: $doc"
+done
 
 [ -L config/codex/AGENTS.md ] || fail "Codex AGENTS.md adapter must be a symlink"
 [ "$(readlink config/codex/AGENTS.md)" = "../../.agents/AGENTS.md" ] || fail "Codex AGENTS.md adapter points at wrong target"

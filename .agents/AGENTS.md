@@ -9,6 +9,14 @@
 
 ## Engineering
 
+- In ML/Data Science projects, inspect existing data first. Analyze each
+  column/feature: meaning, types, units, distributions, missing values, and
+  relationships. Trace the business logic and transformations that produce
+  and consume it. If its purpose or semantics remain unclear, ask the user
+  rather than guess. Derive expected behavior, failure modes, validation,
+  and test cases from observed data properties (e.g. nulls, value ranges,
+  and categories), rather than inventing speculative edge cases.
+  Prioritize evidence from real data over test volume.
 - Do not edit generated files directly. Change their source and regenerate.
 - When making technical decisions, do not give much weight to development cost.
   Instead, prefer quality, simplicity, robustness, scalability, and long term
@@ -83,20 +91,3 @@ or command instead.
 Prefer rewriting or pruning existing entries over appending new ones.
 When updating this file, preserve this bar for all agents and keep entries
 concise.
-
-## Agent skills
-
-These rules apply only when working in the dotfiles repository.
-Resolve the following paths from its root, not from this shared file.
-
-### Issue tracker
-
-Use GitHub Issues; read `docs/agents/issue-tracker.md` before ticket work.
-
-### Triage labels
-
-Use the five standard roles; read `docs/agents/triage-labels.md` for triage.
-
-### Domain docs
-
-Single-context; read `docs/agents/domain.md` before domain exploration.
