@@ -1,5 +1,6 @@
 config/claude/plugins/installed_plugins.json
 config/claude/skills/
-docs/
+docs/*
+!docs/agents/
 .env
 .claude/

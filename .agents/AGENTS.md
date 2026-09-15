@@ -5,7 +5,32 @@
 - Format messages, so they don't have too long lines - each line should have < 80 characters.
 - Work style: telegraph; noun-phrases ok; drop grammar; min tokens.
 - Match my language (respond in the language I write in).
-- Look up docs via Context7 when unsure about a library.
+- Never use the em dash (U+2014). Use plain dash "-" instead.
+
+## Engineering
+
+- Do not edit generated files directly. Change their source and regenerate.
+- When making technical decisions, do not give much weight to development cost.
+  Instead, prefer quality, simplicity, robustness, scalability, and long term
+  maintainability.
+- For one-off or infrequent operational work, start with the simplest direct
+  end-to-end path. Do not build wrappers, control planes, policy layers, custom
+  verifiers, or automation unless the direct path exposes a concrete blocker or
+  repeated need that justifies the added machinery.
+- When doing bug fixes, always start with reproducing the bug in an E2E setting
+  as closely aligned with how an end user would experience it as possible.
+  This makes sure you find the real problem so your fix will actually solve it.
+- When end-to-end testing a product, be picky about the UI you see and be
+  obsessed with pixel perfection.
+  If something clearly looks off, even if it is not directly related to what
+  you are doing, try to get it fixed along the way.
+- Apply that same high standard to engineering excellence: lint, test failures,
+  and test flakiness.
+  If you see one, even if it is not caused by what you are working on right now,
+  still get it fixed.
+- Before using "dynamic workflows", "ultra code" or any harness feature that
+  immediately spawns a large swarm of subagents, always explain the tradeoffs
+  and ask the user for explicit approval.
 
 ## Git
 
@@ -16,25 +41,62 @@
 
 ## Tech Stack
 
+Follow existing repository tooling. Apply these defaults to new projects
+or where the repository has no established tooling.
+
 - Python: `uv`, `ruff`, `pyright`, pre-commit hooks, `new-project <name>` (copier from `gh:p-severin/python-repo-template`).
-- JS/TS: `eslint`, `prettier`, pre-commit hooks, React/Next.js/Express.js.
+- JS/TS: `eslint`, `prettier`, pre-commit hooks.
 
 <!-- context7 -->
-Use the `ctx7` CLI to fetch current documentation whenever the user asks about a library, framework, SDK, API, CLI tool, or cloud service — even well-known ones like React, Next.js, Prisma, Express, Tailwind, Django, or Spring Boot. This includes API syntax, configuration, version migration, library-specific debugging, setup instructions, and CLI tool usage. Use even when you think you know the answer — your training data may not reflect recent changes. Prefer this over web search for library docs.
+## Context7
 
-Do not use for: refactoring, writing scripts from scratch, debugging business logic, code review, or general programming concepts.
+- Use Context7 for library, framework, SDK, API, CLI, and cloud questions:
+  syntax, configuration, migration, setup, and library-specific debugging.
+  Use it even when confident; prefer it over web search.
+- Skip it for refactoring, scripts from scratch, business-logic debugging,
+  code review, and general programming concepts.
+- Make at most three Context7 commands per question. Never send secrets.
 
-## Steps
+1. Unless the user supplies a library ID, resolve it first:
+   `npx ctx7@latest library <name> "<question>"`
+   Use the official name and a specific, complete question.
+2. Select by name match, relevance, snippet coverage, source reputation,
+   and benchmark score. Retry poor matches with another name or query.
+   For version-specific requests, use a versioned ID from the results.
+3. Fetch documentation:
+   `npx ctx7@latest docs <libraryId> "<question>"`
+   Query each concept separately unless asking about their interaction.
+4. Base the answer on the fetched documentation.
 
-1. Resolve library: `npx ctx7@latest library <name> "<user's question>"` — use the official library name with proper punctuation (e.g., "Next.js" not "nextjs", "Customer.io" not "customerio", "Three.js" not "threejs")
-2. Pick the best match (ID format: `/org/project`) by: exact name match, description relevance, code snippet count, source reputation (High/Medium preferred), and benchmark score (higher is better). If results don't look right, try alternate names or queries (e.g., "next.js" not "nextjs", or rephrase the question)
-3. Fetch docs: `npx ctx7@latest docs <libraryId> "<user's question>"` — run a separate `docs` command per distinct concept if the question spans multiple topics, unless it's about how they interact
-4. Answer using the fetched documentation
-
-You MUST call `library` first to get a valid ID unless the user provides one directly in `/org/project` format. Use the user's full question as the query — specific and detailed queries return better results than vague single words, but keep each query to a single concept unless the question is about how concepts interact; combined multi-topic queries dilute ranking and return shallow results for each topic. Do not run more than 3 commands per question. Do not include sensitive information (API keys, passwords, credentials) in queries.
-
-For version-specific docs, use `/org/project/version` from the `library` output (e.g., `/vercel/next.js/v14.3.0`).
-
-If a command fails with a quota error, inform the user and suggest `npx ctx7@latest login` or setting `CONTEXT7_API_KEY` env var for higher limits. Do not silently fall back to training data.
-Run Context7 CLI requests outside Codex's default sandbox. If a Context7 CLI command fails with DNS or network errors such as ENOTFOUND, host resolution failures, or fetch failed, rerun it outside the sandbox instead of retrying inside the sandbox.
+- On quota errors, inform the user and suggest `npx ctx7@latest login`
+  or `CONTEXT7_API_KEY`. Do not silently substitute training knowledge.
+- Run Context7 CLI requests outside Codex's default sandbox.
+  On DNS or network failure inside it, rerun outside, not inside.
 <!-- context7 -->
+
+## Maintaining this file
+
+Keep this file for knowledge useful to almost every future agent session in
+this project.
+Do not repeat what the codebase already shows; point to the authoritative file
+or command instead.
+Prefer rewriting or pruning existing entries over appending new ones.
+When updating this file, preserve this bar for all agents and keep entries
+concise.
+
+## Agent skills
+
+These rules apply only when working in the dotfiles repository.
+Resolve the following paths from its root, not from this shared file.
+
+### Issue tracker
+
+Use GitHub Issues; read `docs/agents/issue-tracker.md` before ticket work.
+
+### Triage labels
+
+Use the five standard roles; read `docs/agents/triage-labels.md` for triage.
+
+### Domain docs
+
+Single-context; read `docs/agents/domain.md` before domain exploration.
