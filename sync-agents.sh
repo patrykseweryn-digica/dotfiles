@@ -724,13 +724,13 @@ cmd_mcp_check() {
     while IFS= read -r runtime; do
         [ -n "$runtime" ] || continue
         actual="$(mktemp)"
-        mcp_rows_to_inventory "$rows" "$runtime" > "$actual"
+        mcp_rows_to_inventory "$rows" "$runtime" >"$actual"
         if [ "$runtime" = "codex" ]; then
             jq -S --slurpfile wanted "$wanted" '
                 with_entries(
                     select(.key as $key | $wanted[0] | has($key))
                 )
-            ' "$actual" > "${actual}.managed"
+            ' "$actual" >"${actual}.managed"
             mv "${actual}.managed" "$actual"
         fi
         if cmp -s "$wanted" "$actual"; then
@@ -921,7 +921,7 @@ render_codex_settings_from_live() {
             sub(/[[:space:]]*=.*/, "", key)
             if (listed(key, root_key)) print
         }
-    ' "$source_file" > "$raw"
+    ' "$source_file" >"$raw"
 
     awk '
         /^\[/ {
@@ -934,7 +934,7 @@ render_codex_settings_from_live() {
             print
             seen = 1
         }
-    ' "$raw" > "$target_file"
+    ' "$raw" >"$target_file"
     rm -f "$raw"
 }
 
@@ -947,7 +947,7 @@ cmd_pull_codex_settings() {
     local candidate without_mcp reply
     candidate="$(mktemp)"
     without_mcp="$(mktemp)"
-    strip_codex_managed_mcp "$CODEX_CONFIG" > "$without_mcp"
+    strip_codex_managed_mcp "$CODEX_CONFIG" >"$without_mcp"
     render_codex_settings_from_live "$without_mcp" "$candidate"
     rm -f "$without_mcp"
     if cmp -s "$CODEX_SETTINGS_TEMPLATE" "$candidate"; then
@@ -960,15 +960,15 @@ cmd_pull_codex_settings() {
     printf 'Apply these Codex settings? [y/N] '
     read -r reply || reply=""
     case "$reply" in
-        y|Y|yes|YES)
-            mv "$candidate" "$CODEX_SETTINGS_TEMPLATE"
-            log_info "Updated $CODEX_SETTINGS_TEMPLATE from live state"
-            ;;
-        *)
-            rm -f "$candidate"
-            echo "[ERROR] Codex settings pull cancelled" >&2
-            return 1
-            ;;
+    y | Y | yes | YES)
+        mv "$candidate" "$CODEX_SETTINGS_TEMPLATE"
+        log_info "Updated $CODEX_SETTINGS_TEMPLATE from live state"
+        ;;
+    *)
+        rm -f "$candidate"
+        echo "[ERROR] Codex settings pull cancelled" >&2
+        return 1
+        ;;
     esac
 }
 
@@ -981,15 +981,15 @@ render_codex_config() {
     stripped="$(mktemp)"
     combined="$(mktemp)"
     block="$(mktemp)"
-    strip_codex_managed_mcp "$source_file" > "$without_mcp"
-    strip_codex_managed_settings "$without_mcp" > "$stripped"
-    render_codex_mcp_block > "$block"
+    strip_codex_managed_mcp "$source_file" >"$without_mcp"
+    strip_codex_managed_settings "$without_mcp" >"$stripped"
+    render_codex_mcp_block >"$block"
 
-    cat "$CODEX_SETTINGS_TEMPLATE" > "$combined"
-    printf '\n\n' >> "$combined"
-    cat "$stripped" >> "$combined"
-    printf '\n\n' >> "$combined"
-    cat "$block" >> "$combined"
+    cat "$CODEX_SETTINGS_TEMPLATE" >"$combined"
+    printf '\n\n' >>"$combined"
+    cat "$stripped" >>"$combined"
+    printf '\n\n' >>"$combined"
+    cat "$block" >>"$combined"
 
     awk '
         NF {
@@ -1000,7 +1000,7 @@ render_codex_config() {
             next
         }
         { blank = 1 }
-    ' "$combined" > "$target_file"
+    ' "$combined" >"$target_file"
 
     rm -f "$without_mcp" "$stripped" "$combined" "$block"
 }
@@ -1047,8 +1047,8 @@ cmd_codex_check() {
     current_check="$(mktemp)"
     expected_check="$(mktemp)"
     render_codex_config "$CODEX_CONFIG" "$expected"
-    normalize_codex_config_for_check "$CODEX_CONFIG" > "$current_check"
-    normalize_codex_config_for_check "$expected" > "$expected_check"
+    normalize_codex_config_for_check "$CODEX_CONFIG" >"$current_check"
+    normalize_codex_config_for_check "$expected" >"$expected_check"
 
     if cmp -s "$current_check" "$expected_check"; then
         rm -f "$expected" "$current_check" "$expected_check"
@@ -1339,12 +1339,12 @@ cmd_codex_marketplace_plugins_check() {
     wanted_plugins="$(mktemp)"
     wanted_marketplaces="$(mktemp)"
 
-    render_codex_plugins > "$live_plugins" || failed=true
-    render_codex_marketplaces > "$live_marketplaces" || failed=true
+    render_codex_plugins >"$live_plugins" || failed=true
+    render_codex_marketplaces >"$live_marketplaces" || failed=true
     jq -S '.codexPlugins // [] | unique' "$CODEX_PLUGIN_MANIFEST" \
-        > "$wanted_plugins"
+        >"$wanted_plugins"
     jq -S '.codexMarketplaces // {}' "$CODEX_PLUGIN_MANIFEST" \
-        > "$wanted_marketplaces"
+        >"$wanted_marketplaces"
 
     if [ "$failed" = false ] &&
         ! cmp -s "$wanted_plugins" "$live_plugins"; then
@@ -1376,13 +1376,13 @@ cmd_codex_marketplace_plugins_export() {
     plugins="$(mktemp)"
     marketplaces="$(mktemp)"
     tmp="$(mktemp)"
-    render_codex_plugins > "$plugins"
-    render_codex_marketplaces > "$marketplaces"
+    render_codex_plugins >"$plugins"
+    render_codex_marketplaces >"$marketplaces"
     jq -S --slurpfile plugins "$plugins" \
         --slurpfile marketplaces "$marketplaces" '
         .codexPlugins = $plugins[0]
         | .codexMarketplaces = $marketplaces[0]
-    ' "$CODEX_PLUGIN_MANIFEST" > "$tmp"
+    ' "$CODEX_PLUGIN_MANIFEST" >"$tmp"
     rm -f "$plugins" "$marketplaces"
 
     if cmp -s "$tmp" "$CODEX_PLUGIN_MANIFEST"; then
@@ -1418,12 +1418,12 @@ cmd_codex_marketplace_plugins_push() {
     live_marketplaces="$(mktemp)"
     wanted_plugins="$(mktemp)"
     wanted_marketplaces="$(mktemp)"
-    render_codex_plugins > "$live_plugins"
-    render_codex_marketplaces > "$live_marketplaces"
+    render_codex_plugins >"$live_plugins"
+    render_codex_marketplaces >"$live_marketplaces"
     jq -r '.codexPlugins // [] | unique[]' "$CODEX_PLUGIN_MANIFEST" \
-        > "$wanted_plugins"
+        >"$wanted_plugins"
     jq -r '.codexMarketplaces // {} | keys[]' "$CODEX_PLUGIN_MANIFEST" \
-        > "$wanted_marketplaces"
+        >"$wanted_marketplaces"
 
     while IFS= read -r marketplace; do
         [ -n "$marketplace" ] || continue
@@ -1433,7 +1433,7 @@ cmd_codex_marketplace_plugins_push() {
             '.codexMarketplaces[$name]' "$CODEX_PLUGIN_MANIFEST")"
         log_info "Adding Codex marketplace: $marketplace"
         codex plugin marketplace add "$source" || failed=true
-    done < "$wanted_marketplaces"
+    done <"$wanted_marketplaces"
 
     while IFS= read -r plugin; do
         [ -n "$plugin" ] || continue
@@ -1441,7 +1441,7 @@ cmd_codex_marketplace_plugins_push() {
             "$live_plugins" >/dev/null && continue
         log_info "Adding Codex plugin: $plugin"
         codex plugin add "$plugin" || failed=true
-    done < "$wanted_plugins"
+    done <"$wanted_plugins"
 
     jq -r '.[]' "$live_plugins" | while IFS= read -r plugin; do
         [ -n "$plugin" ] || continue
@@ -1798,7 +1798,7 @@ render_claude_settings() {
             }) | add // {}) |
         .extraKnownMarketplaces = ($m[0].marketplaces // {} | to_entries |
             map({(.key): {"source": .value}}) | add // {})
-    ' "$CLAUDE_TEMPLATE_FILE" > "$target_file"
+    ' "$CLAUDE_TEMPLATE_FILE" >"$target_file"
 }
 
 cmd_claude_settings_check() {
@@ -2766,11 +2766,11 @@ while [[ "${1:-}" == --* ]]; do
 done
 
 case "${1:-}" in
-pull-codex-settings)
-    cmd_pull_codex_settings
-    ;;
 install)
     cmd_install
+    ;;
+pull-codex-settings)
+    cmd_pull_codex_settings
     ;;
 pull-mcp)
     shift
