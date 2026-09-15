@@ -129,17 +129,18 @@ link_file() {
     # Target exists and is not our symlink - backup with drift warning
     if [ -e "$target_path" ] || [ -L "$target_path" ]; then
         mkdir -p "$backup_dir"
-        local backup_name
-        backup_name="$(basename "$target_path").$(date +%Y%m%d%H%M%S)"
-        cp -rP "$target_path" "${backup_dir}/${backup_name}"
+        local backup_path
+        backup_path=$(mktemp -d "${backup_dir}/$(basename "$target_path").XXXXXX") || return 1
+        backup_path="${backup_path}/$(basename "$target_path")"
+        cp -rP "$target_path" "$backup_path" || return 1
 
         # Drift warning: target differs from source
         if [ -f "$target_path" ] && [ -f "$source_path" ] && ! diff -q "$source_path" "$target_path" >/dev/null 2>&1; then
-            echo "[WARN] $target_path differs from dotfiles source. Backed up to ${backup_dir}/${backup_name}"
+            echo "[WARN] $target_path differs from dotfiles source. Backed up to $backup_path"
             echo "[WARN] Diff (source vs target):"
             diff --color=auto "$source_path" "$target_path" | head -20 || true
         else
-            echo "[INFO] Backed up $target_path to ${backup_dir}/${backup_name}"
+            echo "[INFO] Backed up $target_path to $backup_path"
         fi
 
         rm -rf "$target_path"

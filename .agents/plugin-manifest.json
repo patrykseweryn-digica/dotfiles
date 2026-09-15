@@ -5,20 +5,9 @@
     "pydantic-skills": "https://github.com/pydantic/skills.git"
   },
   "codexPlugins": [
-    "browser@openai-bundled",
-    "chrome@openai-bundled",
-    "codex-app-tools@openai-bundled",
-    "documents@openai-primary-runtime",
     "last30days@last30days-skill",
     "logfire@pydantic-skills",
-    "pdf@openai-primary-runtime",
-    "ponytail@ponytail",
-    "presentations@openai-primary-runtime",
-    "sites@openai-bundled",
-    "spreadsheets@openai-primary-runtime",
-    "template-creator@openai-primary-runtime",
-    "unified-computer-use@openai-bundled",
-    "visualize@openai-bundled"
+    "ponytail@ponytail"
   ],
   "marketplaces": {
     "anthropic-agent-skills": {

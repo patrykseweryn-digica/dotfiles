@@ -199,6 +199,22 @@ cat >"$manifest" <<'JSON'
 JSON
 cat >"$stub_dir/curl" <<'STUB'
 #!/bin/bash
+case "$*" in
+    *treehouse/releases/latest*)
+        [ "${NATIVE_DOWNLOAD_FAIL:-false}" = false ] || exit 22
+        echo 'https://github.com/kunchenguid/treehouse/releases/tag/v1.2.3'
+        exit 0 ;;
+    *treehouse/releases/download/*)
+        [ "${NATIVE_DOWNLOAD_FAIL:-false}" = false ] || exit 22
+        while [ "$1" != -o ]; do shift; done
+        package_dir=$(mktemp -d)
+        printf '#!/bin/sh\necho 1.2.3\n' > "$package_dir/treehouse"
+        chmod +x "$package_dir/treehouse"
+        tar czf "$2" -C "$package_dir" treehouse
+        rm -rf "$package_dir"
+        echo treehouse >> "$NATIVE_LOG"
+        exit 0 ;;
+esac
 cat <<'INSTALLER'
 #!/bin/bash
 if [ -n "${HERDR_INSTALL_DIR:-}" ]; then name=herdr

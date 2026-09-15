@@ -86,6 +86,21 @@ repos:
         entry: ./scripts/smoke-codex-plugin-sync.sh
         language: system
         pass_filenames: false
+      - id: plugin-install-smoke
+        name: Full plugin install smoke test
+        entry: bash scripts/smoke-plugin-install.sh
+        language: system
+        pass_filenames: false
+      - id: skill-install-smoke
+        name: Required skill installation smoke test
+        entry: bash scripts/smoke-skill-install.sh
+        language: system
+        pass_filenames: false
+      - id: treehouse-smoke
+        name: Treehouse release installation smoke test
+        entry: bash scripts/smoke-treehouse.sh
+        language: system
+        pass_filenames: false
       - id: codex-settings-smoke
         name: Codex TOML settings smoke test
         entry: uv run --no-project --script scripts/smoke-codex-settings.py
