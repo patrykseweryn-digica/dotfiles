@@ -287,6 +287,7 @@ setup_dotfiles() {
     ensure_install_dirs
     # Merge after tool installation; also runs for just update-dotfiles.
     uv run --no-project --script "$DOTFILES_DIR/scripts/no-mistakes-config.py"
+    uv run --no-project --script "$DOTFILES_DIR/scripts/herdr-config.py"
     mkdir -p "${HOME}/.claude/plugins" "${HOME}/.claude/output-styles" "${HOME}/.claude/skills" "${HOME}/.agents/skills" "${HOME}/.codex" "${HOME}/.summarize"
     if [ "$IS_MACOS" = true ]; then
         VSCODE_USER_DIR="${HOME}/Library/Application Support/Code/User"

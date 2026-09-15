@@ -177,6 +177,24 @@ agents or propagate to secondmates. Main owns any later guarded
 `fm-config-push.sh` inheritance. For a conflicting existing dispatch, review
 and reconcile it explicitly before rerunning; setup never overwrites it.
 
+### Herdr sidebar configuration
+
+Both setup commands also merge `config/herdr/config.toml` into
+`~/.config/herdr/config.toml` (or `HERDR_CONFIG_PATH`). Agents retain their
+existing rows and gain a separate raw `terminal_title` row, showing Pi's
+session name, spinner and final state even while another tab is selected.
+Other settings and comments stay local; agent-specific `rows_by_agent`
+overrides remain untouched and take precedence over these shared rows.
+Apply only this configuration, without installing tools or reloading sessions:
+
+```bash
+uv run --no-project --script scripts/herdr-config.py
+```
+
+Herdr 0.9.0 reads sidebar layouts from the client's local configuration.
+Existing clients need a user-initiated config reload or a new attachment;
+setup does neither. The outer window title and its spinner filter are unchanged.
+
 ## Synchronizing Git remotes
 
 This checkout uses `origin` for `p-severin/dotfiles` and `work` for
