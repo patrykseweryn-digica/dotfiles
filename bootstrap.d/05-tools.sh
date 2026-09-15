@@ -272,12 +272,46 @@ install_herdr() {
     fi
 }
 
-install_treehouse() {
-    local installer
+install_treehouse() (
+    local os arch release version archive task_dir
+    os="$(uname -s)"
+    arch="$(uname -m)"
+    case "$os" in
+    Linux) os=linux ;;
+    Darwin) os=darwin ;;
+    *) echo "[ERROR] Unsupported OS for Treehouse: $os" >&2; return 1 ;;
+    esac
+    case "$arch" in
+    x86_64 | amd64) arch=amd64 ;;
+    arm64 | aarch64) arch=arm64 ;;
+    *) echo "[ERROR] Unsupported architecture for Treehouse: $arch" >&2; return 1 ;;
+    esac
 
-    installer="$(curl -fsSL https://kunchenguid.github.io/treehouse/install.sh)" || return 1
-    sh -c "$installer"
-}
+    # Public release redirects avoid GitHub's unauthenticated API quota.
+    release=$(curl -fsSL -o /dev/null -w '%{url_effective}' \
+        https://github.com/kunchenguid/treehouse/releases/latest) || {
+        echo "[ERROR] Treehouse: failed to resolve latest release" >&2
+        return 1
+    }
+    version="${release##*/}"
+    if [[ ! "$version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        echo "[ERROR] Treehouse: invalid release URL: $release" >&2
+        return 1
+    fi
+    mkdir -p "$BIN_DIR" || return 1
+    task_dir=$(mktemp -d "${BIN_DIR}/.treehouse.XXXXXX") || return 1
+    trap 'rm -rf "$task_dir"' EXIT
+    archive="treehouse-${version}-${os}-${arch}.tar.gz"
+    if ! curl -fsSL "https://github.com/kunchenguid/treehouse/releases/download/${version}/${archive}" \
+        -o "$task_dir/release.tar.gz" ||
+        ! tar xzf "$task_dir/release.tar.gz" -C "$task_dir" treehouse ||
+        ! "$task_dir/treehouse" --version; then
+        echo "[ERROR] Treehouse: download or validation failed (${os}/${arch}, ${version})" >&2
+        return 1
+    fi
+    mv "$task_dir/treehouse" "$BIN_DIR/treehouse" || return 1
+    echo "[INFO] Treehouse $version installed to $BIN_DIR/treehouse"
+)
 
 install_no_mistakes() {
     local installer

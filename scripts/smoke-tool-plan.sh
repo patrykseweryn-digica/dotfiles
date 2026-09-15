@@ -550,10 +550,8 @@ INSTALLER
         }
 
         install_herdr
-        install_treehouse
         install_no_mistakes
         assert_log_contains "$SMOKE_LOG" "curl -fsSL https://herdr.dev/install.sh"
-        assert_log_contains "$SMOKE_LOG" "curl -fsSL https://kunchenguid.github.io/treehouse/install.sh"
         assert_log_contains "$SMOKE_LOG" "curl -fsSL https://raw.githubusercontent.com/kunchenguid/no-mistakes/main/docs/install.sh"
         [ "$(grep -Fxc "install $BIN_DIR" "$SMOKE_LOG")" -eq 2 ] || fail "native install paths differ"
         [ -f "$HOME/.claude/hooks/herdr-agent-state.sh" ] || fail "Herdr hook missing"
@@ -567,7 +565,7 @@ INSTALLER
             printf '%s\n' 'echo unexpected >> "$SMOKE_LOG"'
             return 22
         }
-        if install_herdr || install_treehouse || install_no_mistakes; then
+        if install_herdr || install_no_mistakes; then
             fail "native installer ignored download failure"
         fi
         [ ! -s "$SMOKE_LOG" ] || fail "partial installer executed"

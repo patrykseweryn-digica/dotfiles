@@ -67,8 +67,6 @@ fi
 
 grep -F "missing-plugin (plugin_connector_missing)" "$sync_log" \
     >/dev/null || fail "Codex plugin check did not report missing plugin"
-grep -F "unexpected-plugin (plugin_connector_extra)" "$sync_log" \
-    >/dev/null || fail "Codex plugin check did not report extra plugin"
 grep -F 'Open Codex and enter: /plugins' "$sync_log" \
     >/dev/null || fail "Codex plugin check omitted the interactive command"
 grep -F 'Complete OAuth when prompted' "$sync_log" \
@@ -178,6 +176,31 @@ jq -e '
 ' "$manifest" >/dev/null ||
     fail "Codex marketplace plugin export wrote wrong state"
 
+# Runtime-local plugins never become portable requirements.
+for present in true false; do
+    if [ "$present" = true ]; then
+        jq '.installed += [{pluginId: "browser@openai-bundled",
+            installed: true, enabled: true,
+            marketplaceSource: {sourceType: "local", source: "/runtime/plugins"}}]' \
+            "$plugin_list" > "$plugin_list.next"
+        mv "$plugin_list.next" "$plugin_list"
+    else
+        jq '.installed |= map(select(.marketplaceSource.sourceType == "git"))' \
+            "$plugin_list" > "$plugin_list.next"
+        mv "$plugin_list.next" "$plugin_list"
+    fi
+    for _ in 1 2; do
+        HOME="$tmp_dir/pull-home" PATH="/usr/bin:/bin" \
+            PLUGIN_MANIFEST="$manifest" \
+            "$DOTFILES_DIR/sync-agents.sh" --quiet pull-plugins \
+            > "$sync_log" 2>&1 || { cat "$sync_log" >&2; fail "Portable pull failed"; }
+        jq -e '.codexPlugins == ["keep@official"]' "$manifest" >/dev/null ||
+            fail "Runtime plugin leaked into portable export"
+        "$DOTFILES_DIR/sync-agents.sh" --quiet codex-plugins-check > "$sync_log" 2>&1 ||
+            fail "Runtime availability changed portable check"
+    done
+done
+
 cat > "$plugin_list" <<'JSON'
 {
   "installed": [
@@ -223,11 +246,13 @@ HOME="${tmp_dir}/home" PATH="${stub_dir}:$PATH" \
 }
 for command in \
     "plugin marketplace add https://example.test/official.git" \
-    "plugin add keep@official" \
-    "plugin remove extra@extra" \
-    "plugin marketplace remove extra"; do
+    "plugin add keep@official"; do
     grep -Fx "$command" "$plugin_log" >/dev/null ||
         fail "Codex marketplace plugin push omitted: $command"
 done
+
+if grep -q 'remove' "$plugin_log"; then
+    fail "Codex push removed additional user plugins or marketplaces"
+fi
 
 echo "[INFO] Codex plugin sync smoke test passed"

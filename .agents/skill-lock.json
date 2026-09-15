@@ -246,6 +246,7 @@
       "sourceUrl": "https://github.com/mlflow/skills.git"
     },
     "poteto-mode": {
+      "installName": "Poteto Mode",
       "skillPath": "pstack/skills/poteto-mode/SKILL.md",
       "source": "cursor/plugins",
       "sourceType": "github",

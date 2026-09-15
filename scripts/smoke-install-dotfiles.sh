@@ -111,9 +111,13 @@ smoke_tmux_plugins_install_after_setup_dotfiles() {
     cat >"${stub_dir}/skills" <<'STUB'
 #!/bin/sh
 echo "skills $*" >> "$NPX_LOG"
-exit 127
+name=$(printf '%s' "$5" | tr '[:upper:] ' '[:lower:]-')
+mkdir -p "$HOME/.agents/skills/$name"
+printf '%s\n' '---' "name: $name" '---' > "$HOME/.agents/skills/$name/SKILL.md"
 STUB
     chmod +x "${stub_dir}/skills"
+    printf '#!/bin/sh\nexit 0\n' > "${stub_dir}/codex"
+    chmod +x "${stub_dir}/codex"
 
     cat >"${home_dir}/.tmux/plugins/tpm/bin/install_plugins" <<'STUB'
 #!/bin/sh
@@ -276,9 +280,13 @@ JSON
     cat >"${stub_dir}/skills" <<'STUB'
 #!/bin/sh
 echo "skills $*" >> "$NPX_LOG"
-exit 127
+name=$(printf '%s' "$5" | tr '[:upper:] ' '[:lower:]-')
+mkdir -p "$HOME/.agents/skills/$name"
+printf '%s\n' '---' "name: $name" '---' > "$HOME/.agents/skills/$name/SKILL.md"
 STUB
     chmod +x "${stub_dir}/skills"
+    printf '#!/bin/sh\nexit 0\n' > "${stub_dir}/codex"
+    chmod +x "${stub_dir}/codex"
 
     cat >"${stub_dir}/pi" <<'STUB'
 #!/bin/sh
@@ -384,7 +392,7 @@ YAML
     fi
     [ -f "${home_dir}/.claude/settings.json" ] || fail "$os_name: missing generated Claude settings"
     [ -s "$npx_log" ] ||
-        fail "$os_name: sync should tolerate failed skill installation"
+        fail "$os_name: sync should install required skills"
 
     rm -rf "$tmp_dir"
 }
