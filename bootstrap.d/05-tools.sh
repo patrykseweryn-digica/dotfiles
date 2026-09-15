@@ -227,10 +227,49 @@ install_tmux_plugins() {
 }
 
 install_herdr() {
-    local installer
+    local installer settings tmp
+
+    settings="${HOME}/.claude/settings.json"
+    if [ -L "$settings" ]; then
+        if [ ! -f "$settings" ]; then
+            echo "[ERROR] Broken or non-file Claude settings symlink: $settings" >&2
+            echo "Restore its target before installing Herdr: $(readlink "$settings")" >&2
+            return 1
+        fi
+        tmp="$(mktemp "${settings}.XXXXXX")" || return 1
+        if ! cp -L "$settings" "$tmp" || ! mv -f "$tmp" "$settings"; then
+            rm -f "$tmp"
+            return 1
+        fi
+    fi
 
     installer="$(curl -fsSL https://herdr.dev/install.sh)" || return 1
-    HERDR_INSTALL_DIR="$BIN_DIR" sh -c "$installer"
+    HERDR_INSTALL_DIR="$BIN_DIR" sh -c "$installer" || return 1
+    mkdir -p "${HOME}/.claude" || return 1
+    CLAUDE_CONFIG_DIR="${HOME}/.claude" \
+        "$BIN_DIR/herdr" integration install claude || return 1
+    if [ ! -s "${HOME}/.claude/hooks/herdr-agent-state.sh" ]; then
+        echo "[ERROR] Herdr did not install ~/.claude/hooks/herdr-agent-state.sh" >&2
+        return 1
+    fi
+
+    # Herdr writes an absolute path; keep its hook portable in managed settings.
+    tmp="$(mktemp "${settings}.XXXXXX")" || return 1
+    if jq -S '
+        (.hooks.SessionStart[].hooks[] |
+            select(.type == "command" and
+                (.command | contains("herdr-agent-state.sh")))).command =
+            "bash \"$HOME/.claude/hooks/herdr-agent-state.sh\" session" |
+        .hooks.SessionStart |= reduce .[] as $entry ([];
+            if ($entry.hooks | any(.command? // "" |
+                    contains("herdr-agent-state.sh"))) and index($entry) != null
+            then . else . + [$entry] end)
+    ' "$settings" >"$tmp"; then
+        mv "$tmp" "$settings"
+    else
+        rm -f "$tmp"
+        return 1
+    fi
 }
 
 install_treehouse() {

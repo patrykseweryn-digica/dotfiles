@@ -4,6 +4,9 @@ set -eu
 DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SYNC="${DOTFILES_DIR}/sync-agents.sh"
 JUST_BIN="$(command -v just)"
+UV_BIN="$(command -v uv)"
+UV_CACHE_DIR="${UV_CACHE_DIR:-$("$UV_BIN" cache dir)}"
+export UV_CACHE_DIR
 
 fail() {
     echo "[ERROR] $*" >&2
@@ -28,6 +31,7 @@ mkdir -p \
     "$(dirname "$kimi_config")" \
     "$(dirname "$pi_mcp")" \
     "$stub_dir"
+ln -s "$UV_BIN" "${stub_dir}/uv"
 
 cat > "$repo_mcp" <<'JSON'
 {
@@ -294,6 +298,13 @@ cat > "$codex_mcp" <<'JSON'
 ]
 JSON
 "$SYNC" --quiet mcp-check
+mv "${stub_dir}/codex" "${stub_dir}/codex.disabled"
+if "$SYNC" --quiet mcp-check > "${tmp_dir}/missing-codex.log" 2>&1; then
+    fail "mcp-check ignored missing required Codex CLI"
+fi
+grep -F 'Required codex CLI missing' "${tmp_dir}/missing-codex.log" >/dev/null || \
+    fail "mcp-check did not explain the missing Codex CLI"
+mv "${stub_dir}/codex.disabled" "${stub_dir}/codex"
 jq '.mcpServers.extra = {url: "https://extra.test/mcp"}' \
     "$kimi_config" > "${tmp_dir}/kimi-extra.json"
 mv "${tmp_dir}/kimi-extra.json" "$kimi_config"

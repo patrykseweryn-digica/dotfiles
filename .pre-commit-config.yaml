@@ -44,6 +44,21 @@ repos:
         entry: ./scripts/smoke-install-dotfiles.sh
         language: system
         pass_filenames: false
+      - id: git-sync-smoke
+        name: Dotfiles dual-remote Git sync smoke test
+        entry: bash scripts/smoke-git-sync.sh
+        language: system
+        pass_filenames: false
+      - id: node-smoke
+        name: Pinned Node bootstrap smoke test
+        entry: bash scripts/smoke-node.sh
+        language: system
+        pass_filenames: false
+      - id: herdr-hook-smoke
+        name: Portable Herdr hook smoke test
+        entry: bash scripts/smoke-herdr-hook.sh
+        language: system
+        pass_filenames: false
       - id: ssh-config-smoke
         name: SSH config smoke test
         description: >-
@@ -64,6 +79,11 @@ repos:
         name: Codex plugin sync smoke test
         description: Ensure Codex remote plugin drift and export stay symmetric
         entry: ./scripts/smoke-codex-plugin-sync.sh
+        language: system
+        pass_filenames: false
+      - id: codex-settings-smoke
+        name: Codex TOML settings smoke test
+        entry: uv run --no-project --script scripts/smoke-codex-settings.py
         language: system
         pass_filenames: false
       - id: claude-plugin-sync-smoke

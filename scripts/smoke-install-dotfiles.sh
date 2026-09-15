@@ -10,6 +10,16 @@ fail() {
 
 JQ_BIN="$(command -v jq 2>/dev/null || true)"
 [ -n "$JQ_BIN" ] || fail "jq is required"
+UV_BIN="$(command -v uv)"
+export UV_CACHE_DIR="${UV_CACHE_DIR:-$(uv cache dir)}"
+# Runtime overrides must never escape the temporary HOME used by each case.
+unset CODEX_HOME CODEX_CONFIG CODEX_SETTINGS_TEMPLATE CODEX_PLUGIN_MANIFEST
+unset CODEX_REMOTE_PLUGIN_CACHE CODEX_PLUGIN_LIST_FILE CODEX_MARKETPLACE_LIST_FILE
+unset CLAUDE_SETTINGS_FILE CLAUDE_USER_CONFIG CLAUDE_TEMPLATE_FILE CLAUDE_MANIFEST
+unset OPENCODE_CONFIG_DIR OPENCODE_CONFIG KIMI_CODE_HOME KIMI_MCP_CONFIG
+unset PI_CODING_AGENT_DIR PI_SETTINGS_FILE PI_SKILLS_DIR PI_MCP_CONFIG
+unset PI_SETTINGS_TEMPLATE PI_AGENTS_SOURCE SKILL_LOCK_LIVE SKILLS_CLI
+unset PLUGIN_MANIFEST MCP_SERVERS SKILL_LOCK_REPO SHARED_SKILLS_CUSTOM_DIR
 
 smoke_source_has_no_home_side_effect() {
     local tmp_dir
@@ -90,6 +100,7 @@ smoke_tmux_plugins_install_after_setup_dotfiles() {
 
     mkdir -p "${home_dir}/.tmux/plugins/tpm/bin" "$stub_dir"
     ln -s "$JQ_BIN" "${stub_dir}/jq"
+    ln -s "$UV_BIN" "${stub_dir}/uv"
     : >"$npx_log"
     : >"$tmux_log"
 
@@ -117,6 +128,12 @@ STUB
         export WORK_EMAIL="work@example.com"
         export EDITOR="vim"
         export CODEX_HOME="${HOME}/.codex"
+        export CODEX_PLUGIN_MANIFEST="${tmp_dir}/codex-plugins.json"
+        printf '{"plugins":{},"marketplaces":{},"codexPlugins":[]}\n' >"$CODEX_PLUGIN_MANIFEST"
+        export CODEX_PLUGIN_LIST_FILE="${tmp_dir}/codex-plugin-state.json"
+        export CODEX_MARKETPLACE_LIST_FILE="${tmp_dir}/codex-marketplace-state.json"
+        printf '{"installed":[]}\n' >"$CODEX_PLUGIN_LIST_FILE"
+        printf '{"marketplaces":[]}\n' >"$CODEX_MARKETPLACE_LIST_FILE"
         export OPENCODE_CONFIG_DIR="${HOME}/.config/opencode"
         export OPENCODE_CONFIG="${OPENCODE_CONFIG_DIR}/opencode.json"
         export DOTFILES_SKIP_SSH=true
@@ -132,7 +149,8 @@ STUB
         export IS_MACOS=false
         export IS_LINUX=true
 
-        setup_dotfiles >/dev/null 2>&1
+        trap 'if [ "$?" -ne 0 ]; then cat "${tmp_dir}/setup.log" >&2; fi' EXIT
+        setup_dotfiles >"${tmp_dir}/setup.log" 2>&1
         install_tmux_plugins >/dev/null 2>&1
     )
 
@@ -227,6 +245,7 @@ run_case() {
 
     mkdir -p "$home_dir" "$stub_dir"
     ln -s "$JQ_BIN" "${stub_dir}/jq"
+    ln -s "$UV_BIN" "${stub_dir}/uv"
     : >"$npx_log"
     : >"$pi_log"
     mkdir -p "${home_dir}/.pi/agent"
@@ -257,6 +276,12 @@ STUB
         export WORK_EMAIL="work@example.com"
         export EDITOR="vim"
         export CODEX_HOME="${HOME}/.codex"
+        export CODEX_PLUGIN_MANIFEST="${tmp_dir}/codex-plugins.json"
+        printf '{"plugins":{},"marketplaces":{},"codexPlugins":[]}\n' >"$CODEX_PLUGIN_MANIFEST"
+        export CODEX_PLUGIN_LIST_FILE="${tmp_dir}/codex-plugin-state.json"
+        export CODEX_MARKETPLACE_LIST_FILE="${tmp_dir}/codex-marketplace-state.json"
+        printf '{"installed":[]}\n' >"$CODEX_PLUGIN_LIST_FILE"
+        printf '{"marketplaces":[]}\n' >"$CODEX_MARKETPLACE_LIST_FILE"
         export OPENCODE_CONFIG_DIR="${HOME}/.config/opencode"
         export OPENCODE_CONFIG="${OPENCODE_CONFIG_DIR}/opencode.json"
         export DOTFILES_SKIP_SSH=true
@@ -277,6 +302,7 @@ STUB
             export IS_LINUX=true
         fi
 
+        trap 'if [ "$?" -ne 0 ]; then cat "$sync_log" >&2; fi' EXIT
         setup_dotfiles >"$sync_log" 2>&1
     )
 
@@ -321,6 +347,55 @@ STUB
     rm -rf "$tmp_dir"
 }
 
+smoke_node_activation_before_tools() {
+    local task_dir outcome
+    task_dir="$(mktemp -d)"
+    mkdir -p "${task_dir}/fixture/scripts" "${task_dir}/node/bin"
+    printf '#!/bin/sh\nprintf "configured-node\\n"\n' >"${task_dir}/node/bin/node"
+    cat >"${task_dir}/fixture/scripts/agent-tools.sh" <<'STUB'
+#!/bin/sh
+[ "$(node --version)" = configured-node ] || exit 42
+printf 'installed\n' >"$TOOLS_INSTALLED"
+STUB
+    chmod +x "${task_dir}/node/bin/node" "${task_dir}/fixture/scripts/agent-tools.sh"
+
+    for outcome in success failure; do
+        rm -f "${task_dir}/installed"
+        (
+            export HOME="${task_dir}/home"
+            export TOOLS_INSTALLED="${task_dir}/installed"
+            # shellcheck source=/dev/null
+            source "${DOTFILES_DIR}/install.sh"
+            export DOTFILES_DIR="${task_dir}/fixture"
+            load_env() { :; }
+            setup_repo_git() { :; }
+            setup_dotfiles() { :; }
+            install_uv() { :; }
+            install_zsh() { :; }
+            install_oh_my_zsh() { :; }
+            install_pipx() { :; }
+            install_tools() { :; }
+            install_fonts() { :; }
+            install_terminal_colors() { :; }
+            install_macos_apps() { :; }
+            install_tmux_plugins() { :; }
+            pre-commit() { return 1; }
+            install_nvm() { [ "$outcome" = success ]; }
+            activate_node() { export PATH="${task_dir}/node/bin:$PATH"; }
+            main
+        ) >"${task_dir}/${outcome}.log" 2>&1 && {
+            [ "$outcome" = success ] || fail "Node failure did not stop installation"
+        }
+        if [ "$outcome" = success ]; then
+            [ -f "${task_dir}/installed" ] || fail "tools did not use activated Node"
+        else
+            [ ! -f "${task_dir}/installed" ] || fail "tools ran after Node failure"
+        fi
+    done
+    rm -rf "$task_dir"
+}
+
+smoke_node_activation_before_tools
 smoke_source_has_no_home_side_effect
 smoke_run_steps_preserve_errexit
 smoke_tmux_plugins_install_after_setup_dotfiles

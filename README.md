@@ -56,23 +56,46 @@ Pi retains `pi-mcporter` for the existing MCP inventory and `pi-mcp-adapter`
 for the used scripting/OAuth UI surface. See [Pi configuration](config/pi/README.md)
 for the audit, theme, title lifecycle, compaction and live-test results.
 
-## Agent tool versions
+## Developer tool versions
 
-`.agents/tool-versions.json` pins tools except Pi. Explicit install/update
-resolves Pi from npm `latest`; startup does not install a newer Pi. Reports
-also resolve `latest` and fail explicitly when the registry is unavailable.
-Other tools keep exact committed versions; update resolves their channels
-and writes new pins.
+`.nvmrc` declares the exact Node version. Setup installs it before developer
+CLIs and activates it for their installation. Repeated setup reuses that
+version; `just doctor` checks the Node active in the current shell.
+
+`.agents/tool-versions.json` declares developer CLIs. A `version` pins a
+tool; without it, `channel: "latest"` explicitly opts into current releases.
+Installation restores pins, while `just update-agent-tools` updates them.
+Pi and the existing unpinned npm tools keep their `latest` policy. Reports
+resolve npm `latest` and fail explicitly when the registry is unavailable.
+Native latest installers resolve their own releases; their report checks
+installed availability, not whether a newer release exists.
 
 ```bash
-just agent-versions      # compare with pins (Pi: current npm latest)
+just agent-versions      # compare developer tools with their version policies
 just update-agent-tools  # resolve channels, pin versions, install tools
 ```
 
 Pi, Codex, OpenCode, and the skill manager use global npm packages. Claude
-Code uses Anthropic's native installer with an exact version. `just install`
-installs the committed versions (Pi: `@latest`). Configuration commands
-such as `just push` never resolve channels or update tool versions.
+Code uses Anthropic's native installer with an exact version. Configuration
+commands such as `just push` never resolve channels or update tool versions.
+
+To add an npm CLI, add one entry to the manifest:
+
+```json
+{
+  "name": "Example",
+  "command": "example",
+  "package": "example-cli",
+  "installer": "npm",
+  "channel": "latest",
+  "version": "1.2.3"
+}
+```
+
+Install, report, check and update discover the entry automatically. Omit
+`version` only when you deliberately want `latest`. A tool needing a new
+native installer uses a small bootstrap function and a corresponding
+installer case and validation entry in the existing tool script.
 
 `config/pi/settings.json` owns Pi's stable provider, model, thinking level, and
 pinned package list. Install keeps `auth.json`, sessions, `trust.json`, and
@@ -88,8 +111,13 @@ with `CLAUDE.md` linking to it for Claude. Shared skills are linked into
 `~/.pi/agent/skills/`.
 
 `config/codex/settings.toml` owns portable Codex settings; project trust,
-notices, and hook hashes stay local. Claude settings come from
-`config/claude/`.
+notices, and hook hashes stay local. Codex synchronization requires `uv`;
+its TOML parser dependency is pinned in `scripts/codex-toml.py`.
+Comparison uses TOML values, so formatting changes do not cause drift.
+Pull imports only keys declared in the template, including nested keys.
+Declare a new portable setting there before importing its live value.
+Claude settings come from `config/claude/`. Missing required configuration
+causes `just doctor` to fail and print the corresponding install command.
 
 ## Setup commands
 
@@ -99,14 +127,48 @@ just update-dotfiles  # existing machine: links + agents, no tools, no SSH
 just setup-ssh        # explicit SSH key/config setup
 ```
 
-`just install` also installs Herdr, Treehouse, and no-mistakes from their
-official latest-release installers, plus `gnhf@latest`, `backpass@latest`,
-`lavish-axi@latest`, `gh-axi@latest`, `chrome-devtools-axi@latest`,
-`tasks-axi@latest`, `quota-axi@latest`, and `acpx@latest` (required by backpass)
-globally via npm.
-These tools are not pinned; rerunning install refreshes them. Native commands
-use `~/.local/bin`; no-mistakes keeps its binary in `~/.no-mistakes/bin`
-and restarts its daemon. No repository gates or agent hooks are configured.
+Herdr, Treehouse and no-mistakes use official latest-release installers
+selected by the tool manifest. Native commands use `~/.local/bin`;
+no-mistakes keeps its binary in `~/.no-mistakes/bin` and restarts its daemon.
+Herdr installation also installs its Claude hook through the built-in
+integration command. The hook resolves its script relative to `$HOME`.
+Doctor checks that an enabled hook has a readable script; a disabled hook
+is reported as SKIP.
+
+## Synchronizing Git remotes
+
+This checkout uses `origin` for `p-severin/dotfiles` and `work` for
+`patrykseweryn-digica/dotfiles`. On a fresh clone, inspect `git remote -v`
+and add whichever remote is missing, using the appropriate SSH identity:
+
+```bash
+git remote add origin git@github-personal:p-severin/dotfiles.git
+git remote add work git@github-work:patrykseweryn-digica/dotfiles.git
+```
+
+`just install` and `just update-dotfiles` configure merges for pulls in
+this checkout. Other repositories retain the global rebase preference.
+With a clean working tree, combine both published histories, then push:
+
+```bash
+git switch master
+git fetch origin
+git fetch work
+git merge origin/master
+git merge work/master
+git push origin HEAD:master
+git push work HEAD:master
+git rev-parse HEAD
+git ls-remote origin refs/heads/master
+git ls-remote work refs/heads/master
+```
+
+Resolve and commit any merge conflicts before continuing. All three SHAs
+should match. If only one push succeeds, fix the connection and retry the
+other. If a remote advanced, fetch it, merge its master, then push the new
+HEAD to both again. These are ordinary fast-forward pushes; published
+commits stay in history. Configuration sync with `just push` is separate
+from Git publication.
 
 ## What is what
 

@@ -3,6 +3,7 @@
     {
       "channel": "latest",
       "command": "pi",
+      "ignore_scripts": true,
       "installer": "npm",
       "name": "Pi",
       "package": "@earendil-works/pi-coding-agent"
@@ -38,6 +39,87 @@
       "name": "Skill manager",
       "package": "skills",
       "version": "1.5.23"
+    },
+    {
+      "channel": "latest",
+      "command": "summarize",
+      "installer": "npm",
+      "name": "Summarize",
+      "package": "@steipete/summarize"
+    },
+    {
+      "channel": "latest",
+      "command": "gnhf",
+      "installer": "npm",
+      "name": "gnhf",
+      "package": "gnhf"
+    },
+    {
+      "channel": "latest",
+      "command": "acpx",
+      "installer": "npm",
+      "name": "acpx",
+      "package": "acpx"
+    },
+    {
+      "channel": "latest",
+      "command": "backpass",
+      "installer": "npm",
+      "name": "Backpass",
+      "package": "backpass"
+    },
+    {
+      "channel": "latest",
+      "command": "lavish-axi",
+      "installer": "npm",
+      "name": "Lavish AXI",
+      "package": "lavish-axi"
+    },
+    {
+      "channel": "latest",
+      "command": "gh-axi",
+      "installer": "npm",
+      "name": "GitHub AXI",
+      "package": "gh-axi"
+    },
+    {
+      "channel": "latest",
+      "command": "chrome-devtools-axi",
+      "installer": "npm",
+      "name": "Chrome DevTools AXI",
+      "package": "chrome-devtools-axi"
+    },
+    {
+      "channel": "latest",
+      "command": "tasks-axi",
+      "installer": "npm",
+      "name": "Tasks AXI",
+      "package": "tasks-axi"
+    },
+    {
+      "channel": "latest",
+      "command": "quota-axi",
+      "installer": "npm",
+      "name": "Quota AXI",
+      "package": "quota-axi"
+    },
+    {
+      "channel": "latest",
+      "command": "herdr",
+      "installer": "herdr-native",
+      "name": "Herdr"
+    },
+    {
+      "channel": "latest",
+      "command": "treehouse",
+      "installer": "treehouse-native",
+      "name": "Treehouse"
+    },
+    {
+      "channel": "latest",
+      "command": "no-mistakes",
+      "installer": "no-mistakes-native",
+      "name": "no-mistakes"
     }
   ]
 }

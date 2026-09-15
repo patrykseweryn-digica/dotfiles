@@ -41,8 +41,6 @@ SKILL_LOCK_LIVE="${SKILL_LOCK_LIVE:-${HOME}/.agents/.skill-lock.json}"
 SKILLS_CLI="${SKILLS_CLI:-skills}"
 
 QUIET=false
-MANAGED_START="# dotfiles-managed-mcp-start"
-MANAGED_END="# dotfiles-managed-mcp-end"
 
 if ! command -v jq >/dev/null 2>&1; then
     echo "[ERROR] jq is required but not installed" >&2
@@ -82,6 +80,16 @@ fi
 log_info() {
     [ "$QUIET" = true ] && return
     echo "[INFO] $*"
+}
+
+validate_json_config() {
+    local config="$1" repair="$2"
+    if ! jq -e -s 'length == 1 and (.[0] | type == "object")' \
+        "$config" >/dev/null 2>&1; then
+        echo "[ERROR] Invalid JSON config; expected exactly one object: $config" >&2
+        echo "Run: ./sync-agents.sh $repair" >&2
+        return 1
+    fi
 }
 
 skill_runtime_rows() {
@@ -456,7 +464,10 @@ normalize_mcp_inventory() {
 }
 
 collect_codex_mcp() {
-    command -v codex >/dev/null 2>&1 || return 0
+    command -v codex >/dev/null 2>&1 || {
+        echo "[ERROR] Required codex CLI missing; run ./install.sh" >&2
+        return 1
+    }
 
     local raw
     raw="$(mktemp)"
@@ -712,7 +723,26 @@ cmd_pull_mcp() {
 }
 
 cmd_mcp_check() {
-    local rows wanted actual runtime failed=false
+    local rows wanted actual runtime config failed=false
+    while IFS='|' read -r runtime config; do
+        if [ ! -f "$config" ]; then
+            echo "[ERROR] ${runtime} MCP config missing: $config" >&2
+            failed=true
+        elif [ "$runtime" != codex ]; then
+            validate_json_config "$config" push-mcp || failed=true
+        fi
+    done <<EOF
+codex|$CODEX_CONFIG
+claude|$CLAUDE_USER_CONFIG
+opencode|$OPENCODE_CONFIG
+kimi|$KIMI_MCP_CONFIG
+pi|$PI_MCP_CONFIG
+EOF
+    if [ "$failed" = true ]; then
+        echo "Run: ./sync-agents.sh push-mcp" >&2
+        return 1
+    fi
+
     rows="$(mktemp)"
     wanted="$(mktemp)"
     collect_mcp_rows >"$rows" || {
@@ -741,201 +771,23 @@ cmd_mcp_check() {
             failed=true
         fi
         rm -f "$actual"
-    done < <(available_mcp_runtimes)
+    done < <(printf '%s\n' codex claude opencode kimi pi)
 
     rm -f "$rows" "$wanted"
+    [ "$failed" = false ] || echo "Run: ./sync-agents.sh push-mcp" >&2
     [ "$failed" = false ]
 }
 
-render_codex_mcp_block() {
-    {
-        echo "$MANAGED_START"
-        jq -r '
-          to_entries[]
-          | .key as $name
-          | .value as $server
-          | "[mcp_servers.\($name)]",
-            (if $server.type == "http" then
-                "url = \($server.url | @json)"
-             else
-                "command = \($server.command | @json)\nargs = \($server.args // [] | @json)"
-             end),
-            (if (($server.env? // null) | type) == "object" and (($server.env // {}) | length) > 0 then
-                "[mcp_servers.\($name).env]\n" + (
-                    $server.env
-                    | to_entries
-                    | map("\(.key) = \(.value | tostring | @json)")
-                    | join("\n")
-                )
-             else
-                empty
-             end),
-            ""
-        ' "$MCP_SERVERS"
-        echo "$MANAGED_END"
+codex_toml() {
+    local action="$1"
+    shift
+    command -v uv >/dev/null 2>&1 || {
+        echo "[ERROR] uv is required for Codex settings; run ./install.sh" >&2
+        return 1
     }
-}
-
-strip_codex_managed_mcp() {
-    local source_file="$1"
-    local names
-    names="$(jq -r 'keys | join(" ")' "$MCP_SERVERS")"
-
-    [ -f "$source_file" ] || return 0
-
-    awk -v start="$MANAGED_START" -v end="$MANAGED_END" -v names="$names" '
-        BEGIN {
-            split(names, managed_names, " ")
-            in_managed_block = 0
-            skip_table = 0
-        }
-
-        function is_managed_header(line, i, exact, prefix) {
-            for (i in managed_names) {
-                exact = "[mcp_servers." managed_names[i] "]"
-                prefix = "[mcp_servers." managed_names[i] "."
-                if (line == exact || index(line, prefix) == 1) {
-                    return 1
-                }
-            }
-            return 0
-        }
-
-        $0 == start { in_managed_block = 1; next }
-        $0 == end { in_managed_block = 0; next }
-        in_managed_block { next }
-
-        /^\[/ {
-            skip_table = is_managed_header($0)
-        }
-
-        !skip_table { print }
-    ' "$source_file"
-}
-
-codex_managed_root_keys() {
-    awk '
-        /^\[/ { exit }
-        /^[A-Za-z0-9_-]+[[:space:]]*=/ {
-            sub(/[[:space:]]*=.*/, "")
-            printf "%s ", $0
-        }
-    ' "$CODEX_SETTINGS_TEMPLATE"
-}
-
-codex_managed_sections() {
-    awk '
-        /^\[[^]]+\]$/ {
-            line = $0
-            sub(/^\[/, "", line)
-            sub(/\]$/, "", line)
-            printf "%s ", line
-        }
-    ' "$CODEX_SETTINGS_TEMPLATE"
-}
-
-strip_codex_managed_settings() {
-    local source_file="$1"
-    local root_keys sections
-
-    root_keys="$(codex_managed_root_keys)"
-    sections="$(codex_managed_sections)"
-
-    [ -f "$source_file" ] || return 0
-
-    awk -v root_keys="$root_keys" -v sections="$sections" '
-        BEGIN {
-            split(root_keys, root_key)
-            split(sections, managed_section)
-            root = 1
-            skip = 0
-        }
-
-        function listed(value, values, i) {
-            for (i in values) {
-                if (values[i] == value) return 1
-            }
-            return 0
-        }
-
-        /^\[[^]]+\]$/ {
-            root = 0
-            section = $0
-            sub(/^\[/, "", section)
-            sub(/\]$/, "", section)
-            skip = listed(section, managed_section)
-            if (!skip) print
-            next
-        }
-
-        skip { next }
-
-        root && /^[A-Za-z0-9_-]+[[:space:]]*=/ {
-            key = $0
-            sub(/[[:space:]]*=.*/, "", key)
-            if (listed(key, root_key)) next
-        }
-
-        { print }
-    ' "$source_file"
-}
-
-render_codex_settings_from_live() {
-    local source_file="$1"
-    local target_file="$2"
-    local root_keys sections raw
-
-    root_keys="$(codex_managed_root_keys)"
-    sections="$(codex_managed_sections)"
-    raw="$(mktemp)"
-
-    awk -v root_keys="$root_keys" -v sections="$sections" '
-        BEGIN {
-            split(root_keys, root_key)
-            split(sections, managed_section)
-            root = 1
-            selected = 0
-        }
-
-        function listed(value, values, i) {
-            for (i in values) {
-                if (values[i] == value) return 1
-            }
-            return 0
-        }
-
-        /^\[[^]]+\]$/ {
-            root = 0
-            section = $0
-            sub(/^\[/, "", section)
-            sub(/\]$/, "", section)
-            selected = listed(section, managed_section)
-            if (selected) print
-            next
-        }
-
-        selected { print; next }
-
-        root && /^[A-Za-z0-9_-]+[[:space:]]*=/ {
-            key = $0
-            sub(/[[:space:]]*=.*/, "", key)
-            if (listed(key, root_key)) print
-        }
-    ' "$source_file" >"$raw"
-
-    awk '
-        /^\[/ {
-            if (seen) print ""
-            print
-            seen = 1
-            next
-        }
-        NF {
-            print
-            seen = 1
-        }
-    ' "$raw" >"$target_file"
-    rm -f "$raw"
+    uv run --quiet --no-project --script \
+        "${DOTFILES_DIR}/scripts/codex-toml.py" \
+        "$action" "$CODEX_CONFIG" "$CODEX_SETTINGS_TEMPLATE" "$MCP_SERVERS" "$@"
 }
 
 cmd_pull_codex_settings() {
@@ -944,12 +796,12 @@ cmd_pull_codex_settings() {
         return 1
     }
 
-    local candidate without_mcp reply
-    candidate="$(mktemp)"
-    without_mcp="$(mktemp)"
-    strip_codex_managed_mcp "$CODEX_CONFIG" >"$without_mcp"
-    render_codex_settings_from_live "$without_mcp" "$candidate"
-    rm -f "$without_mcp"
+    local candidate reply
+    candidate="$(mktemp "${CODEX_SETTINGS_TEMPLATE}.XXXXXX")"
+    codex_toml import "$candidate" || {
+        rm -f "$candidate"
+        return 1
+    }
     if cmp -s "$CODEX_SETTINGS_TEMPLATE" "$candidate"; then
         rm -f "$candidate"
         log_info "Codex settings already match live state"
@@ -972,96 +824,24 @@ cmd_pull_codex_settings() {
     esac
 }
 
-render_codex_config() {
-    local source_file="$1"
-    local target_file="$2"
-    local without_mcp stripped combined block
-
-    without_mcp="$(mktemp)"
-    stripped="$(mktemp)"
-    combined="$(mktemp)"
-    block="$(mktemp)"
-    strip_codex_managed_mcp "$source_file" >"$without_mcp"
-    strip_codex_managed_settings "$without_mcp" >"$stripped"
-    render_codex_mcp_block >"$block"
-
-    cat "$CODEX_SETTINGS_TEMPLATE" >"$combined"
-    printf '\n\n' >>"$combined"
-    cat "$stripped" >>"$combined"
-    printf '\n\n' >>"$combined"
-    cat "$block" >>"$combined"
-
-    awk '
-        NF {
-            if (seen && blank) print ""
-            print
-            seen = 1
-            blank = 0
-            next
-        }
-        { blank = 1 }
-    ' "$combined" >"$target_file"
-
-    rm -f "$without_mcp" "$stripped" "$combined" "$block"
-}
-
 sync_codex_mcp_config() {
-    mkdir -p "$CODEX_HOME"
-
-    local tmp
-    tmp="$(mktemp)"
-    render_codex_config "$CODEX_CONFIG" "$tmp"
-
-    if [ -f "$CODEX_CONFIG" ] && cmp -s "$tmp" "$CODEX_CONFIG"; then
-        rm -f "$tmp"
-        log_info "Codex config already in sync"
-    else
-        mv "$tmp" "$CODEX_CONFIG"
-        log_info "Wrote $CODEX_CONFIG"
-    fi
+    codex_toml install
 }
 
 cmd_codex_install() {
     log_info "Installing Codex agent config..."
-    mkdir -p "$CODEX_HOME"
+    sync_codex_mcp_config || return 1
     link_file "$CODEX_AGENTS_SOURCE" "$CODEX_AGENTS_FILE"
-    sync_codex_mcp_config
-}
-
-normalize_codex_config_for_check() {
-    awk '
-        /^(model|model_reasoning_effort)[[:space:]]*=/ { next }
-        { print }
-    ' "$1"
 }
 
 cmd_codex_check() {
-    local expected current_check expected_check
-
-    if [ ! -f "$CODEX_CONFIG" ]; then
-        log_info "No Codex config found; skipping drift check"
-        return 0
-    fi
-
-    expected="$(mktemp)"
-    current_check="$(mktemp)"
-    expected_check="$(mktemp)"
-    render_codex_config "$CODEX_CONFIG" "$expected"
-    normalize_codex_config_for_check "$CODEX_CONFIG" >"$current_check"
-    normalize_codex_config_for_check "$expected" >"$expected_check"
-
-    if cmp -s "$current_check" "$expected_check"; then
-        rm -f "$expected" "$current_check" "$expected_check"
-        log_info "Codex config in sync"
-        return 0
-    fi
-
-    echo "[ERROR] Codex config drift detected: $CODEX_CONFIG" >&2
-    echo "Keep live: ./sync-agents.sh pull-codex-settings" >&2
-    echo "Keep repository: ./sync-agents.sh codex-install" >&2
-    diff -u "$current_check" "$expected_check" >&2 || true
-    rm -f "$expected" "$current_check" "$expected_check"
-    return 1
+    [ -f "$CODEX_CONFIG" ] || {
+        echo "[ERROR] Required Codex config missing: $CODEX_CONFIG" >&2
+        echo "Run: ./sync-agents.sh codex-install" >&2
+        return 1
+    }
+    codex_toml check || return 1
+    log_info "Codex config in sync"
 }
 
 validate_plugin_manifest() {
@@ -1151,11 +931,6 @@ claude_plugin_state_available() {
 
 cmd_codex_remote_plugins_check() {
     validate_plugin_manifest "$CODEX_PLUGIN_MANIFEST" || return 1
-
-    if ! codex_remote_plugin_state_available; then
-        log_info "No Codex remote plugin state found; skipping drift check"
-        return 0
-    fi
 
     local live wanted missing extra
     live="$(mktemp)"
@@ -1328,8 +1103,9 @@ render_codex_marketplaces() {
 
 cmd_codex_marketplace_plugins_check() {
     codex_marketplace_plugin_state_available || {
-        log_info "No Codex marketplace plugin state found; skipping drift check"
-        return 0
+        echo "[ERROR] Required Codex marketplace plugin state missing" >&2
+        echo "Run: ./install.sh, then just push-plugins" >&2
+        return 1
     }
 
     local live_plugins live_marketplaces wanted_plugins wanted_marketplaces
@@ -1554,9 +1330,11 @@ cmd_opencode_check() {
     local tmp
 
     if [ ! -f "$OPENCODE_CONFIG" ]; then
-        log_info "No OpenCode config found; skipping drift check"
-        return 0
+        echo "[ERROR] OpenCode config missing: $OPENCODE_CONFIG" >&2
+        echo "Run: ./sync-agents.sh opencode-install" >&2
+        return 1
     fi
+    validate_json_config "$OPENCODE_CONFIG" opencode-install || return 1
 
     tmp="$(mktemp)"
     render_opencode_config "$OPENCODE_CONFIG" "$tmp"
@@ -1757,9 +1535,11 @@ cmd_kimi_check() {
     local tmp
 
     if [ ! -f "$KIMI_MCP_CONFIG" ]; then
-        log_info "No Kimi MCP config found; skipping drift check"
-        return 0
+        echo "[ERROR] Kimi MCP config missing: $KIMI_MCP_CONFIG" >&2
+        echo "Run: ./sync-agents.sh kimi-install" >&2
+        return 1
     fi
+    validate_json_config "$KIMI_MCP_CONFIG" kimi-install || return 1
 
     tmp="$(mktemp)"
     render_kimi_config "$KIMI_MCP_CONFIG" "$tmp"
@@ -1803,9 +1583,11 @@ render_claude_settings() {
 
 cmd_claude_settings_check() {
     if [ ! -f "$CLAUDE_SETTINGS_FILE" ]; then
-        log_info "No $CLAUDE_SETTINGS_FILE yet; skipping drift check"
-        return 0
+        echo "[ERROR] Claude settings missing: $CLAUDE_SETTINGS_FILE" >&2
+        echo "Run: ./sync-agents.sh claude-install" >&2
+        return 1
     fi
+    validate_json_config "$CLAUDE_SETTINGS_FILE" claude-install || return 1
 
     local expected
     expected="$(mktemp)"
@@ -1821,6 +1603,7 @@ cmd_claude_settings_check() {
     fi
 
     echo "[ERROR] Claude settings drift detected: $CLAUDE_SETTINGS_FILE" >&2
+    echo "Run: ./sync-agents.sh claude-install" >&2
     diff -u "$expected" "$CLAUDE_SETTINGS_FILE" >&2 || true
     rm -f "$expected"
     return 1
@@ -1971,7 +1754,22 @@ cmd_claude_plugins_export() {
     local installed_json="${HOME}/.claude/plugins/installed_plugins.json"
     local known_mp="${HOME}/.claude/plugins/known_marketplaces.json"
 
-    if ! claude_plugin_state_available "$installed_json"; then
+    if [ "$check_only" = true ]; then
+        if [ ! -f "$installed_json" ] && jq -e \
+            'any(.plugins[]; .claude != null)' "$CLAUDE_MANIFEST" >/dev/null; then
+            echo "[ERROR] Claude plugin state missing: $installed_json" >&2
+            echo "Run: ./sync-agents.sh push-plugins" >&2
+            return 1
+        fi
+        if [ ! -f "$known_mp" ] && jq -e \
+            '.marketplaces | length > 0' "$CLAUDE_MANIFEST" >/dev/null; then
+            echo "[ERROR] Claude marketplace state missing: $known_mp" >&2
+            echo "Run: ./sync-agents.sh push-plugins" >&2
+            return 1
+        fi
+    fi
+
+    if [ "$check_only" != true ] && ! claude_plugin_state_available "$installed_json"; then
         log_info "No installed_plugins.json found, nothing to export"
         return 0
     fi
@@ -2695,8 +2493,10 @@ cmd_pi_install() {
 cmd_pi_check() {
     [ -f "$PI_SETTINGS_FILE" ] || {
         echo "[ERROR] Pi settings missing: $PI_SETTINGS_FILE" >&2
+        echo "Run: ./sync-agents.sh pi-install" >&2
         return 1
     }
+    validate_json_config "$PI_SETTINGS_FILE" pi-install || return 1
 
     local tmp package failed=false
     pi_resources check || failed=true

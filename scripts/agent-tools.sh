@@ -8,25 +8,31 @@ CLAUDE_INSTALL_URL="${CLAUDE_INSTALL_URL:-https://claude.ai/install.sh}"
 
 validate_manifest() {
     jq -e '
-        (.tools | type) == "array" and
-        (.tools | length) > 0 and
+        def semver: type == "string" and
+            test("^[0-9]+\\.[0-9]+\\.[0-9]+(-[0-9A-Za-z.-]+)?(\\+[0-9A-Za-z.-]+)?$");
+        (.tools | type) == "array" and (.tools | length) > 0 and
         all(.tools[];
-            (.name | type) == "string" and
-            (.command | type) == "string" and
-            (.package | type) == "string" and
-            (.channel | type) == "string" and
-            (if .command == "pi" then
-                .channel == "latest" and .installer == "npm" and
-                (has("version") | not)
+            (.name | type == "string" and test("^[^\\t\\r\\n]+$")) and
+            (.command | type == "string" and test("^[a-zA-Z0-9][a-zA-Z0-9._-]*$")) and
+            .channel == "latest" and
+            (if has("version") then (.version | semver) else true end) and
+            (if has("ignore_scripts") then
+                (.ignore_scripts | type) == "boolean" and .installer == "npm"
+             else true end) and
+            (if .installer == "npm" or .installer == "claude-native" then
+                (.package | type == "string" and
+                    test("^(@[a-z0-9._-]+/)?[a-z0-9][a-z0-9._-]*$"))
              else
-                (.version | test("^[0-9]+\\.[0-9]+\\.[0-9]+$"))
-             end) and
-            (.installer == "npm" or .installer == "claude-native")
+                (.installer == "herdr-native" or
+                 .installer == "treehouse-native" or
+                 .installer == "no-mistakes-native") and
+                (has("version") | not)
+             end)
         ) and
         (([.tools[].command] | length) ==
          ([.tools[].command] | unique | length)) and
-        (([.tools[].package] | length) ==
-         ([.tools[].package] | unique | length))
+        (([.tools[] | select(.package) | .package] | length) ==
+         ([.tools[] | select(.package) | .package] | unique | length))
     ' "$VERSIONS_FILE" >/dev/null || {
         echo "[ERROR] Invalid agent tool manifest: $VERSIONS_FILE" >&2
         return 1
@@ -35,22 +41,16 @@ validate_manifest() {
 
 tool_rows() {
     jq -r '.tools[] | [
-        .name,
-        .command,
-        .package,
-        .channel,
-        (.version // .channel),
-        .installer
+        .name, .command, (.package // .command),
+        (.version // .channel), .installer, (.ignore_scripts // false)
     ] | @tsv' "$VERSIONS_FILE"
 }
 
 installed_version() {
-    local command_name="$1"
-    local output
-
+    local command_name="$1" output
     command -v "$command_name" >/dev/null 2>&1 || return 1
     output=$("$command_name" --version 2>/dev/null) || return 1
-    if [[ "$output" =~ ([0-9]+\.[0-9]+\.[0-9]+) ]]; then
+    if [[ "$output" =~ ([0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?) ]]; then
         printf '%s\n' "${BASH_REMATCH[1]}"
         return 0
     fi
@@ -63,7 +63,7 @@ resolve_latest() {
         echo "[ERROR] Failed to resolve ${package}@latest" >&2
         return 1
     }
-    if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$ ]]; then
         echo "[ERROR] Invalid latest version for $package: $version" >&2
         return 1
     fi
@@ -71,18 +71,20 @@ resolve_latest() {
 }
 
 report_versions() {
-    local strict="$1"
-    local failed=false
-    local name command_name package channel expected installer current status
+    local strict="$1" failed=false
+    local name command_name package expected installer ignore_scripts current status
 
-    printf '%-16s %-12s %-12s %s\n' "Tool" "Installed" "Expected" "Status"
+    printf '%-20s %-12s %-12s %s\n' "Tool" "Installed" "Expected" "Status"
     while IFS=$'\t' read -r \
-        name command_name package channel expected installer; do
-        if [ "$command_name" = pi ]; then
+        name command_name package expected installer ignore_scripts; do
+        if [ "$expected" = latest ] && { [ "$installer" = npm ] || [ "$installer" = claude-native ]; }; then
             expected=$(resolve_latest "$package") || return 1
         fi
         if current=$(installed_version "$command_name"); then
-            if [ "$current" = "$expected" ]; then
+            if [ "$expected" = latest ]; then
+                # Native installers own latest resolution; check availability offline.
+                status="available (latest not checked)"
+            elif [ "$current" = "$expected" ]; then
                 status="ok"
             else
                 status="drift"
@@ -93,22 +95,25 @@ report_versions() {
             status="missing"
             failed=true
         fi
-        printf '%-16s %-12s %-12s %s\n' \
+        printf '%-20s %-12s %-12s %s\n' \
             "$name" "$current" "$expected" "$status"
     done < <(tool_rows)
 
     [ "$strict" = false ] || [ "$failed" = false ]
 }
 
-install_tools() {
-    local failed=false
-    local name command_name package channel expected installer current install_spec
+install_declared_tools() {
+    local failed=false script
+    local name command_name package expected installer ignore_scripts current install_spec
 
     while IFS=$'\t' read -r \
-        name command_name package channel expected installer; do
+        name command_name package expected installer ignore_scripts; do
         install_spec="${package}@${expected}"
-        if [ "$command_name" = pi ]; then
-            expected=$(resolve_latest "$package") || return 1
+        if [ "$expected" = latest ] && { [ "$installer" = npm ] || [ "$installer" = claude-native ]; }; then
+            expected=$(resolve_latest "$package") || {
+                failed=true
+                continue
+            }
         fi
         current="$(installed_version "$command_name" || true)"
         if [ "$current" = "$expected" ]; then
@@ -119,15 +124,30 @@ install_tools() {
         echo "[INFO] Installing $name $expected..."
         case "$installer" in
         npm)
-            if [ "$command_name" = pi ]; then
+            if [ "$ignore_scripts" = true ]; then
                 npm install -g --ignore-scripts "$install_spec" || failed=true
             else
                 npm install -g "$install_spec" || failed=true
             fi
             ;;
         claude-native)
-            curl -fsSL "$CLAUDE_INSTALL_URL" |
-                bash -s -- "$expected" || failed=true
+            script=$(curl -fsSL "$CLAUDE_INSTALL_URL") || {
+                failed=true
+                continue
+            }
+            bash -c "$script" -- "$expected" || failed=true
+            ;;
+        herdr-native | treehouse-native | no-mistakes-native)
+            # Reuse the existing, small native installers.
+            # shellcheck source=bootstrap.d/05-tools.sh
+            source "$DOTFILES_DIR/bootstrap.d/05-tools.sh"
+            BIN_DIR="${HOME}/.local/bin"
+            mkdir -p "$BIN_DIR"
+            case "$installer" in
+            herdr-native) install_herdr || failed=true ;;
+            treehouse-native) install_treehouse || failed=true ;;
+            no-mistakes-native) install_no_mistakes || failed=true ;;
+            esac
             ;;
         esac
     done < <(tool_rows)
@@ -137,27 +157,22 @@ install_tools() {
 
 update_tools() {
     local current next latest
-    local name command_name package channel expected installer
+    local name command_name package expected installer ignore_scripts
 
-    current="$(mktemp)"
+    current="$(mktemp "${VERSIONS_FILE}.XXXXXX")"
     cp "$VERSIONS_FILE" "$current"
 
     while IFS=$'\t' read -r \
-        name command_name package channel expected installer; do
-        [ "$command_name" != pi ] || continue
-        latest=$(npm view "${package}@${channel}" version) || {
+        name command_name package expected installer ignore_scripts; do
+        [ "$expected" != latest ] || continue
+        latest=$(resolve_latest "$package") || {
             rm -f "$current"
-            echo "[ERROR] Failed to resolve ${package}@${channel}" >&2
             return 1
         }
-        next="$(mktemp)"
-        jq -S --arg package "$package" --arg version "$latest" '
+        next="${current}.next"
+        jq -S --arg command "$command_name" --arg version "$latest" '
             .tools |= map(
-                if .package == $package then
-                    .version = $version
-                else
-                    .
-                end
+                if .command == $command then .version = $version else . end
             )
         ' "$current" >"$next"
         mv "$next" "$current"
@@ -170,22 +185,22 @@ update_tools() {
         mv "$current" "$VERSIONS_FILE"
         echo "[INFO] Updated $VERSIONS_FILE"
     fi
-    install_tools
+    install_declared_tools
 }
 
 validate_manifest
 case "${1:-}" in
-report)
-    report_versions false
-    ;;
-check)
-    report_versions true
-    ;;
-install)
-    install_tools
-    ;;
-update)
-    update_tools
+report) report_versions false ;;
+check) report_versions true ;;
+install | update)
+    # Also protect direct callers such as just update-agent-tools in old shells.
+    # shellcheck source=bootstrap.d/07-node.sh
+    source "$DOTFILES_DIR/bootstrap.d/07-node.sh"
+    activate_node || {
+        echo "[ERROR] Required Node unavailable; run install.sh before installing tools" >&2
+        exit 1
+    }
+    if [ "$1" = install ]; then install_declared_tools; else update_tools; fi
     ;;
 *)
     echo "Usage: $0 {report|check|install|update}" >&2

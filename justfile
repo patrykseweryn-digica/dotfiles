@@ -14,7 +14,7 @@ install:
 
 # Update dotfile links and agent config only. No tools, no SSH.
 update-dotfiles:
-    DOTFILES_SKIP_SSH=true bash -c 'source ./install.sh; load_env; setup_dotfiles'
+    DOTFILES_SKIP_SSH=true bash -c 'source ./install.sh; load_env; setup_repo_git; setup_dotfiles'
 
 # Run deterministic repository checks.
 check:
@@ -24,11 +24,11 @@ check:
 doctor:
     ./scripts/doctor.sh
 
-# Report installed and expected agent tool versions.
+# Report installed and expected developer tool versions.
 agent-versions:
     "{{ agent_tools }}" report
 
-# Resolve configured channels, update pins, and install agent tools.
+# Resolve configured channels, update pins, and install developer tools.
 update-agent-tools:
     "{{ agent_tools }}" update
 

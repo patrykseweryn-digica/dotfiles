@@ -4,6 +4,10 @@ set -eu
 DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 AGENT_TOOLS="${DOTFILES_DIR}/scripts/agent-tools.sh"
 JUST_BIN="$(command -v just)"
+REAL_NPM="$(command -v npm)"
+expected_node=$(cat "$DOTFILES_DIR/.nvmrc")
+REAL_NODE_BIN="${NVM_DIR:-$HOME/.nvm}/versions/node/v$expected_node/bin"
+[ -x "$REAL_NODE_BIN/node" ] || REAL_NODE_BIN="$(dirname "$(command -v node)")"
 
 fail() {
   echo "[ERROR] $*" >&2
@@ -17,7 +21,21 @@ manifest="${tmp_dir}/tool-versions.json"
 stub_dir="${tmp_dir}/stubs"
 npm_log="${tmp_dir}/npm.log"
 native_log="${tmp_dir}/native.log"
-mkdir -p "$stub_dir"
+mkdir -p "$stub_dir" "${tmp_dir}/home"
+export HOME="${tmp_dir}/home"
+export PS1=""
+# Model only nvm activation; execute the real required Node binary.
+export EXPECTED_NODE="$expected_node"
+node_bin="$HOME/.nvm/versions/node/v$expected_node/bin"
+mkdir -p "$node_bin"
+ln -s "$REAL_NODE_BIN/node" "$node_bin/node"
+cat >"$HOME/.nvm/nvm.sh" <<'STUB'
+nvm() {
+    [ "$1" = use ] && [ "$2" = --silent ] || return 1
+    [ -x "$NVM_DIR/versions/node/v$3/bin/node" ] || return 1
+    export PATH="$NVM_DIR/versions/node/v$3/bin:$PATH"
+}
+STUB
 
 cat >"$manifest" <<'JSON'
 {
@@ -26,6 +44,7 @@ cat >"$manifest" <<'JSON'
       "name": "Pi",
       "command": "pi",
       "package": "@example/pi",
+      "ignore_scripts": true,
       "channel": "latest",
       "installer": "npm"
     },
@@ -80,6 +99,7 @@ if [ "$1" = view ]; then
     [ "${REGISTRY_FAIL:-false}" = false ] || exit 1
     printf '%s\n' "${LATEST_VERSION:-1.2.3}"
 else
+    [ "$(node --version)" = "v$EXPECTED_NODE" ] || exit 90
     printf '%s\n' "$*" >> "$NPM_LOG"
 fi
 STUB
@@ -154,5 +174,148 @@ if grep -En 'agent-tools|npm view|@latest' \
   "${DOTFILES_DIR}/sync-agents.sh" >/dev/null; then
   fail "configuration push path can update agent tool versions"
 fi
+
+# Missing runtime prevents all writes; read-only reports do not activate nvm.
+mv "$HOME/.nvm/nvm.sh" "$HOME/.nvm/nvm.saved"
+: >"$npm_log"
+cp "$manifest" "$manifest.before"
+for action in install update; do
+  if "$AGENT_TOOLS" "$action" >"${tmp_dir}/node-error.log" 2>&1; then
+    fail "$action accepted missing required runtime"
+  fi
+done
+[ ! -s "$npm_log" ] || fail "npm ran without required Node"
+cmp "$manifest" "$manifest.before" || fail "runtime failure changed pins"
+LATEST_VERSION=2.0.0 "$AGENT_TOOLS" check >/dev/null
+mv "$HOME/.nvm/nvm.saved" "$HOME/.nvm/nvm.sh"
+
+# The three native declarations dispatch through the existing installers.
+cat >"$manifest" <<'JSON'
+{"tools":[
+ {"name":"Herdr","command":"herdr","installer":"herdr-native","channel":"latest"},
+ {"name":"Treehouse","command":"treehouse","installer":"treehouse-native","channel":"latest"},
+ {"name":"no-mistakes","command":"no-mistakes","installer":"no-mistakes-native","channel":"latest"}
+]}
+JSON
+cat >"$stub_dir/curl" <<'STUB'
+#!/bin/bash
+cat <<'INSTALLER'
+#!/bin/bash
+if [ -n "${HERDR_INSTALL_DIR:-}" ]; then name=herdr
+elif [ -n "${NO_MISTAKES_LINK_DIR:-}" ]; then name=no-mistakes
+else name=treehouse; fi
+mkdir -p "$HOME/.local/bin"
+cat > "$HOME/.local/bin/$name" <<'CLI'
+#!/bin/bash
+if [ "$1" = --version ]; then echo 1.2.3; exit; fi
+[ "$*" = 'integration install claude' ] || exit 1
+mkdir -p "$CLAUDE_CONFIG_DIR/hooks"
+printf '#!/bin/sh\n' > "$CLAUDE_CONFIG_DIR/hooks/herdr-agent-state.sh"
+printf '%s\n' '{"hooks":{"SessionStart":[{"hooks":[{"type":"command","command":"herdr-agent-state.sh"}]}]}}' > "$CLAUDE_CONFIG_DIR/settings.json"
+CLI
+chmod +x "$HOME/.local/bin/$name"
+printf '%s\n' "$name" >> "$NATIVE_LOG"
+INSTALLER
+[ "${NATIVE_DOWNLOAD_FAIL:-false}" = false ] || exit 22
+STUB
+export PATH="$HOME/.local/bin:$PATH"
+: >"$native_log"
+"$AGENT_TOOLS" install
+"$AGENT_TOOLS" check >"$tmp_dir/native-report.log"
+[ "$(grep -Fc 'available (latest not checked)' "$tmp_dir/native-report.log")" -eq 3 ] ||
+  fail "native report claims latest verification"
+"$AGENT_TOOLS" update
+for name in herdr treehouse no-mistakes; do
+  [ "$(grep -Fxc "$name" "$native_log")" -eq 2 ] || fail "native dispatch missing: $name"
+done
+rm "$HOME/.local/bin/treehouse"
+if "$AGENT_TOOLS" check >/dev/null; then fail "missing native command accepted"; fi
+: >"$native_log"
+if NATIVE_DOWNLOAD_FAIL=true "$AGENT_TOOLS" install >/dev/null 2>&1; then
+  fail "native download failure was ignored"
+fi
+[ ! -s "$native_log" ] || fail "partial native installer ran"
+
+# A new npm declaration must work through the real npm installer and CLI.
+# Only registry resolution/package transport are replaced by local tarballs.
+fixture_dir="${tmp_dir}/fixture"
+mkdir -p "$fixture_dir/package" "$fixture_dir/bin" "${tmp_dir}/prefix"
+cat >"$fixture_dir/package/cli.js" <<'JS'
+#!/usr/bin/env node
+console.log(require('./package.json').version);
+JS
+chmod +x "$fixture_dir/package/cli.js"
+for version in 1.2.3 2.0.0; do
+  printf '{"name":"dotfiles-fixture","version":"%s","bin":{"dotfiles-fixture":"cli.js"}}\n' \
+    "$version" >"$fixture_dir/package/package.json"
+  tar -czf "$fixture_dir/$version.tgz" -C "$fixture_dir" package
+done
+cat >"$fixture_dir/bin/npm" <<'STUB'
+#!/bin/bash
+set -eu
+if [ "$1" = view ]; then
+  [ "${REGISTRY_FAIL:-false}" = false ] || exit 1
+  printf '%s\n' "${LATEST_VERSION:-1.2.3}"
+elif [ "$1" = install ]; then
+  [ "$(node --version)" = "v$EXPECTED_NODE" ] || exit 90
+  printf '%s\n' "$*" >> "$NPM_LOG"
+  spec="${!#}"
+  version="${spec##*@}"
+  [ "$version" != latest ] || version="${LATEST_VERSION:-1.2.3}"
+  exec "$REAL_NPM" install -g --offline --no-audit --no-fund \
+    "$FIXTURE_DIR/$version.tgz"
+else
+  exec "$REAL_NPM" "$@"
+fi
+STUB
+chmod +x "$fixture_dir/bin/npm"
+export FIXTURE_DIR="$fixture_dir" REAL_NPM
+export npm_config_prefix="${tmp_dir}/prefix"
+export npm_config_cache="${tmp_dir}/npm-cache"
+export PATH="${tmp_dir}/prefix/bin:${fixture_dir}/bin:${REAL_NODE_BIN}:/usr/bin:/bin"
+cat >"$manifest" <<'JSON'
+{"tools":[{"name":"Fixture","command":"dotfiles-fixture",
+ "package":"dotfiles-fixture","installer":"npm","channel":"latest",
+ "version":"1.2.3"}]}
+JSON
+if "$AGENT_TOOLS" check >"${tmp_dir}/missing.log"; then
+  fail "new npm declaration was not missing before installation"
+fi
+"$AGENT_TOOLS" install
+"$AGENT_TOOLS" check
+[ "$(dotfiles-fixture --version)" = 1.2.3 ] || fail "real npm did not install pin"
+: >"$npm_log"
+"$AGENT_TOOLS" install
+[ ! -s "$npm_log" ] || fail "pinned npm package reinstalled"
+LATEST_VERSION=2.0.0 "$AGENT_TOOLS" install
+[ "$(dotfiles-fixture --version)" = 1.2.3 ] || fail "ordinary install changed pin"
+LATEST_VERSION=2.0.0 "$AGENT_TOOLS" update
+[ "$(dotfiles-fixture --version)" = 2.0.0 ] || fail "explicit update omitted new declaration"
+"$AGENT_TOOLS" check
+# Downgrade the installed package independently to exercise drift and repair.
+"$REAL_NPM" install -g --offline --no-audit --no-fund "$fixture_dir/1.2.3.tgz"
+if "$AGENT_TOOLS" check >"${tmp_dir}/fixture-drift.log"; then
+  fail "new npm declaration ignored real installed version drift"
+fi
+grep -F drift "${tmp_dir}/fixture-drift.log" >/dev/null
+"$AGENT_TOOLS" install
+"$AGENT_TOOLS" check
+
+# The same ordinary tool supports latest without a command-name exception.
+jq 'del(.tools[0].version)' "$manifest" >"$manifest.next"
+mv "$manifest.next" "$manifest"
+LATEST_VERSION=1.2.3 "$AGENT_TOOLS" install
+LATEST_VERSION=1.2.3 "$AGENT_TOOLS" check
+LATEST_VERSION=2.0.0 "$AGENT_TOOLS" update
+LATEST_VERSION=2.0.0 "$AGENT_TOOLS" check
+jq -e '.tools[0] | has("version") | not' "$manifest" >/dev/null ||
+  fail "update pinned latest tool"
+cp "$manifest" "$manifest.before"
+for action in check report install update; do
+  if REGISTRY_FAIL=true "$AGENT_TOOLS" "$action" >"${tmp_dir}/registry-error.log" 2>&1; then
+    fail "ordinary latest $action hid registry failure"
+  fi
+done
+cmp "$manifest" "$manifest.before" || fail "failed update changed declaration"
 
 echo "[INFO] agent tools smoke test passed"

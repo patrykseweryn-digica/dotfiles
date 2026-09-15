@@ -95,6 +95,18 @@ jq -e '
     fail "Codex plugin check failed after export"
 }
 
+if HOME="${tmp_dir}/missing-home" PATH="/usr/bin:/bin" \
+    CODEX_REMOTE_PLUGIN_CACHE="${tmp_dir}/missing-cache" \
+    CODEX_PLUGIN_LIST_FILE='' CODEX_MARKETPLACE_LIST_FILE='' \
+    "$DOTFILES_DIR/sync-agents.sh" --quiet codex-plugins-check \
+    > "$sync_log" 2>&1; then
+    fail "Codex plugin check skipped missing required runtime state"
+fi
+grep -F 'figma (plugin_connector_keep)' "$sync_log" >/dev/null || \
+    fail "Codex plugin check skipped missing remote plugins without CLI"
+grep -F 'Required Codex marketplace plugin state missing' "$sync_log" >/dev/null || \
+    fail "Codex plugin check skipped missing marketplace state"
+
 if ! HOME="${tmp_dir}/remote-only-home" \
     PATH="/usr/bin:/bin" \
     PLUGIN_MANIFEST="$manifest" \

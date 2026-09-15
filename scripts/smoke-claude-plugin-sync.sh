@@ -106,6 +106,10 @@ export PLUGIN_MANIFEST="$manifest"
 export CLAUDE_MANIFEST="$manifest"
 export CODEX_PLUGIN_MANIFEST="$manifest"
 export CODEX_REMOTE_PLUGIN_CACHE="$codex_cache"
+export CODEX_PLUGIN_LIST_FILE="${tmp_dir}/codex-plugins.json"
+export CODEX_MARKETPLACE_LIST_FILE="${tmp_dir}/codex-marketplaces.json"
+printf '{"installed":[]}\n' > "$CODEX_PLUGIN_LIST_FILE"
+printf '{"marketplaces":[]}\n' > "$CODEX_MARKETPLACE_LIST_FILE"
 
 cp "$manifest" "${tmp_dir}/before-cancel.json"
 if printf 'n\n' | "$DOTFILES_DIR/sync-agents.sh" --quiet pull-plugins \

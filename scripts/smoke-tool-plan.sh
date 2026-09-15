@@ -526,34 +526,40 @@ smoke_latest_workflow_tools() {
     (
         # shellcheck source=/dev/null
         source "${DOTFILES_DIR}/bootstrap.d/05-tools.sh"
-        # shellcheck source=/dev/null
-        source "${DOTFILES_DIR}/bootstrap.d/07-node.sh"
+        export HOME="${tmp_dir}/home"
+        mkdir -p "$HOME"
         BIN_DIR="${tmp_dir}/local bin"
         export SMOKE_LOG="${tmp_dir}/actions.log"
 
         curl() {
             echo "curl $*" >>"$SMOKE_LOG"
-            printf '%s\n' 'printf "install %s\\n" "${HERDR_INSTALL_DIR:-${NO_MISTAKES_LINK_DIR:-}}" >> "$SMOKE_LOG"'
-        }
-        npm() {
-            echo "npm $*" >>"$SMOKE_LOG"
-            # A failed package must not prevent the remaining installations.
-            [ "$*" != "i -g gnhf@latest" ]
+            cat <<'INSTALLER'
+printf 'install %s\n' "${HERDR_INSTALL_DIR:-${NO_MISTAKES_LINK_DIR:-}}" >> "$SMOKE_LOG"
+if [ -n "${HERDR_INSTALL_DIR:-}" ]; then
+    mkdir -p "$HERDR_INSTALL_DIR"
+    cat > "$HERDR_INSTALL_DIR/herdr" <<'HERDR'
+#!/bin/sh
+[ "$*" = "integration install claude" ] || exit 1
+mkdir -p "$CLAUDE_CONFIG_DIR/hooks"
+printf '#!/bin/sh\n' > "$CLAUDE_CONFIG_DIR/hooks/herdr-agent-state.sh"
+printf '%s\n' '{"hooks":{"SessionStart":[{"hooks":[{"type":"command","command":"bash herdr-agent-state.sh session"}]}]}}' > "$CLAUDE_CONFIG_DIR/settings.json"
+HERDR
+    chmod +x "$HERDR_INSTALL_DIR/herdr"
+fi
+INSTALLER
         }
 
         install_herdr
         install_treehouse
         install_no_mistakes
-        install_global_npm_packages >"${tmp_dir}/npm-output.log"
         assert_log_contains "$SMOKE_LOG" "curl -fsSL https://herdr.dev/install.sh"
         assert_log_contains "$SMOKE_LOG" "curl -fsSL https://kunchenguid.github.io/treehouse/install.sh"
         assert_log_contains "$SMOKE_LOG" "curl -fsSL https://raw.githubusercontent.com/kunchenguid/no-mistakes/main/docs/install.sh"
         [ "$(grep -Fxc "install $BIN_DIR" "$SMOKE_LOG")" -eq 2 ] || fail "native install paths differ"
-        for package in @steipete/summarize gnhf backpass lavish-axi acpx \
-            gh-axi chrome-devtools-axi tasks-axi quota-axi; do
-            assert_log_contains "$SMOKE_LOG" "npm i -g ${package}@latest"
-        done
-        assert_log_contains "${tmp_dir}/npm-output.log" "[WARN] Failed to install gnhf@latest"
+        [ -f "$HOME/.claude/hooks/herdr-agent-state.sh" ] || fail "Herdr hook missing"
+        jq -e '.hooks.SessionStart[0].hooks[0].command ==
+            "bash \"$HOME/.claude/hooks/herdr-agent-state.sh\" session"' \
+            "$HOME/.claude/settings.json" >/dev/null || fail "Herdr hook not portable"
 
         : >"$SMOKE_LOG"
         curl() {

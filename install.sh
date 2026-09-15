@@ -267,6 +267,17 @@ for module in "${DOTFILES_DIR}/bootstrap.d"/*.sh; do
     fi
 done
 
+setup_repo_git() {
+    if [ ! -e "${DOTFILES_DIR}/.git" ]; then
+        echo "[INFO] Skipping repository Git settings: not a Git checkout"
+        return 0
+    fi
+
+    # Preserve published commits when combining the two remote histories.
+    git -C "$DOTFILES_DIR" config --local pull.rebase false
+    git -C "$DOTFILES_DIR" config --local branch.master.rebase false
+}
+
 # Setup and link configuration files
 setup_dotfiles() {
     echo "[INFO] Setting up dotfile configurations..."
@@ -349,6 +360,7 @@ main() {
 
     ensure_install_dirs
     load_env
+    setup_repo_git
 
     echo "[INFO] Starting dotfiles installation..."
     echo "[INFO] Sudo available: ${HAS_SUDO}"
@@ -368,12 +380,20 @@ main() {
     run_optional_step "Oh My Zsh" install_oh_my_zsh
     run_optional_step "pipx" install_pipx
     run_optional_step "CLI tools" install_tools
-    run_optional_step "Herdr (latest)" install_herdr
-    run_optional_step "Treehouse (latest)" install_treehouse
-    run_optional_step "no-mistakes (latest)" install_no_mistakes
     run_optional_step "fonts" install_fonts
-    run_optional_step "NVM and Node.js" install_nvm
-    run_optional_step "agent tools" \
+    run_required_step "NVM and Node.js" install_nvm
+    if [ "$LAST_RUN_STEP_STATUS" -ne 0 ]; then
+        print_step_summary
+        return "$LAST_RUN_STEP_STATUS"
+    fi
+    # Step helpers use subshells, so activate Node in this shell for all CLIs.
+    activate_node || {
+        local status=$?
+        record_step_result "Node activation" "failed"
+        print_step_summary
+        return "$status"
+    }
+    run_optional_step "developer tools" \
         "$DOTFILES_DIR/scripts/agent-tools.sh" install
     run_optional_step "terminal colors" install_terminal_colors
     if declare -f install_macos_apps >/dev/null 2>&1; then

@@ -1,49 +1,73 @@
 #!/bin/bash
 
 NVM_VERSION="v0.40.1"
+NODE_VERSION_FILE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/.nvmrc"
 
-install_global_npm_packages() {
-    local package
+required_node_version() {
+    local version
+    version=$(cat "$NODE_VERSION_FILE") || return 1
+    if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        echo "[ERROR] Invalid exact Node version in $NODE_VERSION_FILE" >&2
+        return 1
+    fi
+    printf '%s\n' "$version"
+}
 
-    echo "[INFO] Installing global npm packages..."
-    # acpx is required by backpass.
-    for package in @steipete/summarize gnhf backpass lavish-axi acpx \
-        gh-axi chrome-devtools-axi tasks-axi quota-axi; do
-        npm i -g "${package}@latest" ||
-            echo "[WARN] Failed to install ${package}@latest"
-    done
+check_node() {
+    local expected current
+    expected=$(required_node_version) || return 1
+    current=$(node --version 2>/dev/null) || current=missing
+    printf 'Node: required=v%s active=%s\n' "$expected" "$current"
+    [ "$current" = "v$expected" ]
+}
+
+# Call in the parent shell after install_nvm succeeds in an optional step.
+activate_node() {
+    local expected
+    expected=$(required_node_version) || return 1
+    export NVM_DIR="${HOME}/.nvm"
+    # shellcheck source=/dev/null
+    . "${NVM_DIR}/nvm.sh" --no-use || return 1
+    nvm use --silent "$expected" || return 1
+    check_node
 }
 
 install_nvm() {
-    echo "[INFO] Installing NVM and Node.js..."
-
+    local expected installer
+    expected=$(required_node_version) || return 1
     export NVM_DIR="${HOME}/.nvm"
 
-    if [ -s "${NVM_DIR}/nvm.sh" ]; then
-        echo "[INFO] NVM is already installed"
-        # shellcheck source=/dev/null
-        . "${NVM_DIR}/nvm.sh"
-    else
+    if [ ! -s "${NVM_DIR}/nvm.sh" ]; then
         echo "[INFO] Installing NVM ${NVM_VERSION}..."
-        if curl -o- "https://raw.githubusercontent.com/nvm-sh/nvm/${NVM_VERSION}/install.sh" | bash; then
-            # shellcheck source=/dev/null
-            . "${NVM_DIR}/nvm.sh"
-            echo "[INFO] NVM installed successfully"
-        else
-            echo "[WARN] Failed to install NVM"
-            return
+        installer=$(curl -fsSL "https://raw.githubusercontent.com/nvm-sh/nvm/${NVM_VERSION}/install.sh") || {
+            echo "[ERROR] Failed to download NVM" >&2
+            return 1
+        }
+        # Shell initialization is managed by dotfiles; do not edit profiles.
+        PROFILE=/dev/null bash -c "$installer" || return 1
+    fi
+
+    # shellcheck source=/dev/null
+    . "${NVM_DIR}/nvm.sh" --no-use || return 1
+    echo "[INFO] Ensuring Node.js $expected..."
+    # Never import globals or the user's nvm default-packages file.
+    if [ "$(nvm version "$expected")" != "v$expected" ]; then
+        if ! nvm install --skip-default-packages "$expected"; then
+            echo "[ERROR] Failed to install Node.js $expected; previous Node retained" >&2
+            return 1
         fi
     fi
-
-    # Install LTS Node if no version is installed
-    if ! nvm ls default &>/dev/null || [ "$(nvm ls default 2>/dev/null)" = "N/A" ]; then
-        echo "[INFO] Installing Node.js LTS..."
-        nvm install --lts
-        nvm alias default lts/*
-        echo "[INFO] Node.js LTS installed"
-    else
-        echo "[INFO] Node.js default version already set: $(nvm version default)"
-    fi
-
-    install_global_npm_packages
+    nvm use --silent "$expected" || return 1
+    check_node || return 1
+    nvm alias default "$expected"
 }
+
+if [ "${BASH_SOURCE[0]}" = "$0" ]; then
+    case "${1:-}" in
+    check) check_node ;;
+    *)
+        echo "Usage: $0 check" >&2
+        exit 1
+        ;;
+    esac
+fi
