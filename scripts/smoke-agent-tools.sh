@@ -189,9 +189,10 @@ cmp "$manifest" "$manifest.before" || fail "runtime failure changed pins"
 LATEST_VERSION=2.0.0 "$AGENT_TOOLS" check >/dev/null
 mv "$HOME/.nvm/nvm.saved" "$HOME/.nvm/nvm.sh"
 
-# The three native declarations dispatch through the existing installers.
+# Native declarations dispatch through the existing installers.
 cat >"$manifest" <<'JSON'
 {"tools":[
+ {"name":"Hermes Agent","command":"hermes","installer":"hermes-native","channel":"latest"},
  {"name":"Herdr","command":"herdr","installer":"herdr-native","channel":"latest"},
  {"name":"Treehouse","command":"treehouse","installer":"treehouse-native","channel":"latest"},
  {"name":"no-mistakes","command":"no-mistakes","installer":"no-mistakes-native","channel":"latest"}
@@ -215,9 +216,15 @@ case "$*" in
         echo treehouse >> "$NATIVE_LOG"
         exit 0 ;;
 esac
-cat <<'INSTALLER'
+output_path=""
+for arg in "$@"; do
+    if [ "${previous:-}" = -o ]; then output_path="$arg"; fi
+    previous="$arg"
+done
+installer=$(cat <<'INSTALLER'
 #!/bin/bash
-if [ -n "${HERDR_INSTALL_DIR:-}" ]; then name=herdr
+if [ "${1:-}" = --skip-setup ]; then name=hermes
+elif [ -n "${HERDR_INSTALL_DIR:-}" ]; then name=herdr
 elif [ -n "${NO_MISTAKES_LINK_DIR:-}" ]; then name=no-mistakes
 else name=treehouse; fi
 mkdir -p "$HOME/.local/bin"
@@ -232,16 +239,22 @@ CLI
 chmod +x "$HOME/.local/bin/$name"
 printf '%s\n' "$name" >> "$NATIVE_LOG"
 INSTALLER
+)
+if [ -n "$output_path" ]; then
+    printf '%s\n' "$installer" >"$output_path"
+else
+    printf '%s\n' "$installer"
+fi
 [ "${NATIVE_DOWNLOAD_FAIL:-false}" = false ] || exit 22
 STUB
 export PATH="$HOME/.local/bin:$PATH"
 : >"$native_log"
 "$AGENT_TOOLS" install
 "$AGENT_TOOLS" check >"$tmp_dir/native-report.log"
-[ "$(grep -Fc 'available (latest not checked)' "$tmp_dir/native-report.log")" -eq 3 ] ||
+[ "$(grep -Fc 'available (latest not checked)' "$tmp_dir/native-report.log")" -eq 4 ] ||
   fail "native report claims latest verification"
 "$AGENT_TOOLS" update
-for name in herdr treehouse no-mistakes; do
+for name in hermes herdr treehouse no-mistakes; do
   [ "$(grep -Fxc "$name" "$native_log")" -eq 2 ] || fail "native dispatch missing: $name"
 done
 rm "$HOME/.local/bin/treehouse"

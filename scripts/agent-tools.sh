@@ -23,7 +23,8 @@ validate_manifest() {
                 (.package | type == "string" and
                     test("^(@[a-z0-9._-]+/)?[a-z0-9][a-z0-9._-]*$"))
              else
-                (.installer == "herdr-native" or
+                (.installer == "hermes-native" or
+                 .installer == "herdr-native" or
                  .installer == "treehouse-native" or
                  .installer == "no-mistakes-native") and
                 (has("version") | not)
@@ -137,13 +138,14 @@ install_declared_tools() {
             }
             bash -c "$script" -- "$expected" || failed=true
             ;;
-        herdr-native | treehouse-native | no-mistakes-native)
+        hermes-native | herdr-native | treehouse-native | no-mistakes-native)
             # Reuse the existing, small native installers.
             # shellcheck source=bootstrap.d/05-tools.sh
             source "$DOTFILES_DIR/bootstrap.d/05-tools.sh"
             BIN_DIR="${HOME}/.local/bin"
             mkdir -p "$BIN_DIR"
             case "$installer" in
+            hermes-native) install_hermes || failed=true ;;
             herdr-native) install_herdr || failed=true ;;
             treehouse-native) install_treehouse || failed=true ;;
             no-mistakes-native) install_no_mistakes || failed=true ;;
