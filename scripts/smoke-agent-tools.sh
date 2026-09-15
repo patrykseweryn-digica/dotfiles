@@ -221,6 +221,11 @@ printf '#!/bin/sh\n' > "$CLAUDE_CONFIG_DIR/hooks/herdr-agent-state.sh"
 printf '%s\n' '{"hooks":{"SessionStart":[{"hooks":[{"type":"command","command":"herdr-agent-state.sh"}]}]}}' > "$CLAUDE_CONFIG_DIR/settings.json"
 CLI
 chmod +x "$HOME/.local/bin/$name"
+if [ "$name" = hermes ]; then
+    mkdir -p "$HOME/.hermes/bin"
+    printf '#!/bin/sh\n' > "$HOME/.hermes/bin/browser-use"
+    chmod +x "$HOME/.hermes/bin/browser-use"
+fi
 printf '%s\n' "$name" >> "$NATIVE_LOG"
 INSTALLER
 )

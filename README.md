@@ -143,7 +143,9 @@ daemon. The merge uses `uv` with the pinned round-trip YAML parser in
 `scripts/no-mistakes-config.py` (the CLI has no config-set command).
 
 Hermes installation skips the interactive setup wizard and the optional
-Computer Use driver. Herdr installation also installs its Claude hook
+Computer Use driver, but installs the Browser Use CLI (Playwright/Chromium
+browser tools); installation fails if the Browser Use CLI is not executable
+afterward. Herdr installation also installs its Claude hook
 through the built-in integration command. The hook resolves its script
 relative to `$HOME`.
 Doctor checks that an enabled hook has a readable script; a disabled hook
