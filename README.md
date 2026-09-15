@@ -142,8 +142,7 @@ agent overrides remain local. Configuration-only setup does not touch the
 daemon. The merge uses `uv` with the pinned round-trip YAML parser in
 `scripts/no-mistakes-config.py` (the CLI has no config-set command).
 
-Hermes installation skips account setup, browser downloads, and the optional
-Computer Use driver. Herdr installation also installs its Claude hook through
+Hermes installation skips account setup and the optional Computer Use driver. Herdr installation also installs its Claude hook through
 the built-in integration command. The hook resolves its script relative to `$HOME`.
 Doctor checks that an enabled hook has a readable script; a disabled hook
 is reported as SKIP.
