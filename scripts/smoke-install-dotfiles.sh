@@ -3,6 +3,10 @@ set -eu
 
 DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
+# Hook-local Git state must not redirect fixture repositories or drift checks.
+# shellcheck disable=SC2046
+unset $(git -C "$DOTFILES_DIR" rev-parse --local-env-vars)
+
 fail() {
     echo "[ERROR] $*" >&2
     exit 1
@@ -172,9 +176,6 @@ smoke_pi_drift_check() {
     mkdir -p "$git_dir" "${pi_dir}/npm/node_modules/example-package"
     printf 'fixture\n' >"${git_dir}/README.md"
     (
-        unset GIT_INDEX_FILE
-        unset GIT_OBJECT_DIRECTORY
-        unset GIT_ALTERNATE_OBJECT_DIRECTORIES
         git -C "$git_dir" init -q
         git -C "$git_dir" add README.md
         git -C "$git_dir" \
@@ -248,6 +249,22 @@ run_case() {
     ln -s "$UV_BIN" "${stub_dir}/uv"
     : >"$npx_log"
     : >"$pi_log"
+    if [ "$os_name" = Darwin ]; then
+        mkdir -p "${home_dir}/.no-mistakes"
+        cat >"${home_dir}/.no-mistakes/config.yaml" <<'YAML'
+# Keep workstation settings local.
+agent: [claude, codex]
+ci_timeout: 168h
+agent_config:
+  codex:
+    model: local-model
+    effort: low
+auto_fix:
+  review: 0
+worktree_roots:
+  /example/repo: /example/worktrees
+YAML
+    fi
     mkdir -p "${home_dir}/.pi/agent"
     cat >"${home_dir}/.pi/agent/settings.json" <<'JSON'
 {
@@ -304,6 +321,31 @@ STUB
 
         trap 'if [ "$?" -ne 0 ]; then cat "$sync_log" >&2; fi' EXIT
         setup_dotfiles >"$sync_log" 2>&1
+        local config="${HOME}/.no-mistakes/config.yaml"
+        [ -f "$config" ] || fail "$os_name: missing no-mistakes config"
+        if [ "$os_name" = Darwin ]; then
+            cat >"${tmp_dir}/expected.yaml" <<'YAML'
+# Keep workstation settings local.
+agent: codex
+ci_timeout: 168h
+agent_config:
+  codex:
+    model: local-model
+    effort: low
+auto_fix:
+  review: 0
+worktree_roots:
+  /example/repo: /example/worktrees
+YAML
+        else
+            printf 'agent: codex\n' >"${tmp_dir}/expected.yaml"
+        fi
+        cmp "$config" "${tmp_dir}/expected.yaml" ||
+            fail "$os_name: no-mistakes settings differ"
+        setup_dotfiles >>"$sync_log" 2>&1
+        cmp "$config" "${tmp_dir}/expected.yaml" ||
+            fail "$os_name: repeated setup changed no-mistakes settings"
+        echo "[INFO] $os_name: no-mistakes fresh/existing + repeat passed"
     )
 
     [ -L "${home_dir}/.zshrc" ] || fail "$os_name: missing .zshrc symlink"
@@ -369,7 +411,7 @@ STUB
             export DOTFILES_DIR="${task_dir}/fixture"
             load_env() { :; }
             setup_repo_git() { :; }
-            setup_dotfiles() { :; }
+            setup_dotfiles() { [ -f "$TOOLS_INSTALLED" ]; }
             install_uv() { :; }
             install_zsh() { :; }
             install_oh_my_zsh() { :; }
@@ -395,6 +437,41 @@ STUB
     rm -rf "$task_dir"
 }
 
+smoke_no_mistakes_config() {
+    local tmp_dir config agent
+    tmp_dir="$(mktemp -d)"
+    config="${tmp_dir}/.no-mistakes/config.yaml"
+    mkdir -p "$(dirname "$config")"
+    for agent in auto claude '"claude"' ''; do
+        printf '# local comment\nci_timeout: 168h\n' >"$config"
+        [ -z "$agent" ] || printf 'agent: %s\n' "$agent" >>"$config"
+        chmod 640 "$config"
+        HOME="$tmp_dir" "$UV_BIN" run --no-project --script \
+            "$DOTFILES_DIR/scripts/no-mistakes-config.py"
+        grep -Eq '^agent: "?codex"?$' "$config" || fail "agent not codex"
+        grep -q '^# local comment$' "$config" || fail "comment lost"
+        grep -q '^ci_timeout: 168h$' "$config" || fail "setting lost"
+        [ "$(find "$config" -perm 640 | wc -l)" -eq 1 ] || fail "mode changed"
+        cp "$config" "${tmp_dir}/before.yaml"
+        HOME="$tmp_dir" "$UV_BIN" run --no-project --script \
+            "$DOTFILES_DIR/scripts/no-mistakes-config.py"
+        cmp "$config" "${tmp_dir}/before.yaml" || fail "repeat changed config"
+    done
+    for agent in 'agent: [' '- claude' $'agent: claude\nagent: auto'; do
+        printf '%s\n' "$agent" >"$config"
+        cp "$config" "${tmp_dir}/before.yaml"
+        if HOME="$tmp_dir" "$UV_BIN" run --no-project --script \
+            "$DOTFILES_DIR/scripts/no-mistakes-config.py" \
+            >"${tmp_dir}/error.log" 2>&1; then
+            fail "invalid config accepted"
+        fi
+        cmp "$config" "${tmp_dir}/before.yaml" || fail "invalid config overwritten"
+    done
+    rm -rf "$tmp_dir"
+    echo '[INFO] no-mistakes scalar/missing agents, permissions, invalid YAML passed'
+}
+
+smoke_no_mistakes_config
 smoke_node_activation_before_tools
 smoke_source_has_no_home_side_effect
 smoke_run_steps_preserve_errexit

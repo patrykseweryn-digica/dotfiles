@@ -135,6 +135,13 @@ just setup-ssh        # explicit SSH key/config setup
 Herdr, Treehouse and no-mistakes use official latest-release installers
 selected by the tool manifest. Native commands use `~/.local/bin`;
 no-mistakes keeps its binary in `~/.no-mistakes/bin` and restarts its daemon.
+Both setup commands merge scalar `agent: codex` into
+`~/.no-mistakes/config.yaml`, preserving other local settings and comments.
+There is no automatic or Claude fallback in this global default; repository
+agent overrides remain local. Configuration-only setup does not touch the
+daemon. The merge uses `uv` with the pinned round-trip YAML parser in
+`scripts/no-mistakes-config.py` (the CLI has no config-set command).
+
 Herdr installation also installs its Claude hook through the built-in
 integration command. The hook resolves its script relative to `$HOME`.
 Doctor checks that an enabled hook has a readable script; a disabled hook
