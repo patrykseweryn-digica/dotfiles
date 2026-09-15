@@ -2111,7 +2111,8 @@ sync_pi_settings() {
     render_pi_settings "$PI_SETTINGS_FILE" "$tmp"
 
     if [ -f "$PI_SETTINGS_FILE" ] &&
-        cmp -s "$tmp" "$PI_SETTINGS_FILE"; then
+        jq -e --slurpfile wanted "$tmp" '. == $wanted[0]' \
+            "$PI_SETTINGS_FILE" >/dev/null; then
         rm -f "$tmp"
         log_info "Pi settings already in sync"
     else
@@ -2171,7 +2172,7 @@ restore_pi_packages() {
 cmd_pi_install() {
     log_info "Installing Pi agent config..."
     mkdir -p "$PI_AGENT_DIR" "$PI_SKILLS_DIR"
-    link_file "$PI_AGENTS_SOURCE" "$PI_AGENTS_FILE"
+    ln -sfn "$PI_AGENTS_SOURCE" "$PI_AGENTS_FILE"
     sync_pi_settings
     restore_pi_packages
     sync_pi_mcp_config
@@ -2186,7 +2187,8 @@ cmd_pi_check() {
     local tmp package failed=false
     tmp="$(mktemp)"
     render_pi_settings "$PI_SETTINGS_FILE" "$tmp"
-    if ! cmp -s "$tmp" "$PI_SETTINGS_FILE"; then
+    if ! jq -e --slurpfile wanted "$tmp" '. == $wanted[0]' \
+        "$PI_SETTINGS_FILE" >/dev/null; then
         echo "[ERROR] Pi settings drift detected: $PI_SETTINGS_FILE" >&2
         diff -u "$tmp" "$PI_SETTINGS_FILE" >&2 || true
         failed=true

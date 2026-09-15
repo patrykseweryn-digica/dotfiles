@@ -52,6 +52,9 @@ jq -e '
         "defaultModel",
         "defaultProvider",
         "defaultThinkingLevel",
+        "hideThinkingBlock",
+        "enabledModels",
+        "theme",
         "packages"
     ] | length) == 0
 ' config/pi/settings.json >/dev/null || fail "Pi stable settings are invalid"

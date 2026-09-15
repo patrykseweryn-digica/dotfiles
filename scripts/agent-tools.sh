@@ -15,7 +15,12 @@ validate_manifest() {
             (.command | type) == "string" and
             (.package | type) == "string" and
             (.channel | type) == "string" and
-            (.version | test("^[0-9]+\\.[0-9]+\\.[0-9]+$")) and
+            (if .command == "pi" then
+                .channel == "latest" and .installer == "npm" and
+                (has("version") | not)
+             else
+                (.version | test("^[0-9]+\\.[0-9]+\\.[0-9]+$"))
+             end) and
             (.installer == "npm" or .installer == "claude-native")
         ) and
         (([.tools[].command] | length) ==
@@ -34,7 +39,7 @@ tool_rows() {
         .command,
         .package,
         .channel,
-        .version,
+        (.version // .channel),
         .installer
     ] | @tsv' "$VERSIONS_FILE"
 }
@@ -52,6 +57,19 @@ installed_version() {
     return 1
 }
 
+resolve_latest() {
+    local package="$1" version
+    version=$(npm view "${package}@latest" version) || {
+        echo "[ERROR] Failed to resolve ${package}@latest" >&2
+        return 1
+    }
+    if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        echo "[ERROR] Invalid latest version for $package: $version" >&2
+        return 1
+    fi
+    printf '%s\n' "$version"
+}
+
 report_versions() {
     local strict="$1"
     local failed=false
@@ -60,6 +78,9 @@ report_versions() {
     printf '%-16s %-12s %-12s %s\n' "Tool" "Installed" "Expected" "Status"
     while IFS=$'\t' read -r \
         name command_name package channel expected installer; do
+        if [ "$command_name" = pi ]; then
+            expected=$(resolve_latest "$package") || return 1
+        fi
         if current=$(installed_version "$command_name"); then
             if [ "$current" = "$expected" ]; then
                 status="ok"
@@ -81,10 +102,14 @@ report_versions() {
 
 install_tools() {
     local failed=false
-    local name command_name package channel expected installer current
+    local name command_name package channel expected installer current install_spec
 
     while IFS=$'\t' read -r \
         name command_name package channel expected installer; do
+        install_spec="${package}@${expected}"
+        if [ "$command_name" = pi ]; then
+            expected=$(resolve_latest "$package") || return 1
+        fi
         current="$(installed_version "$command_name" || true)"
         if [ "$current" = "$expected" ]; then
             echo "[INFO] $name $expected already installed"
@@ -94,7 +119,11 @@ install_tools() {
         echo "[INFO] Installing $name $expected..."
         case "$installer" in
             npm)
-                npm install -g "${package}@${expected}" || failed=true
+                if [ "$command_name" = pi ]; then
+                    npm install -g --ignore-scripts "$install_spec" || failed=true
+                else
+                    npm install -g "$install_spec" || failed=true
+                fi
                 ;;
             claude-native)
                 curl -fsSL "$CLAUDE_INSTALL_URL" |
@@ -115,6 +144,7 @@ update_tools() {
 
     while IFS=$'\t' read -r \
         name command_name package channel expected installer; do
+        [ "$command_name" != pi ] || continue
         latest=$(npm view "${package}@${channel}" version) || {
             rm -f "$current"
             echo "[ERROR] Failed to resolve ${package}@${channel}" >&2

@@ -52,23 +52,29 @@ Its local MCP state lives in `~/.agents/mcp.json`.
 
 ## Agent tool versions
 
-`.agents/tool-versions.json` stores a moving channel and its exact resolved
-version. Fresh installs use the committed version, so they stay reproducible.
-Updating resolves each channel, writes new exact pins, then installs them.
+`.agents/tool-versions.json` pins tools except Pi. Explicit install/update
+resolves Pi from npm `latest`; startup does not install a newer Pi. Reports
+also resolve `latest` and fail explicitly when the registry is unavailable.
+Other tools keep exact committed versions; update resolves their channels
+and writes new pins.
 
 ```bash
-just agent-versions      # compare installed tools with committed versions
+just agent-versions      # compare with pins (Pi: current npm latest)
 just update-agent-tools  # resolve channels, pin versions, install tools
 ```
 
 Pi, Codex, OpenCode, and the skill manager use global npm packages. Claude
 Code uses Anthropic's native installer with an exact version. `just install`
-installs the committed versions on a fresh machine. Configuration commands
+installs the committed versions (Pi: `@latest`). Configuration commands
 such as `just push` never resolve channels or update tool versions.
 
 `config/pi/settings.json` owns Pi's stable provider, model, thinking level, and
 pinned package list. Install keeps `auth.json`, sessions, `trust.json`, and
-changelog state local. Shared instructions are linked to
+changelog state local. Fast Mode remains off by default; its existing local
+preference is untouched. No runtime state or credentials are imported.
+Apply only Pi with `./sync-agents.sh pi-install`; check semantic JSON and
+installed package versions with `./sync-agents.sh pi-check`.
+Shared instructions are linked to
 `~/.pi/agent/AGENTS.md`. Shared skills are linked into
 `~/.pi/agent/skills/`.
 

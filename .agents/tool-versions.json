@@ -5,8 +5,7 @@
       "command": "pi",
       "installer": "npm",
       "name": "Pi",
-      "package": "@earendil-works/pi-coding-agent",
-      "version": "0.84.3"
+      "package": "@earendil-works/pi-coding-agent"
     },
     {
       "channel": "latest",

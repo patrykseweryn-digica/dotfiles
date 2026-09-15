@@ -27,7 +27,6 @@ cat > "$manifest" <<'JSON'
       "command": "pi",
       "package": "@example/pi",
       "channel": "latest",
-      "version": "1.2.3",
       "installer": "npm"
     },
     {
@@ -78,7 +77,8 @@ done
 cat > "${stub_dir}/npm" <<'STUB'
 #!/bin/bash
 if [ "$1" = view ]; then
-    printf '%s\n' "${LATEST_VERSION:-2.0.0}"
+    [ "${REGISTRY_FAIL:-false}" = false ] || exit 1
+    printf '%s\n' "${LATEST_VERSION:-1.2.3}"
 else
     printf '%s\n' "$*" >> "$NPM_LOG"
 fi
@@ -120,17 +120,35 @@ export PI_VERSION CODEX_VERSION CLAUDE_VERSION OPENCODE_VERSION SKILLS_VERSION
 : > "$native_log"
 "$AGENT_TOOLS" install
 
-for package in @example/pi @example/codex opencode-ai skills; do
+grep -Fx 'install -g --ignore-scripts @example/pi@latest' "$npm_log" >/dev/null || \
+    fail "Pi did not install latest"
+for package in @example/codex opencode-ai skills; do
     grep -Fx "install -g ${package}@1.2.3" "$npm_log" >/dev/null || \
         fail "exact npm version not installed: $package"
 done
 grep -Fx '1.2.3' "$native_log" >/dev/null || \
     fail "exact Claude version not installed"
 
-AGENT_TOOLS="$AGENT_TOOLS" \
+LATEST_VERSION=2.0.0 AGENT_TOOLS="$AGENT_TOOLS" \
     "$JUST_BIN" --justfile "${DOTFILES_DIR}/justfile" update-agent-tools
-jq -e 'all(.tools[]; .version == "2.0.0")' "$manifest" >/dev/null || \
+jq -e 'all(.tools[]; if .command == "pi" then
+    .channel == "latest" and (has("version") | not)
+    else .version == "2.0.0" end)' "$manifest" >/dev/null || \
     fail "update did not resolve moving channels into exact versions"
+
+export PI_VERSION=2.0.0 CODEX_VERSION=2.0.0 CLAUDE_VERSION=2.0.0
+export OPENCODE_VERSION=2.0.0 SKILLS_VERSION=2.0.0
+: > "$npm_log"
+LATEST_VERSION=2.0.0 "$AGENT_TOOLS" install
+[ ! -s "$npm_log" ] || fail "current tools reinstalled"
+LATEST_VERSION=3.0.0 "$AGENT_TOOLS" install
+[ "$(cat "$npm_log")" = 'install -g --ignore-scripts @example/pi@latest' ] || \
+    fail "moving latest updated tools other than Pi"
+for action in report check install; do
+    if REGISTRY_FAIL=true "$AGENT_TOOLS" "$action" >/dev/null 2>&1; then
+        fail "$action hid registry failure"
+    fi
+done
 
 if grep -En 'agent-tools|npm view|@latest' \
     "${DOTFILES_DIR}/sync-agents.sh" >/dev/null; then

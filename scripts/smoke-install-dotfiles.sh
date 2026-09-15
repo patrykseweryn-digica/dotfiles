@@ -173,7 +173,7 @@ smoke_pi_drift_check() {
             "npm:example-package@1.2.3"
         ]
     }' > "$template"
-    jq -S '. + {lastChangelogVersion: "local-only"}' "$template" \
+    jq -c '. + {lastChangelogVersion: "local-only"}' "$template" \
         > "${pi_dir}/settings.json"
     printf '{"version":"1.2.3"}\n' \
         > "${pi_dir}/npm/node_modules/example-package/package.json"
@@ -185,6 +185,14 @@ smoke_pi_drift_check() {
         fail "Pi check rejected matching settings and packages"
     fi
 
+    jq '. + {hideThinkingBlock: false}' "${pi_dir}/settings.json" > "${tmp_dir}/drift.json"
+    mv "${tmp_dir}/drift.json" "${pi_dir}/settings.json"
+    if HOME="$home_dir" PI_CODING_AGENT_DIR="$pi_dir" \
+        PI_SETTINGS_TEMPLATE="$template" \
+        "${DOTFILES_DIR}/sync-agents.sh" --quiet pi-check >/dev/null 2>&1; then
+        fail "Pi check ignored changed setting"
+    fi
+    cp "$template" "${pi_dir}/settings.json"
     rm "${pi_dir}/npm/node_modules/example-package/package.json"
     if HOME="$home_dir" \
         PI_CODING_AGENT_DIR="$pi_dir" \
