@@ -234,12 +234,12 @@ install_hermes() {
         rm -f "$installer"
         return 1
     fi
-    if ! bash "$installer" --skip-setup --skip-computer-use; then
-        status=$?
-        rm -f "$installer"
+    bash "$installer" --skip-setup --skip-computer-use
+    status=$?
+    rm -f "$installer"
+    if [ "$status" -ne 0 ]; then
         return "$status"
     fi
-    rm -f "$installer"
 
     browser_use="${HERMES_HOME:-$HOME/.hermes}/bin/browser-use"
     if [ ! -x "$browser_use" ]; then
