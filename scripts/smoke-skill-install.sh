@@ -30,7 +30,7 @@ fi
 exec /bin/cp "$@"
 STUB
 chmod +x "$task_dir/bin/skills" "$task_dir/bin/cp"
-for state in empty partial complete broken alias no_url backup_failure; do
+for state in empty partial complete broken alias no_url backup_failure backup_collision; do
     jq '{skills: {"poteto-mode": .skills["poteto-mode"]}}' \
         "$repo/.agents/skill-lock.json" > "$task_dir/lock.json"
     if [ "$state" = no_url ]; then
@@ -63,6 +63,17 @@ for state in empty partial complete broken alias no_url backup_failure; do
         done
         echo 'preserve me' > "$task_home/.claude/skills/poteto-mode/local-notes"
     fi
+    if [ "$state" = backup_collision ]; then
+        mkdir -p "$task_dir/custom/local-skill" "$task_dir/old-skill" \
+            "$task_home/.config/opencode/skills"
+        printf '%s\n' '---' 'name: local-skill' '---' > "$task_dir/custom/local-skill/SKILL.md"
+        cp "$task_dir/custom/local-skill/SKILL.md" "$task_dir/old-skill/SKILL.md"
+        ln -s "$task_dir/old-skill" "$task_home/.claude/skills/local-skill"
+        ln -s "$task_home/.claude/skills/local-skill" "$task_home/.agents/skills/local-skill"
+        ln -s "$task_home/.claude/skills/local-skill" "$task_home/.config/opencode/skills/local-skill"
+        printf '#!/bin/sh\necho 20000101000000\n' > "$task_dir/bin/date"
+        chmod +x "$task_dir/bin/date"
+    fi
     run_sync() {
         env -u CODEX_HOME -u OPENCODE_CONFIG_DIR -u PI_CODING_AGENT_DIR \
             -u PI_SKILLS_DIR HOME="$task_home" \
@@ -88,5 +99,12 @@ for state in empty partial complete broken alias no_url backup_failure; do
             test -r "$task_home/$root/poteto-mode/SKILL.md"
         done
     done
+    if [ "$state" = complete ]; then
+        live_lock="$task_home/.agents/.skill-lock.json"
+        jq '.skills["poteto-mode"].pluginName = "pstack"' "$live_lock" > "$live_lock.next"
+        mv "$live_lock.next" "$live_lock"
+        run_sync || { cat "$task_dir/output" >&2; exit 1; }
+        jq -e '.skills["poteto-mode"].pluginName == "pstack"' "$live_lock" >/dev/null
+    fi
 done
 echo '[INFO] Skill install smoke test passed'

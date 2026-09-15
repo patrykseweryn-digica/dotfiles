@@ -74,10 +74,19 @@ presence is covered by fixtures. Native macOS and ARM64 execution remain
 unverified. Remote connectors on a new account may still require interactive
 installation and OAuth; no account cache is copied.
 
-The broad live `skills-check` also reported existing unmanaged skills, stale
-`craft-readme` links and `pluginName` metadata differences. These are separate
-from poteto-mode; the dedicated fresh-home skill check passes. Extra live skills
-were not deleted to make this unrelated inventory check pass.
+The follow-up `just doctor` run exposed local additions, stale links and
+`pluginName` metadata differences. With user approval, seven local skills and
+the Telegram MCP definition were imported and synchronized. Runtime-only
+`pluginName` metadata no longer causes a false inventory mismatch. Broken
+links were archived before removal.
+
+Synchronization also reproduced a backup-name collision: multiple runtime
+links for one skill shared a timestamped backup path. Copying through the
+existing backup symlink modified the source directory and created a link
+cycle. Both installers now use unique backup directories. A regression
+reproduces the cross-runtime link chain with a fixed clock.
+
+The subsequent real `just doctor` run passed all checks.
 
 Sources: [Treehouse installer](https://kunchenguid.github.io/treehouse/install.sh),
 [release assets](https://github.com/kunchenguid/treehouse/releases/tag/v2.3.0),

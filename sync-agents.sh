@@ -112,11 +112,12 @@ link_file() {
 
     if [ -e "$target_path" ] || [ -L "$target_path" ]; then
         mkdir -p "$backup_dir" || return 1
-        local backup_name
-        backup_name="$(basename "$target_path").$(date +%Y%m%d%H%M%S)"
-        cp -rP "$target_path" "${backup_dir}/${backup_name}" || return 1
+        local backup_path
+        backup_path=$(mktemp -d "${backup_dir}/$(basename "$target_path").XXXXXX") || return 1
+        backup_path="${backup_path}/$(basename "$target_path")"
+        cp -rP "$target_path" "$backup_path" || return 1
         rm -rf "$target_path" || return 1
-        log_info "Backed up $target_path to ${backup_dir}/${backup_name}"
+        log_info "Backed up $target_path to $backup_path"
     fi
 
     mkdir -p "$(dirname "$target_path")" || return 1
@@ -154,7 +155,7 @@ normalize_skill_lock() {
         select((.skills | type) == "object")
         | {
             skills: (.skills | map_values(
-                del(.skillFolderHash, .installedAt, .updatedAt)
+                del(.skillFolderHash, .installedAt, .updatedAt, .pluginName)
             )),
             dismissed: (.dismissed // {})
         }
@@ -2038,7 +2039,7 @@ cmd_lock_skills_export() {
     local tmp
     tmp=$(mktemp)
     jq -S '{
-        skills: (.skills | map_values(del(.skillFolderHash, .installedAt, .updatedAt))),
+        skills: (.skills | map_values(del(.skillFolderHash, .installedAt, .updatedAt, .pluginName))),
         dismissed: .dismissed
     }' "$SKILL_LOCK_LIVE" >"$tmp" || {
         rm -f "$tmp"
