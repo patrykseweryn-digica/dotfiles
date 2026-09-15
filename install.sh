@@ -282,6 +282,8 @@ setup_repo_git() {
 setup_dotfiles() {
     echo "[INFO] Setting up dotfile configurations..."
 
+    # Fail on dispatch conflicts before changing unrelated configuration.
+    setup_firstmate || return $?
     ensure_install_dirs
     # Merge after tool installation; also runs for just update-dotfiles.
     uv run --no-project --script "$DOTFILES_DIR/scripts/no-mistakes-config.py"
