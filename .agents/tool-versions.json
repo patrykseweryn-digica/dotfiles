@@ -105,6 +105,12 @@
     },
     {
       "channel": "latest",
+      "command": "hermes",
+      "installer": "hermes-native",
+      "name": "Hermes Agent"
+    },
+    {
+      "channel": "latest",
       "command": "herdr",
       "installer": "herdr-native",
       "name": "Herdr"

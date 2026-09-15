@@ -533,6 +533,12 @@ smoke_latest_workflow_tools() {
 
         curl() {
             echo "curl $*" >>"$SMOKE_LOG"
+            if [ "$2" = https://hermes-agent.nousresearch.com/install.sh ]; then
+                cat >"$4" <<'INSTALLER'
+printf 'hermes %s\n' "$*" >> "$SMOKE_LOG"
+INSTALLER
+                return
+            fi
             cat <<'INSTALLER'
 printf 'install %s\n' "${HERDR_INSTALL_DIR:-${NO_MISTAKES_LINK_DIR:-}}" >> "$SMOKE_LOG"
 if [ -n "${HERDR_INSTALL_DIR:-}" ]; then
@@ -549,9 +555,12 @@ fi
 INSTALLER
         }
 
+        install_hermes
         install_herdr
         install_treehouse
         install_no_mistakes
+        assert_log_contains "$SMOKE_LOG" "curl -fsSL https://hermes-agent.nousresearch.com/install.sh -o"
+        assert_log_contains "$SMOKE_LOG" "hermes --skip-setup --skip-browser --skip-computer-use"
         assert_log_contains "$SMOKE_LOG" "curl -fsSL https://herdr.dev/install.sh"
         assert_log_contains "$SMOKE_LOG" "curl -fsSL https://kunchenguid.github.io/treehouse/install.sh"
         assert_log_contains "$SMOKE_LOG" "curl -fsSL https://raw.githubusercontent.com/kunchenguid/no-mistakes/main/docs/install.sh"
@@ -567,7 +576,7 @@ INSTALLER
             printf '%s\n' 'echo unexpected >> "$SMOKE_LOG"'
             return 22
         }
-        if install_herdr || install_treehouse || install_no_mistakes; then
+        if install_hermes || install_herdr || install_treehouse || install_no_mistakes; then
             fail "native installer ignored download failure"
         fi
         [ ! -s "$SMOKE_LOG" ] || fail "partial installer executed"
