@@ -1,0 +1,39 @@
+name: Repository checks
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+      - name: Install existing check tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq just zsh
+          pipx install uv
+          export PATH="$HOME/.local/bin:$PATH"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          uv tool install pre-commit
+          curl -fsSL https://herdr.dev/install.sh \
+            -o "$RUNNER_TEMP/herdr-install.sh"
+          sh "$RUNNER_TEMP/herdr-install.sh"
+          npm --prefix config/pi ci --ignore-scripts
+      - name: Secure runner Zsh completion permissions
+        run: |
+          zsh -fc 'autoload -Uz compaudit; compaudit' |
+            xargs -r -d '\n' sudo chmod -v go-w
+      - name: Check repository
+        run: just check

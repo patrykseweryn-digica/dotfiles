@@ -143,11 +143,43 @@ daemon. The merge uses `uv` with the pinned round-trip YAML parser in
 `scripts/no-mistakes-config.py` (the CLI has no config-set command).
 
 Hermes installation skips the interactive setup wizard and the optional
-Computer Use driver. Herdr installation also installs its Claude hook
+Computer Use driver, but installs the Browser Use CLI (Playwright/Chromium
+browser tools); installation fails if the Browser Use CLI is not executable
+afterward. Herdr installation also installs its Claude hook
 through the built-in integration command. The hook resolves its script
 relative to `$HOME`.
 Doctor checks that an enabled hook has a readable script; a disabled hook
 is reported as SKIP.
+
+### Firstmate crew dispatch
+
+Set `DOTFILES_FIRSTMATE_HOME` in the local `.env` to the absolute primary
+Firstmate home containing `config/`. Both setup commands install
+`config/firstmate/crew-dispatch.json` there as a regular file. An unset target
+skips setup; an invalid target or differing existing dispatch fails without
+replacing it. Equivalent JSON is left untouched. Other Firstmate settings
+are never changed. There is no path guessing or secondmate-home scan:
+Firstmate's runtime `FM_HOME`/`FM_ROOT_OVERRIDE` can name an isolated home,
+so dotfiles deliberately requires its own persistent, explicit target.
+
+Profiles use the native `codex` harness: low for simple, well-understood
+work, high for ambiguous diagnosis or complex investigation/data contracts,
+and medium for ordinary implementation by default. Model is omitted so
+Codex keeps its configured choice; no provider/model pin, quota arrays,
+delivery policy, secondmate model, or no-mistakes effort is changed.
+The schema owner is Firstmate's `docs/configuration.md`, section
+"Crew dispatch profiles"; its `bin/fm-bootstrap.sh` validates the profiles.
+
+After approval, apply only this configuration from the dotfiles checkout:
+
+```bash
+bash -c 'source ./install.sh; load_env; setup_firstmate'
+```
+
+This writes only the selected home's dispatch file. It does not restart
+agents or propagate to secondmates. Main owns any later guarded
+`fm-config-push.sh` inheritance. For a conflicting existing dispatch, review
+and reconcile it explicitly before rerunning; setup never overwrites it.
 
 ## Synchronizing Git remotes
 

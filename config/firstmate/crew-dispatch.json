@@ -1,0 +1,13 @@
+{
+  "rules": [
+    {
+      "when": "Ambiguous diagnosis, unclear root cause, high-complexity investigation, or changes to data contracts, schemas, units, or transformations whose semantics need investigation. Prefer this rule whenever uncertainty makes the work more than ordinary implementation.",
+      "use": { "harness": "codex", "effort": "high" }
+    },
+    {
+      "when": "Simple, well-understood, unambiguous work with a known solution and narrow scope, such as a mechanical edit or straightforward configuration change. No unresolved diagnosis, design choice, or data semantics.",
+      "use": { "harness": "codex", "effort": "low" }
+    }
+  ],
+  "default": { "harness": "codex", "effort": "medium" }
+}

@@ -17,6 +17,7 @@ JQ_BIN="$(command -v jq 2>/dev/null || true)"
 UV_BIN="$(command -v uv)"
 export UV_CACHE_DIR="${UV_CACHE_DIR:-$(uv cache dir)}"
 # Runtime overrides must never escape the temporary HOME used by each case.
+unset DOTFILES_FIRSTMATE_HOME
 unset CODEX_HOME CODEX_CONFIG CODEX_SETTINGS_TEMPLATE CODEX_PLUGIN_MANIFEST
 unset CODEX_REMOTE_PLUGIN_CACHE CODEX_PLUGIN_LIST_FILE CODEX_MARKETPLACE_LIST_FILE
 unset CLAUDE_SETTINGS_FILE CLAUDE_USER_CONFIG CLAUDE_TEMPLATE_FILE CLAUDE_MANIFEST
@@ -111,9 +112,13 @@ smoke_tmux_plugins_install_after_setup_dotfiles() {
     cat >"${stub_dir}/skills" <<'STUB'
 #!/bin/sh
 echo "skills $*" >> "$NPX_LOG"
-exit 127
+name=$(printf '%s' "$5" | tr '[:upper:] ' '[:lower:]-')
+mkdir -p "$HOME/.agents/skills/$name"
+printf '%s\n' '---' "name: $name" '---' > "$HOME/.agents/skills/$name/SKILL.md"
 STUB
     chmod +x "${stub_dir}/skills"
+    printf '#!/bin/sh\nexit 0\n' >"${stub_dir}/codex"
+    chmod +x "${stub_dir}/codex"
 
     cat >"${home_dir}/.tmux/plugins/tpm/bin/install_plugins" <<'STUB'
 #!/bin/sh
@@ -276,9 +281,13 @@ JSON
     cat >"${stub_dir}/skills" <<'STUB'
 #!/bin/sh
 echo "skills $*" >> "$NPX_LOG"
-exit 127
+name=$(printf '%s' "$5" | tr '[:upper:] ' '[:lower:]-')
+mkdir -p "$HOME/.agents/skills/$name"
+printf '%s\n' '---' "name: $name" '---' > "$HOME/.agents/skills/$name/SKILL.md"
 STUB
     chmod +x "${stub_dir}/skills"
+    printf '#!/bin/sh\nexit 0\n' >"${stub_dir}/codex"
+    chmod +x "${stub_dir}/codex"
 
     cat >"${stub_dir}/pi" <<'STUB'
 #!/bin/sh
@@ -384,7 +393,7 @@ YAML
     fi
     [ -f "${home_dir}/.claude/settings.json" ] || fail "$os_name: missing generated Claude settings"
     [ -s "$npx_log" ] ||
-        fail "$os_name: sync should tolerate failed skill installation"
+        fail "$os_name: sync should install required skills"
 
     rm -rf "$tmp_dir"
 }

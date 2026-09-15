@@ -111,16 +111,17 @@ link_file() {
     fi
 
     if [ -e "$target_path" ] || [ -L "$target_path" ]; then
-        mkdir -p "$backup_dir"
-        local backup_name
-        backup_name="$(basename "$target_path").$(date +%Y%m%d%H%M%S)"
-        cp -rP "$target_path" "${backup_dir}/${backup_name}"
-        rm -rf "$target_path"
-        log_info "Backed up $target_path to ${backup_dir}/${backup_name}"
+        mkdir -p "$backup_dir" || return 1
+        local backup_path
+        backup_path=$(mktemp -d "${backup_dir}/$(basename "$target_path").XXXXXX") || return 1
+        backup_path="${backup_path}/$(basename "$target_path")"
+        cp -rP "$target_path" "$backup_path" || return 1
+        rm -rf "$target_path" || return 1
+        log_info "Backed up $target_path to $backup_path"
     fi
 
-    mkdir -p "$(dirname "$target_path")"
-    ln -s "$source_path" "$target_path"
+    mkdir -p "$(dirname "$target_path")" || return 1
+    ln -s "$source_path" "$target_path" || return 1
     log_info "Linked $target_path -> $source_path"
 }
 
@@ -154,7 +155,7 @@ normalize_skill_lock() {
         select((.skills | type) == "object")
         | {
             skills: (.skills | map_values(
-                del(.skillFolderHash, .installedAt, .updatedAt)
+                del(.skillFolderHash, .installedAt, .updatedAt, .pluginName)
             )),
             dismissed: (.dismissed // {})
         }
@@ -932,7 +933,7 @@ claude_plugin_state_available() {
 cmd_codex_remote_plugins_check() {
     validate_plugin_manifest "$CODEX_PLUGIN_MANIFEST" || return 1
 
-    local live wanted missing extra
+    local live wanted missing
     live="$(mktemp)"
     wanted="$(mktemp)"
     render_codex_remote_plugins "$live" || {
@@ -954,17 +955,9 @@ cmd_codex_remote_plugins_check() {
         select(($live_ids | index($plugin.remotePluginId)) | not) |
         [$plugin.name, $plugin.remotePluginId] | @tsv
     ')
-    extra=$(jq -rn \
-        --slurpfile wanted "$wanted" \
-        --slurpfile live "$live" '
-        ($wanted[0] | map(.remotePluginId)) as $wanted_ids |
-        $live[0][] as $plugin |
-        select(($wanted_ids | index($plugin.remotePluginId)) | not) |
-        [$plugin.cacheName, $plugin.remotePluginId] | @tsv
-    ')
     rm -f "$live" "$wanted"
 
-    if [ -z "$missing" ] && [ -z "$extra" ]; then
+    if [ -z "$missing" ]; then
         log_info "Codex remote plugins match manifest"
         return 0
     fi
@@ -975,20 +968,12 @@ cmd_codex_remote_plugins_check() {
         echo "$missing" | awk -F '\t' \
             '{ print "  - " $1 " (" $2 ")" }' >&2
     fi
-    if [ -n "$extra" ]; then
-        echo "Extra plugins:" >&2
-        echo "$extra" | awk -F '\t' \
-            '{ print "  - " $1 " (" $2 ")" }' >&2
-    fi
     echo "" >&2
     echo "Manual Codex steps:" >&2
     echo "  - Open Codex and enter: /plugins" >&2
     if [ -n "$missing" ]; then
         echo "  - Install the missing plugins listed above" >&2
         echo "  - Complete OAuth when prompted" >&2
-    fi
-    if [ -n "$extra" ]; then
-        echo "  - Remove the extra plugins listed above" >&2
     fi
     echo "  - Run again: just push-plugins" >&2
     return 1
@@ -1079,10 +1064,7 @@ render_codex_plugins() {
             select(
                 .installed == true and
                 .enabled == true and
-                (
-                    .marketplaceSource.sourceType == "git" or
-                    .marketplaceSource.sourceType == "local"
-                )
+                .marketplaceSource.sourceType == "git"
             ) |
             .pluginId
         ] | unique
@@ -1123,13 +1105,16 @@ cmd_codex_marketplace_plugins_check() {
         >"$wanted_marketplaces"
 
     if [ "$failed" = false ] &&
-        ! cmp -s "$wanted_plugins" "$live_plugins"; then
+        ! jq -e --slurpfile live "$live_plugins" \
+            '(. - $live[0]) | length == 0' "$wanted_plugins" >/dev/null; then
         echo "[ERROR] Codex marketplace plugin drift detected" >&2
         diff -u "$wanted_plugins" "$live_plugins" >&2 || true
         failed=true
     fi
     if [ "$failed" = false ] &&
-        ! cmp -s "$wanted_marketplaces" "$live_marketplaces"; then
+        ! jq -e --slurpfile live "$live_marketplaces" \
+            'to_entries | all(.[]; .value == $live[0][.key])' \
+            "$wanted_marketplaces" >/dev/null; then
         echo "[ERROR] Codex marketplace drift detected" >&2
         diff -u "$wanted_marketplaces" "$live_marketplaces" >&2 || true
         failed=true
@@ -1152,8 +1137,11 @@ cmd_codex_marketplace_plugins_export() {
     plugins="$(mktemp)"
     marketplaces="$(mktemp)"
     tmp="$(mktemp)"
-    render_codex_plugins >"$plugins"
-    render_codex_marketplaces >"$marketplaces"
+    if ! render_codex_plugins >"$plugins" ||
+        ! render_codex_marketplaces >"$marketplaces"; then
+        rm -f "$plugins" "$marketplaces" "$tmp"
+        return 1
+    fi
     jq -S --slurpfile plugins "$plugins" \
         --slurpfile marketplaces "$marketplaces" '
         .codexPlugins = $plugins[0]
@@ -1194,8 +1182,12 @@ cmd_codex_marketplace_plugins_push() {
     live_marketplaces="$(mktemp)"
     wanted_plugins="$(mktemp)"
     wanted_marketplaces="$(mktemp)"
-    render_codex_plugins >"$live_plugins"
-    render_codex_marketplaces >"$live_marketplaces"
+    if ! render_codex_plugins >"$live_plugins" ||
+        ! render_codex_marketplaces >"$live_marketplaces"; then
+        rm -f "$live_plugins" "$live_marketplaces" \
+            "$wanted_plugins" "$wanted_marketplaces"
+        return 1
+    fi
     jq -r '.codexPlugins // [] | unique[]' "$CODEX_PLUGIN_MANIFEST" \
         >"$wanted_plugins"
     jq -r '.codexMarketplaces // {} | keys[]' "$CODEX_PLUGIN_MANIFEST" \
@@ -1203,36 +1195,40 @@ cmd_codex_marketplace_plugins_push() {
 
     while IFS= read -r marketplace; do
         [ -n "$marketplace" ] || continue
-        jq -e --arg name "$marketplace" 'has($name)' \
-            "$live_marketplaces" >/dev/null && continue
         source="$(jq -r --arg name "$marketplace" \
             '.codexMarketplaces[$name]' "$CODEX_PLUGIN_MANIFEST")"
+        if jq -e --arg name "$marketplace" 'has($name)' \
+            "$live_marketplaces" >/dev/null; then
+            if ! jq -e --arg name "$marketplace" --arg source "$source" \
+                '.[$name] == $source' "$live_marketplaces" >/dev/null; then
+                echo "[ERROR] Codex marketplace $marketplace has a different source; expected $source" >&2
+                failed=true
+            fi
+            continue
+        fi
         log_info "Adding Codex marketplace: $marketplace"
-        codex plugin marketplace add "$source" || failed=true
+        codex plugin marketplace add "$source" || {
+            echo "[ERROR] Failed to prepare Codex marketplace: $marketplace ($source)" >&2
+            failed=true
+        }
     done <"$wanted_marketplaces"
+
+    if [ "$failed" = true ]; then
+        rm -f "$live_plugins" "$live_marketplaces" \
+            "$wanted_plugins" "$wanted_marketplaces"
+        return 1
+    fi
 
     while IFS= read -r plugin; do
         [ -n "$plugin" ] || continue
         jq -e --arg plugin "$plugin" 'index($plugin) != null' \
             "$live_plugins" >/dev/null && continue
         log_info "Adding Codex plugin: $plugin"
-        codex plugin add "$plugin" || failed=true
+        codex plugin add "$plugin" || {
+            echo "[ERROR] Failed to install Codex plugin: $plugin" >&2
+            failed=true
+        }
     done <"$wanted_plugins"
-
-    jq -r '.[]' "$live_plugins" | while IFS= read -r plugin; do
-        [ -n "$plugin" ] || continue
-        grep -qxF "$plugin" "$wanted_plugins" && continue
-        log_info "Removing Codex plugin: $plugin"
-        codex plugin remove "$plugin" || exit 1
-    done || failed=true
-
-    jq -r 'keys[]' "$live_marketplaces" |
-        while IFS= read -r marketplace; do
-            [ -n "$marketplace" ] || continue
-            grep -qxF "$marketplace" "$wanted_marketplaces" && continue
-            log_info "Removing Codex marketplace: $marketplace"
-            codex plugin marketplace remove "$marketplace" || exit 1
-        done || failed=true
 
     rm -f "$live_plugins" "$live_marketplaces" \
         "$wanted_plugins" "$wanted_marketplaces"
@@ -1691,31 +1687,32 @@ cmd_lock_skills_install() {
     done < <(skill_runtime_rows)
 
     local entries
-    entries=$(jq -r '.skills | to_entries[] | [.key, .value.source, (.value.sourceUrl // "")] | @tsv' "$SKILL_LOCK_LIVE")
+    entries=$(jq -r '.skills | to_entries[] | [.key, .value.source, (.value.installName // .key), (.value.sourceUrl // "")] | @tsv' "$SKILL_LOCK_LIVE")
     [ -n "$entries" ] || {
         log_info "No skills in lock"
         return 0
     }
 
-    local name source source_url
-    while IFS=$'\t' read -r name source source_url; do
+    local name source source_url install_name failed=false
+    while IFS=$'\t' read -r name source install_name source_url; do
         [ -n "$name" ] || continue
 
         if [ ! -e "${AGENT_SKILLS_DIR}/${name}/SKILL.md" ] && [ ! -e "${CLAUDE_SKILLS_DIR}/${name}/SKILL.md" ] && [ ! -e "${OPENCODE_SKILLS_DIR}/${name}/SKILL.md" ] && [ ! -e "${PI_SKILLS_DIR}/${name}/SKILL.md" ]; then
             local install_ok=false
             if [ "$source" = "openclaw/agent-skills" ] || [ "$source_url" = "https://github.com/openclaw/agent-skills.git" ]; then
                 log_info "Installing skill: $name (from $source)"
-                "$SKILLS_CLI" add -g "$source" --skill "$name" \
-                    --dangerously-accept-openclaw-risks -y \
-                    </dev/null >/dev/null 2>&1 && install_ok=true
+                "$SKILLS_CLI" add -g "$source" --skill "$install_name" \
+                    --dangerously-accept-openclaw-risks --agent codex -y \
+                    </dev/null && install_ok=true
             else
                 log_info "Installing skill: $name (from $source)"
-                "$SKILLS_CLI" add -g "$source" --skill "$name" -y \
-                    </dev/null >/dev/null 2>&1 && install_ok=true
+                "$SKILLS_CLI" add -g "$source" --skill "$install_name" --agent codex -y \
+                    </dev/null && install_ok=true
             fi
 
             if [ "$install_ok" != true ]; then
-                echo "[WARN] Failed to install skill: $name (from $source)" >&2
+                echo "[ERROR] Failed to install skill: $name (from $source)" >&2
+                failed=true
             fi
         fi
 
@@ -1731,18 +1728,24 @@ cmd_lock_skills_install() {
         fi
 
         if [ -n "$source_dir" ]; then
+            # Keep the real source intact on repeated runs through runtime links.
+            source_dir="$(cd "$source_dir" && pwd -P)"
             local target_dir target_path
             while IFS='|' read -r runtime target_dir; do
                 target_path="${target_dir}/${name}"
-                [ "$source_dir" = "$target_path" ] ||
-                    link_file "$source_dir" "$target_path"
+                [ "$source_dir" -ef "$target_path" ] ||
+                    link_file "$source_dir" "$target_path" || failed=true
             done < <(skill_runtime_rows)
         fi
 
         if [ ! -e "${AGENT_SKILLS_DIR}/${name}/SKILL.md" ] || [ ! -e "${CLAUDE_SKILLS_DIR}/${name}/SKILL.md" ] || [ ! -e "${OPENCODE_SKILLS_DIR}/${name}/SKILL.md" ] || [ ! -e "${PI_SKILLS_DIR}/${name}/SKILL.md" ]; then
-            echo "[WARN] Skill not available in all runtimes after install: $name" >&2
+            echo "[ERROR] Skill not available in all runtimes after install: $name" >&2
+            failed=true
         fi
     done <<<"$entries"
+    # The CLI rewrites entries under upstream names and drops installName.
+    ensure_live_skill_lock || return 1
+    [ "$failed" = false ]
 }
 
 cmd_claude_plugins_export() {
@@ -2036,7 +2039,7 @@ cmd_lock_skills_export() {
     local tmp
     tmp=$(mktemp)
     jq -S '{
-        skills: (.skills | map_values(del(.skillFolderHash, .installedAt, .updatedAt))),
+        skills: (.skills | map_values(del(.skillFolderHash, .installedAt, .updatedAt, .pluginName))),
         dismissed: .dismissed
     }' "$SKILL_LOCK_LIVE" >"$tmp" || {
         rm -f "$tmp"
@@ -2229,7 +2232,7 @@ cmd_push_skills() {
 
     cmd_custom_skills_install
     ensure_live_skill_lock
-    cmd_lock_skills_install
+    cmd_lock_skills_install || return 1
     cmd_skills_check
 }
 
@@ -2536,7 +2539,7 @@ cmd_claude_install() {
     sync_claude_mcp_config
 
     cmd_claude_plugins_push
-    cmd_lock_skills_install
+    cmd_lock_skills_install || return 1
 
     log_info "Claude sync complete"
 }
@@ -2548,6 +2551,7 @@ cmd_install() {
     cmd_kimi_install
     cmd_pi_install
     cmd_claude_install
+    cmd_codex_marketplace_plugins_push
     cmd_codex_plugins_check
 
     log_info "Agent config sync complete"

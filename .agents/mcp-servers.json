@@ -1,40 +1,55 @@
 {
   "chrome-devtools": {
-    "type": "stdio",
-    "command": "npx",
     "args": [
       "-y",
       "chrome-devtools-mcp@1.5.0",
       "--browserUrl",
       "http://127.0.0.1:9222"
-    ]
-  },
-  "playwright": {
-    "type": "stdio",
+    ],
     "command": "npx",
-    "args": [
-      "-y",
-      "@playwright/mcp@0.0.77"
-    ]
-  },
-  "sequential-thinking": {
-    "type": "stdio",
-    "command": "npx",
-    "args": [
-      "-y",
-      "@modelcontextprotocol/server-sequential-thinking@2026.7.4"
-    ]
+    "type": "stdio"
   },
   "garmin": {
-    "type": "stdio",
-    "command": "uvx",
     "args": [
       "--python",
       "3.12",
       "--from",
       "git+https://github.com/Taxuspt/garmin_mcp@2974244bfda1595b00836b3f942f579ec2d6f7d6",
       "garmin-mcp"
-    ]
+    ],
+    "command": "uvx",
+    "type": "stdio"
+  },
+  "logfire": {
+    "type": "http",
+    "url": "https://logfire-us.pydantic.dev/mcp"
+  },
+  "playwright": {
+    "args": [
+      "-y",
+      "@playwright/mcp@0.0.77"
+    ],
+    "command": "npx",
+    "type": "stdio"
+  },
+  "sequential-thinking": {
+    "args": [
+      "-y",
+      "@modelcontextprotocol/server-sequential-thinking@2026.7.4"
+    ],
+    "command": "npx",
+    "type": "stdio"
+  },
+  "telegram": {
+    "args": [
+      "--python",
+      "3.12",
+      "--from",
+      "git+https://github.com/chigwell/telegram-mcp",
+      "telegram-mcp"
+    ],
+    "command": "uvx",
+    "type": "stdio"
   },
   "todoist": {
     "type": "http",

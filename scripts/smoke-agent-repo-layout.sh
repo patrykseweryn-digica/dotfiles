@@ -19,8 +19,10 @@ $tracked_symlinks
 EOF
 
 [ -f AGENTS.md ] && [ ! -L AGENTS.md ] || fail "root AGENTS.md must be repo-local"
-[ -L CLAUDE.md ] || fail "root CLAUDE.md must link to repo-local AGENTS.md"
-[ "$(readlink CLAUDE.md)" = "AGENTS.md" ] || fail "root CLAUDE.md points at wrong target"
+[ -f CLAUDE.md ] && [ ! -L CLAUDE.md ] || fail "root CLAUDE.md must be a regular import file"
+cmp -s CLAUDE.md <(printf '%s\n' \
+    '<!-- Points Claude at AGENTS.md via import; edit AGENTS.md, not this file. -->' \
+    '@AGENTS.md') || fail "root CLAUDE.md must import repo-local AGENTS.md"
 if grep -q 'docs/agents/' .agents/AGENTS.md; then
     fail "global instructions must not include dotfiles-only documentation"
 fi

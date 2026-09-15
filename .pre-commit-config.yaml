@@ -44,6 +44,11 @@ repos:
         entry: ./scripts/smoke-install-dotfiles.sh
         language: system
         pass_filenames: false
+      - id: firstmate-config-smoke
+        name: Firstmate dispatch setup smoke test
+        entry: bash scripts/smoke-firstmate-config.sh
+        language: system
+        pass_filenames: false
       - id: git-sync-smoke
         name: Dotfiles dual-remote Git sync smoke test
         entry: bash scripts/smoke-git-sync.sh
@@ -79,6 +84,21 @@ repos:
         name: Codex plugin sync smoke test
         description: Ensure Codex remote plugin drift and export stay symmetric
         entry: ./scripts/smoke-codex-plugin-sync.sh
+        language: system
+        pass_filenames: false
+      - id: plugin-install-smoke
+        name: Full plugin install smoke test
+        entry: bash scripts/smoke-plugin-install.sh
+        language: system
+        pass_filenames: false
+      - id: skill-install-smoke
+        name: Required skill installation smoke test
+        entry: bash scripts/smoke-skill-install.sh
+        language: system
+        pass_filenames: false
+      - id: treehouse-smoke
+        name: Treehouse release installation smoke test
+        entry: bash scripts/smoke-treehouse.sh
         language: system
         pass_filenames: false
       - id: codex-settings-smoke

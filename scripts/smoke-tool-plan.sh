@@ -536,6 +536,9 @@ smoke_latest_workflow_tools() {
             if [ "$2" = https://hermes-agent.nousresearch.com/install.sh ]; then
                 cat >"$4" <<'INSTALLER'
 printf 'hermes %s\n' "$*" >> "$SMOKE_LOG"
+mkdir -p "$HOME/.hermes/bin"
+printf '#!/bin/sh\n' > "$HOME/.hermes/bin/browser-use"
+chmod +x "$HOME/.hermes/bin/browser-use"
 INSTALLER
                 return
             fi
@@ -557,12 +560,10 @@ INSTALLER
 
         install_hermes
         install_herdr
-        install_treehouse
         install_no_mistakes
         assert_log_contains "$SMOKE_LOG" "curl -fsSL https://hermes-agent.nousresearch.com/install.sh -o"
         assert_log_contains "$SMOKE_LOG" "hermes --skip-setup --skip-computer-use"
         assert_log_contains "$SMOKE_LOG" "curl -fsSL https://herdr.dev/install.sh"
-        assert_log_contains "$SMOKE_LOG" "curl -fsSL https://kunchenguid.github.io/treehouse/install.sh"
         assert_log_contains "$SMOKE_LOG" "curl -fsSL https://raw.githubusercontent.com/kunchenguid/no-mistakes/main/docs/install.sh"
         [ "$(grep -Fxc "install $BIN_DIR" "$SMOKE_LOG")" -eq 2 ] || fail "native install paths differ"
         [ -f "$HOME/.claude/hooks/herdr-agent-state.sh" ] || fail "Herdr hook missing"
@@ -570,13 +571,36 @@ INSTALLER
             "bash \"$HOME/.claude/hooks/herdr-agent-state.sh\" session"' \
             "$HOME/.claude/settings.json" >/dev/null || fail "Herdr hook not portable"
 
+        rm -rf "$HOME/.hermes"
+        curl() {
+            if [ "$2" = https://hermes-agent.nousresearch.com/install.sh ]; then
+                cat >"$4" <<'INSTALLER'
+true
+INSTALLER
+            fi
+        }
+        if install_hermes; then
+            fail "install_hermes accepted missing Browser Use CLI"
+        fi
+
+        curl() {
+            if [ "$2" = https://hermes-agent.nousresearch.com/install.sh ]; then
+                cat >"$4" <<'INSTALLER'
+exit 5
+INSTALLER
+            fi
+        }
+        if install_hermes; then
+            fail "install_hermes ignored installer script failure"
+        fi
+
         : >"$SMOKE_LOG"
         curl() {
             # Even a partially downloaded script must not execute.
             printf '%s\n' 'echo unexpected >> "$SMOKE_LOG"'
             return 22
         }
-        if install_hermes || install_herdr || install_treehouse || install_no_mistakes; then
+        if install_hermes || install_herdr || install_no_mistakes; then
             fail "native installer ignored download failure"
         fi
         [ ! -s "$SMOKE_LOG" ] || fail "partial installer executed"
