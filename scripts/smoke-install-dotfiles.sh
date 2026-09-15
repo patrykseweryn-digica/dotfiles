@@ -25,6 +25,7 @@ unset OPENCODE_CONFIG_DIR OPENCODE_CONFIG KIMI_CODE_HOME KIMI_MCP_CONFIG
 unset PI_CODING_AGENT_DIR PI_SETTINGS_FILE PI_SKILLS_DIR PI_MCP_CONFIG
 unset PI_SETTINGS_TEMPLATE PI_AGENTS_SOURCE SKILL_LOCK_LIVE SKILLS_CLI
 unset PLUGIN_MANIFEST MCP_SERVERS SKILL_LOCK_REPO SHARED_SKILLS_CUSTOM_DIR
+unset HERDR_CONFIG_PATH
 
 smoke_source_has_no_home_side_effect() {
     local tmp_dir
@@ -270,6 +271,24 @@ worktree_roots:
   /example/repo: /example/worktrees
 YAML
     fi
+    if [ "$os_name" = Darwin ]; then
+        mkdir -p "${home_dir}/.config/herdr"
+        cat >"${home_dir}/.config/herdr/config.toml" <<'TOML'
+# Local preferences survive installation.
+onboarding = false
+[theme]
+name = "catppuccin"
+auto_switch = false
+[ui]
+status_indicators = "dots"
+[ui.toast]
+delivery = "herdr"
+[ui.sidebar.agents]
+row_gap = 1
+rows = [["state_icon", "agent"]]
+TOML
+        cp "${home_dir}/.config/herdr/config.toml" "${tmp_dir}/herdr-before.toml"
+    fi
     mkdir -p "${home_dir}/.pi/agent"
     cat >"${home_dir}/.pi/agent/settings.json" <<'JSON'
 {
@@ -355,6 +374,25 @@ YAML
         cmp "$config" "${tmp_dir}/expected.yaml" ||
             fail "$os_name: repeated setup changed no-mistakes settings"
         echo "[INFO] $os_name: no-mistakes fresh/existing + repeat passed"
+
+        local herdr_config="${HOME}/.config/herdr/config.toml"
+        if [ "$os_name" = Darwin ]; then
+            sed 's/rows = .*/rows = [["state_icon", "agent"], ["terminal_title"]]/' \
+                "${tmp_dir}/herdr-before.toml" >"${tmp_dir}/herdr-expected.toml"
+        else
+            cp "$DOTFILES_DIR/config/herdr/config.toml" "${tmp_dir}/herdr-expected.toml"
+        fi
+        cmp "$herdr_config" "${tmp_dir}/herdr-expected.toml" ||
+            fail "$os_name: Herdr settings lost or title missing after repeat"
+        if [ "$os_name" = Darwin ]; then
+            cp "${tmp_dir}/herdr-before.toml" "$herdr_config"
+        else
+            rm "$herdr_config"
+        fi
+        setup_dotfiles >>"$sync_log" 2>&1
+        cmp "$herdr_config" "${tmp_dir}/herdr-expected.toml" ||
+            fail "$os_name: Herdr title not restored or local settings lost"
+        echo "[INFO] $os_name: Herdr fresh/existing + repeat + restore passed"
     )
 
     [ -L "${home_dir}/.zshrc" ] || fail "$os_name: missing .zshrc symlink"

@@ -1,0 +1,6 @@
+[ui.sidebar.agents]
+rows = [
+  ["state_icon", "machine", "workspace", "tab"],
+  ["agent"],
+  ["terminal_title"],
+]
