@@ -519,6 +519,55 @@ smoke_direct_binary_install() {
     rm -rf "$tmp_dir"
 }
 
+smoke_latest_workflow_tools() {
+    local tmp_dir
+    tmp_dir="$(mktemp -d)"
+
+    (
+        # shellcheck source=/dev/null
+        source "${DOTFILES_DIR}/bootstrap.d/05-tools.sh"
+        # shellcheck source=/dev/null
+        source "${DOTFILES_DIR}/bootstrap.d/07-node.sh"
+        BIN_DIR="${tmp_dir}/local bin"
+        export SMOKE_LOG="${tmp_dir}/actions.log"
+
+        curl() {
+            echo "curl $*" >>"$SMOKE_LOG"
+            printf '%s\n' 'printf "install %s\\n" "${HERDR_INSTALL_DIR:-${NO_MISTAKES_LINK_DIR:-}}" >> "$SMOKE_LOG"'
+        }
+        npm() {
+            echo "npm $*" >>"$SMOKE_LOG"
+            # A failed package must not prevent the remaining installations.
+            [ "$*" != "i -g gnhf@latest" ]
+        }
+
+        install_herdr
+        install_no_mistakes
+        install_global_npm_packages >"${tmp_dir}/npm-output.log"
+        assert_log_contains "$SMOKE_LOG" "curl -fsSL https://herdr.dev/install.sh"
+        assert_log_contains "$SMOKE_LOG" "curl -fsSL https://raw.githubusercontent.com/kunchenguid/no-mistakes/main/docs/install.sh"
+        [ "$(grep -Fxc "install $BIN_DIR" "$SMOKE_LOG")" -eq 2 ] || fail "native install paths differ"
+        for package in @steipete/summarize gnhf backpass lavish-axi acpx; do
+            assert_log_contains "$SMOKE_LOG" "npm i -g ${package}@latest"
+        done
+        assert_log_contains "${tmp_dir}/npm-output.log" "[WARN] Failed to install gnhf@latest"
+
+        : >"$SMOKE_LOG"
+        curl() {
+            # Even a partially downloaded script must not execute.
+            printf '%s\n' 'echo unexpected >> "$SMOKE_LOG"'
+            return 22
+        }
+        if install_herdr || install_no_mistakes; then
+            fail "native installer ignored download failure"
+        fi
+        [ ! -s "$SMOKE_LOG" ] || fail "partial installer executed"
+    )
+
+    rm -rf "$tmp_dir"
+}
+
+smoke_latest_workflow_tools
 smoke_package_manager_plan
 smoke_linuxbrew_without_sudo_plan
 smoke_remaining_tool_plan

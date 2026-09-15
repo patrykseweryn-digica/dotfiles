@@ -87,6 +87,13 @@ just update-dotfiles  # existing machine: links + agents, no tools, no SSH
 just setup-ssh        # explicit SSH key/config setup
 ```
 
+`just install` also installs Herdr and no-mistakes from their official
+latest-release installers, plus `gnhf@latest`, `backpass@latest`,
+`lavish-axi@latest`, and `acpx@latest` (required by backpass) globally via npm.
+These tools are not pinned; rerunning install refreshes them. Native commands
+use `~/.local/bin`; no-mistakes keeps its binary in `~/.no-mistakes/bin`
+and restarts its daemon. No repository gates or agent hooks are configured.
+
 ## What is what
 
 - `justfile`: command menu for humans.

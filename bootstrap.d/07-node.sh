@@ -3,9 +3,14 @@
 NVM_VERSION="v0.40.1"
 
 install_global_npm_packages() {
+    local package
+
     echo "[INFO] Installing global npm packages..."
-    npm i -g @steipete/summarize || \
-        echo "[WARN] Failed to install @steipete/summarize"
+    # acpx is required by backpass.
+    for package in @steipete/summarize gnhf backpass lavish-axi acpx; do
+        npm i -g "${package}@latest" ||
+            echo "[WARN] Failed to install ${package}@latest"
+    done
 }
 
 install_nvm() {

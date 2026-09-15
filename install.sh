@@ -361,6 +361,8 @@ main() {
     run_optional_step "Oh My Zsh" install_oh_my_zsh
     run_optional_step "pipx" install_pipx
     run_optional_step "CLI tools" install_tools
+    run_optional_step "Herdr (latest)" install_herdr
+    run_optional_step "no-mistakes (latest)" install_no_mistakes
     run_optional_step "fonts" install_fonts
     run_optional_step "NVM and Node.js" install_nvm
     run_optional_step "agent tools" \

@@ -226,6 +226,20 @@ install_tmux_plugins() {
     fi
 }
 
+install_herdr() {
+    local installer
+
+    installer="$(curl -fsSL https://herdr.dev/install.sh)" || return 1
+    HERDR_INSTALL_DIR="$BIN_DIR" sh -c "$installer"
+}
+
+install_no_mistakes() {
+    local installer
+
+    installer="$(curl -fsSL https://raw.githubusercontent.com/kunchenguid/no-mistakes/main/docs/install.sh)" || return 1
+    NO_MISTAKES_LINK_DIR="$BIN_DIR" sh -c "$installer"
+}
+
 install_tools() {
     echo "[INFO] Installing CLI tools..."
 
