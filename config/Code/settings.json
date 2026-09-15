@@ -177,7 +177,7 @@
     "*.tsv": "duckdb.dataFileViewer",
     "*.xlsx": "duckdb.dataFileViewer"
   },
-  "workbench.colorTheme": "Monokai",
+  "workbench.colorTheme": "One Monokai",
   "chatgpt.composerEnterBehavior": "cmdIfMultiline",
   "yaml.disableSchemaDetection": [
     "**/.github/workflows/*.yml",
