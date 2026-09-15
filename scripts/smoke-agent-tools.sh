@@ -69,7 +69,7 @@ for command_name in pi codex claude opencode skills; do
   cat >"${stub_dir}/${command_name}" <<'STUB'
 #!/bin/bash
 name="$(basename "$0" | tr '[:lower:]' '[:upper:]')"
-variable="${name}_VERSION"
+variable="TEST_AGENT_${name}_VERSION"
 printf '%s %s\n' "$(basename "$0")" "${!variable:-1.2.3}"
 STUB
 done
@@ -103,19 +103,19 @@ AGENT_TOOLS="$AGENT_TOOLS" \
   "$JUST_BIN" --justfile "${DOTFILES_DIR}/justfile" agent-versions |
   grep -F 'OpenCode' >/dev/null || fail "version report omitted OpenCode"
 
-CODEX_VERSION=1.2.2
-export CODEX_VERSION
+TEST_AGENT_CODEX_VERSION=1.2.2
+export TEST_AGENT_CODEX_VERSION
 if "$AGENT_TOOLS" check >"${tmp_dir}/drift.log" 2>&1; then
   fail "version check ignored drift"
 fi
-unset CODEX_VERSION
+unset TEST_AGENT_CODEX_VERSION
 
-PI_VERSION=1.0.0
-CODEX_VERSION=1.0.0
-CLAUDE_VERSION=1.0.0
-OPENCODE_VERSION=1.0.0
-SKILLS_VERSION=1.0.0
-export PI_VERSION CODEX_VERSION CLAUDE_VERSION OPENCODE_VERSION SKILLS_VERSION
+TEST_AGENT_PI_VERSION=1.0.0
+TEST_AGENT_CODEX_VERSION=1.0.0
+TEST_AGENT_CLAUDE_VERSION=1.0.0
+TEST_AGENT_OPENCODE_VERSION=1.0.0
+TEST_AGENT_SKILLS_VERSION=1.0.0
+export TEST_AGENT_PI_VERSION TEST_AGENT_CODEX_VERSION TEST_AGENT_CLAUDE_VERSION TEST_AGENT_OPENCODE_VERSION TEST_AGENT_SKILLS_VERSION
 : >"$npm_log"
 : >"$native_log"
 "$AGENT_TOOLS" install
@@ -136,8 +136,8 @@ jq -e 'all(.tools[]; if .command == "pi" then
     else .version == "2.0.0" end)' "$manifest" >/dev/null ||
   fail "update did not resolve moving channels into exact versions"
 
-export PI_VERSION=2.0.0 CODEX_VERSION=2.0.0 CLAUDE_VERSION=2.0.0
-export OPENCODE_VERSION=2.0.0 SKILLS_VERSION=2.0.0
+export TEST_AGENT_PI_VERSION=2.0.0 TEST_AGENT_CODEX_VERSION=2.0.0 TEST_AGENT_CLAUDE_VERSION=2.0.0
+export TEST_AGENT_OPENCODE_VERSION=2.0.0 TEST_AGENT_SKILLS_VERSION=2.0.0
 : >"$npm_log"
 LATEST_VERSION=2.0.0 "$AGENT_TOOLS" install
 [ ! -s "$npm_log" ] || fail "current tools reinstalled"
