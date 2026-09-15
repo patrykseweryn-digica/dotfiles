@@ -52,6 +52,11 @@ for membership changes. Codex remote plugins still require `/plugins`; drift
 stops with the plugin names, OAuth step, and verification command. Pull and
 push never update marketplaces, plugins, or agent CLIs.
 
+Claude marketplace plugins belong only in Claude. Codex uses OpenAI plugins
+and third-party plugins with an upstream native `.codex-plugin/plugin.json`;
+do not import Claude-only packages through Codex's compatibility conversion.
+Keep each runtime's membership explicit in `.agents/plugin-manifest.json`.
+
 Pi retains `pi-mcporter` for the existing MCP inventory and `pi-mcp-adapter`
 for the used scripting/OAuth UI surface. See [Pi configuration](config/pi/README.md)
 for the audit, theme, title lifecycle, compaction and live-test results.
