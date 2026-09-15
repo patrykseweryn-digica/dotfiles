@@ -1813,7 +1813,8 @@ cmd_claude_settings_check() {
         rm -f "$expected"
         return 1
     }
-    if cmp -s "$expected" "$CLAUDE_SETTINGS_FILE"; then
+    if jq -e --slurpfile expected "$expected" \
+        '. == $expected[0]' "$CLAUDE_SETTINGS_FILE" >/dev/null; then
         rm -f "$expected"
         log_info "Claude settings match template"
         return 0

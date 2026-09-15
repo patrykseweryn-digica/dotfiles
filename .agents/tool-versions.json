@@ -13,7 +13,7 @@
       "installer": "npm",
       "name": "Codex",
       "package": "@openai/codex",
-      "version": "0.153.0"
+      "version": "0.154.0"
     },
     {
       "channel": "latest",
@@ -21,7 +21,7 @@
       "installer": "claude-native",
       "name": "Claude Code",
       "package": "@anthropic-ai/claude-code",
-      "version": "2.1.259"
+      "version": "2.1.270"
     },
     {
       "channel": "latest",

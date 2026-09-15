@@ -226,3 +226,22 @@ grep -Fx $'claude\t'"${project_dir}"$'\tplugin update project-plugin@keep-mp --s
     fail "Project-scoped Claude plugin was not updated in its project"
 
 echo "[INFO] Claude plugin sync smoke test passed"
+
+# Compare settings by JSON values, preserving ordered arrays.
+(
+    export CLAUDE_MANIFEST="${tmp_dir}/empty-manifest.json"
+    export MCP_SERVERS="${tmp_dir}/empty-mcp.json"
+    export CLAUDE_TEMPLATE_FILE="${tmp_dir}/settings-template.json"
+    export CLAUDE_SETTINGS_FILE="${tmp_dir}/settings-live.json"
+    printf '{"marketplaces":{},"plugins":{}}\n' > "$CLAUDE_MANIFEST"
+    printf '{}\n' > "$MCP_SERVERS"
+    printf '{"model":"opus","hooks":{"SessionStart":[]}}\n' > "$CLAUDE_TEMPLATE_FILE"
+    printf '{"hooks":{"SessionStart":[]},"model":"opus","permissions":{"allow":[]},"extraKnownMarketplaces":{},"enabledPlugins":{}}\n' > "$CLAUDE_SETTINGS_FILE"
+    "$DOTFILES_DIR/sync-agents.sh" --quiet claude-settings-check ||
+        fail "Claude settings check rejected equivalent JSON"
+    jq '.model = "drift"' "$CLAUDE_SETTINGS_FILE" > "${tmp_dir}/drift.json"
+    mv "${tmp_dir}/drift.json" "$CLAUDE_SETTINGS_FILE"
+    if "$DOTFILES_DIR/sync-agents.sh" --quiet claude-settings-check > "$sync_log" 2>&1; then
+        fail "Claude settings check ignored changed values"
+    fi
+)
