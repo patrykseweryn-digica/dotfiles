@@ -118,7 +118,7 @@ mkdir -p "$HOME/.agents/skills/$name"
 printf '%s\n' '---' "name: $name" '---' > "$HOME/.agents/skills/$name/SKILL.md"
 STUB
     chmod +x "${stub_dir}/skills"
-    printf '#!/bin/sh\nexit 0\n' > "${stub_dir}/codex"
+    printf '#!/bin/sh\nexit 0\n' >"${stub_dir}/codex"
     chmod +x "${stub_dir}/codex"
 
     cat >"${home_dir}/.tmux/plugins/tpm/bin/install_plugins" <<'STUB'
@@ -305,7 +305,7 @@ mkdir -p "$HOME/.agents/skills/$name"
 printf '%s\n' '---' "name: $name" '---' > "$HOME/.agents/skills/$name/SKILL.md"
 STUB
     chmod +x "${stub_dir}/skills"
-    printf '#!/bin/sh\nexit 0\n' > "${stub_dir}/codex"
+    printf '#!/bin/sh\nexit 0\n' >"${stub_dir}/codex"
     chmod +x "${stub_dir}/codex"
 
     cat >"${stub_dir}/pi" <<'STUB'
