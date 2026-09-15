@@ -160,7 +160,7 @@ normalize_live_skill_lock() {
     normalized="$(mktemp)"
     installed_names="$(mktemp)"
 
-    normalize_skill_lock "$source_file" > "$normalized" || {
+    normalize_skill_lock "$source_file" >"$normalized" || {
         rm -f "$normalized" "$installed_names"
         return 1
     }
@@ -192,7 +192,7 @@ normalize_live_skill_lock() {
                 map(.[0]) | from_entries
               end
         )
-    ' "$normalized" > "$target_file" || status=$?
+    ' "$normalized" >"$target_file" || status=$?
     rm -f "$normalized" "$installed_names"
     return "$status"
 }
@@ -269,7 +269,7 @@ write_expected_skill_names() {
         for skill_path in "$SHARED_SKILLS_CUSTOM_DIR"/*.skill; do
             [ -f "$skill_path" ] && basename "$skill_path"
         done
-    } | sort -u > "$target_file"
+    } | sort -u >"$target_file"
 }
 
 write_live_skill_names() {
@@ -277,17 +277,17 @@ write_live_skill_names() {
     local target_file="$2"
     local skill_path skill_name
 
-    : > "$target_file"
+    : >"$target_file"
     [ -d "$root" ] || return 1
 
     for skill_path in "$root"/*; do
         if [ -L "$skill_path" ] && [ -e "$skill_path" ]; then
-            basename "$skill_path" >> "$target_file"
+            basename "$skill_path" >>"$target_file"
         elif [ -d "$skill_path" ] && [ -f "${skill_path}/SKILL.md" ]; then
-            basename "$skill_path" >> "$target_file"
+            basename "$skill_path" >>"$target_file"
         elif [ -f "$skill_path" ]; then
             skill_name="$(basename "$skill_path")"
-            [[ "$skill_name" == *.skill ]] && echo "$skill_name" >> "$target_file"
+            [[ "$skill_name" == *.skill ]] && echo "$skill_name" >>"$target_file"
         fi
     done
     sort -u -o "$target_file" "$target_file"
@@ -323,23 +323,23 @@ cmd_custom_skills_export() {
 
     while [ "$#" -gt 0 ]; do
         case "$1" in
-            --check)
-                check_only=true
-                ;;
-            -n|--dry-run)
-                dry_run=true
-                ;;
-            --)
-                shift
-                break
-                ;;
-            --*)
-                echo "[ERROR] Unknown custom-skills-export flag: $1" >&2
-                return 1
-                ;;
-            *)
-                requested+=("$1")
-                ;;
+        --check)
+            check_only=true
+            ;;
+        -n | --dry-run)
+            dry_run=true
+            ;;
+        --)
+            shift
+            break
+            ;;
+        --*)
+            echo "[ERROR] Unknown custom-skills-export flag: $1" >&2
+            return 1
+            ;;
+        *)
+            requested+=("$1")
+            ;;
         esac
         shift
     done
@@ -349,8 +349,14 @@ cmd_custom_skills_export() {
         shift
     done
 
-    [ -d "$AGENT_SKILLS_DIR" ] || { log_info "No live agent skills dir: $AGENT_SKILLS_DIR"; return 0; }
-    [ "$check_only" = true ] || [ "$dry_run" = true ] || command -v rsync >/dev/null 2>&1 || { echo "[ERROR] rsync is required for custom-skills-export" >&2; return 1; }
+    [ -d "$AGENT_SKILLS_DIR" ] || {
+        log_info "No live agent skills dir: $AGENT_SKILLS_DIR"
+        return 0
+    }
+    [ "$check_only" = true ] || [ "$dry_run" = true ] || command -v rsync >/dev/null 2>&1 || {
+        echo "[ERROR] rsync is required for custom-skills-export" >&2
+        return 1
+    }
 
     local found_count=0
     local drift_count=0
@@ -384,7 +390,10 @@ cmd_custom_skills_export() {
             action="update"
         fi
 
-        [ "$action" != "same" ] || { log_info "Custom skill already in sync: $skill_name"; continue; }
+        [ "$action" != "same" ] || {
+            log_info "Custom skill already in sync: $skill_name"
+            continue
+        }
 
         drift_count=$((drift_count + 1))
         if [ "$check_only" = true ]; then
@@ -401,9 +410,9 @@ cmd_custom_skills_export() {
                 --exclude '.DS_Store' \
                 "${skill_path}/" "${target_dir}/"
             case "$action" in
-                add) action_label="Add" ;;
-                update) action_label="Update" ;;
-                *) action_label="$action" ;;
+            add) action_label="Add" ;;
+            update) action_label="Update" ;;
+            *) action_label="$action" ;;
             esac
             log_info "$action_label custom skill: $skill_name"
         fi
@@ -451,7 +460,7 @@ collect_codex_mcp() {
 
     local raw
     raw="$(mktemp)"
-    if ! codex mcp list --json > "$raw"; then
+    if ! codex mcp list --json >"$raw"; then
         rm -f "$raw"
         echo "[ERROR] Failed to read Codex MCP state" >&2
         return 1
@@ -650,7 +659,7 @@ cmd_pull_mcp() {
         echo "[ERROR] No supported runtime MCP state found" >&2
         return 1
     }
-    collect_mcp_rows > "$rows" || {
+    collect_mcp_rows >"$rows" || {
         rm -f "$rows"
         return 1
     }
@@ -664,19 +673,19 @@ cmd_pull_mcp() {
             definitions: map({runtime, server})
         })
     ' "$rows")
-    if [ "$(jq 'length' <<< "$conflicts")" -gt 0 ]; then
+    if [ "$(jq 'length' <<<"$conflicts")" -gt 0 ]; then
         echo "[ERROR] Conflicting MCP definitions; repository unchanged:" >&2
         jq -r '.[] | "  - \(.name): " +
             ([.definitions[] | "\(.runtime)=\(.server | tojson)"] |
-             join(", "))' <<< "$conflicts" >&2
+             join(", "))' <<<"$conflicts" >&2
         rm -f "$rows"
         return 1
     fi
 
     candidate="$(mktemp)"
     current="$(mktemp)"
-    mcp_rows_to_inventory "$rows" > "$candidate"
-    normalize_mcp_inventory "$MCP_SERVERS" > "$current"
+    mcp_rows_to_inventory "$rows" >"$candidate"
+    normalize_mcp_inventory "$MCP_SERVERS" >"$current"
     rm -f "$rows"
 
     if cmp -s "$current" "$candidate"; then
@@ -689,16 +698,16 @@ cmd_pull_mcp() {
     printf 'Apply this MCP inventory? [y/N] '
     read -r reply || reply=""
     case "$reply" in
-        y|Y|yes|YES)
-            mv "$candidate" "$MCP_SERVERS"
-            rm -f "$current"
-            log_info "Updated $MCP_SERVERS from live state"
-            ;;
-        *)
-            rm -f "$current" "$candidate"
-            echo "[ERROR] MCP pull cancelled; repository unchanged" >&2
-            return 1
-            ;;
+    y | Y | yes | YES)
+        mv "$candidate" "$MCP_SERVERS"
+        rm -f "$current"
+        log_info "Updated $MCP_SERVERS from live state"
+        ;;
+    *)
+        rm -f "$current" "$candidate"
+        echo "[ERROR] MCP pull cancelled; repository unchanged" >&2
+        return 1
+        ;;
     esac
 }
 
@@ -706,22 +715,22 @@ cmd_mcp_check() {
     local rows wanted actual runtime failed=false
     rows="$(mktemp)"
     wanted="$(mktemp)"
-    collect_mcp_rows > "$rows" || {
+    collect_mcp_rows >"$rows" || {
         rm -f "$rows" "$wanted"
         return 1
     }
-    normalize_mcp_inventory "$MCP_SERVERS" > "$wanted"
+    normalize_mcp_inventory "$MCP_SERVERS" >"$wanted"
 
     while IFS= read -r runtime; do
         [ -n "$runtime" ] || continue
         actual="$(mktemp)"
-        mcp_rows_to_inventory "$rows" "$runtime" > "$actual"
+        mcp_rows_to_inventory "$rows" "$runtime" >"$actual"
         if [ "$runtime" = "codex" ]; then
             jq -S --slurpfile wanted "$wanted" '
                 with_entries(
                     select(.key as $key | $wanted[0] | has($key))
                 )
-            ' "$actual" > "${actual}.managed"
+            ' "$actual" >"${actual}.managed"
             mv "${actual}.managed" "$actual"
         fi
         if cmp -s "$wanted" "$actual"; then
@@ -912,7 +921,7 @@ render_codex_settings_from_live() {
             sub(/[[:space:]]*=.*/, "", key)
             if (listed(key, root_key)) print
         }
-    ' "$source_file" > "$raw"
+    ' "$source_file" >"$raw"
 
     awk '
         /^\[/ {
@@ -925,7 +934,7 @@ render_codex_settings_from_live() {
             print
             seen = 1
         }
-    ' "$raw" > "$target_file"
+    ' "$raw" >"$target_file"
     rm -f "$raw"
 }
 
@@ -938,7 +947,7 @@ cmd_pull_codex_settings() {
     local candidate without_mcp reply
     candidate="$(mktemp)"
     without_mcp="$(mktemp)"
-    strip_codex_managed_mcp "$CODEX_CONFIG" > "$without_mcp"
+    strip_codex_managed_mcp "$CODEX_CONFIG" >"$without_mcp"
     render_codex_settings_from_live "$without_mcp" "$candidate"
     rm -f "$without_mcp"
     if cmp -s "$CODEX_SETTINGS_TEMPLATE" "$candidate"; then
@@ -951,15 +960,15 @@ cmd_pull_codex_settings() {
     printf 'Apply these Codex settings? [y/N] '
     read -r reply || reply=""
     case "$reply" in
-        y|Y|yes|YES)
-            mv "$candidate" "$CODEX_SETTINGS_TEMPLATE"
-            log_info "Updated $CODEX_SETTINGS_TEMPLATE from live state"
-            ;;
-        *)
-            rm -f "$candidate"
-            echo "[ERROR] Codex settings pull cancelled" >&2
-            return 1
-            ;;
+    y | Y | yes | YES)
+        mv "$candidate" "$CODEX_SETTINGS_TEMPLATE"
+        log_info "Updated $CODEX_SETTINGS_TEMPLATE from live state"
+        ;;
+    *)
+        rm -f "$candidate"
+        echo "[ERROR] Codex settings pull cancelled" >&2
+        return 1
+        ;;
     esac
 }
 
@@ -972,15 +981,15 @@ render_codex_config() {
     stripped="$(mktemp)"
     combined="$(mktemp)"
     block="$(mktemp)"
-    strip_codex_managed_mcp "$source_file" > "$without_mcp"
-    strip_codex_managed_settings "$without_mcp" > "$stripped"
-    render_codex_mcp_block > "$block"
+    strip_codex_managed_mcp "$source_file" >"$without_mcp"
+    strip_codex_managed_settings "$without_mcp" >"$stripped"
+    render_codex_mcp_block >"$block"
 
-    cat "$CODEX_SETTINGS_TEMPLATE" > "$combined"
-    printf '\n\n' >> "$combined"
-    cat "$stripped" >> "$combined"
-    printf '\n\n' >> "$combined"
-    cat "$block" >> "$combined"
+    cat "$CODEX_SETTINGS_TEMPLATE" >"$combined"
+    printf '\n\n' >>"$combined"
+    cat "$stripped" >>"$combined"
+    printf '\n\n' >>"$combined"
+    cat "$block" >>"$combined"
 
     awk '
         NF {
@@ -991,7 +1000,7 @@ render_codex_config() {
             next
         }
         { blank = 1 }
-    ' "$combined" > "$target_file"
+    ' "$combined" >"$target_file"
 
     rm -f "$without_mcp" "$stripped" "$combined" "$block"
 }
@@ -1038,8 +1047,8 @@ cmd_codex_check() {
     current_check="$(mktemp)"
     expected_check="$(mktemp)"
     render_codex_config "$CODEX_CONFIG" "$expected"
-    normalize_codex_config_for_check "$CODEX_CONFIG" > "$current_check"
-    normalize_codex_config_for_check "$expected" > "$expected_check"
+    normalize_codex_config_for_check "$CODEX_CONFIG" >"$current_check"
+    normalize_codex_config_for_check "$expected" >"$expected_check"
 
     if cmp -s "$current_check" "$expected_check"; then
         rm -f "$expected" "$current_check" "$expected_check"
@@ -1107,7 +1116,7 @@ render_codex_remote_plugins() {
     local target_file="$1"
     local rows
     rows="$(mktemp)"
-    : > "$rows"
+    : >"$rows"
 
     if [ -d "$CODEX_REMOTE_PLUGIN_CACHE" ]; then
         local marker cache_name remote_plugin_id
@@ -1123,11 +1132,11 @@ render_codex_remote_plugins() {
                 --arg cache_name "$cache_name" \
                 --arg remote_plugin_id "$remote_plugin_id" \
                 '{cacheName: $cache_name, remotePluginId: $remote_plugin_id}' \
-                >> "$rows"
+                >>"$rows"
         done
     fi
 
-    jq -s 'sort_by(.remotePluginId)' "$rows" > "$target_file"
+    jq -s 'sort_by(.remotePluginId)' "$rows" >"$target_file"
     rm -f "$rows"
 }
 
@@ -1160,7 +1169,7 @@ cmd_codex_remote_plugins_check() {
             name: .key,
             remotePluginId: .value.codex
         }
-    ] | sort_by(.remotePluginId)' "$CODEX_PLUGIN_MANIFEST" > "$wanted"
+    ] | sort_by(.remotePluginId)' "$CODEX_PLUGIN_MANIFEST" >"$wanted"
 
     missing=$(jq -rn \
         --slurpfile wanted "$wanted" \
@@ -1255,7 +1264,7 @@ cmd_codex_remote_plugins_export() {
                 .
             end
         )
-    ' "$CODEX_PLUGIN_MANIFEST" > "$tmp"
+    ' "$CODEX_PLUGIN_MANIFEST" >"$tmp"
     rm -f "$live"
 
     if cmp -s "$tmp" "$CODEX_PLUGIN_MANIFEST"; then
@@ -1330,12 +1339,12 @@ cmd_codex_marketplace_plugins_check() {
     wanted_plugins="$(mktemp)"
     wanted_marketplaces="$(mktemp)"
 
-    render_codex_plugins > "$live_plugins" || failed=true
-    render_codex_marketplaces > "$live_marketplaces" || failed=true
+    render_codex_plugins >"$live_plugins" || failed=true
+    render_codex_marketplaces >"$live_marketplaces" || failed=true
     jq -S '.codexPlugins // [] | unique' "$CODEX_PLUGIN_MANIFEST" \
-        > "$wanted_plugins"
+        >"$wanted_plugins"
     jq -S '.codexMarketplaces // {}' "$CODEX_PLUGIN_MANIFEST" \
-        > "$wanted_marketplaces"
+        >"$wanted_marketplaces"
 
     if [ "$failed" = false ] &&
         ! cmp -s "$wanted_plugins" "$live_plugins"; then
@@ -1367,13 +1376,13 @@ cmd_codex_marketplace_plugins_export() {
     plugins="$(mktemp)"
     marketplaces="$(mktemp)"
     tmp="$(mktemp)"
-    render_codex_plugins > "$plugins"
-    render_codex_marketplaces > "$marketplaces"
+    render_codex_plugins >"$plugins"
+    render_codex_marketplaces >"$marketplaces"
     jq -S --slurpfile plugins "$plugins" \
         --slurpfile marketplaces "$marketplaces" '
         .codexPlugins = $plugins[0]
         | .codexMarketplaces = $marketplaces[0]
-    ' "$CODEX_PLUGIN_MANIFEST" > "$tmp"
+    ' "$CODEX_PLUGIN_MANIFEST" >"$tmp"
     rm -f "$plugins" "$marketplaces"
 
     if cmp -s "$tmp" "$CODEX_PLUGIN_MANIFEST"; then
@@ -1409,12 +1418,12 @@ cmd_codex_marketplace_plugins_push() {
     live_marketplaces="$(mktemp)"
     wanted_plugins="$(mktemp)"
     wanted_marketplaces="$(mktemp)"
-    render_codex_plugins > "$live_plugins"
-    render_codex_marketplaces > "$live_marketplaces"
+    render_codex_plugins >"$live_plugins"
+    render_codex_marketplaces >"$live_marketplaces"
     jq -r '.codexPlugins // [] | unique[]' "$CODEX_PLUGIN_MANIFEST" \
-        > "$wanted_plugins"
+        >"$wanted_plugins"
     jq -r '.codexMarketplaces // {} | keys[]' "$CODEX_PLUGIN_MANIFEST" \
-        > "$wanted_marketplaces"
+        >"$wanted_marketplaces"
 
     while IFS= read -r marketplace; do
         [ -n "$marketplace" ] || continue
@@ -1424,7 +1433,7 @@ cmd_codex_marketplace_plugins_push() {
             '.codexMarketplaces[$name]' "$CODEX_PLUGIN_MANIFEST")"
         log_info "Adding Codex marketplace: $marketplace"
         codex plugin marketplace add "$source" || failed=true
-    done < "$wanted_marketplaces"
+    done <"$wanted_marketplaces"
 
     while IFS= read -r plugin; do
         [ -n "$plugin" ] || continue
@@ -1432,7 +1441,7 @@ cmd_codex_marketplace_plugins_push() {
             "$live_plugins" >/dev/null && continue
         log_info "Adding Codex plugin: $plugin"
         codex plugin add "$plugin" || failed=true
-    done < "$wanted_plugins"
+    done <"$wanted_plugins"
 
     jq -r '.[]' "$live_plugins" | while IFS= read -r plugin; do
         [ -n "$plugin" ] || continue
@@ -1514,7 +1523,7 @@ render_opencode_config() {
 
         .instructions = (((.instructions // []) | if type == "array" then . else [.] end) + ["AGENTS.md"] | unique) |
         .mcp = opencode_mcp
-    ' "$source_file" > "$target_file"
+    ' "$source_file" >"$target_file"
 }
 
 sync_opencode_mcp_config() {
@@ -1584,7 +1593,7 @@ render_kimi_config() {
                 end
             )}) | add // {}) as $servers |
         (. // {}) | .mcpServers = $servers
-    ' < <(if [ -f "$source_file" ]; then cat "$source_file"; else echo '{}'; fi) > "$target_file"
+    ' < <(if [ -f "$source_file" ]; then cat "$source_file"; else echo '{}'; fi) >"$target_file"
 }
 
 render_pi_mcp_config() {
@@ -1617,7 +1626,7 @@ render_pi_mcp_config() {
         else
             echo '{}'
         fi
-    ) > "$target_file"
+    ) >"$target_file"
 }
 
 sync_pi_mcp_config() {
@@ -1675,7 +1684,7 @@ sync_claude_mcp_permissions() {
         else
             echo '{}'
         fi
-    ) > "$tmp" || {
+    ) >"$tmp" || {
         rm -f "$tmp"
         echo "[ERROR] Failed to render Claude MCP permissions" >&2
         return 1
@@ -1719,7 +1728,7 @@ sync_claude_mcp_config() {
         else
             echo '{}'
         fi
-    ) > "$tmp" || {
+    ) >"$tmp" || {
         rm -f "$tmp"
         echo "[ERROR] Failed to render Claude MCP config" >&2
         return 1
@@ -1789,7 +1798,7 @@ render_claude_settings() {
             }) | add // {}) |
         .extraKnownMarketplaces = ($m[0].marketplaces // {} | to_entries |
             map({(.key): {"source": .value}}) | add // {})
-    ' "$CLAUDE_TEMPLATE_FILE" > "$target_file"
+    ' "$CLAUDE_TEMPLATE_FILE" >"$target_file"
 }
 
 cmd_claude_settings_check() {
@@ -1850,7 +1859,10 @@ ensure_live_skill_lock() {
         fi
     fi
 
-    [ -f "$SKILL_LOCK_REPO" ] || { echo "[ERROR] Repo skill-lock missing: $SKILL_LOCK_REPO" >&2; return 1; }
+    [ -f "$SKILL_LOCK_REPO" ] || {
+        echo "[ERROR] Repo skill-lock missing: $SKILL_LOCK_REPO" >&2
+        return 1
+    }
 
     local tmp
     tmp=$(mktemp)
@@ -1864,7 +1876,11 @@ ensure_live_skill_lock() {
               .value = (($live.skills[$k] // {}) * .value)
             ))
           } + ($live | del(.skills, .dismissed))
-        ' "$SKILL_LOCK_LIVE" "$SKILL_LOCK_REPO" > "$tmp" || { rm -f "$tmp"; echo "[ERROR] Failed to merge live lock" >&2; return 1; }
+        ' "$SKILL_LOCK_LIVE" "$SKILL_LOCK_REPO" >"$tmp" || {
+            rm -f "$tmp"
+            echo "[ERROR] Failed to merge live lock" >&2
+            return 1
+        }
     else
         cp "$SKILL_LOCK_REPO" "$tmp"
     fi
@@ -1878,7 +1894,10 @@ ensure_live_skill_lock() {
 }
 
 cmd_lock_skills_install() {
-    [ -f "$SKILL_LOCK_LIVE" ] || { log_info "No skill-lock found; skipping skill install"; return 0; }
+    [ -f "$SKILL_LOCK_LIVE" ] || {
+        log_info "No skill-lock found; skipping skill install"
+        return 0
+    }
 
     local runtime root
     while IFS='|' read -r runtime root; do
@@ -1889,7 +1908,10 @@ cmd_lock_skills_install() {
 
     local entries
     entries=$(jq -r '.skills | to_entries[] | [.key, .value.source, (.value.sourceUrl // "")] | @tsv' "$SKILL_LOCK_LIVE")
-    [ -n "$entries" ] || { log_info "No skills in lock"; return 0; }
+    [ -n "$entries" ] || {
+        log_info "No skills in lock"
+        return 0
+    }
 
     local name source source_url
     while IFS=$'\t' read -r name source source_url; do
@@ -1928,7 +1950,7 @@ cmd_lock_skills_install() {
             local target_dir target_path
             while IFS='|' read -r runtime target_dir; do
                 target_path="${target_dir}/${name}"
-                [ "$source_dir" = "$target_path" ] || \
+                [ "$source_dir" = "$target_path" ] ||
                     link_file "$source_dir" "$target_path"
             done < <(skill_runtime_rows)
         fi
@@ -1936,7 +1958,7 @@ cmd_lock_skills_install() {
         if [ ! -e "${AGENT_SKILLS_DIR}/${name}/SKILL.md" ] || [ ! -e "${CLAUDE_SKILLS_DIR}/${name}/SKILL.md" ] || [ ! -e "${OPENCODE_SKILLS_DIR}/${name}/SKILL.md" ] || [ ! -e "${PI_SKILLS_DIR}/${name}/SKILL.md" ]; then
             echo "[WARN] Skill not available in all runtimes after install: $name" >&2
         fi
-    done <<< "$entries"
+    done <<<"$entries"
 }
 
 cmd_claude_plugins_export() {
@@ -1960,7 +1982,7 @@ cmd_claude_plugins_export() {
     local tmp
     tmp=$(mktemp)
     jq -S --slurpfile inst "$installed_json" \
-       --slurpfile km <(cat "$known_mp" 2>/dev/null || echo '{}') '
+        --slurpfile km <(cat "$known_mp" 2>/dev/null || echo '{}') '
         (($inst[0].plugins // {}) | keys) as $installed |
         (.plugins | to_entries |
             map(select(.value.claude != null) | {
@@ -1998,7 +2020,11 @@ cmd_claude_plugins_export() {
             end
         ) |
         .marketplaces = $marketplaces
-    ' "$CLAUDE_MANIFEST" > "$tmp" || { rm -f "$tmp"; echo "[ERROR] export failed" >&2; return 1; }
+    ' "$CLAUDE_MANIFEST" >"$tmp" || {
+        rm -f "$tmp"
+        echo "[ERROR] export failed" >&2
+        return 1
+    }
 
     if cmp -s "$tmp" "$CLAUDE_MANIFEST"; then
         rm -f "$tmp"
@@ -2009,7 +2035,7 @@ cmd_claude_plugins_export() {
     if [ "$check_only" = true ]; then
         echo "[ERROR] Installed Claude plugins/marketplaces differ from manifest:" >&2
         diff <(jq -S '{plugins, marketplaces}' "$CLAUDE_MANIFEST") \
-             <(jq -S '{plugins, marketplaces}' "$tmp") >&2 || true
+            <(jq -S '{plugins, marketplaces}' "$tmp") >&2 || true
         echo "" >&2
         echo "Run: just push-plugins" >&2
         rm -f "$tmp"
@@ -2030,7 +2056,7 @@ try_claude_plugin_update() {
             echo "[ERROR] Claude plugin project path not found: $project_path" >&2
             return 1
         }
-        (cd "$project_path" && \
+        (cd "$project_path" &&
             CLAUDECODE='' claude plugin update "$plugin" --scope "$scope")
     else
         CLAUDECODE='' claude plugin update "$plugin" --scope "$scope"
@@ -2071,9 +2097,9 @@ cmd_claude_plugins_update() {
     while IFS=$'\t' read -r plugin scope project_path; do
         [ -n "$plugin" ] || continue
         log_info "Updating Claude plugin: $plugin (scope: $scope)"
-        try_claude_plugin_update "$plugin" "$scope" "$project_path" || \
+        try_claude_plugin_update "$plugin" "$scope" "$project_path" ||
             failed=true
-    done <<< "$installed"
+    done <<<"$installed"
 
     [ "$failed" = false ]
 }
@@ -2086,18 +2112,18 @@ try_claude_plugin_uninstall() {
     output_file="$(mktemp)"
 
     if [ -n "$project_path" ] && [ -d "$project_path" ]; then
-        if ( cd "$project_path" && CLAUDECODE='' claude plugin uninstall "$plugin" --scope "$scope" --keep-data -y ) > "$output_file" 2>&1; then
+        if (cd "$project_path" && CLAUDECODE='' claude plugin uninstall "$plugin" --scope "$scope" --keep-data -y) >"$output_file" 2>&1; then
             rm -f "$output_file"
             return 0
         fi
-    elif CLAUDECODE='' claude plugin uninstall "$plugin" --scope "$scope" --keep-data -y > "$output_file" 2>&1; then
+    elif CLAUDECODE='' claude plugin uninstall "$plugin" --scope "$scope" --keep-data -y >"$output_file" 2>&1; then
         rm -f "$output_file"
         return 0
     fi
 
     if [ "$scope" != "user" ]; then
         log_info "Retrying plugin uninstall in user scope: $plugin"
-        if CLAUDECODE='' claude plugin uninstall "$plugin" --scope user --keep-data -y >> "$output_file" 2>&1; then
+        if CLAUDECODE='' claude plugin uninstall "$plugin" --scope user --keep-data -y >>"$output_file" 2>&1; then
             rm -f "$output_file"
             return 0
         fi
@@ -2134,7 +2160,10 @@ cmd_claude_plugins_prune() {
                     [$plugin, (.scope // "user"), (.projectPath // "")]
                 )
             ] | unique[] | @tsv
-        ' "$plugins_json") || { echo "[ERROR] Failed to parse $plugins_json" >&2; return 1; }
+        ' "$plugins_json") || {
+            echo "[ERROR] Failed to parse $plugins_json" >&2
+            return 1
+        }
     fi
 
     local extra_marketplaces=""
@@ -2144,7 +2173,10 @@ cmd_claude_plugins_prune() {
             keys[] as $marketplace |
             select(($wanted | index($marketplace)) | not) |
             $marketplace
-        ' "$known_mp") || { echo "[ERROR] Failed to parse $known_mp" >&2; return 1; }
+        ' "$known_mp") || {
+            echo "[ERROR] Failed to parse $known_mp" >&2
+            return 1
+        }
     fi
 
     if [ -z "$extra_plugins" ] && [ -z "$extra_marketplaces" ]; then
@@ -2167,7 +2199,10 @@ cmd_claude_plugins_prune() {
         return 1
     fi
 
-    command -v claude >/dev/null 2>&1 || { echo "[ERROR] claude CLI not found; cannot prune live plugins" >&2; return 1; }
+    command -v claude >/dev/null 2>&1 || {
+        echo "[ERROR] claude CLI not found; cannot prune live plugins" >&2
+        return 1
+    }
 
     local failed=false
     local plugin scope project_path
@@ -2175,7 +2210,7 @@ cmd_claude_plugins_prune() {
         [ -n "$plugin" ] || continue
         log_info "Uninstalling plugin outside manifest: $plugin (scope: $scope)"
         try_claude_plugin_uninstall "$plugin" "$scope" "$project_path" || failed=true
-    done <<< "$extra_plugins"
+    done <<<"$extra_plugins"
 
     if [ "$failed" = true ]; then
         echo "[ERROR] Failed to uninstall one or more Claude plugins; skipping marketplace prune" >&2
@@ -2187,21 +2222,28 @@ cmd_claude_plugins_prune() {
         [ -n "$marketplace" ] || continue
         log_info "Removing marketplace outside manifest: $marketplace"
         CLAUDECODE='' claude plugin marketplace remove "$marketplace" || failed=true
-    done <<< "$extra_marketplaces"
+    done <<<"$extra_marketplaces"
 
     [ "$failed" = false ] || return 1
     log_info "Claude plugin prune complete"
 }
 
 cmd_lock_skills_export() {
-    [ -f "$SKILL_LOCK_LIVE" ] || { log_info "No live skill-lock to export from"; return 0; }
+    [ -f "$SKILL_LOCK_LIVE" ] || {
+        log_info "No live skill-lock to export from"
+        return 0
+    }
 
     local tmp
     tmp=$(mktemp)
     jq -S '{
         skills: (.skills | map_values(del(.skillFolderHash, .installedAt, .updatedAt))),
         dismissed: .dismissed
-    }' "$SKILL_LOCK_LIVE" > "$tmp" || { rm -f "$tmp"; echo "[ERROR] skills export failed" >&2; return 1; }
+    }' "$SKILL_LOCK_LIVE" >"$tmp" || {
+        rm -f "$tmp"
+        echo "[ERROR] skills export failed" >&2
+        return 1
+    }
 
     if [ -f "$SKILL_LOCK_REPO" ] && cmp -s "$tmp" "$SKILL_LOCK_REPO"; then
         rm -f "$tmp"
@@ -2272,19 +2314,19 @@ cmd_pull_skills() {
     printf 'Apply this skill inventory? [y/N] '
     read -r reply || reply=""
     case "$reply" in
-        y|Y|yes|YES)
-            cp "$candidate_lock" "$SKILL_LOCK_REPO"
-            mkdir -p "$SHARED_SKILLS_CUSTOM_DIR"
-            rsync -ac --delete \
-                "${candidate_custom}/" "$SHARED_SKILLS_CUSTOM_DIR/"
-            rm -rf "$candidate_dir"
-            log_info "Updated shared skill inventory from live state"
-            ;;
-        *)
-            rm -rf "$candidate_dir"
-            echo "[ERROR] Skill pull cancelled; repository unchanged" >&2
-            return 1
-            ;;
+    y | Y | yes | YES)
+        cp "$candidate_lock" "$SKILL_LOCK_REPO"
+        mkdir -p "$SHARED_SKILLS_CUSTOM_DIR"
+        rsync -ac --delete \
+            "${candidate_custom}/" "$SHARED_SKILLS_CUSTOM_DIR/"
+        rm -rf "$candidate_dir"
+        log_info "Updated shared skill inventory from live state"
+        ;;
+    *)
+        rm -rf "$candidate_dir"
+        echo "[ERROR] Skill pull cancelled; repository unchanged" >&2
+        return 1
+        ;;
     esac
 }
 
@@ -2302,9 +2344,9 @@ prune_skill_dir() {
             rm "$skill_path"
             log_info "Removed stale skill link: $skill_path"
         elif { [ -L "$skill_path" ] ||
-                { [ -d "$skill_path" ] && [ -f "${skill_path}/SKILL.md" ]; } ||
-                { [ -f "$skill_path" ] && [[ "$skill_name" == *.skill ]]; }; } &&
-             ! grep -qxF "$skill_name" "$expected_file"; then
+            { [ -d "$skill_path" ] && [ -f "${skill_path}/SKILL.md" ]; } ||
+            { [ -f "$skill_path" ] && [[ "$skill_name" == *.skill ]]; }; } &&
+            ! grep -qxF "$skill_name" "$expected_file"; then
             rm -rf "$skill_path"
             log_info "Removed skill outside inventory: $skill_path"
         fi
@@ -2325,7 +2367,7 @@ cmd_skills_check() {
         rm -rf "$tmp_dir"
         return 1
     }
-    normalize_skill_lock "$SKILL_LOCK_REPO" > "$repo_lock" || {
+    normalize_skill_lock "$SKILL_LOCK_REPO" >"$repo_lock" || {
         rm -rf "$tmp_dir"
         echo "[ERROR] Invalid repository skill lock: $SKILL_LOCK_REPO" >&2
         return 1
@@ -2430,16 +2472,16 @@ cmd_pull_plugins() {
     printf 'Apply this plugin inventory? [y/N] '
     read -r reply || reply=""
     case "$reply" in
-        y|Y|yes|YES)
-            cp "$candidate" "$PLUGIN_MANIFEST"
-            rm -f "$candidate"
-            log_info "Updated shared plugin manifest from live state"
-            ;;
-        *)
-            rm -f "$candidate"
-            echo "[ERROR] Plugin pull cancelled; repository unchanged" >&2
-            return 1
-            ;;
+    y | Y | yes | YES)
+        cp "$candidate" "$PLUGIN_MANIFEST"
+        rm -f "$candidate"
+        log_info "Updated shared plugin manifest from live state"
+        ;;
+    *)
+        rm -f "$candidate"
+        echo "[ERROR] Plugin pull cancelled; repository unchanged" >&2
+        return 1
+        ;;
     esac
 }
 
@@ -2467,19 +2509,19 @@ cmd_claude_plugins_push() {
         mp_source=$(jq -r ".marketplaces[\"$mp_name\"].source" \
             "$CLAUDE_MANIFEST")
         case "$mp_source" in
-            github)
-                mp_arg=$(jq -r ".marketplaces[\"$mp_name\"].repo" \
-                    "$CLAUDE_MANIFEST")
-                ;;
-            git)
-                mp_arg=$(jq -r ".marketplaces[\"$mp_name\"].url" \
-                    "$CLAUDE_MANIFEST")
-                ;;
-            *)
-                echo "[ERROR] Unknown marketplace source: $mp_source" >&2
-                failed=true
-                continue
-                ;;
+        github)
+            mp_arg=$(jq -r ".marketplaces[\"$mp_name\"].repo" \
+                "$CLAUDE_MANIFEST")
+            ;;
+        git)
+            mp_arg=$(jq -r ".marketplaces[\"$mp_name\"].url" \
+                "$CLAUDE_MANIFEST")
+            ;;
+        *)
+            echo "[ERROR] Unknown marketplace source: $mp_source" >&2
+            failed=true
+            continue
+            ;;
         esac
         log_info "Adding marketplace: $mp_name"
         CLAUDECODE='' claude plugin marketplace add "$mp_arg" || failed=true
@@ -2524,7 +2566,7 @@ render_pi_settings() {
         else
             echo '{}'
         fi
-    ) > "$target_file"
+    ) >"$target_file"
 }
 
 sync_pi_settings() {
@@ -2549,28 +2591,28 @@ pi_package_installed() {
     local spec package version repo ref host path target
 
     case "$source" in
-        npm:*)
-            spec="${source#npm:}"
-            package="${spec%@*}"
-            version="${spec##*@}"
-            jq -e --arg version "$version" \
-                '.version == $version' \
-                "${PI_AGENT_DIR}/npm/node_modules/${package}/package.json" \
-                >/dev/null 2>&1
-            ;;
-        git:*)
-            spec="${source#git:}"
-            repo="${spec%@*}"
-            ref="${spec##*@}"
-            host="${repo%%/*}"
-            path="${repo#*/}"
-            target="${PI_AGENT_DIR}/git/${host}/${path}"
-            [ -d "${target}/.git" ] &&
-                [ "$(git -C "$target" rev-parse HEAD 2>/dev/null)" = "$ref" ]
-            ;;
-        *)
-            return 1
-            ;;
+    npm:*)
+        spec="${source#npm:}"
+        package="${spec%@*}"
+        version="${spec##*@}"
+        jq -e --arg version "$version" \
+            '.version == $version' \
+            "${PI_AGENT_DIR}/npm/node_modules/${package}/package.json" \
+            >/dev/null 2>&1
+        ;;
+    git:*)
+        spec="${source#git:}"
+        repo="${spec%@*}"
+        ref="${spec##*@}"
+        host="${repo%%/*}"
+        path="${repo#*/}"
+        target="${PI_AGENT_DIR}/git/${host}/${path}"
+        [ -d "${target}/.git" ] &&
+            [ "$(git -C "$target" rev-parse HEAD 2>/dev/null)" = "$ref" ]
+        ;;
+    *)
+        return 1
+        ;;
     esac
 }
 
@@ -2661,147 +2703,153 @@ cmd_install() {
 
 while [[ "${1:-}" == --* ]]; do
     case "$1" in
-        --quiet) QUIET=true; shift ;;
-        *) echo "[ERROR] Unknown flag: $1" >&2; exit 1 ;;
+    --quiet)
+        QUIET=true
+        shift
+        ;;
+    *)
+        echo "[ERROR] Unknown flag: $1" >&2
+        exit 1
+        ;;
     esac
 done
 
 case "${1:-}" in
-    install)
-        cmd_install
-        ;;
-    pull-codex-settings)
-        cmd_pull_codex_settings
-        ;;
-    pull-mcp)
-        shift
-        cmd_pull_mcp "$@"
-        ;;
-    push-mcp)
-        cmd_push_mcp
-        ;;
-    mcp-check)
-        cmd_mcp_check
-        ;;
-    pull-skills)
-        shift
-        cmd_pull_skills "$@"
-        ;;
-    push-skills)
-        cmd_push_skills
-        ;;
-    skills-check)
-        cmd_skills_check
-        ;;
-    pull-plugins)
-        shift
-        cmd_pull_plugins "$@"
-        ;;
-    push-plugins)
-        cmd_push_plugins
-        ;;
-    codex-install)
-        cmd_codex_install
-        ;;
-    codex-check)
-        cmd_codex_check
-        ;;
-    codex-plugins-check)
-        cmd_codex_plugins_check
-        ;;
-    codex-plugins-export)
-        cmd_codex_plugins_export
-        ;;
-    plugins-check)
-        cmd_plugins_check
-        ;;
-    plugins-export)
-        cmd_plugins_export
-        ;;
-    plugins-update)
-        cmd_plugins_update
-        ;;
-    opencode-install)
-        cmd_opencode_install
-        ;;
-    opencode-check)
-        cmd_opencode_check
-        ;;
-    kimi-install)
-        cmd_kimi_install
-        ;;
-    kimi-check)
-        cmd_kimi_check
-        ;;
-    pi-install)
-        cmd_pi_install
-        ;;
-    pi-check)
-        cmd_pi_check
-        ;;
-    claude-install)
-        cmd_claude_install
-        ;;
-    skills-update)
-        shift
-        cmd_skills_update "$@"
-        ;;
-    claude-export)
-        shift
-        cmd_claude_plugins_export "$@"
-        ;;
-    claude-prune)
-        shift
-        cmd_claude_plugins_prune "$@"
-        ;;
-    custom-skills-export)
-        shift
-        cmd_custom_skills_export "$@"
-        ;;
-    skills-export)
-        cmd_lock_skills_export
-        ;;
-    claude-settings-check)
-        cmd_claude_settings_check
-        ;;
-    *)
-        echo "Usage: $0 [--quiet] <command>"
-        echo
-        echo "  pull-codex-settings"
-        echo "                  Preview and confirm live Codex settings import"
-        echo "  pull-mcp         Preview and confirm live MCP import"
-        echo "  push-mcp         Render shared MCP state into runtimes"
-        echo "  mcp-check        Compare normalized MCP state"
-        echo "  pull-skills      Preview and confirm live skill import"
-        echo "  push-skills      Reconcile skills without version updates"
-        echo "  skills-check     Compare runtime skills with shared inventory"
-        echo "  pull-plugins     Preview and confirm live plugin import"
-        echo "  push-plugins     Apply membership without version updates"
-        echo "  install          Sync shared agent config into Codex, Claude, Pi, OpenCode, and Kimi"
-        echo "  plugins-check    Check Codex and Claude against shared plugin manifest"
-        echo "  plugins-export   Export Codex and Claude into shared plugin manifest"
-        echo "  plugins-update   Update Codex marketplaces and installed Claude plugins"
-        echo "  codex-install    Link AGENTS.md and generate Codex config"
-        echo "  codex-check      Exit 1 if Codex config is out of sync"
-        echo "  codex-plugins-check"
-        echo "                  Exit 1 if remote Codex plugins differ from manifest"
-        echo "  codex-plugins-export"
-        echo "                  Replace manifest with current remote Codex plugins"
-        echo "  opencode-install Link AGENTS.md, skills, and generate OpenCode MCP config"
-        echo "  opencode-check   Exit 1 if OpenCode config is out of sync"
-        echo "  kimi-install     Generate Kimi MCP config (~/.kimi-code/mcp.json)"
-        echo "  kimi-check       Exit 1 if Kimi MCP config is out of sync"
-        echo "  pi-install       Link instructions, restore settings and packages"
-        echo "  pi-check         Exit 1 if Pi settings or packages drift"
-        echo "  claude-install   Link AGENTS.md, generate Claude settings, install plugins and skills"
-        echo "  skills-update    Update global skills shared by Codex, Claude, Pi, and OpenCode"
-        echo "  claude-export    Sync installed Claude plugins/marketplaces into manifest"
-        echo "  claude-prune     Remove Claude plugins/marketplaces not listed in manifest"
-        echo "  custom-skills-export"
-        echo "                  Copy live custom skills from ~/.agents/skills into repo skills-custom"
-        echo "  skills-export    Strip live skill-lock into repo after skills add/update"
-        echo "  claude-settings-check"
-        echo "                  Exit 1 if Claude settings differ from the template"
-        exit 1
-        ;;
+install)
+    cmd_install
+    ;;
+pull-codex-settings)
+    cmd_pull_codex_settings
+    ;;
+pull-mcp)
+    shift
+    cmd_pull_mcp "$@"
+    ;;
+push-mcp)
+    cmd_push_mcp
+    ;;
+mcp-check)
+    cmd_mcp_check
+    ;;
+pull-skills)
+    shift
+    cmd_pull_skills "$@"
+    ;;
+push-skills)
+    cmd_push_skills
+    ;;
+skills-check)
+    cmd_skills_check
+    ;;
+pull-plugins)
+    shift
+    cmd_pull_plugins "$@"
+    ;;
+push-plugins)
+    cmd_push_plugins
+    ;;
+codex-install)
+    cmd_codex_install
+    ;;
+codex-check)
+    cmd_codex_check
+    ;;
+codex-plugins-check)
+    cmd_codex_plugins_check
+    ;;
+codex-plugins-export)
+    cmd_codex_plugins_export
+    ;;
+plugins-check)
+    cmd_plugins_check
+    ;;
+plugins-export)
+    cmd_plugins_export
+    ;;
+plugins-update)
+    cmd_plugins_update
+    ;;
+opencode-install)
+    cmd_opencode_install
+    ;;
+opencode-check)
+    cmd_opencode_check
+    ;;
+kimi-install)
+    cmd_kimi_install
+    ;;
+kimi-check)
+    cmd_kimi_check
+    ;;
+pi-install)
+    cmd_pi_install
+    ;;
+pi-check)
+    cmd_pi_check
+    ;;
+claude-install)
+    cmd_claude_install
+    ;;
+skills-update)
+    shift
+    cmd_skills_update "$@"
+    ;;
+claude-export)
+    shift
+    cmd_claude_plugins_export "$@"
+    ;;
+claude-prune)
+    shift
+    cmd_claude_plugins_prune "$@"
+    ;;
+custom-skills-export)
+    shift
+    cmd_custom_skills_export "$@"
+    ;;
+skills-export)
+    cmd_lock_skills_export
+    ;;
+claude-settings-check)
+    cmd_claude_settings_check
+    ;;
+*)
+    echo "Usage: $0 [--quiet] <command>"
+    echo
+    echo "  pull-codex-settings"
+    echo "                  Preview and confirm live Codex settings import"
+    echo "  pull-mcp         Preview and confirm live MCP import"
+    echo "  push-mcp         Render shared MCP state into runtimes"
+    echo "  mcp-check        Compare normalized MCP state"
+    echo "  pull-skills      Preview and confirm live skill import"
+    echo "  push-skills      Reconcile skills without version updates"
+    echo "  skills-check     Compare runtime skills with shared inventory"
+    echo "  pull-plugins     Preview and confirm live plugin import"
+    echo "  push-plugins     Apply membership without version updates"
+    echo "  install          Sync shared agent config into Codex, Claude, Pi, OpenCode, and Kimi"
+    echo "  plugins-check    Check Codex and Claude against shared plugin manifest"
+    echo "  plugins-export   Export Codex and Claude into shared plugin manifest"
+    echo "  plugins-update   Update Codex marketplaces and installed Claude plugins"
+    echo "  codex-install    Link AGENTS.md and generate Codex config"
+    echo "  codex-check      Exit 1 if Codex config is out of sync"
+    echo "  codex-plugins-check"
+    echo "                  Exit 1 if remote Codex plugins differ from manifest"
+    echo "  codex-plugins-export"
+    echo "                  Replace manifest with current remote Codex plugins"
+    echo "  opencode-install Link AGENTS.md, skills, and generate OpenCode MCP config"
+    echo "  opencode-check   Exit 1 if OpenCode config is out of sync"
+    echo "  kimi-install     Generate Kimi MCP config (~/.kimi-code/mcp.json)"
+    echo "  kimi-check       Exit 1 if Kimi MCP config is out of sync"
+    echo "  pi-install       Link instructions, restore settings and packages"
+    echo "  pi-check         Exit 1 if Pi settings or packages drift"
+    echo "  claude-install   Link AGENTS.md, generate Claude settings, install plugins and skills"
+    echo "  skills-update    Update global skills shared by Codex, Claude, Pi, and OpenCode"
+    echo "  claude-export    Sync installed Claude plugins/marketplaces into manifest"
+    echo "  claude-prune     Remove Claude plugins/marketplaces not listed in manifest"
+    echo "  custom-skills-export"
+    echo "                  Copy live custom skills from ~/.agents/skills into repo skills-custom"
+    echo "  skills-export    Strip live skill-lock into repo after skills add/update"
+    echo "  claude-settings-check"
+    echo "                  Exit 1 if Claude settings differ from the template"
+    exit 1
+    ;;
 esac
