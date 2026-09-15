@@ -559,7 +559,7 @@ INSTALLER
         install_herdr
         install_no_mistakes
         assert_log_contains "$SMOKE_LOG" "curl -fsSL https://hermes-agent.nousresearch.com/install.sh -o"
-        assert_log_contains "$SMOKE_LOG" "hermes --skip-setup --skip-browser --skip-computer-use"
+        assert_log_contains "$SMOKE_LOG" "hermes --skip-setup --skip-computer-use"
         assert_log_contains "$SMOKE_LOG" "curl -fsSL https://herdr.dev/install.sh"
         assert_log_contains "$SMOKE_LOG" "curl -fsSL https://raw.githubusercontent.com/kunchenguid/no-mistakes/main/docs/install.sh"
         [ "$(grep -Fxc "install $BIN_DIR" "$SMOKE_LOG")" -eq 2 ] || fail "native install paths differ"

@@ -234,7 +234,7 @@ install_hermes() {
         rm -f "$installer"
         return 1
     fi
-    if bash "$installer" --skip-setup --skip-browser --skip-computer-use; then
+    if bash "$installer" --skip-setup --skip-computer-use; then
         rm -f "$installer"
         return 0
     else
