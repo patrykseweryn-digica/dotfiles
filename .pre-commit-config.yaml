@@ -44,6 +44,11 @@ repos:
         entry: ./scripts/smoke-install-dotfiles.sh
         language: system
         pass_filenames: false
+      - id: firstmate-config-smoke
+        name: Firstmate dispatch setup smoke test
+        entry: bash scripts/smoke-firstmate-config.sh
+        language: system
+        pass_filenames: false
       - id: git-sync-smoke
         name: Dotfiles dual-remote Git sync smoke test
         entry: bash scripts/smoke-git-sync.sh
