@@ -227,20 +227,24 @@ install_tmux_plugins() {
 }
 
 install_hermes() {
-    local installer status
+    local installer status browser_use
 
     installer="$(mktemp)" || return 1
     if ! curl -fsSL https://hermes-agent.nousresearch.com/install.sh -o "$installer"; then
         rm -f "$installer"
         return 1
     fi
-    if bash "$installer" --skip-setup --skip-computer-use; then
-        rm -f "$installer"
-        return 0
-    else
+    if ! bash "$installer" --skip-setup --skip-computer-use; then
         status=$?
         rm -f "$installer"
         return "$status"
+    fi
+    rm -f "$installer"
+
+    browser_use="${HERMES_HOME:-$HOME/.hermes}/bin/browser-use"
+    if [ ! -x "$browser_use" ]; then
+        echo "[ERROR] Hermes Browser Use CLI not installed: $browser_use" >&2
+        return 1
     fi
 }
 

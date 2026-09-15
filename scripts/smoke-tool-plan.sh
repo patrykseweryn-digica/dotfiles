@@ -536,6 +536,9 @@ smoke_latest_workflow_tools() {
             if [ "$2" = https://hermes-agent.nousresearch.com/install.sh ]; then
                 cat >"$4" <<'INSTALLER'
 printf 'hermes %s\n' "$*" >> "$SMOKE_LOG"
+mkdir -p "$HOME/.hermes/bin"
+printf '#!/bin/sh\n' > "$HOME/.hermes/bin/browser-use"
+chmod +x "$HOME/.hermes/bin/browser-use"
 INSTALLER
                 return
             fi
@@ -567,6 +570,18 @@ INSTALLER
         jq -e '.hooks.SessionStart[0].hooks[0].command ==
             "bash \"$HOME/.claude/hooks/herdr-agent-state.sh\" session"' \
             "$HOME/.claude/settings.json" >/dev/null || fail "Herdr hook not portable"
+
+        rm -rf "$HOME/.hermes"
+        curl() {
+            if [ "$2" = https://hermes-agent.nousresearch.com/install.sh ]; then
+                cat >"$4" <<'INSTALLER'
+true
+INSTALLER
+            fi
+        }
+        if install_hermes; then
+            fail "install_hermes accepted missing Browser Use CLI"
+        fi
 
         : >"$SMOKE_LOG"
         curl() {
