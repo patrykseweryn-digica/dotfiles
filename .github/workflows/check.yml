@@ -31,5 +31,9 @@ jobs:
             -o "$RUNNER_TEMP/herdr-install.sh"
           sh "$RUNNER_TEMP/herdr-install.sh"
           npm --prefix config/pi ci --ignore-scripts
+      - name: Secure runner Zsh completion permissions
+        run: |
+          zsh -fc 'autoload -Uz compaudit; compaudit' |
+            xargs -r -d '\n' sudo chmod -v go-w
       - name: Check repository
         run: just check
