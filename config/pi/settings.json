@@ -10,7 +10,13 @@
     "zai/glm-5.3-flash",
     "openai-codex/gpt-6-astra"
   ],
-  "theme": "dark",
+  "theme": "rose-pine-moon",
+  "images": { "blockImages": false },
+  "terminal": { "showImages": false, "trueColor": true },
+  "quietStartup": true,
+  "steeringMode": "all",
+  "followUpMode": "all",
+  "collapseChangelog": true,
   "packages": [
     "git:github.com/DietrichGebert/ponytail@e3ba2aa6f1e6f0bc4d69eb09c9f0d0a93af56156",
     "git:github.com/ghoseb/pi-askuserquestion@e58609c9e9c8c4e8a0348c96eaad38dd7e6f0578",
@@ -22,6 +28,7 @@
     "npm:pi-mcporter@1.0.2",
     "npm:@narumitw/pi-goal@0.54.5",
     "npm:pi-simplify@0.2.3",
-    "npm:pi-codex-fast-mode@0.2.0"
+    "npm:pi-codex-fast-mode@0.2.0",
+    "git:github.com/algal/pi-openai-server-compaction@c6d593087709e9481223dc6c6c2269b371b5e055"
   ]
 }

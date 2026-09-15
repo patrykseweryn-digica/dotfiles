@@ -1,0 +1,19 @@
+{
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "tsc --noEmit && npm run lint",
+    "lint": "cd ../.. && config/pi/node_modules/.bin/eslint --config config/pi/eslint.config.mjs config/pi/extensions config/pi/eslint.config.mjs scripts/smoke-pi-*.mjs && config/pi/node_modules/.bin/prettier --check 'config/pi/*.{json,mjs}' 'config/pi/extensions/*.ts' 'config/pi/themes/*.json' 'scripts/smoke-pi-*.mjs'",
+    "test": "node ../../scripts/smoke-pi-title.mjs && node ../../scripts/smoke-pi-config.mjs"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-coding-agent": "0.85.1",
+    "@eslint/js": "10.0.1",
+    "@types/node": "24.10.0",
+    "eslint": "10.10.0",
+    "globals": "17.12.0",
+    "prettier": "3.9.6",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.70.0"
+  }
+}

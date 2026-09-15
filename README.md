@@ -47,8 +47,9 @@ for membership changes. Codex remote plugins still require `/plugins`; drift
 stops with the plugin names, OAuth step, and verification command. Pull and
 push never update marketplaces, plugins, or agent CLIs.
 
-Pi receives stdio and HTTP servers through the pinned `pi-mcp-adapter` package.
-Its local MCP state lives in `~/.agents/mcp.json`.
+Pi retains `pi-mcporter` for the existing MCP inventory and `pi-mcp-adapter`
+for the used scripting/OAuth UI surface. See [Pi configuration](config/pi/README.md)
+for the audit, theme, title lifecycle, compaction and live-test results.
 
 ## Agent tool versions
 
@@ -74,6 +75,8 @@ changelog state local. Fast Mode remains off by default; its existing local
 preference is untouched. No runtime state or credentials are imported.
 Apply only Pi with `./sync-agents.sh pi-install`; check semantic JSON and
 installed package versions with `./sync-agents.sh pi-check`.
+Before repository checks, run `npm --prefix config/pi ci --ignore-scripts`
+to install Pi's development-only typechecking and lint tools.
 Global preferences in `.agents/AGENTS.md` are linked to
 `~/.pi/agent/AGENTS.md`. Repository-only instructions live in root `AGENTS.md`,
 with `CLAUDE.md` linking to it for Claude. Shared skills are linked into

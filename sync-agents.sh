@@ -2169,11 +2169,58 @@ restore_pi_packages() {
     done < <(jq -r '.packages[]' "$PI_SETTINGS_TEMPLATE")
 }
 
+pi_models() {
+    local action="$1" source target tmp
+    source="$(dirname "$PI_SETTINGS_TEMPLATE")/models.json"
+    [ -f "$source" ] || return 0
+    target="${PI_AGENT_DIR}/models.json"
+    tmp="$(mktemp)"
+    if ! jq -S --slurpfile wanted "$source" '. * $wanted[0]' \
+        < <(if [ -f "$target" ]; then cat "$target"; else echo '{}'; fi) >"$tmp"; then
+        rm -f "$tmp"
+        return 1
+    fi
+    if [ -f "$target" ] && jq -e --slurpfile wanted "$tmp" \
+        '. == $wanted[0]' "$target" >/dev/null; then
+        rm -f "$tmp"
+    elif [ "$action" = install ]; then
+        mv "$tmp" "$target"
+    else
+        rm -f "$tmp"
+        echo "[ERROR] Pi model override drift: $target" >&2
+        return 1
+    fi
+}
+
+pi_resources() {
+    local action="$1" root source target failed=false
+    root="$(dirname "$PI_SETTINGS_TEMPLATE")"
+    for source in "$root"/themes/*.json "$root"/extensions/*.ts; do
+        [ -f "$source" ] || continue
+        target="${PI_AGENT_DIR}/${source#"$root"/}"
+        if [ "$action" = install ]; then
+            mkdir -p "$(dirname "$target")"
+            ln -sfn "$source" "$target"
+        elif [[ "$source" == *.json ]]; then
+            jq -e --slurpfile wanted "$source" '. == $wanted[0]' \
+                "$target" >/dev/null 2>&1 || failed=true
+        elif ! cmp -s "$source" "$target"; then
+            failed=true
+        fi
+        if [ "$failed" = true ]; then
+            echo "[ERROR] Pi resource drift: $target" >&2
+            return 1
+        fi
+    done
+}
+
 cmd_pi_install() {
     log_info "Installing Pi agent config..."
     mkdir -p "$PI_AGENT_DIR" "$PI_SKILLS_DIR"
     ln -sfn "$PI_AGENTS_SOURCE" "$PI_AGENTS_FILE"
     sync_pi_settings
+    pi_resources install
+    pi_models install
     restore_pi_packages
     sync_pi_mcp_config
 }
@@ -2185,6 +2232,8 @@ cmd_pi_check() {
     }
 
     local tmp package failed=false
+    pi_resources check || failed=true
+    pi_models check || failed=true
     tmp="$(mktemp)"
     render_pi_settings "$PI_SETTINGS_FILE" "$tmp"
     if ! jq -e --slurpfile wanted "$tmp" '. == $wanted[0]' \

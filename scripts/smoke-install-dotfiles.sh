@@ -299,6 +299,14 @@ STUB
         grep -Fx "install $package" "$pi_log" >/dev/null || \
             fail "$os_name: Pi package was not restored: $package"
     done < <(jq -r '.packages[]' "${DOTFILES_DIR}/config/pi/settings.json")
+    for resource in themes/rose-pine-moon.json extensions/terminal-title.ts; do
+        cmp -s "${DOTFILES_DIR}/config/pi/$resource" \
+            "${home_dir}/.pi/agent/$resource" || fail "missing Pi $resource"
+    done
+    HOME="$home_dir" PATH="${stub_dir}:/usr/bin:/bin" PI_LOG="$pi_log" \
+        "${DOTFILES_DIR}/sync-agents.sh" pi-install >/dev/null
+    [ "$(find "${home_dir}/.pi/agent/extensions" -name terminal-title.ts | wc -l)" -eq 1 ] ||
+        fail "Pi repeat install duplicated extension"
     [ -f "${home_dir}/.codex/config.toml" ] || fail "$os_name: missing Codex config"
     [ -f "${home_dir}/.config/opencode/opencode.json" ] || fail "$os_name: missing OpenCode config"
 

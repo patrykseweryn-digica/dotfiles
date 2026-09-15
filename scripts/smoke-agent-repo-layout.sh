@@ -63,6 +63,12 @@ jq -e '
         "hideThinkingBlock",
         "enabledModels",
         "theme",
+        "images",
+        "terminal",
+        "quietStartup",
+        "steeringMode",
+        "followUpMode",
+        "collapseChangelog",
         "packages"
     ] | length) == 0
 ' config/pi/settings.json >/dev/null || fail "Pi stable settings are invalid"

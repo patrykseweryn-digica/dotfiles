@@ -15,43 +15,55 @@ repos:
         pass_filenames: false
       - id: zsh-plan-smoke
         name: Zsh install plan smoke test
-        description: Ensure zsh install picks Homebrew before source fallback when sudo is unavailable
+        description: >-
+          Ensure zsh install picks Homebrew before source fallback
+          when sudo is unavailable
         entry: ./scripts/smoke-zsh-plan.sh
         language: system
         pass_filenames: false
       - id: zshrc-startup-smoke
         name: Zshrc startup smoke test
-        description: Ensure .zshrc can be sourced on a fresh machine without noisy missing-tool errors
+        description: >-
+          Ensure .zshrc can be sourced on a fresh machine without noisy
+          missing-tool errors
         entry: ./scripts/smoke-zshrc-startup.sh
         language: system
         pass_filenames: false
       - id: agent-repo-layout-smoke
         name: Agent repo layout smoke test
-        description: Ensure shared agent files stay canonical and tracked symlinks resolve
+        description: >-
+          Ensure shared agent files stay canonical and tracked symlinks resolve
         entry: ./scripts/smoke-agent-repo-layout.sh
         language: system
         pass_filenames: false
       - id: install-dotfiles-smoke
         name: Install dotfiles smoke test
-        description: Ensure setup_dotfiles links Linux/macOS targets and agent adapters in an isolated HOME
+        description: >-
+          Ensure setup_dotfiles links Linux/macOS targets and agent adapters
+          in an isolated HOME
         entry: ./scripts/smoke-install-dotfiles.sh
         language: system
         pass_filenames: false
       - id: ssh-config-smoke
         name: SSH config smoke test
-        description: Ensure ssh setup preserves existing config unless replacement is explicit
+        description: >-
+          Ensure ssh setup preserves existing config unless replacement
+          is explicit
         entry: ./scripts/smoke-ssh-config.sh
         language: system
         pass_filenames: false
       - id: macos-apps-smoke
         name: macOS apps smoke test
-        description: Ensure macOS Brewfile, VS Code extensions, and Rectangle defaults are wired safely
+        description: >-
+          Ensure macOS Brewfile, VS Code extensions, and Rectangle defaults
+          are wired safely
         entry: ./scripts/smoke-macos-apps.sh
         language: system
         pass_filenames: false
       - id: agent-skill-sync-smoke
         name: Agent skill sync smoke test
-        description: Ensure shared skills are visible to Codex, Claude Code, and OpenCode
+        description: >-
+          Ensure shared skills are visible to Codex, Claude Code, and OpenCode
         entry: ./scripts/smoke-agent-skill-sync.sh
         language: system
         pass_filenames: false
@@ -69,7 +81,8 @@ repos:
         pass_filenames: false
       - id: web-scraping-skills-smoke
         name: Web scraping skills smoke test
-        description: Ensure web scraping skill routing, gates, and references stay aligned
+        description: >-
+          Ensure web scraping skill routing, gates, and references stay aligned
         entry: ./scripts/smoke-web-scraping-skills.sh
         language: system
         pass_filenames: false
@@ -83,6 +96,13 @@ repos:
         name: Agent sync interface smoke test
         description: Verify symmetric sync commands and normalized MCP behavior
         entry: ./scripts/smoke-agent-sync-interface.sh
+        language: system
+        pass_filenames: false
+      - id: pi-config-check
+        name: Pi types, lint and regression tests
+        entry: >-
+          bash -c 'npm --prefix config/pi run check &&
+          npm --prefix config/pi test'
         language: system
         pass_filenames: false
       - id: agent-tools-smoke
