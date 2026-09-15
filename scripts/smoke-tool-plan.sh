@@ -583,6 +583,17 @@ INSTALLER
             fail "install_hermes accepted missing Browser Use CLI"
         fi
 
+        curl() {
+            if [ "$2" = https://hermes-agent.nousresearch.com/install.sh ]; then
+                cat >"$4" <<'INSTALLER'
+exit 5
+INSTALLER
+            fi
+        }
+        if install_hermes; then
+            fail "install_hermes ignored installer script failure"
+        fi
+
         : >"$SMOKE_LOG"
         curl() {
             # Even a partially downloaded script must not execute.
