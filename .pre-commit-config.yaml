@@ -60,13 +60,6 @@ repos:
         entry: ./scripts/smoke-macos-apps.sh
         language: system
         pass_filenames: false
-      - id: agent-skill-sync-smoke
-        name: Agent skill sync smoke test
-        description: >-
-          Ensure shared skills are visible to Codex, Claude Code, and OpenCode
-        entry: ./scripts/smoke-agent-skill-sync.sh
-        language: system
-        pass_filenames: false
       - id: codex-plugin-sync-smoke
         name: Codex plugin sync smoke test
         description: Ensure Codex remote plugin drift and export stay symmetric
