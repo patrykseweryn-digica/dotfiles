@@ -152,9 +152,9 @@ browser tools); installation fails if the Browser Use CLI is not executable
 afterward. Herdr installation also installs its Claude hook
 through the built-in integration command. The hook resolves its script
 relative to `$HOME`.
-Cursor's `agent` and `cursor-agent` commands live in `~/.local/bin`.
-Grok's binary and optional `agent` alias stay in `~/.grok/bin`; only `grok`
-is linked into `~/.local/bin`, so it never replaces Cursor's `agent`.
+Cursor's public command is `agent` in `~/.local/bin`.
+Grok's binary stays in `~/.grok/bin` and is linked as `~/.local/bin/grok`.
+Installation removes Grok's `agent` symlink, reserving that command for Cursor.
 Grok completions join Zsh's search path before completion initialization.
 Installers do not rewrite managed shell profiles. Both CLIs support macOS
 and Linux through their official platform-aware installers.

@@ -340,16 +340,19 @@ install_cursor_cli() {
 
     installer="$(curl -fsSL https://cursor.com/install)" || return 1
     bash -c "$installer" || return 1
-    "$HOME/.local/bin/cursor-agent" --version
+    "$HOME/.local/bin/agent" --version
 }
 
 install_grok() {
     local installer
 
     installer="$(curl -fsSL https://x.ai/cli/install.sh)" || return 1
-    # Keep Grok's agent alias private and let dotfiles own shell initialization.
+    # Let dotfiles own shell initialization and reserve agent for Cursor.
     SHELL=/bin/false GROK_BIN_DIR="$HOME/.grok/bin" \
         PATH="$HOME/.grok/bin:$PATH" bash -c "$installer" || return 1
+    if [ -L "$HOME/.grok/bin/agent" ]; then
+        rm "$HOME/.grok/bin/agent" || return 1
+    fi
     mkdir -p "$BIN_DIR" || return 1
     ln -sf "$HOME/.grok/bin/grok" "$BIN_DIR/grok" || return 1
     "$BIN_DIR/grok" --version

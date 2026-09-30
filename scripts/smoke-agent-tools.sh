@@ -200,7 +200,7 @@ cat >"$manifest" <<'JSON'
  {"name":"Herdr","command":"herdr","installer":"herdr-native","channel":"latest"},
  {"name":"Treehouse","command":"treehouse","installer":"treehouse-native","channel":"latest"},
  {"name":"no-mistakes","command":"no-mistakes","installer":"no-mistakes-native","channel":"latest"},
- {"name":"Cursor CLI","command":"cursor-agent","installer":"cursor-native","channel":"latest"},
+ {"name":"Cursor CLI","command":"agent","installer":"cursor-native","channel":"latest"},
  {"name":"Grok Build","command":"grok","installer":"grok-native","channel":"latest"}
 ]}
 JSON
@@ -291,6 +291,7 @@ for name in hermes herdr treehouse no-mistakes cursor-agent grok; do
   [ "$(grep -Fxc "$name" "$native_log")" -eq 2 ] || fail "native dispatch missing: $name"
 done
 [ "$(agent --version)" = 2026.09.28-test ] || fail "Grok replaced Cursor's agent"
+[ ! -L "$HOME/.grok/bin/agent" ] || fail "Grok's agent symlink was not removed"
 [ "$(grok --version)" = 1.2.3 ] || fail "Grok CLI missing from PATH"
 rm "$HOME/.local/bin/treehouse"
 if "$AGENT_TOOLS" check >/dev/null; then fail "missing native command accepted"; fi
