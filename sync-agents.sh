@@ -27,8 +27,6 @@ PI_AGENTS_FILE="${PI_AGENT_DIR}/AGENTS.md"
 PI_SETTINGS_FILE="${PI_SETTINGS_FILE:-${PI_AGENT_DIR}/settings.json}"
 PI_SKILLS_DIR="${PI_SKILLS_DIR:-${PI_AGENT_DIR}/skills}"
 PI_MCP_CONFIG="${PI_MCP_CONFIG:-${HOME}/.agents/mcp.json}"
-KIMI_HOME="${KIMI_CODE_HOME:-${HOME}/.kimi-code}"
-KIMI_MCP_CONFIG="${KIMI_MCP_CONFIG:-${KIMI_HOME}/mcp.json}"
 PLUGIN_MANIFEST="${PLUGIN_MANIFEST:-${DOTFILES_DIR}/.agents/plugin-manifest.json}"
 CLAUDE_MANIFEST="${CLAUDE_MANIFEST:-${PLUGIN_MANIFEST}}"
 CODEX_PLUGIN_MANIFEST="${CODEX_PLUGIN_MANIFEST:-${PLUGIN_MANIFEST}}"
@@ -568,35 +566,6 @@ collect_opencode_mcp() {
     ' "$OPENCODE_CONFIG"
 }
 
-collect_kimi_mcp() {
-    [ -f "$KIMI_MCP_CONFIG" ] || return 0
-
-    jq -c '
-        (.mcpServers // {})
-        | to_entries[]
-        | .key as $name
-        | .value
-        | if .url then
-            {
-                runtime: "kimi",
-                name: $name,
-                server: {type: "http", url: .url}
-            }
-          elif .command then
-            {
-                runtime: "kimi",
-                name: $name,
-                server: {
-                    type: "stdio",
-                    command: .command,
-                    args: (.args // [])
-                }
-            }
-          else empty
-          end
-    ' "$KIMI_MCP_CONFIG"
-}
-
 collect_pi_mcp() {
     [ -f "$PI_MCP_CONFIG" ] || return 0
 
@@ -631,7 +600,6 @@ available_mcp_runtimes() {
     command -v codex >/dev/null 2>&1 && echo codex
     [ -f "$CLAUDE_USER_CONFIG" ] && echo claude
     [ -f "$OPENCODE_CONFIG" ] && echo opencode
-    [ -f "$KIMI_MCP_CONFIG" ] && echo kimi
     [ -f "$PI_MCP_CONFIG" ] && echo pi
     return 0
 }
@@ -640,7 +608,6 @@ collect_mcp_rows() {
     collect_codex_mcp || return 1
     collect_claude_mcp || return 1
     collect_opencode_mcp || return 1
-    collect_kimi_mcp || return 1
     collect_pi_mcp || return 1
 }
 
@@ -736,7 +703,6 @@ cmd_mcp_check() {
 codex|$CODEX_CONFIG
 claude|$CLAUDE_USER_CONFIG
 opencode|$OPENCODE_CONFIG
-kimi|$KIMI_MCP_CONFIG
 pi|$PI_MCP_CONFIG
 EOF
     if [ "$failed" = true ]; then
@@ -772,7 +738,7 @@ EOF
             failed=true
         fi
         rm -f "$actual"
-    done < <(printf '%s\n' codex claude opencode kimi pi)
+    done < <(printf '%s\n' codex claude opencode pi)
 
     rm -f "$rows" "$wanted"
     [ "$failed" = false ] || echo "Run: ./sync-agents.sh push-mcp" >&2
@@ -1350,26 +1316,6 @@ cmd_opencode_check() {
     return 1
 }
 
-render_kimi_config() {
-    local source_file="$1"
-    local target_file="$2"
-
-    jq -S --slurpfile mcp "$MCP_SERVERS" '
-        ($mcp[0] | to_entries |
-            map({(.key): (
-                .value
-                | if ((.type // "") == "http") then
-                    {url}
-                else
-                    {command}
-                    + (if .args then {args} else {} end)
-                    + (if ((.env? // null) | type) == "object" and (.env | length) > 0 then {env} else {} end)
-                end
-            )}) | add // {}) as $servers |
-        (. // {}) | .mcpServers = $servers
-    ' < <(if [ -f "$source_file" ]; then cat "$source_file"; else echo '{}'; fi) >"$target_file"
-}
-
 render_pi_mcp_config() {
     local source_file="$1"
     local target_file="$2"
@@ -1417,23 +1363,6 @@ sync_pi_mcp_config() {
     else
         mv "$tmp" "$PI_MCP_CONFIG"
         log_info "Wrote $PI_MCP_CONFIG"
-    fi
-}
-
-cmd_kimi_install() {
-    log_info "Installing Kimi MCP config..."
-    mkdir -p "$KIMI_HOME"
-
-    local tmp
-    tmp="$(mktemp)"
-    render_kimi_config "$KIMI_MCP_CONFIG" "$tmp"
-
-    if [ -f "$KIMI_MCP_CONFIG" ] && cmp -s "$tmp" "$KIMI_MCP_CONFIG"; then
-        rm -f "$tmp"
-        log_info "Kimi MCP config already in sync"
-    else
-        mv "$tmp" "$KIMI_MCP_CONFIG"
-        log_info "Wrote $KIMI_MCP_CONFIG"
     fi
 }
 
@@ -1523,36 +1452,7 @@ cmd_push_mcp() {
     sync_claude_mcp_config
     sync_claude_mcp_permissions
     sync_opencode_mcp_config
-    cmd_kimi_install
     sync_pi_mcp_config
-}
-
-cmd_kimi_check() {
-    local tmp
-
-    if [ ! -f "$KIMI_MCP_CONFIG" ]; then
-        echo "[ERROR] Kimi MCP config missing: $KIMI_MCP_CONFIG" >&2
-        echo "Run: ./sync-agents.sh kimi-install" >&2
-        return 1
-    fi
-    validate_json_config "$KIMI_MCP_CONFIG" kimi-install || return 1
-
-    tmp="$(mktemp)"
-    render_kimi_config "$KIMI_MCP_CONFIG" "$tmp"
-
-    if [ -f "$KIMI_MCP_CONFIG" ] && cmp -s "$tmp" "$KIMI_MCP_CONFIG"; then
-        rm -f "$tmp"
-        log_info "Kimi MCP config in sync"
-        return 0
-    fi
-
-    echo "[ERROR] Kimi MCP config drift detected: $KIMI_MCP_CONFIG" >&2
-    echo "Run: ./sync-agents.sh kimi-install" >&2
-    if [ -f "$KIMI_MCP_CONFIG" ]; then
-        diff -u "$KIMI_MCP_CONFIG" "$tmp" >&2 || true
-    fi
-    rm -f "$tmp"
-    return 1
 }
 
 render_claude_settings() {
@@ -2548,7 +2448,6 @@ cmd_install() {
     cmd_custom_skills_install
     cmd_codex_install
     cmd_opencode_install
-    cmd_kimi_install
     cmd_pi_install
     cmd_claude_install
     cmd_codex_marketplace_plugins_push
@@ -2631,12 +2530,6 @@ opencode-install)
 opencode-check)
     cmd_opencode_check
     ;;
-kimi-install)
-    cmd_kimi_install
-    ;;
-kimi-check)
-    cmd_kimi_check
-    ;;
 pi-install)
     cmd_pi_install
     ;;
@@ -2681,7 +2574,7 @@ claude-settings-check)
     echo "  skills-check     Compare runtime skills with shared inventory"
     echo "  pull-plugins     Preview and confirm live plugin import"
     echo "  push-plugins     Apply membership without version updates"
-    echo "  install          Sync shared agent config into Codex, Claude, Pi, OpenCode, and Kimi"
+    echo "  install          Sync shared agent config into Codex, Claude, Pi, and OpenCode"
     echo "  plugins-check    Check Codex and Claude against shared plugin manifest"
     echo "  plugins-export   Export Codex and Claude into shared plugin manifest"
     echo "  plugins-update   Update Codex marketplaces and installed Claude plugins"
@@ -2693,8 +2586,6 @@ claude-settings-check)
     echo "                  Replace manifest with current remote Codex plugins"
     echo "  opencode-install Link AGENTS.md, skills, and generate OpenCode MCP config"
     echo "  opencode-check   Exit 1 if OpenCode config is out of sync"
-    echo "  kimi-install     Generate Kimi MCP config (~/.kimi-code/mcp.json)"
-    echo "  kimi-check       Exit 1 if Kimi MCP config is out of sync"
     echo "  pi-install       Link instructions, restore settings and packages"
     echo "  pi-check         Exit 1 if Pi settings or packages drift"
     echo "  claude-install   Link AGENTS.md, generate Claude settings, install plugins and skills"

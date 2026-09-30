@@ -335,6 +335,26 @@ install_treehouse() (
     echo "[INFO] Treehouse $version installed to $BIN_DIR/treehouse"
 )
 
+install_cursor_cli() {
+    local installer
+
+    installer="$(curl -fsSL https://cursor.com/install)" || return 1
+    bash -c "$installer" || return 1
+    "$HOME/.local/bin/cursor-agent" --version
+}
+
+install_grok() {
+    local installer
+
+    installer="$(curl -fsSL https://x.ai/cli/install.sh)" || return 1
+    # Keep Grok's agent alias private and let dotfiles own shell initialization.
+    SHELL=/bin/false GROK_BIN_DIR="$HOME/.grok/bin" \
+        PATH="$HOME/.grok/bin:$PATH" bash -c "$installer" || return 1
+    mkdir -p "$BIN_DIR" || return 1
+    ln -sf "$HOME/.grok/bin/grok" "$BIN_DIR/grok" || return 1
+    "$BIN_DIR/grok" --version
+}
+
 install_no_mistakes() {
     local installer
 

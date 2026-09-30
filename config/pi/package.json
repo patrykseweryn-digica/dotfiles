@@ -7,7 +7,7 @@
     "test": "node ../../scripts/smoke-pi-title.mjs && node ../../scripts/smoke-pi-config.mjs"
   },
   "devDependencies": {
-    "@earendil-works/pi-coding-agent": "0.85.1",
+    "@earendil-works/pi-coding-agent": "0.99.1",
     "@eslint/js": "10.0.1",
     "@types/node": "24.10.0",
     "eslint": "10.10.0",

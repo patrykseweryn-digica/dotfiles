@@ -126,6 +126,18 @@
       "command": "no-mistakes",
       "installer": "no-mistakes-native",
       "name": "no-mistakes"
+    },
+    {
+      "channel": "latest",
+      "command": "cursor-agent",
+      "installer": "cursor-native",
+      "name": "Cursor CLI"
+    },
+    {
+      "channel": "latest",
+      "command": "grok",
+      "installer": "grok-native",
+      "name": "Grok Build"
     }
   ]
 }

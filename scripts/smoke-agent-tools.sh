@@ -195,12 +195,36 @@ cat >"$manifest" <<'JSON'
  {"name":"Hermes Agent","command":"hermes","installer":"hermes-native","channel":"latest"},
  {"name":"Herdr","command":"herdr","installer":"herdr-native","channel":"latest"},
  {"name":"Treehouse","command":"treehouse","installer":"treehouse-native","channel":"latest"},
- {"name":"no-mistakes","command":"no-mistakes","installer":"no-mistakes-native","channel":"latest"}
+ {"name":"no-mistakes","command":"no-mistakes","installer":"no-mistakes-native","channel":"latest"},
+ {"name":"Cursor CLI","command":"cursor-agent","installer":"cursor-native","channel":"latest"},
+ {"name":"Grok Build","command":"grok","installer":"grok-native","channel":"latest"}
 ]}
 JSON
 cat >"$stub_dir/curl" <<'STUB'
 #!/bin/bash
 case "$*" in
+    *cursor.com/install*)
+        cat <<'INSTALLER'
+mkdir -p "$HOME/.local/bin"
+printf '#!/bin/sh\necho 2026.09.28-test\n' > "$HOME/.local/bin/cursor-agent"
+chmod +x "$HOME/.local/bin/cursor-agent"
+ln -sf cursor-agent "$HOME/.local/bin/agent"
+echo cursor-agent >> "$NATIVE_LOG"
+INSTALLER
+        [ "${NATIVE_DOWNLOAD_FAIL:-false}" = false ] || exit 22
+        exit 0 ;;
+    *x.ai/cli/install.sh*)
+        cat <<'INSTALLER'
+[ "$SHELL" = /bin/false ] || exit 1
+case ":$PATH:" in *":$GROK_BIN_DIR:"*) ;; *) exit 1 ;; esac
+mkdir -p "$GROK_BIN_DIR"
+printf '#!/bin/sh\necho 1.2.3\n' > "$GROK_BIN_DIR/grok"
+chmod +x "$GROK_BIN_DIR/grok"
+ln -sf grok "$GROK_BIN_DIR/agent"
+echo grok >> "$NATIVE_LOG"
+INSTALLER
+        [ "${NATIVE_DOWNLOAD_FAIL:-false}" = false ] || exit 22
+        exit 0 ;;
     *treehouse/releases/latest*)
         [ "${NATIVE_DOWNLOAD_FAIL:-false}" = false ] || exit 22
         echo 'https://github.com/kunchenguid/treehouse/releases/tag/v1.2.3'
@@ -256,12 +280,14 @@ export PATH="$HOME/.local/bin:$PATH"
 : >"$native_log"
 "$AGENT_TOOLS" install
 "$AGENT_TOOLS" check >"$tmp_dir/native-report.log"
-[ "$(grep -Fc 'available (latest not checked)' "$tmp_dir/native-report.log")" -eq 4 ] ||
+[ "$(grep -Fc 'available (latest not checked)' "$tmp_dir/native-report.log")" -eq 6 ] ||
   fail "native report claims latest verification"
 "$AGENT_TOOLS" update
-for name in hermes herdr treehouse no-mistakes; do
+for name in hermes herdr treehouse no-mistakes cursor-agent grok; do
   [ "$(grep -Fxc "$name" "$native_log")" -eq 2 ] || fail "native dispatch missing: $name"
 done
+[ "$(agent --version)" = 2026.09.28-test ] || fail "Grok replaced Cursor's agent"
+[ "$(grok --version)" = 1.2.3 ] || fail "Grok CLI missing from PATH"
 rm "$HOME/.local/bin/treehouse"
 if "$AGENT_TOOLS" check >/dev/null; then fail "missing native command accepted"; fi
 : >"$native_log"

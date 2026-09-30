@@ -132,8 +132,9 @@ just update-dotfiles  # existing machine: links + agents, no tools, no SSH
 just setup-ssh        # explicit SSH key/config setup
 ```
 
-Hermes Agent, Herdr, Treehouse and no-mistakes use official latest-release
-installers selected by the tool manifest. Native commands use `~/.local/bin`;
+Cursor CLI, Grok Build, Hermes Agent, Herdr, Treehouse and no-mistakes use
+official latest-release installers selected by the tool manifest.
+Native commands use `~/.local/bin`;
 no-mistakes keeps its binary in `~/.no-mistakes/bin` and restarts its daemon.
 Both setup commands merge scalar `agent: codex` into
 `~/.no-mistakes/config.yaml`, preserving other local settings and comments.
@@ -148,6 +149,12 @@ browser tools); installation fails if the Browser Use CLI is not executable
 afterward. Herdr installation also installs its Claude hook
 through the built-in integration command. The hook resolves its script
 relative to `$HOME`.
+Cursor's `agent` and `cursor-agent` commands live in `~/.local/bin`.
+Grok's binary and optional `agent` alias stay in `~/.grok/bin`; only `grok`
+is linked into `~/.local/bin`, so it never replaces Cursor's `agent`.
+Grok completions join Zsh's search path before completion initialization.
+Installers do not rewrite managed shell profiles. Both CLIs support macOS
+and Linux through their official platform-aware installers.
 Doctor checks that an enabled hook has a readable script; a disabled hook
 is reported as SKIP.
 
@@ -239,7 +246,7 @@ from Git publication.
 - `justfile`: command menu for humans.
 - `install.sh`: full setup orchestrator.
 - `bootstrap.d/*`: install modules sourced by `install.sh`.
-- `sync-agents.sh`: sync Codex, Claude, Pi, OpenCode, Kimi, MCP, plugins,
+- `sync-agents.sh`: sync Codex, Claude, Pi, OpenCode, MCP, plugins,
   skills.
 - `ssh.sh`: SSH keys and `~/.ssh/config` setup.
 - `scripts/smoke-*`: regression tests for installer behavior.

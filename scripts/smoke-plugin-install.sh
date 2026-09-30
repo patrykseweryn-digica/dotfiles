@@ -78,7 +78,7 @@ chmod +x "$task_dir/fixture/install.sh" "$task_dir/fixture/scripts/agent-tools.s
 printf '{"skills":{}}\n' > "$task_dir/skills.json"
 mkdir -p "$task_dir/custom"
 printf 'local MCP state\n' > "$task_dir/mcp-sentinel"
-export PI_MCP_CONFIG="$task_dir/mcp-sentinel" KIMI_MCP_CONFIG="$task_dir/mcp-sentinel"
+export PI_MCP_CONFIG="$task_dir/mcp-sentinel"
 export PLUGIN_TEST_DIR="$task_dir" PLUGIN_TEST_REPO="$repo"
 for platform in Linux-x86_64 Linux-arm64 Darwin-x86_64 Darwin-arm64; do
     TEST_OS="${platform%-*}"
@@ -95,8 +95,8 @@ for platform in Linux-x86_64 Linux-arm64 Darwin-x86_64 Darwin-arm64; do
         fi
         run_install() {
             env -u CODEX_PLUGIN_LIST_FILE -u CODEX_MARKETPLACE_LIST_FILE \
-                -u OPENCODE_CONFIG_DIR -u OPENCODE_CONFIG -u KIMI_CODE_HOME \
-                -u PI_MCP_CONFIG -u KIMI_MCP_CONFIG \
+                -u OPENCODE_CONFIG_DIR -u OPENCODE_CONFIG \
+                -u PI_MCP_CONFIG \
                 -u PI_CODING_AGENT_DIR -u PI_SKILLS_DIR -u PI_SETTINGS_FILE \
                 -u CLAUDE_SETTINGS_FILE -u CLAUDE_USER_CONFIG \
                 HOME="$task_home" CODEX_HOME="$task_home/.codex" \

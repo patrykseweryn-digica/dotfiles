@@ -50,6 +50,24 @@ if [ -s "$stderr_log" ]; then
     fail ".zshrc wrote stderr in isolated HOME"
 fi
 
+mkdir -p "$home_dir/.grok/completions/zsh"
+for platform in Darwin Linux; do
+    env -u PNPM_HOME -u XDG_DATA_HOME HOME="$home_dir" ZDOTDIR="$zshenv" \
+        DOTFILES_ENV_FILE="$env_file" TEST_OS="$platform" \
+        zsh -df -s -- "${DOTFILES_DIR}/.zshrc" <<'ZSH'
+set -e
+uname() { print -r -- "$TEST_OS"; }
+source "$1"
+if [[ "$TEST_OS" == Darwin ]]; then
+    [[ "$PNPM_HOME" == "$HOME/Library/pnpm" ]]
+else
+    [[ "$PNPM_HOME" == "$HOME/.local/share/pnpm" ]]
+fi
+[[ ${fpath[(ie)$HOME/.grok/completions/zsh]} -le ${#fpath} ]]
+[[ ${path[(ie)$HOME/.local/bin]} -lt ${path[(ie)$HOME/.grok/bin]} ]]
+ZSH
+done
+
 agent_home="${tmp_dir}/agent-home"
 stub_dir="${tmp_dir}/stubs"
 agent_log="${tmp_dir}/agent.log"
