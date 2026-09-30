@@ -90,7 +90,6 @@ run_check "Codex settings" "$SYNC_AGENTS" codex-check
 run_check "Claude settings" "$SYNC_AGENTS" claude-settings-check
 check_herdr_hook || failed=true
 run_check "OpenCode settings" "$SYNC_AGENTS" opencode-check
-run_check "Kimi settings" "$SYNC_AGENTS" kimi-check
 run_check "MCP drift" "$SYNC_AGENTS" mcp-check
 run_check "Pi settings and packages" "$SYNC_AGENTS" pi-check
 run_check "skill inventory" "$SYNC_AGENTS" skills-check

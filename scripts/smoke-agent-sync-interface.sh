@@ -23,12 +23,10 @@ codex_mcp="${tmp_dir}/codex-mcp.json"
 claude_config="${home_dir}/.claude.json"
 claude_settings="${home_dir}/.claude/settings.json"
 opencode_config="${home_dir}/.config/opencode/opencode.json"
-kimi_config="${home_dir}/.kimi-code/mcp.json"
 pi_mcp="${home_dir}/.agents/mcp.json"
 mkdir -p \
     "${home_dir}/.codex" \
     "$(dirname "$opencode_config")" \
-    "$(dirname "$kimi_config")" \
     "$(dirname "$pi_mcp")" \
     "$stub_dir"
 ln -s "$UV_BIN" "${stub_dir}/uv"
@@ -100,16 +98,6 @@ cat > "$opencode_config" <<'JSON'
 }
 JSON
 
-cat > "$kimi_config" <<'JSON'
-{
-  "keep": true,
-  "mcpServers": {
-    "shared": {"url": "https://shared.test/mcp"},
-    "kimi-only": {"command": "kimi-server", "args": []}
-  }
-}
-JSON
-
 cat > "$pi_mcp" <<'JSON'
 {
   "keep": true,
@@ -139,7 +127,6 @@ export CLAUDE_SETTINGS_FILE="$claude_settings"
 OPENCODE_CONFIG_DIR="$(dirname "$opencode_config")"
 export OPENCODE_CONFIG_DIR
 export OPENCODE_CONFIG="$opencode_config"
-export KIMI_MCP_CONFIG="$kimi_config"
 export PI_MCP_CONFIG="$pi_mcp"
 export MCP_SERVERS="$repo_mcp"
 export PATH="${stub_dir}:/usr/bin:/bin"
@@ -157,7 +144,7 @@ grep -F 'codex-only' "${tmp_dir}/cancel.log" >/dev/null || \
 printf 'y\n' | "$SYNC" --quiet pull-mcp > "${tmp_dir}/pull.log"
 
 jq -e '
-  keys == ["claude-only", "codex-only", "kimi-only", "opencode-only", "pi-only", "shared"] and
+  keys == ["claude-only", "codex-only", "opencode-only", "pi-only", "shared"] and
   .["claude-only"] == {
     type: "stdio", command: "claude-server", args: []
   }
@@ -168,8 +155,8 @@ fi
 
 cp "$repo_mcp" "${tmp_dir}/before-conflict.json"
 jq '.mcpServers.shared.url = "https://conflict.test/mcp"' \
-    "$kimi_config" > "${tmp_dir}/kimi-conflict.json"
-mv "${tmp_dir}/kimi-conflict.json" "$kimi_config"
+    "$claude_config" > "${tmp_dir}/claude-conflict.json"
+mv "${tmp_dir}/claude-conflict.json" "$claude_config"
 if printf 'y\n' | "$SYNC" --quiet pull-mcp > "${tmp_dir}/conflict.log" 2>&1; then
     fail "pull-mcp accepted conflicting definitions"
 fi
@@ -215,7 +202,6 @@ cat > "$claude_settings" <<'JSON'
 }
 JSON
 echo '{"keep":true}' > "$opencode_config"
-echo '{"keep":true}' > "$kimi_config"
 cat > "$pi_mcp" <<'JSON'
 {
   "keep": true,
@@ -250,8 +236,6 @@ jq -e '
     fail "push-mcp did not reconcile Claude MCP permissions"
 jq -e '.keep and (.mcp | keys) == ["local", "remote"]' \
     "$opencode_config" >/dev/null || fail "push-mcp omitted OpenCode MCP config"
-jq -e '.keep and (.mcpServers | keys) == ["local", "remote"]' \
-    "$kimi_config" >/dev/null || fail "push-mcp omitted Kimi MCP config"
 jq -e '
   .keep and
   (.mcpServers | keys) == ["local", "remote"] and
@@ -260,20 +244,18 @@ jq -e '
 ' "$pi_mcp" >/dev/null || \
     fail "push-mcp omitted Pi MCP config or local credentials"
 
-pushed_hashes="$(sha256sum \
+pushed_hashes="$(cksum \
     "${CODEX_HOME}/config.toml" \
     "$claude_config" \
     "$claude_settings" \
     "$opencode_config" \
-    "$kimi_config" \
     "$pi_mcp")"
 "$SYNC" --quiet push-mcp
-[ "$pushed_hashes" = "$(sha256sum \
+[ "$pushed_hashes" = "$(cksum \
     "${CODEX_HOME}/config.toml" \
     "$claude_config" \
     "$claude_settings" \
     "$opencode_config" \
-    "$kimi_config" \
     "$pi_mcp")" ] || fail "push-mcp is not idempotent"
 
 cat > "$codex_mcp" <<'JSON'
@@ -305,9 +287,9 @@ fi
 grep -F 'Required codex CLI missing' "${tmp_dir}/missing-codex.log" >/dev/null || \
     fail "mcp-check did not explain the missing Codex CLI"
 mv "${stub_dir}/codex.disabled" "${stub_dir}/codex"
-jq '.mcpServers.extra = {url: "https://extra.test/mcp"}' \
-    "$kimi_config" > "${tmp_dir}/kimi-extra.json"
-mv "${tmp_dir}/kimi-extra.json" "$kimi_config"
+jq '.mcpServers.extra = {type: "http", url: "https://extra.test/mcp"}' \
+    "$claude_config" > "${tmp_dir}/claude-extra.json"
+mv "${tmp_dir}/claude-extra.json" "$claude_config"
 if "$SYNC" --quiet mcp-check > "${tmp_dir}/check.log" 2>&1; then
     fail "mcp-check ignored semantic drift"
 fi
@@ -330,11 +312,10 @@ fi
 [ "$(cat "$sync_log")" = $'push-mcp\npush-skills\npush-plugins' ] || \
     fail "just push did not invoke every category in order"
 
-"$JUST_BIN" --justfile "${DOTFILES_DIR}/justfile" --list | \
-    grep -Eq '^    (pull|push)-(mcp|skills|plugins)' || \
+just_commands="$("$JUST_BIN" --justfile "${DOTFILES_DIR}/justfile" --list)"
+grep -Eq '^    (pull|push)-(mcp|skills|plugins)' <<<"$just_commands" || \
     fail "symmetric sync commands missing from just"
-if "$JUST_BIN" --justfile "${DOTFILES_DIR}/justfile" --list | \
-    grep -Eq '^    pull[[:space:]]'; then
+if grep -Eq '^    pull[[:space:]]' <<<"$just_commands"; then
     fail "broad pull command must not exist"
 fi
 

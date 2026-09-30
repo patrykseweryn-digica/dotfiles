@@ -23,7 +23,9 @@ validate_manifest() {
                 (.package | type == "string" and
                     test("^(@[a-z0-9._-]+/)?[a-z0-9][a-z0-9._-]*$"))
              else
-                (.installer == "hermes-native" or
+                (.installer == "cursor-native" or
+                 .installer == "grok-native" or
+                 .installer == "hermes-native" or
                  .installer == "herdr-native" or
                  .installer == "treehouse-native" or
                  .installer == "no-mistakes-native") and
@@ -138,13 +140,15 @@ install_declared_tools() {
             }
             bash -c "$script" -- "$expected" || failed=true
             ;;
-        hermes-native | herdr-native | treehouse-native | no-mistakes-native)
+        cursor-native | grok-native | hermes-native | herdr-native | treehouse-native | no-mistakes-native)
             # Reuse the existing, small native installers.
             # shellcheck source=bootstrap.d/05-tools.sh
             source "$DOTFILES_DIR/bootstrap.d/05-tools.sh"
             BIN_DIR="${HOME}/.local/bin"
             mkdir -p "$BIN_DIR"
             case "$installer" in
+            cursor-native) install_cursor_cli || failed=true ;;
+            grok-native) install_grok || failed=true ;;
             hermes-native) install_hermes || failed=true ;;
             herdr-native) install_herdr || failed=true ;;
             treehouse-native) install_treehouse || failed=true ;;

@@ -52,8 +52,11 @@ for membership changes. Codex remote plugins still require `/plugins`; drift
 stops with the plugin names, OAuth step, and verification command. Pull and
 push never update marketplaces, plugins, or agent CLIs.
 
-Claude marketplace plugins belong only in Claude. Codex uses OpenAI plugins
-and third-party plugins with an upstream native `.codex-plugin/plugin.json`;
+Anthropic marketplaces belong only in Claude Code; OpenAI marketplaces belong
+only in Codex. Plugin checks, exports, installs, and updates reject
+cross-provider marketplaces, including aliases pointing at the provider's
+GitHub repositories. Codex uses OpenAI plugins and third-party plugins with an
+upstream native `.codex-plugin/plugin.json`;
 do not import Claude-only packages through Codex's compatibility conversion.
 Keep each runtime's membership explicit in `.agents/plugin-manifest.json`.
 
@@ -67,21 +70,21 @@ for the audit, theme, title lifecycle, compaction and live-test results.
 CLIs and activates it for their installation. Repeated setup reuses that
 version; `just doctor` checks the Node active in the current shell.
 
-`.agents/tool-versions.json` declares developer CLIs. A `version` pins a
-tool; without it, `channel: "latest"` explicitly opts into current releases.
-Installation restores pins, while `just update-agent-tools` updates them.
-Pi and the existing unpinned npm tools keep their `latest` policy. Reports
-resolve npm `latest` and fail explicitly when the registry is unavailable.
+`.agents/tool-versions.json` declares developer CLIs with `channel: "latest"`
+and no version pins. Installation and `just update-agent-tools` install
+current releases without recording exact versions in the manifest. Reports
+compare installed npm and Claude versions with `latest` and fail explicitly
+when the registry is unavailable.
 Native latest installers resolve their own releases; their report checks
 installed availability, not whether a newer release exists.
 
 ```bash
 just agent-versions      # compare developer tools with their version policies
-just update-agent-tools  # resolve channels, pin versions, install tools
+just update-agent-tools  # install current releases without version pins
 ```
 
 Pi, Codex, OpenCode, and the skill manager use global npm packages. Claude
-Code uses Anthropic's native installer with an exact version. Configuration
+Code uses Anthropic's native installer with the current release. Configuration
 commands such as `just push` never resolve channels or update tool versions.
 
 To add an npm CLI, add one entry to the manifest:
@@ -132,8 +135,9 @@ just update-dotfiles  # existing machine: links + agents, no tools, no SSH
 just setup-ssh        # explicit SSH key/config setup
 ```
 
-Hermes Agent, Herdr, Treehouse and no-mistakes use official latest-release
-installers selected by the tool manifest. Native commands use `~/.local/bin`;
+Cursor CLI, Grok Build, Hermes Agent, Herdr, Treehouse and no-mistakes use
+official latest-release installers selected by the tool manifest.
+Native commands use `~/.local/bin`;
 no-mistakes keeps its binary in `~/.no-mistakes/bin` and restarts its daemon.
 Both setup commands merge scalar `agent: codex` into
 `~/.no-mistakes/config.yaml`, preserving other local settings and comments.
@@ -148,6 +152,12 @@ browser tools); installation fails if the Browser Use CLI is not executable
 afterward. Herdr installation also installs its Claude hook
 through the built-in integration command. The hook resolves its script
 relative to `$HOME`.
+Cursor's `agent` and `cursor-agent` commands live in `~/.local/bin`.
+Grok's binary and optional `agent` alias stay in `~/.grok/bin`; only `grok`
+is linked into `~/.local/bin`, so it never replaces Cursor's `agent`.
+Grok completions join Zsh's search path before completion initialization.
+Installers do not rewrite managed shell profiles. Both CLIs support macOS
+and Linux through their official platform-aware installers.
 Doctor checks that an enabled hook has a readable script; a disabled hook
 is reported as SKIP.
 
@@ -239,7 +249,7 @@ from Git publication.
 - `justfile`: command menu for humans.
 - `install.sh`: full setup orchestrator.
 - `bootstrap.d/*`: install modules sourced by `install.sh`.
-- `sync-agents.sh`: sync Codex, Claude, Pi, OpenCode, Kimi, MCP, plugins,
+- `sync-agents.sh`: sync Codex, Claude, Pi, OpenCode, MCP, plugins,
   skills.
 - `ssh.sh`: SSH keys and `~/.ssh/config` setup.
 - `scripts/smoke-*`: regression tests for installer behavior.

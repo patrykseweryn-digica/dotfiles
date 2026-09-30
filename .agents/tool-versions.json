@@ -13,32 +13,28 @@
       "command": "codex",
       "installer": "npm",
       "name": "Codex",
-      "package": "@openai/codex",
-      "version": "0.154.0"
+      "package": "@openai/codex"
     },
     {
       "channel": "latest",
       "command": "claude",
       "installer": "claude-native",
       "name": "Claude Code",
-      "package": "@anthropic-ai/claude-code",
-      "version": "2.1.270"
+      "package": "@anthropic-ai/claude-code"
     },
     {
       "channel": "latest",
       "command": "opencode",
       "installer": "npm",
       "name": "OpenCode",
-      "package": "opencode-ai",
-      "version": "1.18.27"
+      "package": "opencode-ai"
     },
     {
       "channel": "latest",
       "command": "skills",
       "installer": "npm",
       "name": "Skill manager",
-      "package": "skills",
-      "version": "1.5.23"
+      "package": "skills"
     },
     {
       "channel": "latest",
@@ -126,6 +122,18 @@
       "command": "no-mistakes",
       "installer": "no-mistakes-native",
       "name": "no-mistakes"
+    },
+    {
+      "channel": "latest",
+      "command": "cursor-agent",
+      "installer": "cursor-native",
+      "name": "Cursor CLI"
+    },
+    {
+      "channel": "latest",
+      "command": "grok",
+      "installer": "grok-native",
+      "name": "Grok Build"
     }
   ]
 }

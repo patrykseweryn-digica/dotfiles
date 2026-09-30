@@ -94,6 +94,7 @@ ZSH_THEME="powerlevel10k/powerlevel10k"
 zsh_completions_dir="${ZSH_CUSTOM:-${ZSH:-~/.oh-my-zsh}/custom}/plugins/zsh-completions/src"
 [[ ! -d "$zsh_completions_dir" ]] || fpath+=("$zsh_completions_dir")
 [[ ! -d "$HOME/.zfunc" ]] || fpath+=("$HOME/.zfunc")
+[[ ! -d "$HOME/.grok/completions/zsh" ]] || fpath+=("$HOME/.grok/completions/zsh")
 unset zsh_completions_dir
 
 plugins=(
@@ -186,22 +187,20 @@ export BUN_INSTALL="$HOME/.bun"
 export PATH="$BUN_INSTALL/bin:$PATH"
 
 # Added by LM Studio CLI (lms)
-export PATH="$PATH:/Users/patrykseweryn/.lmstudio/bin"
+export PATH="$PATH:$HOME/.lmstudio/bin"
 # End of LM Studio CLI section
 
 # pnpm
-export PNPM_HOME="/Users/patrykseweryn/Library/pnpm"
+if [[ "$(uname -s)" == "Darwin" ]]; then
+  export PNPM_HOME="${PNPM_HOME:-$HOME/Library/pnpm}"
+else
+  export PNPM_HOME="${PNPM_HOME:-${XDG_DATA_HOME:-$HOME/.local/share}/pnpm}"
+fi
 case ":$PATH:" in
   *":$PNPM_HOME/bin:"*) ;;
   *) export PATH="$PNPM_HOME/bin:$PATH" ;;
 esac
 # pnpm end
 
-# >>> grok installer >>>
-export PATH="$HOME/.grok/bin:$PATH"
-fpath=(~/.grok/completions/zsh $fpath)
-autoload -Uz compinit && compinit -C
-# <<< grok installer <<<
-#
-# kimi-code
-export PATH="$HOME/.kimi-code/bin:$PATH"
+# Keep Cursor's agent command ahead of Grok's optional alias.
+export PATH="$PATH:$HOME/.grok/bin"

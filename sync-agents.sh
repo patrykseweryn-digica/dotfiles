@@ -27,8 +27,6 @@ PI_AGENTS_FILE="${PI_AGENT_DIR}/AGENTS.md"
 PI_SETTINGS_FILE="${PI_SETTINGS_FILE:-${PI_AGENT_DIR}/settings.json}"
 PI_SKILLS_DIR="${PI_SKILLS_DIR:-${PI_AGENT_DIR}/skills}"
 PI_MCP_CONFIG="${PI_MCP_CONFIG:-${HOME}/.agents/mcp.json}"
-KIMI_HOME="${KIMI_CODE_HOME:-${HOME}/.kimi-code}"
-KIMI_MCP_CONFIG="${KIMI_MCP_CONFIG:-${KIMI_HOME}/mcp.json}"
 PLUGIN_MANIFEST="${PLUGIN_MANIFEST:-${DOTFILES_DIR}/.agents/plugin-manifest.json}"
 CLAUDE_MANIFEST="${CLAUDE_MANIFEST:-${PLUGIN_MANIFEST}}"
 CODEX_PLUGIN_MANIFEST="${CODEX_PLUGIN_MANIFEST:-${PLUGIN_MANIFEST}}"
@@ -568,35 +566,6 @@ collect_opencode_mcp() {
     ' "$OPENCODE_CONFIG"
 }
 
-collect_kimi_mcp() {
-    [ -f "$KIMI_MCP_CONFIG" ] || return 0
-
-    jq -c '
-        (.mcpServers // {})
-        | to_entries[]
-        | .key as $name
-        | .value
-        | if .url then
-            {
-                runtime: "kimi",
-                name: $name,
-                server: {type: "http", url: .url}
-            }
-          elif .command then
-            {
-                runtime: "kimi",
-                name: $name,
-                server: {
-                    type: "stdio",
-                    command: .command,
-                    args: (.args // [])
-                }
-            }
-          else empty
-          end
-    ' "$KIMI_MCP_CONFIG"
-}
-
 collect_pi_mcp() {
     [ -f "$PI_MCP_CONFIG" ] || return 0
 
@@ -631,7 +600,6 @@ available_mcp_runtimes() {
     command -v codex >/dev/null 2>&1 && echo codex
     [ -f "$CLAUDE_USER_CONFIG" ] && echo claude
     [ -f "$OPENCODE_CONFIG" ] && echo opencode
-    [ -f "$KIMI_MCP_CONFIG" ] && echo kimi
     [ -f "$PI_MCP_CONFIG" ] && echo pi
     return 0
 }
@@ -640,7 +608,6 @@ collect_mcp_rows() {
     collect_codex_mcp || return 1
     collect_claude_mcp || return 1
     collect_opencode_mcp || return 1
-    collect_kimi_mcp || return 1
     collect_pi_mcp || return 1
 }
 
@@ -736,7 +703,6 @@ cmd_mcp_check() {
 codex|$CODEX_CONFIG
 claude|$CLAUDE_USER_CONFIG
 opencode|$OPENCODE_CONFIG
-kimi|$KIMI_MCP_CONFIG
 pi|$PI_MCP_CONFIG
 EOF
     if [ "$failed" = true ]; then
@@ -772,7 +738,7 @@ EOF
             failed=true
         fi
         rm -f "$actual"
-    done < <(printf '%s\n' codex claude opencode kimi pi)
+    done < <(printf '%s\n' codex claude opencode pi)
 
     rm -f "$rows" "$wanted"
     [ "$failed" = false ] || echo "Run: ./sync-agents.sh push-mcp" >&2
@@ -845,6 +811,30 @@ cmd_codex_check() {
     log_info "Codex config in sync"
 }
 
+check_marketplace_provider() {
+    local runtime="$1" foreign
+    foreign=$(jq -ser --arg runtime "$runtime" '
+        if length != 1 then error("Expected one marketplace inventory")
+        else .[0] end |
+        [.[] |
+        (.name | ascii_downcase) as $name |
+        ((.source // "") | ascii_downcase) as $source |
+        (if ($name == "claude-plugins-official" or
+             $name == "anthropic-agent-skills" or
+             ($source | test("(^|github[.]com[:/])anthropics/"))) then
+            "claude"
+         elif (($name | startswith("openai-")) or
+               ($source | test("(^|github[.]com[:/])openai/"))) then
+            "codex"
+         else $runtime end) as $owner |
+        select($owner != $runtime) | .name] | unique | join("\n")
+    ') || return 1
+    [ -n "$foreign" ] || return 0
+    echo "[ERROR] Provider-specific marketplaces do not belong in $runtime:" >&2
+    printf '%s\n' "$foreign" >&2
+    return 1
+}
+
 validate_plugin_manifest() {
     local manifest_file="$1"
 
@@ -891,6 +881,16 @@ validate_plugin_manifest() {
         echo "[ERROR] Invalid shared plugin manifest: $manifest_file" >&2
         return 1
     }
+    jq '[
+        ((.codexMarketplaces // {}) | to_entries[] |
+            {name: .key, source: .value}),
+        ((.codexPlugins // [])[] | {name: split("@")[-1]})
+    ]' "$manifest_file" | check_marketplace_provider codex || return 1
+    jq '[
+        (.marketplaces | to_entries[] |
+            {name: .key, source: (.value.repo // .value.url // "")}),
+        (.plugins[].claude // empty | {name: split("@")[-1]})
+    ]' "$manifest_file" | check_marketplace_provider claude
 }
 
 render_codex_remote_plugins() {
@@ -1043,23 +1043,37 @@ codex_marketplace_plugin_state_available() {
 }
 
 read_codex_plugin_state() {
+    local state
     if [ -n "${CODEX_PLUGIN_LIST_FILE:-}" ]; then
-        cat "$CODEX_PLUGIN_LIST_FILE"
+        state=$(cat "$CODEX_PLUGIN_LIST_FILE") || return 1
     else
-        codex plugin list --json
+        state=$(codex plugin list --json) || return 1
     fi
+    printf '%s\n' "$state" | jq '[.installed[]? |
+        select(.installed == true) |
+        {name: (.marketplaceName // (.pluginId | split("@")[-1])),
+         source: (.marketplaceSource.source // "")}
+    ]' | check_marketplace_provider codex || return 1
+    printf '%s\n' "$state"
 }
 
 read_codex_marketplace_state() {
+    local state
     if [ -n "${CODEX_MARKETPLACE_LIST_FILE:-}" ]; then
-        cat "$CODEX_MARKETPLACE_LIST_FILE"
+        state=$(cat "$CODEX_MARKETPLACE_LIST_FILE") || return 1
     else
-        codex plugin marketplace list --json
+        state=$(codex plugin marketplace list --json) || return 1
     fi
+    printf '%s\n' "$state" | jq '[.marketplaces[]? |
+        {name, source: (.marketplaceSource.source // "")}
+    ]' | check_marketplace_provider codex || return 1
+    printf '%s\n' "$state"
 }
 
 render_codex_plugins() {
-    read_codex_plugin_state | jq -e -S '
+    local state
+    state=$(read_codex_plugin_state) || return 1
+    printf '%s\n' "$state" | jq -e -S '
         [.installed[] |
             select(
                 .installed == true and
@@ -1072,7 +1086,9 @@ render_codex_plugins() {
 }
 
 render_codex_marketplaces() {
-    read_codex_marketplace_state | jq -e -S '
+    local state
+    state=$(read_codex_marketplace_state) || return 1
+    printf '%s\n' "$state" | jq -e -S '
         [.marketplaces[] |
             select(.marketplaceSource.sourceType == "git") |
             {
@@ -1084,6 +1100,7 @@ render_codex_marketplaces() {
 }
 
 cmd_codex_marketplace_plugins_check() {
+    validate_plugin_manifest "$CODEX_PLUGIN_MANIFEST" || return 1
     codex_marketplace_plugin_state_available || {
         echo "[ERROR] Required Codex marketplace plugin state missing" >&2
         echo "Run: ./install.sh, then just push-plugins" >&2
@@ -1128,6 +1145,7 @@ cmd_codex_marketplace_plugins_check() {
 }
 
 cmd_codex_marketplace_plugins_export() {
+    validate_plugin_manifest "$CODEX_PLUGIN_MANIFEST" || return 1
     codex_marketplace_plugin_state_available || {
         log_info "No Codex marketplace plugin state found; skipping export"
         return 0
@@ -1166,11 +1184,12 @@ cmd_codex_plugins_check() {
 }
 
 cmd_codex_plugins_export() {
-    cmd_codex_remote_plugins_export || return 1
-    cmd_codex_marketplace_plugins_export
+    cmd_codex_marketplace_plugins_export || return 1
+    cmd_codex_remote_plugins_export
 }
 
 cmd_codex_marketplace_plugins_push() {
+    validate_plugin_manifest "$CODEX_PLUGIN_MANIFEST" || return 1
     command -v codex >/dev/null 2>&1 || {
         echo "[ERROR] codex CLI not found; cannot reconcile plugins" >&2
         return 1
@@ -1248,6 +1267,8 @@ cmd_codex_plugins_update() {
         return 1
     }
 
+    read_codex_plugin_state >/dev/null || return 1
+    read_codex_marketplace_state >/dev/null || return 1
     log_info "Updating Codex plugin marketplaces..."
     codex plugin marketplace upgrade
 }
@@ -1350,26 +1371,6 @@ cmd_opencode_check() {
     return 1
 }
 
-render_kimi_config() {
-    local source_file="$1"
-    local target_file="$2"
-
-    jq -S --slurpfile mcp "$MCP_SERVERS" '
-        ($mcp[0] | to_entries |
-            map({(.key): (
-                .value
-                | if ((.type // "") == "http") then
-                    {url}
-                else
-                    {command}
-                    + (if .args then {args} else {} end)
-                    + (if ((.env? // null) | type) == "object" and (.env | length) > 0 then {env} else {} end)
-                end
-            )}) | add // {}) as $servers |
-        (. // {}) | .mcpServers = $servers
-    ' < <(if [ -f "$source_file" ]; then cat "$source_file"; else echo '{}'; fi) >"$target_file"
-}
-
 render_pi_mcp_config() {
     local source_file="$1"
     local target_file="$2"
@@ -1417,23 +1418,6 @@ sync_pi_mcp_config() {
     else
         mv "$tmp" "$PI_MCP_CONFIG"
         log_info "Wrote $PI_MCP_CONFIG"
-    fi
-}
-
-cmd_kimi_install() {
-    log_info "Installing Kimi MCP config..."
-    mkdir -p "$KIMI_HOME"
-
-    local tmp
-    tmp="$(mktemp)"
-    render_kimi_config "$KIMI_MCP_CONFIG" "$tmp"
-
-    if [ -f "$KIMI_MCP_CONFIG" ] && cmp -s "$tmp" "$KIMI_MCP_CONFIG"; then
-        rm -f "$tmp"
-        log_info "Kimi MCP config already in sync"
-    else
-        mv "$tmp" "$KIMI_MCP_CONFIG"
-        log_info "Wrote $KIMI_MCP_CONFIG"
     fi
 }
 
@@ -1523,36 +1507,7 @@ cmd_push_mcp() {
     sync_claude_mcp_config
     sync_claude_mcp_permissions
     sync_opencode_mcp_config
-    cmd_kimi_install
     sync_pi_mcp_config
-}
-
-cmd_kimi_check() {
-    local tmp
-
-    if [ ! -f "$KIMI_MCP_CONFIG" ]; then
-        echo "[ERROR] Kimi MCP config missing: $KIMI_MCP_CONFIG" >&2
-        echo "Run: ./sync-agents.sh kimi-install" >&2
-        return 1
-    fi
-    validate_json_config "$KIMI_MCP_CONFIG" kimi-install || return 1
-
-    tmp="$(mktemp)"
-    render_kimi_config "$KIMI_MCP_CONFIG" "$tmp"
-
-    if [ -f "$KIMI_MCP_CONFIG" ] && cmp -s "$tmp" "$KIMI_MCP_CONFIG"; then
-        rm -f "$tmp"
-        log_info "Kimi MCP config in sync"
-        return 0
-    fi
-
-    echo "[ERROR] Kimi MCP config drift detected: $KIMI_MCP_CONFIG" >&2
-    echo "Run: ./sync-agents.sh kimi-install" >&2
-    if [ -f "$KIMI_MCP_CONFIG" ]; then
-        diff -u "$KIMI_MCP_CONFIG" "$tmp" >&2 || true
-    fi
-    rm -f "$tmp"
-    return 1
 }
 
 render_claude_settings() {
@@ -1748,11 +1703,26 @@ cmd_lock_skills_install() {
     [ "$failed" = false ]
 }
 
+check_claude_plugin_providers() {
+    local installed_json="${HOME}/.claude/plugins/installed_plugins.json"
+    local known_mp="${HOME}/.claude/plugins/known_marketplaces.json"
+    if [ -f "$installed_json" ]; then
+        jq '[(.plugins // {} | keys[]) | {name: split("@")[-1]}]' \
+            "$installed_json" | check_marketplace_provider claude || return 1
+    fi
+    if [ -f "$known_mp" ]; then
+        jq '[to_entries[] | {name: .key,
+            source: (.value.source.repo // .value.source.url // "")}]' \
+            "$known_mp" | check_marketplace_provider claude || return 1
+    fi
+}
+
 cmd_claude_plugins_export() {
     local check_only=false
     [ "${1:-}" = "--check" ] && check_only=true
 
     validate_plugin_manifest "$CLAUDE_MANIFEST" || return 1
+    check_claude_plugin_providers || return 1
 
     local installed_json="${HOME}/.claude/plugins/installed_plugins.json"
     local known_mp="${HOME}/.claude/plugins/known_marketplaces.json"
@@ -1871,6 +1841,7 @@ cmd_claude_plugins_update() {
         return 1
     }
 
+    check_claude_plugin_providers || return 1
     log_info "Updating Claude plugin marketplaces..."
     CLAUDECODE='' claude plugin marketplace update || return 1
 
@@ -2548,7 +2519,6 @@ cmd_install() {
     cmd_custom_skills_install
     cmd_codex_install
     cmd_opencode_install
-    cmd_kimi_install
     cmd_pi_install
     cmd_claude_install
     cmd_codex_marketplace_plugins_push
@@ -2631,12 +2601,6 @@ opencode-install)
 opencode-check)
     cmd_opencode_check
     ;;
-kimi-install)
-    cmd_kimi_install
-    ;;
-kimi-check)
-    cmd_kimi_check
-    ;;
 pi-install)
     cmd_pi_install
     ;;
@@ -2681,7 +2645,7 @@ claude-settings-check)
     echo "  skills-check     Compare runtime skills with shared inventory"
     echo "  pull-plugins     Preview and confirm live plugin import"
     echo "  push-plugins     Apply membership without version updates"
-    echo "  install          Sync shared agent config into Codex, Claude, Pi, OpenCode, and Kimi"
+    echo "  install          Sync shared agent config into Codex, Claude, Pi, and OpenCode"
     echo "  plugins-check    Check Codex and Claude against shared plugin manifest"
     echo "  plugins-export   Export Codex and Claude into shared plugin manifest"
     echo "  plugins-update   Update Codex marketplaces and installed Claude plugins"
@@ -2693,8 +2657,6 @@ claude-settings-check)
     echo "                  Replace manifest with current remote Codex plugins"
     echo "  opencode-install Link AGENTS.md, skills, and generate OpenCode MCP config"
     echo "  opencode-check   Exit 1 if OpenCode config is out of sync"
-    echo "  kimi-install     Generate Kimi MCP config (~/.kimi-code/mcp.json)"
-    echo "  kimi-check       Exit 1 if Kimi MCP config is out of sync"
     echo "  pi-install       Link instructions, restore settings and packages"
     echo "  pi-check         Exit 1 if Pi settings or packages drift"
     echo "  claude-install   Link AGENTS.md, generate Claude settings, install plugins and skills"

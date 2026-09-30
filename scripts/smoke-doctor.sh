@@ -34,8 +34,6 @@ export PI_SKILLS_DIR="${PI_CODING_AGENT_DIR}/skills"
 export PI_MCP_CONFIG="${home_dir}/.agents/mcp.json"
 export PI_AGENTS_SOURCE="${DOTFILES_DIR}/config/pi/AGENTS.md"
 export PI_SETTINGS_TEMPLATE="${DOTFILES_DIR}/config/pi/settings.json"
-export KIMI_CODE_HOME="${home_dir}/.kimi-code"
-export KIMI_MCP_CONFIG="${KIMI_CODE_HOME}/mcp.json"
 export MCP_SERVERS="${tmp_dir}/mcp.json"
 export PLUGIN_MANIFEST="${tmp_dir}/plugins.json"
 export CLAUDE_MANIFEST="$PLUGIN_MANIFEST"
@@ -117,7 +115,6 @@ for expected in \
     codex-check \
     claude-settings-check \
     opencode-check \
-    kimi-check \
     mcp-check \
     pi-check \
     skills-check; do
@@ -184,7 +181,7 @@ sync_real() {
         env -u CODEX_HOME "$DOTFILES_DIR/sync-agents.sh" "$@" >"${tmp_dir}/sync.log" 2>&1
 }
 
-for component in claude opencode kimi; do
+for component in claude opencode; do
     case "$component" in
     claude)
         REAL_CHECK=claude-settings-check
@@ -195,11 +192,6 @@ for component in claude opencode kimi; do
         REAL_CHECK=opencode-check
         config="${home_dir}/.config/opencode/opencode.json"
         drift='.instructions = []'
-        ;;
-    kimi)
-        REAL_CHECK=kimi-check
-        config="${home_dir}/.kimi-code/mcp.json"
-        drift='.mcpServers.extra = {command: "changed"}'
         ;;
     esac
     sync_real "${component}-install" || {
@@ -282,7 +274,6 @@ for config in \
     "${home_dir}/.codex/config.toml" \
     "${home_dir}/.claude.json" \
     "${home_dir}/.config/opencode/opencode.json" \
-    "${home_dir}/.kimi-code/mcp.json" \
     "${home_dir}/.agents/mcp.json"; do
     mv "$config" "${tmp_dir}/saved-config"
     if run_doctor; then fail "doctor passed with missing MCP file: $config"; fi
