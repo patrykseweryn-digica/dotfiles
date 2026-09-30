@@ -28,7 +28,7 @@ doctor:
 agent-versions:
     "{{ agent_tools }}" report
 
-# Resolve configured channels, update pins, and install developer tools.
+# Install current developer tool releases without version pins.
 update-agent-tools:
     "{{ agent_tools }}" update
 

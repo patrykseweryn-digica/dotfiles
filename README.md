@@ -67,21 +67,21 @@ for the audit, theme, title lifecycle, compaction and live-test results.
 CLIs and activates it for their installation. Repeated setup reuses that
 version; `just doctor` checks the Node active in the current shell.
 
-`.agents/tool-versions.json` declares developer CLIs. A `version` pins a
-tool; without it, `channel: "latest"` explicitly opts into current releases.
-Installation restores pins, while `just update-agent-tools` updates them.
-Pi and the existing unpinned npm tools keep their `latest` policy. Reports
-resolve npm `latest` and fail explicitly when the registry is unavailable.
+`.agents/tool-versions.json` declares developer CLIs with `channel: "latest"`
+and no version pins. Installation and `just update-agent-tools` install
+current releases without recording exact versions in the manifest. Reports
+compare installed npm and Claude versions with `latest` and fail explicitly
+when the registry is unavailable.
 Native latest installers resolve their own releases; their report checks
 installed availability, not whether a newer release exists.
 
 ```bash
 just agent-versions      # compare developer tools with their version policies
-just update-agent-tools  # resolve channels, pin versions, install tools
+just update-agent-tools  # install current releases without version pins
 ```
 
 Pi, Codex, OpenCode, and the skill manager use global npm packages. Claude
-Code uses Anthropic's native installer with an exact version. Configuration
+Code uses Anthropic's native installer with the current release. Configuration
 commands such as `just push` never resolve channels or update tool versions.
 
 To add an npm CLI, add one entry to the manifest:
