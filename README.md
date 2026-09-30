@@ -52,8 +52,11 @@ for membership changes. Codex remote plugins still require `/plugins`; drift
 stops with the plugin names, OAuth step, and verification command. Pull and
 push never update marketplaces, plugins, or agent CLIs.
 
-Claude marketplace plugins belong only in Claude. Codex uses OpenAI plugins
-and third-party plugins with an upstream native `.codex-plugin/plugin.json`;
+Anthropic marketplaces belong only in Claude Code; OpenAI marketplaces belong
+only in Codex. Plugin checks, exports, installs, and updates reject
+cross-provider marketplaces, including aliases pointing at the provider's
+GitHub repositories. Codex uses OpenAI plugins and third-party plugins with an
+upstream native `.codex-plugin/plugin.json`;
 do not import Claude-only packages through Codex's compatibility conversion.
 Keep each runtime's membership explicit in `.agents/plugin-manifest.json`.
 

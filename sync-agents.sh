@@ -811,6 +811,30 @@ cmd_codex_check() {
     log_info "Codex config in sync"
 }
 
+check_marketplace_provider() {
+    local runtime="$1" foreign
+    foreign=$(jq -ser --arg runtime "$runtime" '
+        if length != 1 then error("Expected one marketplace inventory")
+        else .[0] end |
+        [.[] |
+        (.name | ascii_downcase) as $name |
+        ((.source // "") | ascii_downcase) as $source |
+        (if ($name == "claude-plugins-official" or
+             $name == "anthropic-agent-skills" or
+             ($source | test("(^|github[.]com[:/])anthropics/"))) then
+            "claude"
+         elif (($name | startswith("openai-")) or
+               ($source | test("(^|github[.]com[:/])openai/"))) then
+            "codex"
+         else $runtime end) as $owner |
+        select($owner != $runtime) | .name] | unique | join("\n")
+    ') || return 1
+    [ -n "$foreign" ] || return 0
+    echo "[ERROR] Provider-specific marketplaces do not belong in $runtime:" >&2
+    printf '%s\n' "$foreign" >&2
+    return 1
+}
+
 validate_plugin_manifest() {
     local manifest_file="$1"
 
@@ -857,6 +881,16 @@ validate_plugin_manifest() {
         echo "[ERROR] Invalid shared plugin manifest: $manifest_file" >&2
         return 1
     }
+    jq '[
+        ((.codexMarketplaces // {}) | to_entries[] |
+            {name: .key, source: .value}),
+        ((.codexPlugins // [])[] | {name: split("@")[-1]})
+    ]' "$manifest_file" | check_marketplace_provider codex || return 1
+    jq '[
+        (.marketplaces | to_entries[] |
+            {name: .key, source: (.value.repo // .value.url // "")}),
+        (.plugins[].claude // empty | {name: split("@")[-1]})
+    ]' "$manifest_file" | check_marketplace_provider claude
 }
 
 render_codex_remote_plugins() {
@@ -1009,23 +1043,37 @@ codex_marketplace_plugin_state_available() {
 }
 
 read_codex_plugin_state() {
+    local state
     if [ -n "${CODEX_PLUGIN_LIST_FILE:-}" ]; then
-        cat "$CODEX_PLUGIN_LIST_FILE"
+        state=$(cat "$CODEX_PLUGIN_LIST_FILE") || return 1
     else
-        codex plugin list --json
+        state=$(codex plugin list --json) || return 1
     fi
+    printf '%s\n' "$state" | jq '[.installed[]? |
+        select(.installed == true) |
+        {name: (.marketplaceName // (.pluginId | split("@")[-1])),
+         source: (.marketplaceSource.source // "")}
+    ]' | check_marketplace_provider codex || return 1
+    printf '%s\n' "$state"
 }
 
 read_codex_marketplace_state() {
+    local state
     if [ -n "${CODEX_MARKETPLACE_LIST_FILE:-}" ]; then
-        cat "$CODEX_MARKETPLACE_LIST_FILE"
+        state=$(cat "$CODEX_MARKETPLACE_LIST_FILE") || return 1
     else
-        codex plugin marketplace list --json
+        state=$(codex plugin marketplace list --json) || return 1
     fi
+    printf '%s\n' "$state" | jq '[.marketplaces[]? |
+        {name, source: (.marketplaceSource.source // "")}
+    ]' | check_marketplace_provider codex || return 1
+    printf '%s\n' "$state"
 }
 
 render_codex_plugins() {
-    read_codex_plugin_state | jq -e -S '
+    local state
+    state=$(read_codex_plugin_state) || return 1
+    printf '%s\n' "$state" | jq -e -S '
         [.installed[] |
             select(
                 .installed == true and
@@ -1038,7 +1086,9 @@ render_codex_plugins() {
 }
 
 render_codex_marketplaces() {
-    read_codex_marketplace_state | jq -e -S '
+    local state
+    state=$(read_codex_marketplace_state) || return 1
+    printf '%s\n' "$state" | jq -e -S '
         [.marketplaces[] |
             select(.marketplaceSource.sourceType == "git") |
             {
@@ -1050,6 +1100,7 @@ render_codex_marketplaces() {
 }
 
 cmd_codex_marketplace_plugins_check() {
+    validate_plugin_manifest "$CODEX_PLUGIN_MANIFEST" || return 1
     codex_marketplace_plugin_state_available || {
         echo "[ERROR] Required Codex marketplace plugin state missing" >&2
         echo "Run: ./install.sh, then just push-plugins" >&2
@@ -1094,6 +1145,7 @@ cmd_codex_marketplace_plugins_check() {
 }
 
 cmd_codex_marketplace_plugins_export() {
+    validate_plugin_manifest "$CODEX_PLUGIN_MANIFEST" || return 1
     codex_marketplace_plugin_state_available || {
         log_info "No Codex marketplace plugin state found; skipping export"
         return 0
@@ -1132,11 +1184,12 @@ cmd_codex_plugins_check() {
 }
 
 cmd_codex_plugins_export() {
-    cmd_codex_remote_plugins_export || return 1
-    cmd_codex_marketplace_plugins_export
+    cmd_codex_marketplace_plugins_export || return 1
+    cmd_codex_remote_plugins_export
 }
 
 cmd_codex_marketplace_plugins_push() {
+    validate_plugin_manifest "$CODEX_PLUGIN_MANIFEST" || return 1
     command -v codex >/dev/null 2>&1 || {
         echo "[ERROR] codex CLI not found; cannot reconcile plugins" >&2
         return 1
@@ -1214,6 +1267,8 @@ cmd_codex_plugins_update() {
         return 1
     }
 
+    read_codex_plugin_state >/dev/null || return 1
+    read_codex_marketplace_state >/dev/null || return 1
     log_info "Updating Codex plugin marketplaces..."
     codex plugin marketplace upgrade
 }
@@ -1648,11 +1703,26 @@ cmd_lock_skills_install() {
     [ "$failed" = false ]
 }
 
+check_claude_plugin_providers() {
+    local installed_json="${HOME}/.claude/plugins/installed_plugins.json"
+    local known_mp="${HOME}/.claude/plugins/known_marketplaces.json"
+    if [ -f "$installed_json" ]; then
+        jq '[(.plugins // {} | keys[]) | {name: split("@")[-1]}]' \
+            "$installed_json" | check_marketplace_provider claude || return 1
+    fi
+    if [ -f "$known_mp" ]; then
+        jq '[to_entries[] | {name: .key,
+            source: (.value.source.repo // .value.source.url // "")}]' \
+            "$known_mp" | check_marketplace_provider claude || return 1
+    fi
+}
+
 cmd_claude_plugins_export() {
     local check_only=false
     [ "${1:-}" = "--check" ] && check_only=true
 
     validate_plugin_manifest "$CLAUDE_MANIFEST" || return 1
+    check_claude_plugin_providers || return 1
 
     local installed_json="${HOME}/.claude/plugins/installed_plugins.json"
     local known_mp="${HOME}/.claude/plugins/known_marketplaces.json"
@@ -1771,6 +1841,7 @@ cmd_claude_plugins_update() {
         return 1
     }
 
+    check_claude_plugin_providers || return 1
     log_info "Updating Claude plugin marketplaces..."
     CLAUDECODE='' claude plugin marketplace update || return 1
 
