@@ -89,8 +89,8 @@ jq -e '
 [ -L config/claude/skills-custom ] || fail "Claude custom skills adapter must be a symlink"
 [ "$(readlink config/claude/skills-custom)" = "../../.agents/skills-custom" ] || fail "Claude custom skills adapter points at wrong target"
 
-if git ls-files '.agents/skills/*' | grep -q .; then
-    git ls-files '.agents/skills/*' >&2
+if git ls-files '.agents/skills/*' ':!.agents/skills/verify-dotfiles/**' | grep -q .; then
+    git ls-files '.agents/skills/*' ':!.agents/skills/verify-dotfiles/**' >&2
     fail ".agents/skills must stay runtime-only; track lock/custom skills instead"
 fi
 

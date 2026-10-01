@@ -55,7 +55,7 @@ repos:
         language: system
         pass_filenames: false
       - id: node-smoke
-        name: Pinned Node bootstrap smoke test
+        name: Latest Node bootstrap smoke test
         entry: bash scripts/smoke-node.sh
         language: system
         pass_filenames: false

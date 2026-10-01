@@ -8,16 +8,21 @@ AGENT_TOOLS="${AGENT_TOOLS:-${DOTFILES_DIR}/scripts/agent-tools.sh}"
 failed=false
 
 run_check() {
-    local label="$1"
+    local label="$1" output
     shift
 
+    output=$(mktemp) || return 1
     echo "[INFO] Checking ${label}..."
-    if "$@"; then
+    if "$@" >"$output" 2>&1; then
         echo "[PASS] ${label}"
     else
+        # Diffs may contain credentials or entire skill trees. Only emit our
+        # diagnostic headings and repair commands, never configuration values.
+        sed -n -E '/^(\[(ERROR|WARN|FAIL)\]|Run:)/p' "$output" | sed -n '1,20p'
         echo "[FAIL] ${label}" >&2
         failed=true
     fi
+    rm -f "$output"
 }
 
 check_agent_links() {

@@ -8,14 +8,12 @@ CLAUDE_INSTALL_URL="${CLAUDE_INSTALL_URL:-https://claude.ai/install.sh}"
 
 validate_manifest() {
     jq -e '
-        def semver: type == "string" and
-            test("^[0-9]+\\.[0-9]+\\.[0-9]+(-[0-9A-Za-z.-]+)?(\\+[0-9A-Za-z.-]+)?$");
         (.tools | type) == "array" and (.tools | length) > 0 and
         all(.tools[];
             (.name | type == "string" and test("^[^\\t\\r\\n]+$")) and
             (.command | type == "string" and test("^[a-zA-Z0-9][a-zA-Z0-9._-]*$")) and
             .channel == "latest" and
-            (if has("version") then (.version | semver) else true end) and
+            (has("version") | not) and
             (if has("ignore_scripts") then
                 (.ignore_scripts | type) == "boolean" and .installer == "npm"
              else true end) and
@@ -28,8 +26,7 @@ validate_manifest() {
                  .installer == "hermes-native" or
                  .installer == "herdr-native" or
                  .installer == "treehouse-native" or
-                 .installer == "no-mistakes-native") and
-                (has("version") | not)
+                 .installer == "no-mistakes-native")
              end)
         ) and
         (([.tools[].command] | length) ==
@@ -45,7 +42,7 @@ validate_manifest() {
 tool_rows() {
     jq -r '.tools[] | [
         .name, .command, (.package // .command),
-        (.version // .channel), .installer, (.ignore_scripts // false)
+        .channel, .installer, (.ignore_scripts // false)
     ] | @tsv' "$VERSIONS_FILE"
 }
 
@@ -100,9 +97,15 @@ report_versions() {
         fi
         printf '%-20s %-12s %-12s %s\n' \
             "$name" "$current" "$expected" "$status"
+        if [ "$strict" = true ] && { [ "$status" = drift ] || [ "$status" = missing ]; }; then
+            echo "[ERROR] $name: installed=$current expected=$expected ($status)" >&2
+        fi
     done < <(tool_rows)
 
-    [ "$strict" = false ] || [ "$failed" = false ]
+    if [ "$strict" = true ] && [ "$failed" = true ]; then
+        echo "Run: just update-agent-tools" >&2
+        return 1
+    fi
 }
 
 install_declared_tools() {
@@ -161,39 +164,6 @@ install_declared_tools() {
     [ "$failed" = false ]
 }
 
-update_tools() {
-    local current next latest
-    local name command_name package expected installer ignore_scripts
-
-    current="$(mktemp "${VERSIONS_FILE}.XXXXXX")"
-    cp "$VERSIONS_FILE" "$current"
-
-    while IFS=$'\t' read -r \
-        name command_name package expected installer ignore_scripts; do
-        [ "$expected" != latest ] || continue
-        latest=$(resolve_latest "$package") || {
-            rm -f "$current"
-            return 1
-        }
-        next="${current}.next"
-        jq -S --arg command "$command_name" --arg version "$latest" '
-            .tools |= map(
-                if .command == $command then .version = $version else . end
-            )
-        ' "$current" >"$next"
-        mv "$next" "$current"
-    done < <(tool_rows)
-
-    if cmp -s "$current" "$VERSIONS_FILE"; then
-        rm -f "$current"
-        echo "[INFO] Agent tool versions already current"
-    else
-        mv "$current" "$VERSIONS_FILE"
-        echo "[INFO] Updated $VERSIONS_FILE"
-    fi
-    install_declared_tools
-}
-
 validate_manifest
 case "${1:-}" in
 report) report_versions false ;;
@@ -202,11 +172,12 @@ install | update)
     # Also protect direct callers such as just update-agent-tools in old shells.
     # shellcheck source=bootstrap.d/07-node.sh
     source "$DOTFILES_DIR/bootstrap.d/07-node.sh"
+    if [ "$1" = update ]; then install_nvm || exit 1; fi
     activate_node || {
         echo "[ERROR] Required Node unavailable; run install.sh before installing tools" >&2
         exit 1
     }
-    if [ "$1" = install ]; then install_declared_tools; else update_tools; fi
+    install_declared_tools
     ;;
 *)
     echo "Usage: $0 {report|check|install|update}" >&2

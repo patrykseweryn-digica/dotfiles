@@ -3,7 +3,8 @@ set -eu
 
 DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "$DOTFILES_DIR/bootstrap.d/07-node.sh"
-expected=$(required_node_version)
+expected=99.0.0
+export NODE_TEST_LATEST="$expected"
 scratch=$(mktemp -d)
 trap 'rm -rf "$scratch"' EXIT
 mkdir -p "$scratch/stubs"
@@ -15,6 +16,7 @@ nvm() {
     version)
         local version="$2"
         [ "$version" != default ] || version=$(cat "$NVM_DIR/alias/default")
+        [ "$version" != node ] || version="$NODE_TEST_LATEST"
         if [ -x "$NVM_DIR/versions/node/v$version/bin/node" ]; then
             echo "v$version"
         else
@@ -26,15 +28,19 @@ nvm() {
         echo "$*" >> "$NODE_TEST_LOG"
         [ "$2" = --skip-default-packages ] || return 90
         [ "${NODE_TEST_INSTALL_FAIL:-false}" = false ] || return 22
-        mkdir -p "$NVM_DIR/versions/node/v$3/bin"
-        printf '#!/bin/sh\necho v%s\n' "$3" > "$NVM_DIR/versions/node/v$3/bin/node"
-        chmod +x "$NVM_DIR/versions/node/v$3/bin/node"
-        nvm use --silent "$3"
+        local version="$3"
+        [ "$version" != node ] || version="$NODE_TEST_LATEST"
+        mkdir -p "$NVM_DIR/versions/node/v$version/bin"
+        printf '#!/bin/sh\necho v%s\n' "$version" > "$NVM_DIR/versions/node/v$version/bin/node"
+        chmod +x "$NVM_DIR/versions/node/v$version/bin/node"
+        nvm use --silent "$version"
         ;;
     use)
         [ "$2" = --silent ] || return 90
-        [ -x "$NVM_DIR/versions/node/v$3/bin/node" ] || return 3
-        export PATH="$NVM_DIR/versions/node/v$3/bin:$PATH"
+        local version="$3"
+        [ "$version" != node ] || version="$NODE_TEST_LATEST"
+        [ -x "$NVM_DIR/versions/node/v$version/bin/node" ] || return 3
+        export PATH="$NVM_DIR/versions/node/v$version/bin:$PATH"
         ;;
     alias)
         [ "$2" = default ] || return 90
@@ -50,6 +56,10 @@ fi
 STUB
 cat >"$scratch/stubs/curl" <<'STUB'
 #!/bin/sh
+[ "${NODE_TEST_DOWNLOAD_FAIL:-false}" = false ] || exit 22
+case "$*" in
+    *releases/latest*) echo https://github.com/nvm-sh/nvm/releases/tag/v1.2.3; exit 0 ;;
+esac
 printf '%s\n' 'mkdir -p "$NVM_DIR"; cp "$NODE_TEST_NVM" "$NVM_DIR/nvm.sh"'
 [ "${NODE_TEST_DOWNLOAD_FAIL:-false}" = false ] || exit 22
 STUB
@@ -95,9 +105,11 @@ for scenario in fresh older failure; do
             # A new shell loads the persisted default without inherited NVM PATH.
             PATH="$scratch/stubs:/usr/bin:/bin" bash -c \
                 'source "$HOME/.nvm/nvm.sh"; test "$(node --version)" = "v$1"' -- "$expected"
-            cp "$NODE_TEST_LOG" "$scratch/before-repeat.log"
-            NODE_TEST_INSTALL_FAIL=true install_nvm
-            cmp "$NODE_TEST_LOG" "$scratch/before-repeat.log"
+            install_nvm
+            check_node
+            # A changed upstream release must be installed without repo edits.
+            NODE_TEST_LATEST=99.1.0 install_nvm
+            NODE_TEST_LATEST=99.1.0 check_node
             if [ "$scenario" = older ]; then
                 [ "$("$NVM_DIR/versions/node/v22.21.0/bin/node" --version)" = v22.21.0 ]
             fi
@@ -113,6 +125,6 @@ done
     fi
     [ ! -e "$HOME/.nvm/nvm.sh" ]
 )
-[ "$(grep -c '^install --skip-default-packages ' "$NODE_TEST_LOG")" -eq 3 ]
+[ "$(grep -c '^install --skip-default-packages ' "$NODE_TEST_LOG")" -eq 7 ]
 if grep -F unexpected-npm "$NODE_TEST_LOG"; then exit 1; fi
 echo "[INFO] Node smoke test passed"

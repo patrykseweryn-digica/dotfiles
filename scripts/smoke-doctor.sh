@@ -73,6 +73,10 @@ printf '%s\n' "$*" >> "$DOCTOR_CHECK_LOG"
 if [ "$*" = "${REAL_CHECK:-}" ]; then
     exec "$DOTFILES_DIR/sync-agents.sh" "$@"
 fi
+if [ "$*" = "${FAIL_CHECK:-}" ]; then
+    printf '%s\n' '+ "PASSWORD": "private-doctor-sentinel"'
+    for ((i=0; i<100; i++)); do echo "[ERROR] Test diagnostic $i"; done
+fi
 [ "$*" != "${FAIL_CHECK:-}" ]
 STUB
 
@@ -83,7 +87,7 @@ STUB
 cat >"${stub_dir}/node" <<'STUB'
 #!/bin/bash
 [ "$*" = --version ] || exit 1
-printf 'v%s\n' "${NODE_TEST_VERSION:-$(cat "$DOTFILES_DIR/.nvmrc")}"
+printf 'v%s\n' "${NODE_TEST_VERSION:-99.0.0}"
 STUB
 chmod +x "${stub_dir}/sync-agents" "${stub_dir}/agent-tools" "${stub_dir}/node"
 cp "${DOTFILES_DIR}/config/claude/settings.json" "${home_dir}/.claude/settings.json"
@@ -127,6 +131,11 @@ if run_doctor; then
     fail "doctor passed with plugin drift"
 fi
 unset FAIL_CHECK
+if grep -F 'private-doctor-sentinel' "${tmp_dir}/doctor.log"; then
+    fail "doctor exposed raw configuration values"
+fi
+[ "$(grep -c '^\[ERROR\] Test diagnostic' "${tmp_dir}/doctor.log")" -eq 20 ] ||
+    fail "doctor did not bound diagnostics"
 
 ln -s "${home_dir}/missing" "${home_dir}/.agents/skills/broken-link"
 if run_doctor; then
@@ -140,7 +149,7 @@ if run_doctor; then
 fi
 unset TOOL_DRIFT
 
-NODE_TEST_VERSION=0.0.0
+NODE_TEST_VERSION=invalid
 if run_doctor; then
     fail "doctor passed with Node drift"
 fi

@@ -11,6 +11,7 @@ details unless you are debugging them.
 just --list
 just check
 just doctor
+just verify
 just agent-versions
 just push
 just pull-codex-settings
@@ -63,26 +64,26 @@ for the audit, theme, title lifecycle, compaction and live-test results.
 
 ## Developer tool versions
 
-`.nvmrc` declares the exact Node version. Setup installs it before developer
-CLIs and activates it for their installation. Repeated setup reuses that
-version; `just doctor` checks the Node active in the current shell.
+`.nvmrc` uses `node`, nvm's latest stable Node alias. Setup installs it before
+developer CLIs and activates it for their installation. Existing Node versions
+are retained. Doctor compares the active runtime with the newest locally
+installed Node; it does not check upstream Node releases.
 
-`.agents/tool-versions.json` declares developer CLIs. A `version` pins a
-tool; without it, `channel: "latest"` explicitly opts into current releases.
-Installation restores pins, while `just update-agent-tools` updates them.
-Pi and the existing unpinned npm tools keep their `latest` policy. Reports
-resolve npm `latest` and fail explicitly when the registry is unavailable.
+`.agents/tool-versions.json` lists developer CLIs with `channel: "latest"`,
+without exact versions. Install and update resolve current releases without
+rewriting the inventory. Reports resolve npm `latest` and fail explicitly
+when the registry is unavailable.
 Native latest installers resolve their own releases; their report checks
 installed availability, not whether a newer release exists.
 
 ```bash
 just agent-versions      # compare developer tools with their version policies
-just update-agent-tools  # resolve channels, pin versions, install tools
+just update-agent-tools  # update Node + CLIs; inventory stays unchanged
 ```
 
 Pi, Codex, OpenCode, and the skill manager use global npm packages. Claude
-Code uses Anthropic's native installer with an exact version. Configuration
-commands such as `just push` never resolve channels or update tool versions.
+Code uses Anthropic's native installer with the resolved latest version.
+Configuration commands such as `just push` never resolve channels or update tool versions.
 
 To add an npm CLI, add one entry to the manifest:
 
@@ -92,14 +93,12 @@ To add an npm CLI, add one entry to the manifest:
   "command": "example",
   "package": "example-cli",
   "installer": "npm",
-  "channel": "latest",
-  "version": "1.2.3"
+  "channel": "latest"
 }
 ```
 
-Install, report, check and update discover the entry automatically. Omit
-`version` only when you deliberately want `latest`. A tool needing a new
-native installer uses a small bootstrap function and a corresponding
+Install, report, check and update discover the entry automatically. A tool
+needing a new native installer uses a small bootstrap function and a corresponding
 installer case and validation entry in the existing tool script.
 
 `config/pi/settings.json` owns Pi's stable provider, model, thinking level, and
@@ -110,6 +109,8 @@ Apply only Pi with `./sync-agents.sh pi-install`; check semantic JSON and
 installed package versions with `./sync-agents.sh pi-check`.
 Before repository checks, run `npm --prefix config/pi ci --ignore-scripts`
 to install Pi's development-only typechecking and lint tools.
+Pi extensions, development dependency locks and check-tool revisions remain
+separate from the CLI inventory; this command does not update them.
 Global preferences in `.agents/AGENTS.md` are linked to
 `~/.pi/agent/AGENTS.md`. Repository-only instructions live in root `AGENTS.md`,
 with `CLAUDE.md` linking to it for Claude. Shared skills are linked into
@@ -157,6 +158,20 @@ Installers do not rewrite managed shell profiles. Both CLIs support macOS
 and Linux through their official platform-aware installers.
 Doctor checks that an enabled hook has a readable script; a disabled hook
 is reported as SKIP.
+
+## Verification
+
+Use [.agents/skills/verify-dotfiles/SKILL.md](.agents/skills/verify-dotfiles/SKILL.md)
+before changing or applying dotfiles and before commits. It reuses the existing
+isolated-HOME install/update smoke tests and `just check`, then compares the
+read-only live `just doctor` result with the baseline. Doctor prints bounded
+diagnostics rather than raw config diffs, which may contain credentials.
+Evidence stays under ignored `.agent-runs/verify-dotfiles/`.
+The existing CI runs repository checks on macOS and Linux; a local macOS run
+alone proves only macOS execution and the simulated Linux cases.
+`just verify` runs repository checks followed by the live machine doctor.
+Commit hooks run repository tests; live drift remains a separate check because
+it depends on the machine's tools, credentials and installed configuration.
 
 ### Firstmate crew dispatch
 

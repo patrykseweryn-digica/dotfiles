@@ -24,11 +24,14 @@ check:
 doctor:
     ./scripts/doctor.sh
 
+# Verify repository behavior and this machine before applying or committing.
+verify: check doctor
+
 # Report installed and expected developer tool versions.
 agent-versions:
     "{{ agent_tools }}" report
 
-# Resolve configured channels, update pins, and install developer tools.
+# Install latest developer tools without changing the inventory.
 update-agent-tools:
     "{{ agent_tools }}" update
 

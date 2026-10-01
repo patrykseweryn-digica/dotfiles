@@ -5,7 +5,10 @@ DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 AGENT_TOOLS="${DOTFILES_DIR}/scripts/agent-tools.sh"
 JUST_BIN="$(command -v just)"
 REAL_NPM="$(command -v npm)"
-expected_node=$(cat "$DOTFILES_DIR/.nvmrc")
+jq -e 'all(.tools[]; .channel == "latest" and (has("version") | not))' \
+  "$DOTFILES_DIR/.agents/tool-versions.json" >/dev/null
+expected_node="$(node --version)"
+expected_node="${expected_node#v}"
 REAL_NODE_BIN="${NVM_DIR:-$HOME/.nvm}/versions/node/v$expected_node/bin"
 [ -x "$REAL_NODE_BIN/node" ] || REAL_NODE_BIN="$(dirname "$(command -v node)")"
 
@@ -31,9 +34,12 @@ mkdir -p "$node_bin"
 ln -s "$REAL_NODE_BIN/node" "$node_bin/node"
 cat >"$HOME/.nvm/nvm.sh" <<'STUB'
 nvm() {
-    [ "$1" = use ] && [ "$2" = --silent ] || return 1
-    [ -x "$NVM_DIR/versions/node/v$3/bin/node" ] || return 1
-    export PATH="$NVM_DIR/versions/node/v$3/bin:$PATH"
+    case "$1" in
+    version) printf 'v%s\n' "$EXPECTED_NODE" ;;
+    use) export PATH="$NVM_DIR/versions/node/v$EXPECTED_NODE/bin:$PATH" ;;
+    install|alias) return 0 ;;
+    *) return 1 ;;
+    esac
 }
 STUB
 
@@ -53,7 +59,6 @@ cat >"$manifest" <<'JSON'
       "command": "codex",
       "package": "@example/codex",
       "channel": "latest",
-      "version": "1.2.3",
       "installer": "npm"
     },
     {
@@ -61,7 +66,6 @@ cat >"$manifest" <<'JSON'
       "command": "claude",
       "package": "@example/claude",
       "channel": "latest",
-      "version": "1.2.3",
       "installer": "claude-native"
     },
     {
@@ -69,7 +73,6 @@ cat >"$manifest" <<'JSON'
       "command": "opencode",
       "package": "opencode-ai",
       "channel": "latest",
-      "version": "1.2.3",
       "installer": "npm"
     },
     {
@@ -77,7 +80,6 @@ cat >"$manifest" <<'JSON'
       "command": "skills",
       "package": "skills",
       "channel": "latest",
-      "version": "1.2.3",
       "installer": "npm"
     }
   ]
@@ -143,18 +145,16 @@ export TEST_AGENT_PI_VERSION TEST_AGENT_CODEX_VERSION TEST_AGENT_CLAUDE_VERSION 
 grep -Fx 'install -g --ignore-scripts @example/pi@latest' "$npm_log" >/dev/null ||
   fail "Pi did not install latest"
 for package in @example/codex opencode-ai skills; do
-  grep -Fx "install -g ${package}@1.2.3" "$npm_log" >/dev/null ||
-    fail "exact npm version not installed: $package"
+  grep -Fx "install -g ${package}@latest" "$npm_log" >/dev/null ||
+    fail "latest npm version not installed: $package"
 done
 grep -Fx '1.2.3' "$native_log" >/dev/null ||
-  fail "exact Claude version not installed"
+  fail "resolved latest Claude version not installed"
 
+cp "$manifest" "$manifest.before"
 LATEST_VERSION=2.0.0 AGENT_TOOLS="$AGENT_TOOLS" \
   "$JUST_BIN" --justfile "${DOTFILES_DIR}/justfile" update-agent-tools
-jq -e 'all(.tools[]; if .command == "pi" then
-    .channel == "latest" and (has("version") | not)
-    else .version == "2.0.0" end)' "$manifest" >/dev/null ||
-  fail "update did not resolve moving channels into exact versions"
+cmp "$manifest" "$manifest.before" || fail "update changed the tool inventory"
 
 export TEST_AGENT_PI_VERSION=2.0.0 TEST_AGENT_CODEX_VERSION=2.0.0 TEST_AGENT_CLAUDE_VERSION=2.0.0
 export TEST_AGENT_OPENCODE_VERSION=2.0.0 TEST_AGENT_SKILLS_VERSION=2.0.0
@@ -162,8 +162,8 @@ export TEST_AGENT_OPENCODE_VERSION=2.0.0 TEST_AGENT_SKILLS_VERSION=2.0.0
 LATEST_VERSION=2.0.0 "$AGENT_TOOLS" install
 [ ! -s "$npm_log" ] || fail "current tools reinstalled"
 LATEST_VERSION=3.0.0 "$AGENT_TOOLS" install
-[ "$(cat "$npm_log")" = 'install -g --ignore-scripts @example/pi@latest' ] ||
-  fail "moving latest updated tools other than Pi"
+[ "$(wc -l < "$npm_log" | tr -d ' ')" -eq 4 ] ||
+  fail "latest install did not update every npm tool"
 for action in report check install; do
   if REGISTRY_FAIL=true "$AGENT_TOOLS" "$action" >/dev/null 2>&1; then
     fail "$action hid registry failure"
@@ -175,7 +175,7 @@ if grep -En 'agent-tools|npm view|@latest' \
   fail "configuration push path can update agent tool versions"
 fi
 
-# Missing runtime prevents all writes; read-only reports do not activate nvm.
+# Missing runtime prevents package installs; reports do not activate nvm.
 mv "$HOME/.nvm/nvm.sh" "$HOME/.nvm/nvm.saved"
 : >"$npm_log"
 cp "$manifest" "$manifest.before"
@@ -185,7 +185,7 @@ for action in install update; do
   fi
 done
 [ ! -s "$npm_log" ] || fail "npm ran without required Node"
-cmp "$manifest" "$manifest.before" || fail "runtime failure changed pins"
+cmp "$manifest" "$manifest.before" || fail "runtime failure changed inventory"
 LATEST_VERSION=2.0.0 "$AGENT_TOOLS" check >/dev/null
 mv "$HOME/.nvm/nvm.saved" "$HOME/.nvm/nvm.sh"
 
@@ -335,38 +335,31 @@ export npm_config_cache="${tmp_dir}/npm-cache"
 export PATH="${tmp_dir}/prefix/bin:${fixture_dir}/bin:${REAL_NODE_BIN}:/usr/bin:/bin"
 cat >"$manifest" <<'JSON'
 {"tools":[{"name":"Fixture","command":"dotfiles-fixture",
- "package":"dotfiles-fixture","installer":"npm","channel":"latest",
- "version":"1.2.3"}]}
+ "package":"dotfiles-fixture","installer":"npm","channel":"latest"
+ }]}
 JSON
 if "$AGENT_TOOLS" check >"${tmp_dir}/missing.log"; then
   fail "new npm declaration was not missing before installation"
 fi
 "$AGENT_TOOLS" install
 "$AGENT_TOOLS" check
-[ "$(dotfiles-fixture --version)" = 1.2.3 ] || fail "real npm did not install pin"
+[ "$(dotfiles-fixture --version)" = 1.2.3 ] || fail "real npm did not install latest"
 : >"$npm_log"
 "$AGENT_TOOLS" install
-[ ! -s "$npm_log" ] || fail "pinned npm package reinstalled"
-LATEST_VERSION=2.0.0 "$AGENT_TOOLS" install
-[ "$(dotfiles-fixture --version)" = 1.2.3 ] || fail "ordinary install changed pin"
-LATEST_VERSION=2.0.0 "$AGENT_TOOLS" update
+[ ! -s "$npm_log" ] || fail "current npm package reinstalled"
+cp "$manifest" "$manifest.before"
+LATEST_VERSION=2.0.0 AGENT_TOOLS="$AGENT_TOOLS" \
+  "$JUST_BIN" --justfile "${DOTFILES_DIR}/justfile" update-agent-tools
 [ "$(dotfiles-fixture --version)" = 2.0.0 ] || fail "explicit update omitted new declaration"
-"$AGENT_TOOLS" check
+LATEST_VERSION=2.0.0 "$AGENT_TOOLS" check
+cmp "$manifest" "$manifest.before" || fail "real update changed inventory"
 # Downgrade the installed package independently to exercise drift and repair.
 "$REAL_NPM" install -g --offline --no-audit --no-fund "$fixture_dir/1.2.3.tgz"
-if "$AGENT_TOOLS" check >"${tmp_dir}/fixture-drift.log"; then
+if LATEST_VERSION=2.0.0 "$AGENT_TOOLS" check >"${tmp_dir}/fixture-drift.log"; then
   fail "new npm declaration ignored real installed version drift"
 fi
 grep -F drift "${tmp_dir}/fixture-drift.log" >/dev/null
-"$AGENT_TOOLS" install
-"$AGENT_TOOLS" check
-
-# The same ordinary tool supports latest without a command-name exception.
-jq 'del(.tools[0].version)' "$manifest" >"$manifest.next"
-mv "$manifest.next" "$manifest"
-LATEST_VERSION=1.2.3 "$AGENT_TOOLS" install
-LATEST_VERSION=1.2.3 "$AGENT_TOOLS" check
-LATEST_VERSION=2.0.0 "$AGENT_TOOLS" update
+LATEST_VERSION=2.0.0 "$AGENT_TOOLS" install
 LATEST_VERSION=2.0.0 "$AGENT_TOOLS" check
 jq -e '.tools[0] | has("version") | not' "$manifest" >/dev/null ||
   fail "update pinned latest tool"
