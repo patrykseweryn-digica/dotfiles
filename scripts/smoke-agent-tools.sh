@@ -5,8 +5,6 @@ DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 AGENT_TOOLS="${DOTFILES_DIR}/scripts/agent-tools.sh"
 JUST_BIN="$(command -v just)"
 REAL_NPM="$(command -v npm)"
-jq -e 'all(.tools[]; .channel == "latest" and (has("version") | not))' \
-  "$DOTFILES_DIR/.agents/tool-versions.json" >/dev/null
 expected_node="$(node --version)"
 expected_node="${expected_node#v}"
 REAL_NODE_BIN="${NVM_DIR:-$HOME/.nvm}/versions/node/v$expected_node/bin"
@@ -16,6 +14,10 @@ fail() {
   echo "[ERROR] $*" >&2
   exit 1
 }
+
+jq -e 'all(.tools[]; .channel == "latest" and (has("version") | not))' \
+  "$DOTFILES_DIR/.agents/tool-versions.json" >/dev/null ||
+  fail "repository tools must follow latest without version pins"
 
 tmp_dir="$(mktemp -d)"
 trap 'rm -rf "$tmp_dir"' EXIT

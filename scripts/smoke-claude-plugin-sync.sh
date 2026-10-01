@@ -229,6 +229,36 @@ grep -Fx $'claude\t'"${project_dir}"$'\tplugin update project-plugin@keep-mp --s
     "$update_log" >/dev/null || \
     fail "Project-scoped Claude plugin was not updated in its project"
 
+# Claude must not import Codex-only marketplaces, even under an alias.
+cp "${home_dir}/.claude/plugins/installed_plugins.json" "$tmp_dir/provider-plugins.json"
+cp "${home_dir}/.claude/plugins/known_marketplaces.json" "$tmp_dir/provider-marketplaces.json"
+for marketplace in openai-bundled openai-curated openai-primary-runtime; do
+    jq --arg marketplace "$marketplace" \
+        '.plugins[("foreign@" + $marketplace)] = [{scope: "user"}]' \
+        "$tmp_dir/provider-plugins.json" > "${home_dir}/.claude/plugins/installed_plugins.json"
+    cp "$manifest" "$tmp_dir/provider-before.json"
+    if "$DOTFILES_DIR/sync-agents.sh" --quiet claude-export > "$sync_log" 2>&1; then
+        fail "Claude imported a Codex-only plugin"
+    fi
+    grep -F 'Provider-specific marketplaces' "$sync_log" >/dev/null ||
+        fail "Claude export omitted the provider ownership error"
+    cmp -s "$manifest" "$tmp_dir/provider-before.json" ||
+        fail "Claude export changed the manifest after a provider error"
+done
+cp "$tmp_dir/provider-plugins.json" "${home_dir}/.claude/plugins/installed_plugins.json"
+jq '.renamed = {source: {source: "git", url: "https://github.com/openai/plugins.git"}}' \
+    "$tmp_dir/provider-marketplaces.json" > "${home_dir}/.claude/plugins/known_marketplaces.json"
+: > "$update_log"
+if "$DOTFILES_DIR/sync-agents.sh" --quiet plugins-update > "$sync_log" 2>&1; then
+    fail "Claude updated a renamed Codex marketplace"
+fi
+grep -F 'Provider-specific marketplaces' "$sync_log" >/dev/null ||
+    fail "Claude update omitted the provider ownership error"
+if grep -F $'claude\t' "$update_log" >/dev/null; then
+    fail "Claude updated plugins before checking provider ownership"
+fi
+cp "$tmp_dir/provider-marketplaces.json" "${home_dir}/.claude/plugins/known_marketplaces.json"
+
 echo "[INFO] Claude plugin sync smoke test passed"
 
 # Compare settings by JSON values, preserving ordered arrays.

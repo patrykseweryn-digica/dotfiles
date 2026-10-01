@@ -86,9 +86,6 @@
     "google-drive": {
       "codex": "plugin_connector_1p_ab21a553bfbc81919ea8fd1858e3ffa7"
     },
-    "huggingface-skills": {
-      "claude": "huggingface-skills@claude-plugins-official"
-    },
     "impeccable": {
       "claude": "impeccable@impeccable"
     },

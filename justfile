@@ -31,7 +31,7 @@ verify: check doctor
 agent-versions:
     "{{ agent_tools }}" report
 
-# Install latest developer tools without changing the inventory.
+# Update Node and developer tools to latest without changing the inventory.
 update-agent-tools:
     "{{ agent_tools }}" update
 
