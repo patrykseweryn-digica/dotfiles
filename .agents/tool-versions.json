@@ -125,7 +125,7 @@
     },
     {
       "channel": "latest",
-      "command": "cursor-agent",
+      "command": "agent",
       "installer": "cursor-native",
       "name": "Cursor CLI"
     },
