@@ -309,12 +309,14 @@ if SYNC_AGENTS="${stub_dir}/sync-agents" \
     > "${tmp_dir}/just-push.log" 2>&1; then
     fail "just push passed when a category failed"
 fi
-[ "$(cat "$sync_log")" = $'push-mcp\npush-skills\npush-plugins' ] || \
+[ "$(cat "$sync_log")" = $'push-skills\npush-mcp\npush-plugins' ] || \
     fail "just push did not invoke every category in order"
 
 just_commands="$("$JUST_BIN" --justfile "${DOTFILES_DIR}/justfile" --list)"
 grep -Eq '^    (pull|push)-(mcp|skills|plugins)' <<<"$just_commands" || \
     fail "symmetric sync commands missing from just"
+grep -Eq '^    skills-preflight' <<<"$just_commands" || \
+    fail "skill preflight command missing from just"
 if grep -Eq '^    pull[[:space:]]' <<<"$just_commands"; then
     fail "broad pull command must not exist"
 fi

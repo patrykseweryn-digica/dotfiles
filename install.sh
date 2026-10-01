@@ -330,7 +330,7 @@ EOF
 
     # Sync shared agent config plus tool-specific adapters.
     if [ -f "$DOTFILES_DIR/sync-agents.sh" ]; then
-        "$DOTFILES_DIR/sync-agents.sh" install
+        "$DOTFILES_DIR/sync-agents.sh" install || return 1
     else
         echo "[WARN] sync-agents.sh not found, skipping agent config sync"
     fi

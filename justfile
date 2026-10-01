@@ -51,7 +51,11 @@ push-mcp:
 pull-skills:
     "{{ sync_agents }}" pull-skills
 
-# Reconcile repository skills without updating upstream versions.
+# Verify every repository skill against current upstream without applying it.
+skills-preflight:
+    "{{ sync_agents }}" skills-preflight
+
+# Update and reconcile repository skills from current upstream.
 push-skills:
     "{{ sync_agents }}" push-skills
 
@@ -65,7 +69,7 @@ push-plugins:
 
 # Push MCP, skill, and plugin repository state in order.
 push:
-    failed=false; for category in mcp skills plugins; do \
+    failed=false; for category in skills mcp plugins; do \
         "{{ sync_agents }}" "push-${category}" || failed=true; \
     done; [ "$failed" = false ]
 

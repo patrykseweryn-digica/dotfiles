@@ -39,6 +39,12 @@ SKILL_LOCK_LIVE="${SKILL_LOCK_LIVE:-${HOME}/.agents/.skill-lock.json}"
 SKILLS_CLI="${SKILLS_CLI:-skills}"
 
 QUIET=false
+STAGED_SKILLS_ROOT=""
+STAGED_SKILLS_HOME=""
+STAGED_SKILL_LOCK=""
+SKILL_TX_TARGETS=()
+SKILL_TX_BACKUPS=()
+SKILL_TX_HAD_ORIGINAL=()
 
 if ! command -v jq >/dev/null 2>&1; then
     echo "[ERROR] jq is required but not installed" >&2
@@ -1320,27 +1326,29 @@ render_opencode_config() {
 }
 
 sync_opencode_mcp_config() {
-    mkdir -p "$OPENCODE_CONFIG_DIR"
+    mkdir -p "$OPENCODE_CONFIG_DIR" || return 1
 
     local tmp
-    tmp="$(mktemp)"
-    render_opencode_config "$OPENCODE_CONFIG" "$tmp"
+    tmp="$(mktemp)" || return 1
+    render_opencode_config "$OPENCODE_CONFIG" "$tmp" || {
+        rm -f "$tmp"
+        return 1
+    }
 
     if [ -f "$OPENCODE_CONFIG" ] && cmp -s "$tmp" "$OPENCODE_CONFIG"; then
-        rm -f "$tmp"
+        rm -f "$tmp" || return 1
         log_info "OpenCode config already in sync"
     else
-        mv "$tmp" "$OPENCODE_CONFIG"
+        mv "$tmp" "$OPENCODE_CONFIG" || return 1
         log_info "Wrote $OPENCODE_CONFIG"
     fi
 }
 
 cmd_opencode_install() {
     log_info "Installing OpenCode agent config..."
-    mkdir -p "$OPENCODE_CONFIG_DIR" "$OPENCODE_SKILLS_DIR"
-    link_file "$OPENCODE_AGENTS_SOURCE" "$OPENCODE_AGENTS_FILE"
-    link_custom_skills "$OPENCODE_SKILLS_DIR"
-    sync_opencode_mcp_config
+    mkdir -p "$OPENCODE_CONFIG_DIR" "$OPENCODE_SKILLS_DIR" || return 1
+    link_file "$OPENCODE_AGENTS_SOURCE" "$OPENCODE_AGENTS_FILE" || return 1
+    sync_opencode_mcp_config || return 1
 }
 
 cmd_opencode_check() {
@@ -1405,18 +1413,21 @@ render_pi_mcp_config() {
 }
 
 sync_pi_mcp_config() {
-    mkdir -p "$(dirname "$PI_MCP_CONFIG")"
+    mkdir -p "$(dirname "$PI_MCP_CONFIG")" || return 1
 
     local tmp
-    tmp="$(mktemp)"
-    render_pi_mcp_config "$PI_MCP_CONFIG" "$tmp"
+    tmp="$(mktemp)" || return 1
+    render_pi_mcp_config "$PI_MCP_CONFIG" "$tmp" || {
+        rm -f "$tmp"
+        return 1
+    }
 
     if [ -f "$PI_MCP_CONFIG" ] &&
         cmp -s "$tmp" "$PI_MCP_CONFIG"; then
-        rm -f "$tmp"
+        rm -f "$tmp" || return 1
         log_info "Pi MCP config already in sync"
     else
-        mv "$tmp" "$PI_MCP_CONFIG"
+        mv "$tmp" "$PI_MCP_CONFIG" || return 1
         log_info "Wrote $PI_MCP_CONFIG"
     fi
 }
@@ -1460,8 +1471,11 @@ sync_claude_mcp_permissions() {
 
 sync_claude_mcp_config() {
     local tmp
-    tmp="$(mktemp)"
-    mkdir -p "$(dirname "$CLAUDE_USER_CONFIG")"
+    tmp="$(mktemp)" || return 1
+    mkdir -p "$(dirname "$CLAUDE_USER_CONFIG")" || {
+        rm -f "$tmp"
+        return 1
+    }
 
     jq -S --slurpfile mcp "$MCP_SERVERS" '
         (. // {})
@@ -1494,10 +1508,10 @@ sync_claude_mcp_config() {
 
     if [ -f "$CLAUDE_USER_CONFIG" ] &&
         cmp -s "$tmp" "$CLAUDE_USER_CONFIG"; then
-        rm -f "$tmp"
+        rm -f "$tmp" || return 1
         log_info "Claude MCP config already in sync"
     else
-        mv "$tmp" "$CLAUDE_USER_CONFIG"
+        mv "$tmp" "$CLAUDE_USER_CONFIG" || return 1
         log_info "Wrote $CLAUDE_USER_CONFIG"
     fi
 }
@@ -1561,7 +1575,7 @@ cmd_claude_settings_check() {
 }
 
 generate_claude_settings() {
-    mkdir -p "$(dirname "$CLAUDE_SETTINGS_FILE")"
+    mkdir -p "$(dirname "$CLAUDE_SETTINGS_FILE")" || return 1
     local tmp="${CLAUDE_SETTINGS_FILE}.tmp"
 
     render_claude_settings "$tmp" || {
@@ -1570,9 +1584,9 @@ generate_claude_settings() {
     }
     if [ -f "$CLAUDE_SETTINGS_FILE" ] &&
         cmp -s "$tmp" "$CLAUDE_SETTINGS_FILE"; then
-        rm -f "$tmp"
+        rm -f "$tmp" || return 1
     else
-        mv "$tmp" "$CLAUDE_SETTINGS_FILE"
+        mv "$tmp" "$CLAUDE_SETTINGS_FILE" || return 1
         log_info "Wrote $CLAUDE_SETTINGS_FILE"
     fi
 }
@@ -1626,6 +1640,366 @@ ensure_live_skill_lock() {
         mv "$tmp" "$SKILL_LOCK_LIVE"
         log_info "Wrote $SKILL_LOCK_LIVE from repo intent"
     fi
+}
+
+cleanup_staged_skills() {
+    if [ -n "$STAGED_SKILLS_ROOT" ] && [ -d "$STAGED_SKILLS_ROOT" ]; then
+        rm -rf "$STAGED_SKILLS_ROOT"
+    fi
+    STAGED_SKILLS_ROOT=""
+    STAGED_SKILLS_HOME=""
+    STAGED_SKILL_LOCK=""
+}
+
+merge_staged_skill_lock() {
+    local staged_lock="$1"
+    local target_lock="$2"
+
+    jq -e -S --slurpfile staged "$staged_lock" '
+        ($staged[0].skills // {}) as $live
+        | {
+            dismissed: (.dismissed // {}),
+            skills: (
+                .skills
+                | to_entries
+                | map(
+                    .key as $key
+                    | .value as $repo
+                    | ($repo.installName // $key) as $install_name
+                    | (($repo.skillPath // "") | split("/") | .[-2]) as $path_name
+                    | .value = (
+                        ($live[$key] //
+                         $live[$install_name] //
+                         $live[$path_name] //
+                         {}) * $repo
+                    )
+                )
+                | from_entries
+            )
+        }
+    ' "$SKILL_LOCK_REPO" >"$target_lock"
+}
+
+stage_locked_skills() {
+    cleanup_staged_skills
+    [ -f "$SKILL_LOCK_REPO" ] || {
+        echo "[ERROR] Repo skill-lock missing: $SKILL_LOCK_REPO" >&2
+        return 1
+    }
+
+    STAGED_SKILLS_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/dotfiles-skills.XXXXXX")" || {
+        echo "[ERROR] Failed to create skill staging directory" >&2
+        return 1
+    }
+    STAGED_SKILLS_HOME="${STAGED_SKILLS_ROOT}/home"
+    STAGED_SKILL_LOCK="${STAGED_SKILLS_HOME}/.agents/.skill-lock.json"
+    mkdir -p "$(dirname "$STAGED_SKILL_LOCK")" || {
+        cleanup_staged_skills
+        return 1
+    }
+    cp "$SKILL_LOCK_REPO" "$STAGED_SKILL_LOCK" || {
+        cleanup_staged_skills
+        return 1
+    }
+    mkdir -p "${STAGED_SKILLS_HOME}/.agents/skills" || {
+        cleanup_staged_skills
+        return 1
+    }
+
+    local groups group names name source source_url install_name failed=false
+    groups=$(jq -c '
+        [
+            .skills | to_entries[] |
+            {
+                name: .key,
+                source: .value.source,
+                sourceUrl: (.value.sourceUrl // ""),
+                installName: (.value.installName // .key)
+            }
+        ]
+        | group_by([.source, .sourceUrl])[]
+    ' "$SKILL_LOCK_REPO") || {
+        cleanup_staged_skills
+        echo "[ERROR] Invalid repository skill lock: $SKILL_LOCK_REPO" >&2
+        return 1
+    }
+
+    if [ -n "$groups" ]; then
+        command -v "$SKILLS_CLI" >/dev/null 2>&1 || {
+            cleanup_staged_skills
+            echo "[ERROR] Skills CLI not found: $SKILLS_CLI" >&2
+            return 1
+        }
+    fi
+
+    while IFS= read -r group; do
+        [ -n "$group" ] || continue
+        source="$(jq -r '.[0].source' <<<"$group")"
+        source_url="$(jq -r '.[0].sourceUrl' <<<"$group")"
+        names="$(jq -r 'map(.name) | join(", ")' <<<"$group")"
+        log_info "Staging current skills: $names (from $source)"
+        local -a command_args=(add -g "$source" --skill)
+        while IFS= read -r install_name; do
+            command_args+=("$install_name")
+        done < <(jq -r '.[].installName' <<<"$group")
+        if [ "$source" = "openclaw/agent-skills" ] ||
+            [ "$source_url" = "https://github.com/openclaw/agent-skills.git" ]; then
+            command_args+=(--dangerously-accept-openclaw-risks)
+        fi
+        command_args+=(--agent codex -y)
+        if ! HOME="$STAGED_SKILLS_HOME" \
+            SKILL_LOCK_LIVE="$STAGED_SKILL_LOCK" \
+            "$SKILLS_CLI" "${command_args[@]}" </dev/null; then
+            echo "[ERROR] Failed to stage current skills: $names (from $source)" >&2
+            failed=true
+            break
+        fi
+        while IFS= read -r name; do
+            if [ ! -r "${STAGED_SKILLS_HOME}/.agents/skills/${name}/SKILL.md" ]; then
+                echo "[ERROR] Staged skill missing expected file: $name/SKILL.md" >&2
+                failed=true
+                break
+            fi
+        done < <(jq -r '.[].name' <<<"$group")
+        [ "$failed" = false ] || break
+    done <<<"$groups"
+
+    if [ "$failed" = true ]; then
+        cleanup_staged_skills
+        return 1
+    fi
+
+    local expected_inventory="${STAGED_SKILLS_ROOT}/expected-skills"
+    local actual_inventory="${STAGED_SKILLS_ROOT}/actual-skills"
+    jq -r '.skills | keys[]' "$SKILL_LOCK_REPO" |
+        sort -u >"$expected_inventory" || {
+        cleanup_staged_skills
+        return 1
+    }
+    write_live_skill_names "${STAGED_SKILLS_HOME}/.agents/skills" \
+        "$actual_inventory" || {
+        cleanup_staged_skills
+        return 1
+    }
+    if ! cmp -s "$expected_inventory" "$actual_inventory"; then
+        echo "[ERROR] Staged skill inventory differs from repository lock" >&2
+        diff -u "$expected_inventory" "$actual_inventory" >&2 || true
+        cleanup_staged_skills
+        return 1
+    fi
+
+    local merged_lock="${STAGED_SKILLS_ROOT}/skill-lock.json"
+    merge_staged_skill_lock "$STAGED_SKILL_LOCK" "$merged_lock" || {
+        cleanup_staged_skills
+        echo "[ERROR] Failed to normalize staged skill lock" >&2
+        return 1
+    }
+    mv "$merged_lock" "$STAGED_SKILL_LOCK" || {
+        cleanup_staged_skills
+        return 1
+    }
+}
+
+cmd_skills_preflight() {
+    stage_locked_skills || return 1
+    cleanup_staged_skills
+    log_info "All repository skills resolve from current upstream"
+}
+
+prepare_skill_runtime_candidates() {
+    local candidates_root="$1"
+    local canonical_candidate="${candidates_root}/codex"
+    mkdir -p "$canonical_candidate" || return 1
+    if [ -d "${STAGED_SKILLS_HOME}/.agents/skills" ]; then
+        cp -a "${STAGED_SKILLS_HOME}/.agents/skills/." \
+            "$canonical_candidate/" || return 1
+    fi
+
+    local skill_path skill_name
+    for skill_path in "$SHARED_SKILLS_CUSTOM_DIR"/*/ \
+        "$SHARED_SKILLS_CUSTOM_DIR"/*.skill; do
+        [ -e "$skill_path" ] || continue
+        skill_name="$(basename "$skill_path")"
+        if [ -e "${canonical_candidate}/${skill_name}" ] ||
+            [ -L "${canonical_candidate}/${skill_name}" ]; then
+            echo "[ERROR] Custom and upstream skill names collide: $skill_name" >&2
+            return 1
+        fi
+        ln -s "$skill_path" "${canonical_candidate}/${skill_name}" || return 1
+    done
+
+    local runtime candidate
+    for runtime in claude opencode pi; do
+        candidate="${candidates_root}/${runtime}"
+        mkdir -p "$candidate" || return 1
+        for skill_path in "$canonical_candidate"/*; do
+            [ -e "$skill_path" ] || [ -L "$skill_path" ] || continue
+            skill_name="$(basename "$skill_path")"
+            ln -s "${AGENT_SKILLS_DIR}/${skill_name}" \
+                "${candidate}/${skill_name}" || return 1
+        done
+    done
+}
+
+prepare_staged_live_lock() {
+    local target_lock="$1"
+    if [ -f "$SKILL_LOCK_LIVE" ]; then
+        jq -e -S -s '
+            .[0] as $old | .[1] as $staged |
+            $staged
+            | .skills |= with_entries(
+                .key as $key |
+                ($old.skills[$key] // null) as $previous |
+                .value = (
+                    if $previous != null and
+                       $previous.skillFolderHash == .value.skillFolderHash
+                    then
+                        $previous * (
+                            .value |
+                            del(.installedAt, .updatedAt, .pluginName)
+                        )
+                    else
+                        ($previous // {}) * .value
+                    end
+                )
+            )
+            | . + ($old | del(.skills, .dismissed))
+        ' "$SKILL_LOCK_LIVE" "$STAGED_SKILL_LOCK" >"$target_lock"
+    else
+        cp "$STAGED_SKILL_LOCK" "$target_lock"
+    fi
+}
+
+staged_skills_match_live() {
+    local candidates_root="$1"
+    local -a targets=(
+        "$AGENT_SKILLS_DIR"
+        "$CLAUDE_SKILLS_DIR"
+        "$OPENCODE_SKILLS_DIR"
+        "$PI_SKILLS_DIR"
+    )
+    local -a candidates=(
+        "${candidates_root}/codex"
+        "${candidates_root}/claude"
+        "${candidates_root}/opencode"
+        "${candidates_root}/pi"
+    )
+    local index
+
+    for index in "${!targets[@]}"; do
+        [ -d "${targets[$index]}" ] || return 1
+        diff -qr "${candidates[$index]}" "${targets[$index]}" >/dev/null ||
+            return 1
+    done
+    [ -f "$SKILL_LOCK_LIVE" ] &&
+        cmp -s "${STAGED_SKILLS_ROOT}/live-lock.json" "$SKILL_LOCK_LIVE"
+}
+
+apply_staged_skills() {
+    [ -n "$STAGED_SKILLS_ROOT" ] && [ -d "$STAGED_SKILLS_ROOT" ] || {
+        echo "[ERROR] No staged skills available to apply" >&2
+        return 1
+    }
+
+    local candidates_root="${STAGED_SKILLS_ROOT}/candidates"
+    prepare_skill_runtime_candidates "$candidates_root" || return 1
+    prepare_staged_live_lock "${STAGED_SKILLS_ROOT}/live-lock.json" || {
+        echo "[ERROR] Failed to prepare staged live skill lock" >&2
+        return 1
+    }
+    if staged_skills_match_live "$candidates_root"; then
+        log_info "Runtime skills already match current upstream"
+        return 0
+    fi
+
+    local backup_root
+    mkdir -p "${HOME}/.dotfiles-backup" || return 1
+    backup_root="$(mktemp -d "${HOME}/.dotfiles-backup/skill-sync.XXXXXX")" || {
+        echo "[ERROR] Failed to create skill backup directory" >&2
+        return 1
+    }
+
+    local -a targets=(
+        "$AGENT_SKILLS_DIR"
+        "$CLAUDE_SKILLS_DIR"
+        "$OPENCODE_SKILLS_DIR"
+        "$PI_SKILLS_DIR"
+        "$SKILL_LOCK_LIVE"
+    )
+    local -a source_candidates=(
+        "${candidates_root}/codex"
+        "${candidates_root}/claude"
+        "${candidates_root}/opencode"
+        "${candidates_root}/pi"
+        "${STAGED_SKILLS_ROOT}/live-lock.json"
+    )
+    local -a labels=(codex claude opencode pi skill-lock)
+    local -a candidates=()
+    local index prepared
+    for index in "${!source_candidates[@]}"; do
+        prepared="${backup_root}/next-${labels[$index]}"
+        cp -a "${source_candidates[$index]}" "$prepared" || {
+            echo "[ERROR] Failed to prepare atomic skill replacement" >&2
+            rm -rf "$backup_root"
+            return 1
+        }
+        candidates+=("$prepared")
+    done
+
+    SKILL_TX_TARGETS=()
+    SKILL_TX_BACKUPS=()
+    SKILL_TX_HAD_ORIGINAL=()
+    local target candidate backup had_original
+
+    for index in "${!targets[@]}"; do
+        target="${targets[$index]}"
+        candidate="${candidates[$index]}"
+        backup="${backup_root}/${labels[$index]}"
+        had_original=false
+        mkdir -p "$(dirname "$target")" || {
+            rollback_skill_transaction
+            return 1
+        }
+        if [ -e "$target" ] || [ -L "$target" ]; then
+            mv "$target" "$backup" || {
+                echo "[ERROR] Failed to back up skill target: $target" >&2
+                rollback_skill_transaction
+                return 1
+            }
+            had_original=true
+        fi
+        SKILL_TX_TARGETS+=("$target")
+        SKILL_TX_BACKUPS+=("$backup")
+        SKILL_TX_HAD_ORIGINAL+=("$had_original")
+        if ! mv "$candidate" "$target"; then
+            echo "[ERROR] Failed to apply staged skill target: $target" >&2
+            rollback_skill_transaction || {
+                echo "[ERROR] Skill rollback incomplete; backup retained at $backup_root" >&2
+            }
+            return 1
+        fi
+    done
+
+    log_info "Applied current skills; previous state backed up at $backup_root"
+}
+
+rollback_skill_transaction() {
+    local count="${#SKILL_TX_TARGETS[@]}"
+    local index target backup had_original failed=false
+
+    for ((index = count - 1; index >= 0; index--)); do
+        target="${SKILL_TX_TARGETS[$index]}"
+        backup="${SKILL_TX_BACKUPS[$index]}"
+        had_original="${SKILL_TX_HAD_ORIGINAL[$index]}"
+        rm -rf "$target" || failed=true
+        if [ "$had_original" = true ]; then
+            mv "$backup" "$target" || {
+                echo "[ERROR] Failed to roll back skill target: $target" >&2
+                failed=true
+            }
+        fi
+    done
+    [ "$failed" = false ]
 }
 
 cmd_lock_skills_install() {
@@ -1715,6 +2089,14 @@ check_claude_plugin_providers() {
             source: (.value.source.repo // .value.source.url // "")}]' \
             "$known_mp" | check_marketplace_provider claude || return 1
     fi
+}
+
+cmd_plugin_provider_preflight() {
+    validate_plugin_manifest "$PLUGIN_MANIFEST" || return 1
+    check_claude_plugin_providers || return 1
+    read_codex_plugin_state >/dev/null || return 1
+    read_codex_marketplace_state >/dev/null || return 1
+    log_info "Plugin provider ownership preflight passed"
 }
 
 cmd_claude_plugins_export() {
@@ -2028,8 +2410,12 @@ cmd_lock_skills_export() {
 }
 
 cmd_skills_update() {
+    [ "$#" -eq 0 ] || {
+        echo "[ERROR] skills-update takes no arguments" >&2
+        return 1
+    }
     log_info "Updating global skills shared by Codex, Claude, Pi, and OpenCode..."
-    "$SKILLS_CLI" update -g "$@"
+    cmd_push_skills
 }
 
 cmd_plugins_check() {
@@ -2193,17 +2579,12 @@ cmd_skills_check() {
 }
 
 cmd_push_skills() {
-    local expected runtime root
-    expected="$(mktemp)"
-    write_expected_skill_names "$expected"
-    while IFS='|' read -r runtime root; do
-        prune_skill_dir "$root" "$expected"
-    done < <(skill_runtime_rows)
-    rm -f "$expected"
-
-    cmd_custom_skills_install
-    ensure_live_skill_lock
-    cmd_lock_skills_install || return 1
+    stage_locked_skills || return 1
+    if ! apply_staged_skills; then
+        cleanup_staged_skills
+        return 1
+    fi
+    cleanup_staged_skills
     cmd_skills_check
 }
 
@@ -2343,19 +2724,22 @@ render_pi_settings() {
 }
 
 sync_pi_settings() {
-    mkdir -p "$PI_AGENT_DIR"
+    mkdir -p "$PI_AGENT_DIR" || return 1
 
     local tmp
-    tmp="$(mktemp)"
-    render_pi_settings "$PI_SETTINGS_FILE" "$tmp"
+    tmp="$(mktemp)" || return 1
+    render_pi_settings "$PI_SETTINGS_FILE" "$tmp" || {
+        rm -f "$tmp"
+        return 1
+    }
 
     if [ -f "$PI_SETTINGS_FILE" ] &&
         jq -e --slurpfile wanted "$tmp" '. == $wanted[0]' \
             "$PI_SETTINGS_FILE" >/dev/null; then
-        rm -f "$tmp"
+        rm -f "$tmp" || return 1
         log_info "Pi settings already in sync"
     else
-        mv "$tmp" "$PI_SETTINGS_FILE"
+        mv "$tmp" "$PI_SETTINGS_FILE" || return 1
         log_info "Wrote $PI_SETTINGS_FILE"
     fi
 }
@@ -2403,7 +2787,7 @@ restore_pi_packages() {
             log_info "Pi package already installed: $package"
         else
             log_info "Installing Pi package: $package"
-            pi install "$package"
+            pi install "$package" || return 1
         fi
     done < <(jq -r '.packages[]' "$PI_SETTINGS_TEMPLATE")
 }
@@ -2421,9 +2805,9 @@ pi_models() {
     fi
     if [ -f "$target" ] && jq -e --slurpfile wanted "$tmp" \
         '. == $wanted[0]' "$target" >/dev/null; then
-        rm -f "$tmp"
+        rm -f "$tmp" || return 1
     elif [ "$action" = install ]; then
-        mv "$tmp" "$target"
+        mv "$tmp" "$target" || return 1
     else
         rm -f "$tmp"
         echo "[ERROR] Pi model override drift: $target" >&2
@@ -2438,8 +2822,8 @@ pi_resources() {
         [ -f "$source" ] || continue
         target="${PI_AGENT_DIR}/${source#"$root"/}"
         if [ "$action" = install ]; then
-            mkdir -p "$(dirname "$target")"
-            ln -sfn "$source" "$target"
+            mkdir -p "$(dirname "$target")" || return 1
+            ln -sfn "$source" "$target" || return 1
         elif [[ "$source" == *.json ]]; then
             jq -e --slurpfile wanted "$source" '. == $wanted[0]' \
                 "$target" >/dev/null 2>&1 || failed=true
@@ -2455,13 +2839,13 @@ pi_resources() {
 
 cmd_pi_install() {
     log_info "Installing Pi agent config..."
-    mkdir -p "$PI_AGENT_DIR" "$PI_SKILLS_DIR"
-    ln -sfn "$PI_AGENTS_SOURCE" "$PI_AGENTS_FILE"
-    sync_pi_settings
-    pi_resources install
-    pi_models install
-    restore_pi_packages
-    sync_pi_mcp_config
+    mkdir -p "$PI_AGENT_DIR" "$PI_SKILLS_DIR" || return 1
+    ln -sfn "$PI_AGENTS_SOURCE" "$PI_AGENTS_FILE" || return 1
+    sync_pi_settings || return 1
+    pi_resources install || return 1
+    pi_models install || return 1
+    restore_pi_packages || return 1
+    sync_pi_mcp_config || return 1
 }
 
 cmd_pi_check() {
@@ -2498,31 +2882,29 @@ cmd_pi_check() {
 
 cmd_claude_install() {
     log_info "Installing Claude agent config..."
-    link_file "$CLAUDE_AGENTS_SOURCE" "$CLAUDE_AGENTS_FILE"
-    link_custom_skills "$AGENT_SKILLS_DIR"
-    link_custom_skills "$CLAUDE_SKILLS_DIR"
+    link_file "$CLAUDE_AGENTS_SOURCE" "$CLAUDE_AGENTS_FILE" || return 1
 
     log_info "Installing Claude Code config..."
-    mkdir -p "$AGENT_SKILLS_DIR" "$CLAUDE_SKILLS_DIR" "$OPENCODE_SKILLS_DIR"
+    mkdir -p "$AGENT_SKILLS_DIR" "$CLAUDE_SKILLS_DIR" \
+        "$OPENCODE_SKILLS_DIR" || return 1
 
-    ensure_live_skill_lock
-    generate_claude_settings
-    sync_claude_mcp_config
+    generate_claude_settings || return 1
+    sync_claude_mcp_config || return 1
 
-    cmd_claude_plugins_push
-    cmd_lock_skills_install || return 1
+    cmd_claude_plugins_push || return 1
 
     log_info "Claude sync complete"
 }
 
 cmd_install() {
-    cmd_custom_skills_install
-    cmd_codex_install
-    cmd_opencode_install
-    cmd_pi_install
-    cmd_claude_install
-    cmd_codex_marketplace_plugins_push
-    cmd_codex_plugins_check
+    cmd_plugin_provider_preflight || return 1
+    cmd_push_skills || return 1
+    cmd_codex_install || return 1
+    cmd_opencode_install || return 1
+    cmd_pi_install || return 1
+    cmd_claude_install || return 1
+    cmd_codex_marketplace_plugins_push || return 1
+    cmd_codex_plugins_check || return 1
 
     log_info "Agent config sync complete"
 }
@@ -2560,6 +2942,9 @@ mcp-check)
 pull-skills)
     shift
     cmd_pull_skills "$@"
+    ;;
+skills-preflight)
+    cmd_skills_preflight
     ;;
 push-skills)
     cmd_push_skills
@@ -2641,7 +3026,8 @@ claude-settings-check)
     echo "  push-mcp         Render shared MCP state into runtimes"
     echo "  mcp-check        Compare normalized MCP state"
     echo "  pull-skills      Preview and confirm live skill import"
-    echo "  push-skills      Reconcile skills without version updates"
+    echo "  skills-preflight Resolve every repository skill from current upstream"
+    echo "  push-skills      Update and reconcile current upstream skills"
     echo "  skills-check     Compare runtime skills with shared inventory"
     echo "  pull-plugins     Preview and confirm live plugin import"
     echo "  push-plugins     Apply membership without version updates"

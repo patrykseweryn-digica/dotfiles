@@ -111,11 +111,32 @@ smoke_tmux_plugins_install_after_setup_dotfiles() {
     : >"$tmux_log"
 
     cat >"${stub_dir}/skills" <<'STUB'
-#!/bin/sh
+#!/bin/bash
+set -eu
 echo "skills $*" >> "$NPX_LOG"
-name=$(printf '%s' "$5" | tr '[:upper:] ' '[:lower:]-')
-mkdir -p "$HOME/.agents/skills/$name"
-printf '%s\n' '---' "name: $name" '---' > "$HOME/.agents/skills/$name/SKILL.md"
+skills=()
+collect=false
+for arg in "$@"; do
+    if [ "$arg" = --skill ]; then
+        collect=true
+        continue
+    fi
+    if [ "$collect" = true ] && [[ "$arg" == --* ]]; then
+        collect=false
+    fi
+    [ "$collect" = true ] && skills+=("$arg")
+done
+for skill in "${skills[@]}"; do
+    name=$(jq -r --arg name "$skill" '
+        .skills | to_entries[] |
+        select((.value.installName // .key) == $name) |
+        .key
+    ' "$SKILL_LOCK_LIVE")
+    [ -n "$name" ]
+    mkdir -p "$HOME/.agents/skills/$name"
+    printf '%s\n' '---' "name: $skill" '---' \
+        > "$HOME/.agents/skills/$name/SKILL.md"
+done
 STUB
     chmod +x "${stub_dir}/skills"
     printf '#!/bin/sh\nexit 0\n' >"${stub_dir}/codex"
@@ -159,8 +180,10 @@ STUB
         export IS_MACOS=false
         export IS_LINUX=true
 
-        trap 'if [ "$?" -ne 0 ]; then cat "${tmp_dir}/setup.log" >&2; fi' EXIT
-        setup_dotfiles >"${tmp_dir}/setup.log" 2>&1
+        if ! setup_dotfiles >"${tmp_dir}/setup.log" 2>&1; then
+            cat "${tmp_dir}/setup.log" >&2
+            exit 1
+        fi
         install_tmux_plugins >/dev/null 2>&1
     )
 
@@ -298,11 +321,32 @@ TOML
 JSON
 
     cat >"${stub_dir}/skills" <<'STUB'
-#!/bin/sh
+#!/bin/bash
+set -eu
 echo "skills $*" >> "$NPX_LOG"
-name=$(printf '%s' "$5" | tr '[:upper:] ' '[:lower:]-')
-mkdir -p "$HOME/.agents/skills/$name"
-printf '%s\n' '---' "name: $name" '---' > "$HOME/.agents/skills/$name/SKILL.md"
+skills=()
+collect=false
+for arg in "$@"; do
+    if [ "$arg" = --skill ]; then
+        collect=true
+        continue
+    fi
+    if [ "$collect" = true ] && [[ "$arg" == --* ]]; then
+        collect=false
+    fi
+    [ "$collect" = true ] && skills+=("$arg")
+done
+for skill in "${skills[@]}"; do
+    name=$(jq -r --arg name "$skill" '
+        .skills | to_entries[] |
+        select((.value.installName // .key) == $name) |
+        .key
+    ' "$SKILL_LOCK_LIVE")
+    [ -n "$name" ]
+    mkdir -p "$HOME/.agents/skills/$name"
+    printf '%s\n' '---' "name: $skill" '---' \
+        > "$HOME/.agents/skills/$name/SKILL.md"
+done
 STUB
     chmod +x "${stub_dir}/skills"
     printf '#!/bin/sh\nexit 0\n' >"${stub_dir}/codex"
@@ -347,8 +391,10 @@ STUB
             export IS_LINUX=true
         fi
 
-        trap 'if [ "$?" -ne 0 ]; then cat "$sync_log" >&2; fi' EXIT
-        setup_dotfiles >"$sync_log" 2>&1
+        if ! setup_dotfiles >"$sync_log" 2>&1; then
+            cat "$sync_log" >&2
+            exit 1
+        fi
         local config="${HOME}/.no-mistakes/config.yaml"
         [ -f "$config" ] || fail "$os_name: missing no-mistakes config"
         if [ "$os_name" = Darwin ]; then
@@ -370,7 +416,10 @@ YAML
         fi
         cmp "$config" "${tmp_dir}/expected.yaml" ||
             fail "$os_name: no-mistakes settings differ"
-        setup_dotfiles >>"$sync_log" 2>&1
+        if ! setup_dotfiles >>"$sync_log" 2>&1; then
+            cat "$sync_log" >&2
+            exit 1
+        fi
         cmp "$config" "${tmp_dir}/expected.yaml" ||
             fail "$os_name: repeated setup changed no-mistakes settings"
         echo "[INFO] $os_name: no-mistakes fresh/existing + repeat passed"
@@ -389,7 +438,10 @@ YAML
         else
             rm "$herdr_config"
         fi
-        setup_dotfiles >>"$sync_log" 2>&1
+        if ! setup_dotfiles >>"$sync_log" 2>&1; then
+            cat "$sync_log" >&2
+            exit 1
+        fi
         cmp "$herdr_config" "${tmp_dir}/herdr-expected.toml" ||
             fail "$os_name: Herdr title not restored or local settings lost"
         echo "[INFO] $os_name: Herdr fresh/existing + repeat + restore passed"

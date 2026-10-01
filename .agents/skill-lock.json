@@ -268,12 +268,6 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/mattpocock/skills.git"
     },
-    "resolving-merge-conflicts": {
-      "skillPath": "skills/engineering/resolving-merge-conflicts/SKILL.md",
-      "source": "mattpocock/skills",
-      "sourceType": "github",
-      "sourceUrl": "https://github.com/mattpocock/skills.git"
-    },
     "retrieving-mlflow-traces": {
       "skillPath": "retrieving-mlflow-traces/SKILL.md",
       "source": "mlflow/skills",

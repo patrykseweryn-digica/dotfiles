@@ -14,6 +14,13 @@ Use the five standard roles; read `docs/agents/triage-labels.md` for triage.
 
 Single-context; read `docs/agents/domain.md` before domain exploration.
 
+## Skill sources
+
+Remote skills intentionally track current upstream. Do not pin them to commits
+or retain obsolete copies to keep installation green. Before changing live
+skill state, validate every inventory entry against current upstream; reconcile
+removed or renamed skills explicitly and fail before modifying runtimes.
+
 ## Verification
 
 Before changes, applying config to a machine, or committing, use

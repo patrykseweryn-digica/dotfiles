@@ -29,10 +29,11 @@ just pull-codex-settings # preview live Codex preferences, then confirm
 just pull-mcp       # preview live MCP state, then confirm
 just push-mcp       # repository MCP state -> runtimes
 just pull-skills    # preview live skills, then confirm repository changes
-just push-skills    # reconcile skills without version updates
+just skills-preflight # resolve current upstream skills without applying
+just push-skills    # update and reconcile current upstream skills
 just pull-plugins   # preview live plugins, then confirm repository changes
 just push-plugins   # apply membership without upgrades
-just push           # push MCP, skills, and plugins in order
+just push           # push skills, MCP, and plugins in order
 ```
 
 There is no broad `just pull`. After saving a model or reasoning default in
@@ -40,11 +41,14 @@ Codex, run `just pull-codex-settings`. MCP pull merges identical definitions
 and stops without writing on conflicts. Environment values, HTTP headers,
 credentials, OAuth state, and unsupported transports are not imported.
 Skill pull previews lock and custom-skill additions, removals, and replacements
-before asking for confirmation. Doctor ignores Codex's active model and
-reasoning selection; repository values remain install defaults. Skill push
-removes unmanaged skills and stale links, then makes Codex, Claude Code,
-OpenCode, and Pi match the repository inventory. Neither command updates
-upstream skill versions.
+before asking for confirmation. Skill preflight installs every locked skill
+from current upstream into a disposable home and changes no runtime state.
+Skill push performs that preflight, then atomically replaces the managed skill
+roots for Codex, Claude Code, OpenCode, and Pi. Missing skills and network
+failures stop before live changes; apply failures roll back from backup.
+Remote skills intentionally remain unpinned and are refreshed on every push.
+Doctor ignores Codex's active model and reasoning selection; repository values
+remain install defaults.
 
 Plugin pull combines supported Codex remote and Claude plugin membership,
 shows the manifest diff, and writes only after confirmation. That explicit
@@ -171,8 +175,10 @@ isolated-HOME install/update smoke tests and `just check`, then compares the
 read-only live `just doctor` result with the baseline. Doctor prints bounded
 diagnostics rather than raw config diffs, which may contain credentials.
 Evidence stays under ignored `.agent-runs/verify-dotfiles/`.
-The existing CI runs repository checks on macOS and Linux; a local macOS run
-alone proves only macOS execution and the simulated Linux cases.
+The existing CI runs repository checks on macOS and Linux. A separate job
+resolves every current upstream skill on pushes, pull requests, and daily.
+A local macOS run alone proves only macOS execution and the simulated Linux
+cases.
 `just verify` runs repository checks followed by the live machine doctor.
 Commit hooks run repository tests; live drift remains a separate check because
 it depends on the machine's tools, credentials and installed configuration.
@@ -283,6 +289,7 @@ from Git publication.
 - Need to inspect agent versions: `just agent-versions`.
 - Need to update agent tools: `just update-agent-tools`.
 - Need to apply repository state: `just push`.
+- Need to validate current upstream skills only: `just skills-preflight`.
 - Changed Codex model/preferences interactively: `just pull-codex-settings`.
 - Need to inspect runtime MCP additions: `just pull-mcp`.
 - Need to review live skill changes: `just pull-skills`.
