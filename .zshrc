@@ -202,5 +202,5 @@ case ":$PATH:" in
 esac
 # pnpm end
 
-# Keep Cursor's agent command ahead of Grok's optional alias.
+# Grok's binary directory.
 export PATH="$PATH:$HOME/.grok/bin"
