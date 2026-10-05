@@ -76,6 +76,7 @@ jq -e '
         "steeringMode",
         "followUpMode",
         "collapseChangelog",
+        "extensions",
         "packages"
     ] | length) == 0
 ' config/pi/settings.json >/dev/null || fail "Pi stable settings are invalid"

@@ -29,6 +29,7 @@ assert.equal(settings.terminal.showImages, false);
 assert.equal(settings.terminal.trueColor, true);
 assert.equal(settings.steeringMode, "all");
 assert.equal(settings.followUpMode, "all");
+assert.deepEqual(settings.extensions, ["-builtin:mcp"]);
 for (const key of ["quietStartup", "hideThinkingBlock", "collapseChangelog"]) {
   assert.equal(settings[key], true);
 }

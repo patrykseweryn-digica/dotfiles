@@ -60,6 +60,12 @@ Emergency bypass: `PI_OPENAI_SERVER_COMPACTION_ENABLED=0 pi`, or run with
 
 ## MCP audit: retain both adapters
 
+Built-in MCP is explicitly disabled with `extensions: ["-builtin:mcp"]`:
+`pi-mcp-adapter` owns `/mcp` and `mcpScript`. This avoids the duplicate-command
+warning without removing either used adapter or changing MCP credentials.
+`pi-web-access` 0.36.0 declares host-provided `typebox` as a `"*"` peer,
+fixing the dependency warning without patching installed package files.
+
 Audit on 2026-09-15, with pi-mcp-adapter 2.34.0 and pi-mcporter 1.0.2:
 
 - **pi-mcporter:** existing seven-server inventory, discovery, schemas and
