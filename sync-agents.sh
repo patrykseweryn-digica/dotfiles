@@ -818,7 +818,7 @@ cmd_codex_check() {
 }
 
 check_marketplace_provider() {
-    local runtime="$1" foreign
+    local runtime="$1" show_repair="${2:-false}" foreign marketplace
     foreign=$(jq -ser --arg runtime "$runtime" '
         if length != 1 then error("Expected one marketplace inventory")
         else .[0] end |
@@ -838,6 +838,12 @@ check_marketplace_provider() {
     [ -n "$foreign" ] || return 0
     echo "[ERROR] Provider-specific marketplaces do not belong in $runtime:" >&2
     printf '%s\n' "$foreign" >&2
+    if [ "$show_repair" = true ]; then
+        while IFS= read -r marketplace; do
+            [ -n "$marketplace" ] || continue
+            echo "Run: $runtime plugin marketplace remove $marketplace" >&2
+        done <<<"$foreign"
+    fi
     return 1
 }
 
@@ -1059,7 +1065,7 @@ read_codex_plugin_state() {
         select(.installed == true) |
         {name: (.marketplaceName // (.pluginId | split("@")[-1])),
          source: (.marketplaceSource.source // "")}
-    ]' | check_marketplace_provider codex || return 1
+    ]' | check_marketplace_provider codex true || return 1
     printf '%s\n' "$state"
 }
 
@@ -1072,7 +1078,7 @@ read_codex_marketplace_state() {
     fi
     printf '%s\n' "$state" | jq '[.marketplaces[]? |
         {name, source: (.marketplaceSource.source // "")}
-    ]' | check_marketplace_provider codex || return 1
+    ]' | check_marketplace_provider codex true || return 1
     printf '%s\n' "$state"
 }
 
@@ -2101,12 +2107,12 @@ check_claude_plugin_providers() {
     local known_mp="${HOME}/.claude/plugins/known_marketplaces.json"
     if [ -f "$installed_json" ]; then
         jq '[(.plugins // {} | keys[]) | {name: split("@")[-1]}]' \
-            "$installed_json" | check_marketplace_provider claude || return 1
+            "$installed_json" | check_marketplace_provider claude true || return 1
     fi
     if [ -f "$known_mp" ]; then
         jq '[to_entries[] | {name: .key,
             source: (.value.source.repo // .value.source.url // "")}]' \
-            "$known_mp" | check_marketplace_provider claude || return 1
+            "$known_mp" | check_marketplace_provider claude true || return 1
     fi
 }
 

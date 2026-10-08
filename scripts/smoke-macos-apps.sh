@@ -100,7 +100,8 @@ run_macos_apps_case false
 
 run_macos_apps_case true
 
-grep -F "brew bundle install --file ${DOTFILES_DIR}/Brewfile" "$brew_log" >/dev/null 2>&1 || fail "Brewfile was not installed on macOS"
+grep -F "brew bundle install --no-upgrade --file ${DOTFILES_DIR}/Brewfile" \
+    "$brew_log" >/dev/null 2>&1 || fail "Brewfile install may upgrade existing packages"
 [ -L "${brew_prefix}/bin/code" ] || fail "VS Code CLI symlink was not created"
 [ "$(readlink "${brew_prefix}/bin/code")" = "$vscode_cli" ] || fail "VS Code CLI symlink points at wrong target"
 grep -F "code --install-extension " "$code_log" >/dev/null 2>&1 || fail "VS Code extensions were not installed on macOS"
@@ -109,7 +110,8 @@ grep -F "defaults write com.knollsoft.Rectangle" "$defaults_log" >/dev/null 2>&1
 : > "$brew_log"
 : > "$code_log"
 run_macos_apps_case true
-grep -F "brew bundle check --file ${DOTFILES_DIR}/Brewfile" "$brew_log" >/dev/null 2>&1 || fail "Brewfile state was not checked"
+grep -F "brew bundle check --no-upgrade --file ${DOTFILES_DIR}/Brewfile" \
+    "$brew_log" >/dev/null 2>&1 || fail "Brewfile check included outdated packages"
 if grep -F "brew bundle install" "$brew_log" >/dev/null 2>&1; then
     fail "matching Brewfile dependencies were reinstalled"
 fi

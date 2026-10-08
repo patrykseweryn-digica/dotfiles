@@ -15,13 +15,15 @@ install_macos_brew_bundle() {
         return 0
     fi
 
-    if brew bundle check --file "${DOTFILES_DIR}/Brewfile" >/dev/null 2>&1; then
+    if brew bundle check --no-upgrade \
+        --file "${DOTFILES_DIR}/Brewfile" >/dev/null 2>&1; then
         echo "[INFO] Brewfile dependencies are already installed"
         return 0
     fi
 
     echo "[INFO] Installing missing macOS apps and tools from Brewfile..."
-    if ! brew bundle install --file "${DOTFILES_DIR}/Brewfile"; then
+    if ! brew bundle install --no-upgrade \
+        --file "${DOTFILES_DIR}/Brewfile"; then
         echo "[WARN] Brewfile installation had issues, continuing..."
     fi
 }
