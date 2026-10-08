@@ -2,17 +2,20 @@
 
 Resolve the following paths from the repository root.
 
-## Issue tracker
+## Agent skills
 
-Use GitHub Issues; read `docs/agents/issue-tracker.md` before ticket work.
+### Issue tracker
 
-## Triage labels
+Use GitHub Issues in `p-severin/dotfiles`.
+See `docs/agents/issue-tracker.md`.
 
-Use the five standard roles; read `docs/agents/triage-labels.md` for triage.
+### Triage labels
 
-## Domain docs
+Use the five standard roles. See `docs/agents/triage-labels.md`.
 
-Single-context; read `docs/agents/domain.md` before domain exploration.
+### Domain docs
+
+Single-context. See `docs/agents/domain.md`.
 
 ## Skill sources
 
