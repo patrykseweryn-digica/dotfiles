@@ -109,19 +109,26 @@ report_versions() {
 }
 
 install_declared_tools() {
+    local refresh="${1:-false}"
     local failed=false script
     local name command_name package expected installer ignore_scripts current install_spec
 
     while IFS=$'\t' read -r \
         name command_name package expected installer ignore_scripts; do
         install_spec="${package}@${expected}"
-        if [ "$expected" = latest ] && { [ "$installer" = npm ] || [ "$installer" = claude-native ]; }; then
+        current="$(installed_version "$command_name" || true)"
+        if [ "$refresh" != true ] && [ -n "$current" ]; then
+            echo "[INFO] $name $current already installed"
+            continue
+        fi
+        if [ "$expected" = latest ] &&
+            { [ "$installer" = claude-native ] ||
+              { [ "$installer" = npm ] && [ "$refresh" = true ]; }; }; then
             expected=$(resolve_latest "$package") || {
                 failed=true
                 continue
             }
         fi
-        current="$(installed_version "$command_name" || true)"
         if [ "$current" = "$expected" ]; then
             echo "[INFO] $name $expected already installed"
             continue
@@ -172,12 +179,16 @@ install | update)
     # Also protect direct callers such as just update-agent-tools in old shells.
     # shellcheck source=bootstrap.d/07-node.sh
     source "$DOTFILES_DIR/bootstrap.d/07-node.sh"
-    if [ "$1" = update ]; then install_nvm || exit 1; fi
+    refresh=false
+    if [ "$1" = update ]; then
+        refresh=true
+        install_nvm true || exit 1
+    fi
     activate_node || {
         echo "[ERROR] Required Node unavailable; run install.sh before installing tools" >&2
         exit 1
     }
-    install_declared_tools
+    install_declared_tools "$refresh"
     ;;
 *)
     echo "Usage: $0 {report|check|install|update}" >&2

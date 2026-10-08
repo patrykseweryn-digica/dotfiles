@@ -15,7 +15,12 @@ install_macos_brew_bundle() {
         return 0
     fi
 
-    echo "[INFO] Installing macOS apps and tools from Brewfile..."
+    if brew bundle check --file "${DOTFILES_DIR}/Brewfile" >/dev/null 2>&1; then
+        echo "[INFO] Brewfile dependencies are already installed"
+        return 0
+    fi
+
+    echo "[INFO] Installing missing macOS apps and tools from Brewfile..."
     if ! brew bundle install --file "${DOTFILES_DIR}/Brewfile"; then
         echo "[WARN] Brewfile installation had issues, continuing..."
     fi
@@ -54,7 +59,7 @@ install_vscode_cli() {
 
 install_vscode_extensions() {
     local extensions_file="${DOTFILES_DIR}/config/Code/extensions.txt"
-    local extension
+    local extension installed
 
     if [ ! -f "$extensions_file" ]; then
         return 0
@@ -65,13 +70,21 @@ install_vscode_extensions() {
         return 0
     fi
 
-    echo "[INFO] Installing VS Code extensions..."
+    installed="$(code --list-extensions 2>/dev/null)" || {
+        echo "[WARN] Failed to list VS Code extensions"
+        return 1
+    }
     while IFS= read -r extension; do
         case "$extension" in
             "" | \#*) continue ;;
         esac
 
-        code --install-extension "$extension" || echo "[WARN] Failed to install VS Code extension: $extension"
+        if grep -Fqix "$extension" <<<"$installed"; then
+            continue
+        fi
+        echo "[INFO] Installing VS Code extension: $extension"
+        code --install-extension "$extension" ||
+            echo "[WARN] Failed to install VS Code extension: $extension"
     done < "$extensions_file"
 }
 

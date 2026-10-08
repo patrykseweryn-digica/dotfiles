@@ -143,34 +143,41 @@ export TEST_AGENT_PI_VERSION TEST_AGENT_CODEX_VERSION TEST_AGENT_CLAUDE_VERSION 
 : >"$npm_log"
 : >"$native_log"
 "$AGENT_TOOLS" install
+[ ! -s "$npm_log" ] || fail "install queried or replaced available npm tools"
+[ ! -s "$native_log" ] || fail "install replaced available native tools"
 
+cp "$manifest" "$manifest.before"
+LATEST_VERSION=2.0.0 AGENT_TOOLS="$AGENT_TOOLS" \
+  "$JUST_BIN" --justfile "${DOTFILES_DIR}/justfile" update-agent-tools
+cmp "$manifest" "$manifest.before" || fail "update changed the tool inventory"
 grep -Fx 'install -g --ignore-scripts @example/pi@latest' "$npm_log" >/dev/null ||
   fail "Pi did not install latest"
 for package in @example/codex opencode-ai skills; do
   grep -Fx "install -g ${package}@latest" "$npm_log" >/dev/null ||
     fail "latest npm version not installed: $package"
 done
-grep -Fx '1.2.3' "$native_log" >/dev/null ||
-  fail "resolved latest Claude version not installed"
-
-cp "$manifest" "$manifest.before"
-LATEST_VERSION=2.0.0 AGENT_TOOLS="$AGENT_TOOLS" \
-  "$JUST_BIN" --justfile "${DOTFILES_DIR}/justfile" update-agent-tools
-cmp "$manifest" "$manifest.before" || fail "update changed the tool inventory"
+grep -Fx '2.0.0' "$native_log" >/dev/null ||
+  fail "resolved latest Claude version not installed by update"
 
 export TEST_AGENT_PI_VERSION=2.0.0 TEST_AGENT_CODEX_VERSION=2.0.0 TEST_AGENT_CLAUDE_VERSION=2.0.0
 export TEST_AGENT_OPENCODE_VERSION=2.0.0 TEST_AGENT_SKILLS_VERSION=2.0.0
 : >"$npm_log"
+: >"$native_log"
 LATEST_VERSION=2.0.0 "$AGENT_TOOLS" install
 [ ! -s "$npm_log" ] || fail "current tools reinstalled"
+[ ! -s "$native_log" ] || fail "current native tools reinstalled"
 LATEST_VERSION=3.0.0 "$AGENT_TOOLS" install
+[ ! -s "$npm_log" ] || fail "install checked upstream for available tools"
+LATEST_VERSION=3.0.0 "$AGENT_TOOLS" update
 [ "$(wc -l < "$npm_log" | tr -d ' ')" -eq 4 ] ||
-  fail "latest install did not update every npm tool"
-for action in report check install; do
+  fail "explicit update did not update every npm tool"
+for action in report check update; do
   if REGISTRY_FAIL=true "$AGENT_TOOLS" "$action" >/dev/null 2>&1; then
     fail "$action hid registry failure"
   fi
 done
+REGISTRY_FAIL=true "$AGENT_TOOLS" install >/dev/null ||
+  fail "install queried the registry for available tools"
 
 if grep -En 'agent-tools|npm view|@latest' \
   "${DOTFILES_DIR}/sync-agents.sh" >/dev/null; then
@@ -344,7 +351,7 @@ JSON
 if "$AGENT_TOOLS" check >"${tmp_dir}/missing.log"; then
   fail "new npm declaration was not missing before installation"
 fi
-"$AGENT_TOOLS" install
+REGISTRY_FAIL=true "$AGENT_TOOLS" install
 "$AGENT_TOOLS" check
 [ "$(dotfiles-fixture --version)" = 1.2.3 ] || fail "real npm did not install latest"
 : >"$npm_log"
@@ -363,15 +370,20 @@ if LATEST_VERSION=2.0.0 "$AGENT_TOOLS" check >"${tmp_dir}/fixture-drift.log"; th
 fi
 grep -F drift "${tmp_dir}/fixture-drift.log" >/dev/null
 LATEST_VERSION=2.0.0 "$AGENT_TOOLS" install
+[ "$(dotfiles-fixture --version)" = 1.2.3 ] ||
+  fail "install replaced an available latest-channel tool"
+LATEST_VERSION=2.0.0 "$AGENT_TOOLS" update
 LATEST_VERSION=2.0.0 "$AGENT_TOOLS" check
 jq -e '.tools[0] | has("version") | not' "$manifest" >/dev/null ||
   fail "update pinned latest tool"
 cp "$manifest" "$manifest.before"
-for action in check report install update; do
+for action in check report update; do
   if REGISTRY_FAIL=true "$AGENT_TOOLS" "$action" >"${tmp_dir}/registry-error.log" 2>&1; then
     fail "ordinary latest $action hid registry failure"
   fi
 done
+REGISTRY_FAIL=true "$AGENT_TOOLS" install >/dev/null ||
+  fail "install queried the registry for an available fixture"
 cmp "$manifest" "$manifest.before" || fail "failed update changed declaration"
 
 echo "[INFO] agent tools smoke test passed"

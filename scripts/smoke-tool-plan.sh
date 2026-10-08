@@ -399,6 +399,7 @@ STUB
     assert_log_not_contains "$log_file" "brew install"
     assert_log_not_contains "$log_file" "apt-get install"
     assert_log_not_contains "$log_file" "github "
+    assert_log_not_contains "$log_file" "tldr --update"
 
     rm -rf "$tmp_dir"
 }

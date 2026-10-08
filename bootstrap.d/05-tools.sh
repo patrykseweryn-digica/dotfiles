@@ -183,10 +183,16 @@ install_delta() {
 }
 
 install_tealdeer() {
+    local installed=false
+
+    tool_plan_installed "tldr" || installed=true
     # tealdeer (tldr - practical command examples)
     run_cli_tool_plan "tealdeer" "tldr" \
         "tealdeer" "tealdeer" "tealdeer" "tealdeer" \
-        "tealdeer-rs/tealdeer" "v1.8.1" "$(github_binary_pattern tealdeer)" "$(github_binary_pattern tealdeer)" "tldr" "update_tldr_cache"
+        "tealdeer-rs/tealdeer" "v1.8.1" "$(github_binary_pattern tealdeer)" "$(github_binary_pattern tealdeer)" "tldr"
+    if [ "$installed" = true ] && tool_plan_installed "tldr"; then
+        update_tldr_cache
+    fi
 }
 
 install_lazygit() {

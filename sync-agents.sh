@@ -2917,7 +2917,11 @@ cmd_claude_install() {
 
 cmd_install() {
     cmd_plugin_provider_preflight || return 1
-    cmd_push_skills || return 1
+    if cmd_skills_check >/dev/null 2>&1; then
+        log_info "Runtime skills already match repository intent"
+    else
+        cmd_push_skills || return 1
+    fi
     cmd_codex_install || return 1
     cmd_opencode_install || return 1
     cmd_pi_install || return 1

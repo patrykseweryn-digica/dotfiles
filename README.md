@@ -77,7 +77,8 @@ are retained. Doctor compares the active runtime with the newest locally
 installed Node; it does not check upstream Node releases.
 
 `.agents/tool-versions.json` lists developer CLIs with `channel: "latest"`,
-without exact versions. Install and update resolve current releases without
+without exact versions. Install provisions missing tools without checking the
+network for tools already present. Update resolves current releases without
 rewriting the inventory. Reports resolve npm `latest` and fail explicitly
 when the registry is unavailable.
 Native latest installers resolve their own releases; their report checks
@@ -136,7 +137,7 @@ causes `just doctor` to fail and print the corresponding install command.
 ## Setup commands
 
 ```bash
-just install          # new machine: tools, links, agents, SSH, hooks
+just install          # converge missing tools and local config
 just update-dotfiles  # existing machine: links + agents, no tools, no SSH
 just setup-ssh        # explicit SSH key/config setup
 ```

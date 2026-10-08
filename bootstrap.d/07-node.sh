@@ -49,7 +49,8 @@ activate_node() {
 }
 
 install_nvm() {
-    local expected installer release version
+    local refresh="${1:-false}"
+    local expected installer release version installed
     expected=$(required_node_version) || return 1
     export NVM_DIR="${HOME}/.nvm"
 
@@ -69,11 +70,16 @@ install_nvm() {
 
     # shellcheck source=/dev/null
     . "${NVM_DIR}/nvm.sh" --no-use || return 1
-    echo "[INFO] Ensuring Node.js $expected..."
-    # Never import globals or the user's nvm default-packages file.
-    if ! nvm install --skip-default-packages "$expected"; then
-        echo "[ERROR] Failed to install latest Node.js; previous Node retained" >&2
-        return 1
+    installed=$(nvm version "$expected" 2>/dev/null || true)
+    if [ "$refresh" = true ] || [ "$installed" = N/A ] || [ -z "$installed" ]; then
+        echo "[INFO] Installing Node.js $expected..."
+        # Never import globals or the user's nvm default-packages file.
+        if ! nvm install --skip-default-packages "$expected"; then
+            echo "[ERROR] Failed to install latest Node.js; previous Node retained" >&2
+            return 1
+        fi
+    else
+        echo "[INFO] Node.js $installed is already installed"
     fi
     nvm use --silent "$expected" || return 1
     check_node || return 1

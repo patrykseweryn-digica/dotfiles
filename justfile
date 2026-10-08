@@ -8,7 +8,7 @@ agent_tools := env_var_or_default("AGENT_TOOLS", "./scripts/agent-tools.sh")
 default:
     just --list
 
-# Full setup: tools, links, agent config, SSH, hooks.
+# Converge missing tools, links, agent config, SSH, and hooks.
 install:
     ./install.sh
 

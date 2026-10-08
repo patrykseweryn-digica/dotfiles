@@ -14,9 +14,17 @@ cat >"$scratch/nvm.sh" <<'STUB'
 nvm() {
     case "$1" in
     version)
-        local version="$2"
+        local version="$2" candidate
         [ "$version" != default ] || version=$(cat "$NVM_DIR/alias/default")
-        [ "$version" != node ] || version="$NODE_TEST_LATEST"
+        if [ "$version" = node ]; then
+            version=""
+            for candidate in "$NVM_DIR"/versions/node/v*/bin/node; do
+                [ -x "$candidate" ] || continue
+                version="${candidate#"$NVM_DIR/versions/node/v"}"
+                version="${version%/bin/node}"
+            done
+        fi
+        [ -n "$version" ] || { echo N/A; return 3; }
         if [ -x "$NVM_DIR/versions/node/v$version/bin/node" ]; then
             echo "v$version"
         else
@@ -37,8 +45,15 @@ nvm() {
         ;;
     use)
         [ "$2" = --silent ] || return 90
-        local version="$3"
-        [ "$version" != node ] || version="$NODE_TEST_LATEST"
+        local version="$3" candidate
+        if [ "$version" = node ]; then
+            version=""
+            for candidate in "$NVM_DIR"/versions/node/v*/bin/node; do
+                [ -x "$candidate" ] || continue
+                version="${candidate#"$NVM_DIR/versions/node/v"}"
+                version="${version%/bin/node}"
+            done
+        fi
         [ -x "$NVM_DIR/versions/node/v$version/bin/node" ] || return 3
         export PATH="$NVM_DIR/versions/node/v$version/bin:$PATH"
         ;;
@@ -84,12 +99,17 @@ for scenario in fresh older failure; do
             echo 22.21.0 >"$NVM_DIR/alias/default"
             export PATH="$NVM_DIR/versions/node/v22.21.0/bin:$PATH"
         fi
-        if bash "$DOTFILES_DIR/bootstrap.d/07-node.sh" check; then
-            echo "[ERROR] Node check accepted missing/older runtime" >&2
+        if [ "$scenario" = fresh ]; then
+            if bash "$DOTFILES_DIR/bootstrap.d/07-node.sh" check; then
+                echo "[ERROR] Node check accepted missing runtime" >&2
+                exit 1
+            fi
+        elif ! bash "$DOTFILES_DIR/bootstrap.d/07-node.sh" check; then
+            echo "[ERROR] Node check rejected the latest local runtime" >&2
             exit 1
         fi
         if [ "$scenario" = failure ]; then
-            if NODE_TEST_INSTALL_FAIL=true install_nvm >"$scratch/failure.log" 2>&1; then
+            if NODE_TEST_INSTALL_FAIL=true install_nvm true >"$scratch/failure.log" 2>&1; then
                 echo "[ERROR] Node bootstrap ignored failed install" >&2
                 exit 1
             fi
@@ -102,13 +122,19 @@ for scenario in fresh older failure; do
             [ "$PATH" = "$before_path" ]
             activate_node
             bash "$DOTFILES_DIR/bootstrap.d/07-node.sh" check
+            active_version="$expected"
+            [ "$scenario" = fresh ] || active_version=22.21.0
             # A new shell loads the persisted default without inherited NVM PATH.
             PATH="$scratch/stubs:/usr/bin:/bin" bash -c \
-                'source "$HOME/.nvm/nvm.sh"; test "$(node --version)" = "v$1"' -- "$expected"
+                'source "$HOME/.nvm/nvm.sh"; test "$(node --version)" = "v$1"' -- "$active_version"
             install_nvm
             check_node
-            # A changed upstream release must be installed without repo edits.
+            # Ordinary install remains local even when upstream changes.
             NODE_TEST_LATEST=99.1.0 install_nvm
+            [ "$(node --version)" = "v$active_version" ]
+            NODE_TEST_LATEST=99.1.0 check_node
+            # Explicit update resolves and installs the changed upstream release.
+            NODE_TEST_LATEST=99.1.0 install_nvm true
             NODE_TEST_LATEST=99.1.0 check_node
             if [ "$scenario" = older ]; then
                 [ "$("$NVM_DIR/versions/node/v22.21.0/bin/node" --version)" = v22.21.0 ]
@@ -125,6 +151,6 @@ done
     fi
     [ ! -e "$HOME/.nvm/nvm.sh" ]
 )
-[ "$(grep -c '^install --skip-default-packages ' "$NODE_TEST_LOG")" -eq 7 ]
+[ "$(grep -c '^install --skip-default-packages ' "$NODE_TEST_LOG")" -eq 4 ]
 if grep -F unexpected-npm "$NODE_TEST_LOG"; then exit 1; fi
 echo "[INFO] Node smoke test passed"

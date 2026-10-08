@@ -395,6 +395,9 @@ STUB
             cat "$sync_log" >&2
             exit 1
         fi
+        local skill_install_count
+        skill_install_count="$(wc -l <"$npx_log" | tr -d ' ')"
+        [ "$skill_install_count" -gt 0 ] || fail "$os_name: skills were not installed"
         local config="${HOME}/.no-mistakes/config.yaml"
         [ -f "$config" ] || fail "$os_name: missing no-mistakes config"
         if [ "$os_name" = Darwin ]; then
@@ -420,6 +423,8 @@ YAML
             cat "$sync_log" >&2
             exit 1
         fi
+        [ "$(wc -l <"$npx_log" | tr -d ' ')" -eq "$skill_install_count" ] ||
+            fail "$os_name: repeated setup reinstalled matching skills"
         cmp "$config" "${tmp_dir}/expected.yaml" ||
             fail "$os_name: repeated setup changed no-mistakes settings"
         echo "[INFO] $os_name: no-mistakes fresh/existing + repeat passed"
@@ -442,6 +447,8 @@ YAML
             cat "$sync_log" >&2
             exit 1
         fi
+        [ "$(wc -l <"$npx_log" | tr -d ' ')" -eq "$skill_install_count" ] ||
+            fail "$os_name: unrelated config repair reinstalled matching skills"
         cmp "$herdr_config" "${tmp_dir}/herdr-expected.toml" ||
             fail "$os_name: Herdr title not restored or local settings lost"
         echo "[INFO] $os_name: Herdr fresh/existing + repeat + restore passed"

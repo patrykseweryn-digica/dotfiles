@@ -12,16 +12,17 @@ List tools and update their latest releases without editing the inventory.
 
 - `just agent-versions` for the live version report.
 - `just update-agent-tools` for an explicit update.
-- `just install` for setup including latest tools.
+- `just install` for setup including missing tools.
 
 ## Driving it with Bash smoke scripts
 
 Preconditions: working host Node/npm; no live update needed for verification.
 
-- **Update and read back.** Run `bash scripts/smoke-agent-tools.sh`. Its
-  public just update installs a real fixture npm CLI from a local tarball,
-  reads its version, checks that inventory bytes did not change, and verifies
-  repair after independently changing the installed package.
+- **Install, update and read back.** Run `bash scripts/smoke-agent-tools.sh`.
+  Install skips available tools without a registry query. Public just update
+  installs a real fixture npm CLI from a local tarball, reads its version,
+  checks that inventory bytes did not change, and verifies repair after
+  independently changing the installed package.
 - **Node upgrade.** Run `bash scripts/smoke-node.sh`. It drives bootstrap
   with an isolated nvm provider, changes the upstream version, reads the
   selected Node and default alias, and verifies the previous runtime survives
