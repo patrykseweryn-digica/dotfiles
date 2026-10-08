@@ -73,6 +73,7 @@
       "sourceUrl": "https://github.com/mattpocock/skills.git"
     },
     "control-cli": {
+      "ref": "main",
       "skillPath": "cursor-team-kit/skills/control-cli/SKILL.md",
       "source": "cursor/plugins",
       "sourceType": "github",
@@ -85,6 +86,7 @@
       "sourceUrl": "https://github.com/steipete/agent-scripts.git"
     },
     "create-verification-skill": {
+      "ref": "main",
       "skillPath": "pstack/skills/create-verification-skill/SKILL.md",
       "source": "cursor/plugins",
       "sourceType": "github",
@@ -232,6 +234,7 @@
       "sourceUrl": "https://github.com/pydantic/skills.git"
     },
     "maintain-verification-skill": {
+      "ref": "main",
       "skillPath": "pstack/skills/maintain-verification-skill/SKILL.md",
       "source": "cursor/plugins",
       "sourceType": "github",
@@ -245,6 +248,7 @@
     },
     "poteto-mode": {
       "installName": "Poteto Mode",
+      "ref": "main",
       "skillPath": "pstack/skills/poteto-mode/SKILL.md",
       "source": "cursor/plugins",
       "sourceType": "github",
@@ -275,6 +279,7 @@
       "sourceUrl": "https://github.com/mlflow/skills.git"
     },
     "review-and-ship": {
+      "ref": "main",
       "skillPath": "cursor-team-kit/skills/review-and-ship/SKILL.md",
       "source": "cursor/plugins",
       "sourceType": "github",
@@ -324,6 +329,7 @@
       "sourceUrl": "https://github.com/steipete/agent-scripts.git"
     },
     "swarm": {
+      "ref": "main",
       "skillPath": "pstack/skills/swarm/SKILL.md",
       "source": "cursor/plugins",
       "sourceType": "github",

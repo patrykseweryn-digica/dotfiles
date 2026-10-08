@@ -4,7 +4,10 @@ repo="$(cd "$(dirname "$0")/.." && pwd)"
 task_dir="$(mktemp -d)"
 trap 'rm -rf "$task_dir"' EXIT
 mkdir -p "$task_dir/bin" "$task_dir/custom"
-jq '{skills: {"poteto-mode": .skills["poteto-mode"]}}' \
+jq '{skills: {
+    "control-cli": .skills["control-cli"],
+    "poteto-mode": .skills["poteto-mode"]
+}}' \
     "$repo/.agents/skill-lock.json" > "$task_dir/lock.json"
 cat > "$task_dir/bin/skills" <<'STUB'
 #!/bin/bash
@@ -27,6 +30,9 @@ for skill in "${skills[@]}"; do
     case "$skill" in
     'Poteto Mode')
         folder=poteto-mode
+        ;;
+    'control-cli')
+        folder=control-cli
         ;;
     'Second Skill')
         folder=second-skill
@@ -79,7 +85,12 @@ env -u CODEX_HOME -u OPENCODE_CONFIG_DIR -u PI_CODING_AGENT_DIR \
     SKILL_TEST_LOG="$task_dir/preflight-calls" \
     "$repo/sync-agents.sh" skills-preflight >"$task_dir/preflight-output" 2>&1
 test ! -e "$preflight_home/.agents"
-rg -q 'cursor/plugins.*--skill Poteto Mode' "$task_dir/preflight-calls"
+rg -qx \
+    'add -g https://github.com/cursor/plugins/tree/main/cursor-team-kit --skill control-cli --agent codex -y' \
+    "$task_dir/preflight-calls"
+rg -qx \
+    'add -g https://github.com/cursor/plugins/tree/main/pstack --skill Poteto Mode --agent codex -y' \
+    "$task_dir/preflight-calls"
 
 multi_home="$task_dir/multi failure home"
 mkdir -p "$multi_home/.agents/skills/preserve"

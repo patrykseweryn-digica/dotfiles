@@ -1706,18 +1706,36 @@ stage_locked_skills() {
         return 1
     }
 
-    local groups group names name source source_url install_name failed=false
+    local groups group names name source source_url install_source install_name
+    local failed=false
     groups=$(jq -c '
+        def install_source:
+            (.source // "") as $source
+            | (.sourceUrl // "") as $source_url
+            | (.ref // "") as $ref
+            | (.skillPath // "") as $skill_path
+            | if .sourceType == "github" and
+                 ($source_url | startswith("https://github.com/")) and
+                 ($ref | length) > 0 and
+                 ($skill_path | contains("/skills/"))
+              then
+                ($skill_path | split("/skills/")[0]) as $package_path
+                | ($source_url | sub("\\.git$"; "")) +
+                  "/tree/" + $ref + "/" + $package_path
+              else
+                $source
+              end;
         [
             .skills | to_entries[] |
             {
                 name: .key,
                 source: .value.source,
                 sourceUrl: (.value.sourceUrl // ""),
+                installSource: (.value | install_source),
                 installName: (.value.installName // .key)
             }
         ]
-        | group_by([.source, .sourceUrl])[]
+        | group_by([.installSource, .sourceUrl])[]
     ' "$SKILL_LOCK_REPO") || {
         cleanup_staged_skills
         echo "[ERROR] Invalid repository skill lock: $SKILL_LOCK_REPO" >&2
@@ -1736,9 +1754,10 @@ stage_locked_skills() {
         [ -n "$group" ] || continue
         source="$(jq -r '.[0].source' <<<"$group")"
         source_url="$(jq -r '.[0].sourceUrl' <<<"$group")"
+        install_source="$(jq -r '.[0].installSource' <<<"$group")"
         names="$(jq -r 'map(.name) | join(", ")' <<<"$group")"
-        log_info "Staging current skills: $names (from $source)"
-        local -a command_args=(add -g "$source" --skill)
+        log_info "Staging current skills: $names (from $install_source)"
+        local -a command_args=(add -g "$install_source" --skill)
         while IFS= read -r install_name; do
             command_args+=("$install_name")
         done < <(jq -r '.[].installName' <<<"$group")
