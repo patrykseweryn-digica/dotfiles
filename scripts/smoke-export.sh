@@ -280,7 +280,11 @@ cat >"$codex_mcp" <<'JSON'
   {
     "enabled": true,
     "name": "codex-only",
-    "transport": {"args": [], "command": "codex-server", "type": "stdio"}
+    "transport": {
+      "args": [],
+      "command": "/Users/local/bin/codex-server",
+      "type": "stdio"
+    }
   },
   {
     "enabled": true,
@@ -548,11 +552,12 @@ if grep -F "$HOME/" \
     fail "export wrote a local path"
 fi
 jq -e '
-    keys == ["claude-only", "codex-only", "opencode-only", "pi-only", "shared"] and
+    keys == ["claude-only", "opencode-only", "pi-only", "shared"] and
     .["claude-only"] == {
       type: "stdio", command: "claude-server", args: []
     }
-' "$repo_mcp" >/dev/null || fail "MCP export was not normalized"
+' "$repo_mcp" >/dev/null ||
+    fail "MCP export included Codex-only local state"
 git -C "$checkout" diff --cached --quiet || fail "export staged changes"
 [ "$(git -C "$checkout" rev-parse HEAD)" = "$initial_head" ] ||
     fail "export created a commit"

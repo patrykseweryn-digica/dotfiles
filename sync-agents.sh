@@ -634,9 +634,24 @@ mcp_rows_to_inventory() {
     ' "$rows_file"
 }
 
+filter_portable_mcp_rows() {
+    local source="$1" target="$2"
+    jq -c -s --slurpfile wanted "$MCP_SERVERS" '
+        . as $rows
+        | $rows[] as $row
+        | select(
+            $row.runtime != "codex" or
+            ($wanted[0] | has($row.name)) or
+            any($rows[];
+                .runtime != "codex" and .name == $row.name)
+        )
+        | $row
+    ' "$source" >"$target"
+}
+
 build_mcp_candidate() {
-    local candidate="$1"
-    local rows runtimes conflicts
+    local candidate="$1" include_codex_only="${2:-false}"
+    local rows filtered runtimes conflicts
     rows="$(mktemp)"
     runtimes="$(available_mcp_runtimes)"
     [ -n "$runtimes" ] || {
@@ -648,6 +663,14 @@ build_mcp_candidate() {
         rm -f "$rows"
         return 1
     }
+    if [ "$include_codex_only" != true ]; then
+        filtered="$(mktemp)"
+        filter_portable_mcp_rows "$rows" "$filtered" || {
+            rm -f "$rows" "$filtered"
+            return 1
+        }
+        mv "$filtered" "$rows"
+    fi
 
     conflicts=$(jq -s '
         sort_by(.name, .runtime)
@@ -680,10 +703,14 @@ cmd_pull_mcp() {
     local candidate current reply
     candidate="$(mktemp)"
     current="$(mktemp)"
-    if ! build_mcp_candidate "$candidate"; then
+    if ! build_mcp_candidate "$candidate" true; then
         rm -f "$candidate" "$current"
         return 1
     fi
+    validate_mcp_candidate "$candidate" || {
+        rm -f "$candidate" "$current"
+        return 1
+    }
     normalize_mcp_inventory "$MCP_SERVERS" >"$current"
 
     if cmp -s "$current" "$candidate"; then
@@ -3438,7 +3465,7 @@ emit_category_plan() {
 }
 
 cmd_mcp_plan() {
-    local rows wanted candidate conflicts actual runtime config
+    local rows filtered wanted candidate conflicts actual runtime config
     local status=PASS
     rows="$(mktemp)"
     wanted="$(mktemp)"
@@ -3468,6 +3495,13 @@ EOF
         emit_category_plan FAIL mcp MCP
         return 0
     fi
+    filtered="$(mktemp)"
+    if ! filter_portable_mcp_rows "$rows" "$filtered"; then
+        rm -f "$rows" "$filtered" "$wanted" "$candidate"
+        emit_category_plan FAIL mcp MCP
+        return 0
+    fi
+    mv "$filtered" "$rows"
 
     conflicts=$(jq -s '
         sort_by(.name, .runtime) | group_by(.name) |

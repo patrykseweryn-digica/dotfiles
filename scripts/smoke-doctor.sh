@@ -42,6 +42,7 @@ export SKILL_LOCK_REPO="${tmp_dir}/skills.json"
 export SKILL_LOCK_LIVE="${home_dir}/.agents/.skill-lock.json"
 export SHARED_SKILLS_CUSTOM_DIR="${tmp_dir}/custom-skills"
 export SKILLS_CLI="${stub_dir}/skills"
+export CODEX_MCP_STATE_FILE="${tmp_dir}/codex-mcp.json"
 
 mkdir -p \
     "${home_dir}/.agents/skills" \
@@ -241,9 +242,10 @@ printf '{"marketplaces":[]}\n' >"$CODEX_MARKETPLACE_LIST_FILE"
 cat >"${stub_dir}/codex" <<'STUB'
 #!/bin/bash
 [ "$*" = 'mcp list --json' ] || exit 1
-printf '[]\n'
+cat "$CODEX_MCP_STATE_FILE"
 STUB
 chmod +x "${stub_dir}/codex"
+printf '[]\n' >"$CODEX_MCP_STATE_FILE"
 
 sync_real() {
     HOME="$home_dir" PATH="${stub_dir}:/usr/bin:/bin" \
@@ -277,6 +279,16 @@ snapshot_state "${tmp_dir}/real-after"
 cmp "${tmp_dir}/real-before" "${tmp_dir}/real-after" ||
     fail "real state plan changed HOME or checkout"
 [ ! -s "$network_log" ] || fail "real state plan attempted network access"
+
+cat >"$CODEX_MCP_STATE_FILE" <<'JSON'
+[{"enabled":true,"name":"codex-local","transport":{
+  "type":"stdio","command":"/Users/local/bin/server","args":[]}}]
+JSON
+real_plan
+grep -E '^PASS[[:space:]]+mcp[[:space:]]' \
+    "${tmp_dir}/real-plan" >/dev/null ||
+    fail "Codex-only local MCP state was not ignored"
+printf '[]\n' >"$CODEX_MCP_STATE_FILE"
 
 cp "$CLAUDE_SETTINGS_FILE" "${tmp_dir}/claude-settings.before"
 jq '.model = "changed"' "$CLAUDE_SETTINGS_FILE" >"${tmp_dir}/changed.json"
