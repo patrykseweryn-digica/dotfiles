@@ -29,6 +29,6 @@ check:
 doctor:
     ./scripts/doctor.sh
 
-# Report installed and latest known developer tool versions without changes.
+# List developer tools that need install or update without changes.
 outdated:
-    "{{ agent_tools }}" report
+    "{{ agent_tools }}" outdated

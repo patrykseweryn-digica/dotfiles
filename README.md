@@ -10,7 +10,7 @@ details unless you are debugging them.
 ```bash
 just install  # prepare a new machine without upgrading existing tools
 just doctor   # inspect local state offline and without writes
-just outdated # compare installed tools with latest known versions
+just outdated # list tools with known newer versions
 just update   # apply repository state and refresh managed upstream state
 just export   # review and save portable local additions to the checkout
 ```
@@ -62,12 +62,13 @@ download platforms fail before network access. Developer entries use
 `channel: "latest"`; update resolves current releases without rewriting the
 inventory. Reports resolve npm `latest` and fail explicitly when the registry
 is unavailable.
-Native latest installers resolve their own releases; their report checks
+Native latest installers resolve their own releases; local checks verify
 installed availability, not whether a newer release exists.
 
-`just outdated` is a read-only online report. It resolves npm releases;
-native installers report availability because they do not expose one common
-latest-version check. `just update` performs updates.
+`just outdated` is a read-only online report. It lists only known version
+drift or missing commands and omits current tools. Native latest versions are
+not checked because their installers do not expose one common version source.
+`just update` performs updates.
 
 Pi, Codex, OpenCode, and the skill manager use global npm packages. Claude
 Code uses Anthropic's native installer with the resolved latest version.

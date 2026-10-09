@@ -268,11 +268,15 @@ resolve_latest() {
 }
 
 report_versions() {
-    local strict="$1" failed=false
+    local strict="$1" only_outdated="${2:-false}" failed=false
+    local displayed=false native_unchecked=false
     local name command_name package expected installer ignore_scripts update_command
     local current status
 
-    printf '%-20s %-12s %-12s %s\n' "Tool" "Installed" "Expected" "Status"
+    if [ "$only_outdated" != true ]; then
+        printf '%-20s %-12s %-12s %s\n' \
+            "Tool" "Installed" "Expected" "Status"
+    fi
     while IFS=$'\t' read -r \
         name command_name package expected installer ignore_scripts \
         update_command; do
@@ -283,6 +287,7 @@ report_versions() {
             if [ "$expected" = latest ]; then
                 # Native installers own latest resolution; check availability offline.
                 status="available (latest not checked)"
+                native_unchecked=true
             elif [ "$current" = "$expected" ]; then
                 status="ok"
             else
@@ -294,12 +299,26 @@ report_versions() {
             status="missing"
             failed=true
         fi
-        printf '%-20s %-12s %-12s %s\n' \
-            "$name" "$current" "$expected" "$status"
+        if [ "$only_outdated" != true ] || \
+            [ "$status" = drift ] || [ "$status" = missing ]; then
+            if [ "$only_outdated" = true ] && [ "$displayed" = false ]; then
+                printf '%-20s %-12s %-12s %s\n' \
+                    "Tool" "Installed" "Expected" "Status"
+            fi
+            printf '%-20s %-12s %-12s %s\n' \
+                "$name" "$current" "$expected" "$status"
+            displayed=true
+        fi
         if [ "$strict" = true ] && { [ "$status" = drift ] || [ "$status" = missing ]; }; then
             echo "[ERROR] $name: installed=$current expected=$expected ($status)" >&2
         fi
     done < <(tool_rows)
+
+    if [ "$only_outdated" = true ]; then
+        [ "$displayed" = true ] || echo "[INFO] No outdated tools found"
+        [ "$native_unchecked" = false ] || \
+            echo "[INFO] Native latest versions were not checked"
+    fi
 
     if [ "$strict" = true ] && [ "$failed" = true ]; then
         echo "Run: just update" >&2
@@ -429,7 +448,8 @@ install_declared_tools() {
 
 validate_manifest
 case "${1:-}" in
-report) report_versions false ;;
+outdated) report_versions false true ;;
+report) report_versions false false ;;
 plan) plan_tools ;;
 check) check_tools ;;
 export-candidate)
@@ -455,7 +475,7 @@ install | update)
     install_declared_tools "$refresh"
     ;;
 *)
-    echo "Usage: $0 {plan|report|check|install|update|export-candidate}" >&2
+    echo "Usage: $0 {plan|outdated|report|check|install|update|export-candidate}" >&2
     exit 1
     ;;
 esac
