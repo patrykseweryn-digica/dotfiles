@@ -1,13 +1,19 @@
 {
   "codexMarketplaces": {
+    "impeccable": "https://github.com/pbakaus/impeccable.git",
     "last30days-skill": "https://github.com/mvanhorn/last30days-skill.git",
+    "obsidian-skills": "https://github.com/kepano/obsidian-skills.git",
     "ponytail": "https://github.com/DietrichGebert/ponytail.git",
-    "pydantic-skills": "https://github.com/pydantic/skills.git"
+    "pydantic-skills": "https://github.com/pydantic/skills.git",
+    "ui-ux-pro-max-skill": "https://github.com/nextlevelbuilder/ui-ux-pro-max-skill.git"
   },
   "codexPlugins": [
+    "impeccable@impeccable",
     "last30days@last30days-skill",
     "logfire@pydantic-skills",
-    "ponytail@ponytail"
+    "obsidian@obsidian-skills",
+    "ponytail@ponytail",
+    "ui-ux-pro-max@ui-ux-pro-max-skill"
   ],
   "marketplaces": {
     "anthropic-agent-skills": {
@@ -45,6 +51,9 @@
     },
     "app-6943b73823548191a9f9216c6790c453": {
       "codex": "plugin_asdk_app_6943b73823548191a9f9216c6790c453"
+    },
+    "app-69ea4ed2cf7c8191b742ef3622479ddd": {
+      "codex": "plugin_asdk_app_69ea4ed2cf7c8191b742ef3622479ddd"
     },
     "chrome-devtools-mcp": {
       "claude": "chrome-devtools-mcp@claude-plugins-official"
@@ -119,6 +128,9 @@
     "security-guidance": {
       "claude": "security-guidance@claude-plugins-official"
     },
+    "sites": {
+      "codex": "plugin_connector_1p_689987207de08191979cf68eca2941c6"
+    },
     "skill-creator": {
       "claude": "skill-creator@claude-plugins-official"
     },
@@ -133,6 +145,9 @@
     },
     "ui-ux-pro-max": {
       "claude": "ui-ux-pro-max@ui-ux-pro-max-skill"
+    },
+    "work-pets": {
+      "codex": "plugin_connector_1p_bccf6c8660c08191ae4470d9ae4877fa"
     }
   }
 }
