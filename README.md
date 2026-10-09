@@ -11,6 +11,7 @@ details unless you are debugging them.
 just --list
 just check
 just doctor
+just update
 just verify
 just agent-versions
 just push
@@ -141,9 +142,14 @@ causes `just doctor` to fail and print the corresponding install command.
 
 ```bash
 just install          # converge missing tools and local config
+just update           # plan and apply safe local configuration changes
 just update-dotfiles  # existing machine: links + agents, no tools, no SSH
 just setup-ssh        # explicit SSH key/config setup
 ```
+
+`just update` prints the plan, applies settings, MCP, managed links, and the
+Herdr hook independently, then prints the final state. `EXPORT` categories are
+left untouched and make the result incomplete until they are exported.
 
 Cursor CLI, Grok Build, Hermes Agent, Herdr, Treehouse and no-mistakes use
 official latest-release installers selected by the tool manifest.

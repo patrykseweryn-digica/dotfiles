@@ -16,6 +16,10 @@ install:
 update-dotfiles:
     DOTFILES_SKIP_SSH=true bash -c 'source ./install.sh; load_env; setup_repo_git; setup_dotfiles'
 
+# Apply repository local state while preserving additions that need export.
+update:
+    ./scripts/update-local.sh
+
 # Run deterministic repository checks.
 check:
     pre-commit run --all-files

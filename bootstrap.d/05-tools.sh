@@ -262,13 +262,22 @@ install_hermes() {
 }
 
 install_herdr() {
-    local installer settings tmp
+    local installer
+
+    prepare_herdr_settings || return 1
+    installer="$(curl -fsSL https://herdr.dev/install.sh)" || return 1
+    HERDR_INSTALL_DIR="$BIN_DIR" sh -c "$installer" || return 1
+    PATH="${BIN_DIR}:${PATH}" configure_herdr_hook
+}
+
+prepare_herdr_settings() {
+    local settings tmp
 
     settings="${HOME}/.claude/settings.json"
     if [ -L "$settings" ]; then
         if [ ! -f "$settings" ]; then
             echo "[ERROR] Broken or non-file Claude settings symlink: $settings" >&2
-            echo "Restore its target before installing Herdr: $(readlink "$settings")" >&2
+            echo "Restore its target before configuring Herdr: $(readlink "$settings")" >&2
             return 1
         fi
         tmp="$(mktemp "${settings}.XXXXXX")" || return 1
@@ -277,12 +286,26 @@ install_herdr() {
             return 1
         fi
     fi
+    if [ -f "$settings" ] &&
+        ! jq -e -s 'length == 1 and (.[0] | type == "object")' \
+            "$settings" >/dev/null 2>&1; then
+        echo "[ERROR] Invalid Claude settings: $settings" >&2
+        return 1
+    fi
+}
 
-    installer="$(curl -fsSL https://herdr.dev/install.sh)" || return 1
-    HERDR_INSTALL_DIR="$BIN_DIR" sh -c "$installer" || return 1
+configure_herdr_hook() {
+    local settings tmp herdr
+
+    prepare_herdr_settings || return 1
+    settings="${HOME}/.claude/settings.json"
+    herdr="$(command -v herdr)" || {
+        echo "[ERROR] Herdr is unavailable; install it before updating hooks" >&2
+        return 1
+    }
     mkdir -p "${HOME}/.claude" || return 1
     CLAUDE_CONFIG_DIR="${HOME}/.claude" \
-        "$BIN_DIR/herdr" integration install claude || return 1
+        "$herdr" integration install claude || return 1
     if [ ! -s "${HOME}/.claude/hooks/herdr-agent-state.sh" ]; then
         echo "[ERROR] Herdr did not install ~/.claude/hooks/herdr-agent-state.sh" >&2
         return 1

@@ -3152,6 +3152,35 @@ cmd_state_plan() {
     cmd_plugins_plan
 }
 
+cmd_settings_install() {
+    if [ "$#" -ne 1 ]; then
+        echo "Usage: $0 settings-install {codex|claude|opencode|pi}" >&2
+        return 1
+    fi
+    case "${1:-}" in
+    codex)
+        sync_codex_mcp_config
+        ;;
+    claude)
+        generate_claude_settings
+        ;;
+    opencode)
+        sync_opencode_mcp_config
+        ;;
+    pi)
+        mkdir -p "$PI_AGENT_DIR" || return 1
+        sync_pi_settings || return 1
+        pi_resources install || return 1
+        pi_models install || return 1
+        restore_pi_packages
+        ;;
+    *)
+        echo "Usage: $0 settings-install {codex|claude|opencode|pi}" >&2
+        return 1
+        ;;
+    esac
+}
+
 cmd_claude_install() {
     log_info "Installing Claude agent config..."
     link_file "$CLAUDE_AGENTS_SOURCE" "$CLAUDE_AGENTS_FILE" || return 1
@@ -3201,6 +3230,10 @@ done
 case "${1:-}" in
 state-plan)
     cmd_state_plan
+    ;;
+settings-install)
+    shift
+    cmd_settings_install "$@"
     ;;
 install)
     cmd_install
@@ -3300,6 +3333,7 @@ claude-settings-check)
     echo "Usage: $0 [--quiet] <command>"
     echo
     echo "  state-plan      Print the offline local state plan"
+    echo "  settings-install Apply one runtime's repository settings"
     echo "  pull-codex-settings"
     echo "                  Preview and confirm live Codex settings import"
     echo "  pull-mcp         Preview and confirm live MCP import"

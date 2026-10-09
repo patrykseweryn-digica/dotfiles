@@ -125,6 +125,12 @@ repos:
         entry: ./scripts/smoke-doctor.sh
         language: system
         pass_filenames: false
+      - id: local-update-smoke
+        name: Local state update smoke test
+        description: Verify planned partial updates and idempotent convergence
+        entry: ./scripts/smoke-update-local.sh
+        language: system
+        pass_filenames: false
       - id: agent-sync-interface-smoke
         name: Agent sync interface smoke test
         description: Verify symmetric sync commands and normalized MCP behavior

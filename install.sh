@@ -279,6 +279,17 @@ setup_repo_git() {
     git -C "$DOTFILES_DIR" config --local branch.master.rebase false
 }
 
+update_managed_links() {
+    ensure_install_dirs
+    deploy_targets <<EOF
+symlink|$DOTFILES_DIR/config/codex/AGENTS.md|$HOME/.codex/AGENTS.md
+symlink|$DOTFILES_DIR/config/claude/CLAUDE.md|$HOME/.claude/CLAUDE.md
+symlink|$DOTFILES_DIR/config/claude/settings.local.json|$HOME/.claude/settings.local.json
+symlink|$DOTFILES_DIR/config/opencode/AGENTS.md|$HOME/.config/opencode/AGENTS.md
+symlink|$DOTFILES_DIR/config/pi/AGENTS.md|$HOME/.pi/agent/AGENTS.md
+EOF
+}
+
 # Setup and link configuration files
 setup_dotfiles() {
     echo "[INFO] Setting up dotfile configurations..."
