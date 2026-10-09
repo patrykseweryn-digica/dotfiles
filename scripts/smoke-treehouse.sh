@@ -28,6 +28,7 @@ STUB
 chmod +x "$task_dir/stubs/"*
 export PATH="$task_dir/stubs:$PATH"
 export TREEHOUSE_ARCHIVE="$task_dir/release.tar.gz" TREEHOUSE_LOG="$task_dir/calls"
+export DOTFILES_DIR="$repo"
 # shellcheck source=bootstrap.d/05-tools.sh
 source "$repo/bootstrap.d/05-tools.sh"
 for TEST_OS in Linux Darwin; do
