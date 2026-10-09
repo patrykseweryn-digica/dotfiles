@@ -2,7 +2,8 @@
 set -eu
 
 DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-DOCTOR="${DOTFILES_DIR}/scripts/doctor.sh"
+STATE_PLAN="${DOTFILES_DIR}/scripts/state-plan.sh"
+JUST_BIN="$(command -v just)"
 UV_BIN="$(command -v uv)"
 export UV_CACHE_DIR="${UV_CACHE_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/uv}"
 
@@ -17,6 +18,7 @@ trap 'rm -rf "$tmp_dir"' EXIT
 home_dir="${tmp_dir}/home with spaces"
 stub_dir="${tmp_dir}/stubs"
 check_log="${tmp_dir}/checks.log"
+network_log="${tmp_dir}/network.log"
 
 # Pin every sync input/output instead of inheriting the caller's live overrides.
 export CODEX_CONFIG="${home_dir}/.codex/config.toml"
@@ -82,7 +84,23 @@ STUB
 
 cat >"${stub_dir}/agent-tools" <<'STUB'
 #!/bin/bash
-[ "${TOOL_DRIFT:-false}" = false ]
+[ "$1" = plan ] || exit 1
+case "${PLAN_MODE:-normal}" in
+contract)
+    printf 'PASS\ttools\tnone\thealthy\n'
+    printf 'UPDATE\tsettings\tupdate\tdrift\n'
+    printf 'EXPORT\tskills\texport\tlocal addition\n'
+    printf 'FAIL\ttools\tupdate\tmissing\n'
+    ;;
+invalid) printf 'BROKEN\ttools\tnone\tbad status\n' ;;
+normal)
+    if [ "${TOOL_DRIFT:-false}" = false ]; then
+        printf 'PASS\ttools\tnone\tTool 1.2.3 is available\n'
+    else
+        printf 'FAIL\ttools\tupdate\tTool is missing or not runnable\n'
+    fi
+    ;;
+esac
 STUB
 cat >"${stub_dir}/node" <<'STUB'
 #!/bin/bash
@@ -90,6 +108,14 @@ cat >"${stub_dir}/node" <<'STUB'
 printf 'v%s\n' "${NODE_TEST_VERSION:-99.0.0}"
 STUB
 chmod +x "${stub_dir}/sync-agents" "${stub_dir}/agent-tools" "${stub_dir}/node"
+for command_name in npm curl gh; do
+    cat >"${stub_dir}/${command_name}" <<'STUB'
+#!/bin/bash
+printf '%s %s\n' "$(basename "$0")" "$*" >>"$NETWORK_LOG"
+exit 99
+STUB
+    chmod +x "${stub_dir}/${command_name}"
+done
 cp "${DOTFILES_DIR}/config/claude/settings.json" "${home_dir}/.claude/settings.json"
 mkdir -p "${home_dir}/.claude/hooks"
 printf '#!/bin/bash\n' >"${home_dir}/.claude/hooks/herdr-agent-state.sh"
@@ -97,22 +123,49 @@ printf '#!/bin/bash\n' >"${home_dir}/.claude/hooks/herdr-agent-state.sh"
 run_doctor() {
     HOME="$home_dir" \
         PATH="${stub_dir}:/usr/bin:/bin" \
-        DOTFILES_DIR="$DOTFILES_DIR" \
         SYNC_AGENTS="${stub_dir}/sync-agents" \
         AGENT_TOOLS="${stub_dir}/agent-tools" \
+        NETWORK_LOG="$network_log" \
         DOCTOR_CHECK_LOG="$check_log" \
         FAIL_CHECK="${FAIL_CHECK:-}" \
         REAL_CHECK="${REAL_CHECK:-}" \
         NODE_TEST_VERSION="${NODE_TEST_VERSION:-}" \
         TOOL_DRIFT="${TOOL_DRIFT:-false}" \
-        env -u CODEX_HOME "$DOCTOR" >"${tmp_dir}/doctor.log" 2>&1
+        env -u CODEX_HOME DOTFILES_DIR="$DOTFILES_DIR" \
+        "$JUST_BIN" --justfile "${DOTFILES_DIR}/justfile" \
+        doctor >"${tmp_dir}/doctor.log" 2>&1
 }
 
+snapshot_state() {
+    local output="$1"
+
+    {
+        find "$home_dir" -print | LC_ALL=C sort
+        find "$home_dir" -type f -exec cksum {} \; | LC_ALL=C sort
+        git -C "$DOTFILES_DIR" status --short --untracked-files=all
+    } >"$output"
+}
+
+PLAN_MODE=contract AGENT_TOOLS="${stub_dir}/agent-tools" \
+    "$STATE_PLAN" tools >"${tmp_dir}/contract-plan"
+[ "$(wc -l <"${tmp_dir}/contract-plan" | tr -d ' ')" -eq 4 ] ||
+    fail "state plan does not support every status"
+if PLAN_MODE=invalid AGENT_TOOLS="${stub_dir}/agent-tools" \
+    "$STATE_PLAN" tools >/dev/null 2>&1; then
+    fail "state plan accepted an invalid status"
+fi
+
 : >"$check_log"
+: >"$network_log"
+snapshot_state "${tmp_dir}/before"
 run_doctor || {
     cat "${tmp_dir}/doctor.log" >&2
     fail "doctor failed"
 }
+snapshot_state "${tmp_dir}/after"
+cmp "${tmp_dir}/before" "${tmp_dir}/after" ||
+    fail "doctor changed HOME or checkout"
+[ ! -s "$network_log" ] || fail "doctor attempted network access"
 
 for expected in \
     plugins-check \

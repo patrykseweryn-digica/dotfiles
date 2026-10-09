@@ -122,6 +122,11 @@ export NPM_LOG="$npm_log"
 export NATIVE_LOG="$native_log"
 export PATH="${stub_dir}:/usr/bin:/bin"
 
+plan="$("$AGENT_TOOLS" plan)"
+[ "$(grep -c '^PASS[[:space:]]' <<<"$plan")" -eq 5 ] ||
+  fail "offline plan omitted available tools"
+grep -F $'PASS\ttools\tnone\tCodex 1.2.3 is available' <<<"$plan" \
+  >/dev/null || fail "tool plan omitted its contract fields"
 "$AGENT_TOOLS" check
 AGENT_TOOLS="$AGENT_TOOLS" \
   "$JUST_BIN" --justfile "${DOTFILES_DIR}/justfile" agent-versions |
@@ -129,10 +134,17 @@ AGENT_TOOLS="$AGENT_TOOLS" \
 
 TEST_AGENT_CODEX_VERSION=1.2.2
 export TEST_AGENT_CODEX_VERSION
-if "$AGENT_TOOLS" check >"${tmp_dir}/drift.log" 2>&1; then
-  fail "version check ignored drift"
-fi
+REGISTRY_FAIL=true "$AGENT_TOOLS" check >"${tmp_dir}/offline.log" ||
+  fail "offline check rejected an available latest-channel tool"
 unset TEST_AGENT_CODEX_VERSION
+
+mv "${stub_dir}/codex" "${stub_dir}/codex.missing"
+if "$AGENT_TOOLS" check >"${tmp_dir}/missing.log" 2>&1; then
+  fail "offline check accepted a missing tool"
+fi
+grep -F $'FAIL\ttools\tupdate\tCodex is missing or not runnable' \
+  "${tmp_dir}/missing.log" >/dev/null || fail "missing tool plan is incomplete"
+mv "${stub_dir}/codex.missing" "${stub_dir}/codex"
 
 TEST_AGENT_PI_VERSION=1.0.0
 TEST_AGENT_CODEX_VERSION=1.0.0
@@ -171,11 +183,15 @@ LATEST_VERSION=3.0.0 "$AGENT_TOOLS" install
 LATEST_VERSION=3.0.0 "$AGENT_TOOLS" update
 [ "$(wc -l < "$npm_log" | tr -d ' ')" -eq 4 ] ||
   fail "explicit update did not update every npm tool"
-for action in report check update; do
+for action in report update; do
   if REGISTRY_FAIL=true "$AGENT_TOOLS" "$action" >/dev/null 2>&1; then
     fail "$action hid registry failure"
   fi
 done
+REGISTRY_FAIL=true "$AGENT_TOOLS" plan >/dev/null ||
+  fail "tool plan contacted the registry"
+REGISTRY_FAIL=true "$AGENT_TOOLS" check >/dev/null ||
+  fail "tool check contacted the registry"
 REGISTRY_FAIL=true "$AGENT_TOOLS" install >/dev/null ||
   fail "install queried the registry for available tools"
 
@@ -289,8 +305,8 @@ export PATH="$HOME/.local/bin:$PATH"
 : >"$native_log"
 "$AGENT_TOOLS" install
 "$AGENT_TOOLS" check >"$tmp_dir/native-report.log"
-[ "$(grep -Fc 'available (latest not checked)' "$tmp_dir/native-report.log")" -eq 6 ] ||
-  fail "native report claims latest verification"
+[ "$(grep -c '^PASS[[:space:]]' "$tmp_dir/native-report.log")" -eq 6 ] ||
+  fail "native tool plan omitted an available tool"
 "$AGENT_TOOLS" update
 for name in hermes herdr treehouse no-mistakes cursor-agent grok; do
   [ "$(grep -Fxc "$name" "$native_log")" -eq 2 ] || fail "native dispatch missing: $name"
@@ -363,12 +379,10 @@ LATEST_VERSION=2.0.0 AGENT_TOOLS="$AGENT_TOOLS" \
 [ "$(dotfiles-fixture --version)" = 2.0.0 ] || fail "explicit update omitted new declaration"
 LATEST_VERSION=2.0.0 "$AGENT_TOOLS" check
 cmp "$manifest" "$manifest.before" || fail "real update changed inventory"
-# Downgrade the installed package independently to exercise drift and repair.
+# A locally available latest-channel tool stays healthy until update resolves upstream.
 "$REAL_NPM" install -g --offline --no-audit --no-fund "$fixture_dir/1.2.3.tgz"
-if LATEST_VERSION=2.0.0 "$AGENT_TOOLS" check >"${tmp_dir}/fixture-drift.log"; then
-  fail "new npm declaration ignored real installed version drift"
-fi
-grep -F drift "${tmp_dir}/fixture-drift.log" >/dev/null
+REGISTRY_FAIL=true "$AGENT_TOOLS" check >"${tmp_dir}/fixture-offline.log" ||
+  fail "offline check rejected an available latest-channel fixture"
 LATEST_VERSION=2.0.0 "$AGENT_TOOLS" install
 [ "$(dotfiles-fixture --version)" = 1.2.3 ] ||
   fail "install replaced an available latest-channel tool"
@@ -377,11 +391,13 @@ LATEST_VERSION=2.0.0 "$AGENT_TOOLS" check
 jq -e '.tools[0] | has("version") | not' "$manifest" >/dev/null ||
   fail "update pinned latest tool"
 cp "$manifest" "$manifest.before"
-for action in check report update; do
+for action in report update; do
   if REGISTRY_FAIL=true "$AGENT_TOOLS" "$action" >"${tmp_dir}/registry-error.log" 2>&1; then
     fail "ordinary latest $action hid registry failure"
   fi
 done
+REGISTRY_FAIL=true "$AGENT_TOOLS" check >/dev/null ||
+  fail "ordinary latest check contacted the registry"
 REGISTRY_FAIL=true "$AGENT_TOOLS" install >/dev/null ||
   fail "install queried the registry for an available fixture"
 cmp "$manifest" "$manifest.before" || fail "failed update changed declaration"

@@ -108,6 +108,27 @@ report_versions() {
     fi
 }
 
+plan_tools() {
+    local name command_name package expected installer ignore_scripts current
+
+    while IFS=$'\t' read -r \
+        name command_name package expected installer ignore_scripts; do
+        if current=$(installed_version "$command_name"); then
+            printf 'PASS\ttools\tnone\t%s %s is available\n' "$name" "$current"
+        else
+            printf 'FAIL\ttools\tupdate\t%s is missing or not runnable\n' "$name"
+        fi
+    done < <(tool_rows)
+}
+
+check_tools() {
+    local plan
+
+    plan="$(plan_tools)" || return 1
+    printf '%s\n' "$plan"
+    ! grep -q '^FAIL' <<<"$plan"
+}
+
 install_declared_tools() {
     local refresh="${1:-false}"
     local failed=false script
@@ -174,7 +195,8 @@ install_declared_tools() {
 validate_manifest
 case "${1:-}" in
 report) report_versions false ;;
-check) report_versions true ;;
+plan) plan_tools ;;
+check) check_tools ;;
 install | update)
     # Also protect direct callers such as just update-agent-tools in old shells.
     # shellcheck source=bootstrap.d/07-node.sh
@@ -191,7 +213,7 @@ install | update)
     install_declared_tools "$refresh"
     ;;
 *)
-    echo "Usage: $0 {report|check|install|update}" >&2
+    echo "Usage: $0 {plan|report|check|install|update}" >&2
     exit 1
     ;;
 esac

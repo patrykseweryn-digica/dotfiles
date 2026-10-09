@@ -5,6 +5,7 @@ default_dotfiles_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DOTFILES_DIR="${DOTFILES_DIR:-$default_dotfiles_dir}"
 SYNC_AGENTS="${SYNC_AGENTS:-${DOTFILES_DIR}/sync-agents.sh}"
 AGENT_TOOLS="${AGENT_TOOLS:-${DOTFILES_DIR}/scripts/agent-tools.sh}"
+STATE_PLAN="${STATE_PLAN:-${DOTFILES_DIR}/scripts/state-plan.sh}"
 failed=false
 
 run_check() {
@@ -22,6 +23,29 @@ run_check() {
         echo "[FAIL] ${label}" >&2
         failed=true
     fi
+    rm -f "$output"
+}
+
+run_plan() {
+    local output status category action message
+
+    output=$(mktemp) || return 1
+    if ! "$STATE_PLAN" all >"$output" 2>&1; then
+        sed -n -E '/^\[(ERROR|WARN|FAIL)\]/p' "$output" | sed -n '1,20p'
+        echo "[FAIL] state plan" >&2
+        rm -f "$output"
+        failed=true
+        return
+    fi
+
+    while IFS=$'\t' read -r status category action message; do
+        echo "[$status] ${category}: ${message}"
+        case "$action" in
+        update) echo "Run: just update" ;;
+        export) echo "Run: just export" ;;
+        esac
+        [ "$status" != FAIL ] || failed=true
+    done <"$output"
     rm -f "$output"
 }
 
@@ -99,7 +123,7 @@ run_check "MCP drift" "$SYNC_AGENTS" mcp-check
 run_check "Pi settings and packages" "$SYNC_AGENTS" pi-check
 run_check "skill inventory" "$SYNC_AGENTS" skills-check
 run_check "agent links" check_agent_links
-run_check "agent tool versions" "$AGENT_TOOLS" check
+run_plan
 run_check "Node version" bash "$DOTFILES_DIR/bootstrap.d/07-node.sh" check
 
 if [ "$failed" = true ]; then
