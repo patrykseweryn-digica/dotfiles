@@ -29,7 +29,7 @@ through explicit export or category-specific pull commands.
 ```bash
 just pull-codex-settings # preview live Codex preferences, then confirm
 just pull-mcp       # preview live MCP state, then confirm
-just export         # one transaction for portable settings and MCP
+just export         # one transaction for all portable live state
 just push-mcp       # repository MCP state -> runtimes
 just pull-skills    # preview live skills, then confirm repository changes
 just skills-preflight # resolve current upstream skills without applying
@@ -43,9 +43,12 @@ There is no broad `just pull`. After saving a model or reasoning default in
 Codex, run `just pull-codex-settings`. MCP pull merges identical definitions
 and stops without writing on conflicts. Environment values, HTTP headers,
 credentials, OAuth state, and unsupported transports are not imported.
-`just export` requires a clean checkout, builds one allowlisted settings/MCP
-plan, and writes only after one confirmation. It never stages, commits, pushes,
-or changes runtime files; an apply failure rolls the checkout back.
+`just export` requires a clean checkout and builds one plan for allowlisted
+settings, normalized MCP, skills, and plugin membership. It validates every
+managed skill against current upstream and enforces plugin provider ownership
+before one confirmation. Removed or renamed skills stop the operation. Export
+never stages, commits, pushes, or changes runtime files; an apply failure rolls
+the checkout back.
 Skill pull previews lock and custom-skill additions, removals, and replacements
 before asking for confirmation. Skill preflight installs every locked skill
 from current upstream into a disposable home and changes no runtime state.

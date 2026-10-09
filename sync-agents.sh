@@ -925,13 +925,22 @@ require_clean_export_checkout() {
 }
 
 rollback_export_targets() {
-    local backup_root="$1" failed=false index target
+    local backup_root="$1" failed=false index target type
     for index in "${!EXPORT_TARGETS[@]}"; do
         target="${EXPORT_TARGETS[$index]}"
+        type="${EXPORT_TYPES[$index]}"
         if [ -f "${backup_root}/${index}" ]; then
             cp -p "${backup_root}/${index}" "$target" || failed=true
+        elif [ -d "${backup_root}/${index}" ]; then
+            mkdir -p "$target" || failed=true
+            rsync -a --delete "${backup_root}/${index}/" "$target/" ||
+                failed=true
         else
-            rm -f "$target" || failed=true
+            if [ "$type" = directory ]; then
+                rm -rf "$target" || failed=true
+            else
+                rm -f "$target" || failed=true
+            fi
         fi
     done
     [ "$failed" = false ]
@@ -940,21 +949,24 @@ rollback_export_targets() {
 apply_export_candidates() {
     local root="$1"
     local backup_root="${root}/backups"
-    local index target candidate
+    local index target candidate type
     mkdir -p "$backup_root" || return 1
     for index in "${!EXPORT_TARGETS[@]}"; do
         target="${EXPORT_TARGETS[$index]}"
-        [ ! -e "$target" ] || cp -p "$target" "${backup_root}/${index}" ||
+        [ ! -e "$target" ] || cp -a "$target" "${backup_root}/${index}" ||
             return 1
     done
     for index in "${!EXPORT_TARGETS[@]}"; do
         target="${EXPORT_TARGETS[$index]}"
         candidate="${EXPORT_CANDIDATES[$index]}"
+        type="${EXPORT_TYPES[$index]}"
         mkdir -p "$(dirname "$target")" || {
             rollback_export_targets "$backup_root" || true
             return 1
         }
-        if ! cp "$candidate" "$target"; then
+        if { [ "$type" = directory ] &&
+            ! rsync -a --delete "$candidate/" "$target/"; } ||
+            { [ "$type" = file ] && ! cp "$candidate" "$target"; }; then
             echo "[ERROR] Export apply failed; rolling back checkout" >&2
             rollback_export_targets "$backup_root" ||
                 echo "[ERROR] Export rollback incomplete" >&2
@@ -975,6 +987,7 @@ cmd_export() {
     EXPORT_TARGETS=()
     EXPORT_CANDIDATES=()
     EXPORT_LABELS=()
+    EXPORT_TYPES=()
 
     candidate="${root}/codex-settings.toml"
     codex_toml import "$candidate" || { rm -rf "$root"; return 1; }
@@ -986,6 +999,7 @@ cmd_export() {
         EXPORT_TARGETS+=("$CODEX_SETTINGS_TEMPLATE")
         EXPORT_CANDIDATES+=("$candidate")
         EXPORT_LABELS+=("Codex settings")
+        EXPORT_TYPES+=(file)
     fi
 
     while IFS='|' read -r label target candidate runtime live; do
@@ -999,6 +1013,7 @@ cmd_export() {
             EXPORT_TARGETS+=("$target")
             EXPORT_CANDIDATES+=("$candidate")
             EXPORT_LABELS+=("$label")
+            EXPORT_TYPES+=(file)
         fi
     done <<EOF
 Claude settings|$CLAUDE_TEMPLATE_FILE|${root}/claude.json|claude|$CLAUDE_SETTINGS_FILE
@@ -1013,19 +1028,62 @@ EOF
         EXPORT_TARGETS+=("$MCP_SERVERS")
         EXPORT_CANDIDATES+=("$candidate")
         EXPORT_LABELS+=("MCP inventory")
+        EXPORT_TYPES+=(file)
+    fi
+
+    local skill_lock="${root}/skill-lock.json"
+    local custom_skills="${root}/skills-custom"
+    build_skill_export_candidate "$skill_lock" "$custom_skills" || {
+        rm -rf "$root"
+        return 1
+    }
+    if ! cmp -s "$SKILL_LOCK_REPO" "$skill_lock"; then
+        EXPORT_TARGETS+=("$SKILL_LOCK_REPO")
+        EXPORT_CANDIDATES+=("$skill_lock")
+        EXPORT_LABELS+=("Skill inventory")
+        EXPORT_TYPES+=(file)
+    fi
+    if ! diff_custom_skills -qr \
+        "$SHARED_SKILLS_CUSTOM_DIR" "$custom_skills" \
+        >/dev/null 2>&1; then
+        EXPORT_TARGETS+=("$SHARED_SKILLS_CUSTOM_DIR")
+        EXPORT_CANDIDATES+=("$custom_skills")
+        EXPORT_LABELS+=("Portable skills")
+        EXPORT_TYPES+=(directory)
+    fi
+
+    local plugin_candidate="${root}/plugin-manifest.json"
+    local requested_quiet="$QUIET"
+    QUIET=true
+    if ! build_plugin_candidate "$plugin_candidate"; then
+        QUIET="$requested_quiet"
+        rm -rf "$root"
+        return 1
+    fi
+    QUIET="$requested_quiet"
+    if ! cmp -s "$PLUGIN_MANIFEST" "$plugin_candidate"; then
+        EXPORT_TARGETS+=("$PLUGIN_MANIFEST")
+        EXPORT_CANDIDATES+=("$plugin_candidate")
+        EXPORT_LABELS+=("Plugin membership")
+        EXPORT_TYPES+=(file)
     fi
 
     if [ "${#EXPORT_TARGETS[@]}" -eq 0 ]; then
         rm -rf "$root"
-        log_info "Portable settings and MCP already match live state"
+        log_info "Portable repository state already matches live state"
         return 0
     fi
 
     echo "[INFO] Export plan"
     for index in "${!EXPORT_TARGETS[@]}"; do
         echo "[PLAN] ${EXPORT_LABELS[$index]}: ${EXPORT_TARGETS[$index]}"
-        diff -u "${EXPORT_TARGETS[$index]}" \
-            "${EXPORT_CANDIDATES[$index]}" || true
+        if [ "${EXPORT_TYPES[$index]}" = directory ]; then
+            diff_custom_skills -ruN "${EXPORT_TARGETS[$index]}" \
+                "${EXPORT_CANDIDATES[$index]}" || true
+        else
+            diff -u "${EXPORT_TARGETS[$index]}" \
+                "${EXPORT_CANDIDATES[$index]}" || true
+        fi
     done
     printf 'Apply this export plan? [y/N] '
     read -r reply || reply=""
@@ -1044,7 +1102,7 @@ EOF
         ;;
     esac
     rm -rf "$root"
-    log_info "Exported portable settings and MCP to the checkout"
+    log_info "Exported portable state to the checkout"
 }
 
 sync_codex_mcp_config() {
@@ -2809,6 +2867,67 @@ cmd_plugins_update() {
     [ "$failed" = false ]
 }
 
+validate_skill_export_continuity() {
+    local candidate_lock="$1" candidate_custom="$2"
+    local repo_names candidate_names missing changed
+    local repo_custom candidate_custom_names
+    repo_names="$(mktemp)"
+    candidate_names="$(mktemp)"
+    repo_custom="$(mktemp)"
+    candidate_custom_names="$(mktemp)"
+    jq -r '.skills | keys[]' "$SKILL_LOCK_REPO" | sort -u >"$repo_names"
+    jq -r '.skills | keys[]' "$candidate_lock" | sort -u >"$candidate_names"
+    missing="$(comm -23 "$repo_names" "$candidate_names")"
+    if [ -n "$missing" ]; then
+        echo "[ERROR] Removed or renamed managed skills:" >&2
+        printf '%s\n' "$missing" | sed 's/^/  - /' >&2
+        rm -f "$repo_names" "$candidate_names" \
+            "$repo_custom" "$candidate_custom_names"
+        return 1
+    fi
+
+    changed="$(jq -r --slurpfile live "$candidate_lock" '
+        .skills | to_entries[] |
+        select($live[0].skills[.key] != .value) | .key
+    ' "$SKILL_LOCK_REPO")"
+    if [ -n "$changed" ]; then
+        echo "[ERROR] Existing managed skill metadata changed:" >&2
+        printf '%s\n' "$changed" | sed 's/^/  - /' >&2
+        rm -f "$repo_names" "$candidate_names" \
+            "$repo_custom" "$candidate_custom_names"
+        return 1
+    fi
+
+    write_custom_skill_names "$SHARED_SKILLS_CUSTOM_DIR" "$repo_custom"
+    write_custom_skill_names "$candidate_custom" "$candidate_custom_names"
+    missing="$(comm -23 "$repo_custom" "$candidate_custom_names")"
+    if [ -n "$missing" ]; then
+        echo "[ERROR] Removed or renamed portable skills:" >&2
+        printf '%s\n' "$missing" | sed 's/^/  - /' >&2
+        rm -f "$repo_names" "$candidate_names" \
+            "$repo_custom" "$candidate_custom_names"
+        return 1
+    fi
+    rm -f "$repo_names" "$candidate_names" \
+        "$repo_custom" "$candidate_custom_names"
+}
+
+preflight_skill_candidate() {
+    local candidate_lock="$1"
+    local SKILL_LOCK_REPO="$candidate_lock"
+    stage_locked_skills || return 1
+    cleanup_staged_skills
+}
+
+build_skill_export_candidate() {
+    local candidate_lock="$1" candidate_custom="$2"
+    build_live_skill_inventory "$candidate_lock" "$candidate_custom" ||
+        return 1
+    validate_skill_export_continuity "$candidate_lock" "$candidate_custom" ||
+        return 1
+    preflight_skill_candidate "$candidate_lock"
+}
+
 cmd_pull_skills() {
     [ "$#" -eq 0 ] || {
         echo "[ERROR] pull-skills takes no arguments" >&2
@@ -2819,7 +2938,7 @@ cmd_pull_skills() {
     candidate_dir="$(mktemp -d)"
     candidate_lock="${candidate_dir}/skill-lock.json"
     candidate_custom="${candidate_dir}/skills-custom"
-    build_live_skill_inventory "$candidate_lock" "$candidate_custom" || {
+    build_skill_export_candidate "$candidate_lock" "$candidate_custom" || {
         rm -rf "$candidate_dir"
         return 1
     }
@@ -2977,12 +3096,10 @@ cmd_pull_plugins() {
     fi
 
     candidate="$(mktemp)"
-    cp "$PLUGIN_MANIFEST" "$candidate"
-    local CODEX_PLUGIN_MANIFEST="$candidate"
-    local CLAUDE_MANIFEST="$candidate"
     requested_quiet="$QUIET"
     QUIET=true
-    if ! cmd_plugins_export; then
+    if ! build_plugin_candidate "$candidate"; then
+        QUIET="$requested_quiet"
         rm -f "$candidate"
         return 1
     fi
@@ -3009,6 +3126,15 @@ cmd_pull_plugins() {
         return 1
         ;;
     esac
+}
+
+build_plugin_candidate() {
+    local candidate="$1"
+    cp "$PLUGIN_MANIFEST" "$candidate" || return 1
+    local CODEX_PLUGIN_MANIFEST="$candidate"
+    local CLAUDE_MANIFEST="$candidate"
+    cmd_plugins_export || return 1
+    validate_plugin_manifest "$candidate"
 }
 
 cmd_claude_plugins_push() {
@@ -3694,7 +3820,7 @@ claude-settings-check)
     echo "  plugins-check    Check Codex and Claude against shared plugin manifest"
     echo "  plugins-export   Export Codex and Claude into shared plugin manifest"
     echo "  plugins-update   Update Codex marketplaces and installed Claude plugins"
-    echo "  export           Transactionally export portable settings and MCP"
+    echo "  export           Transactionally export portable live state"
     echo "  codex-install    Link AGENTS.md and generate Codex config"
     echo "  codex-check      Exit 1 if Codex config is out of sync"
     echo "  codex-plugins-check"

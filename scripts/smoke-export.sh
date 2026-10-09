@@ -24,11 +24,13 @@ mkdir -p \
     "${checkout}/config/opencode" \
     "${checkout}/config/pi" \
     "${checkout}/.agents" \
+    "${checkout}/.agents/skills-custom/existing-custom" \
     "${home_dir}/.codex" \
     "${home_dir}/.claude" \
+    "${home_dir}/.claude/plugins" \
     "${home_dir}/.config/opencode" \
     "${home_dir}/.pi/agent" \
-    "${home_dir}/.agents" \
+    "${home_dir}/.agents/skills" \
     "$stub_dir"
 
 codex_template="${checkout}/config/codex/settings.toml"
@@ -43,6 +45,16 @@ opencode_live="${home_dir}/.config/opencode/opencode.json"
 pi_live="${home_dir}/.pi/agent/settings.json"
 pi_mcp="${home_dir}/.agents/mcp.json"
 codex_mcp="${tmp_dir}/codex-mcp.json"
+skill_lock_repo="${checkout}/.agents/skill-lock.json"
+skill_lock_live="${home_dir}/.agents/.skill-lock.json"
+custom_skills="${checkout}/.agents/skills-custom"
+plugin_manifest="${checkout}/.agents/plugin-manifest.json"
+codex_cache="${home_dir}/.codex/plugins/cache"
+codex_plugins="${tmp_dir}/codex-plugins.json"
+codex_marketplaces="${tmp_dir}/codex-marketplaces.json"
+claude_plugins="${home_dir}/.claude/plugins/installed_plugins.json"
+claude_marketplaces="${home_dir}/.claude/plugins/known_marketplaces.json"
+skill_test_log="${tmp_dir}/skill-calls.log"
 
 cat >"$codex_template" <<'TOML'
 model = "repo-codex"
@@ -71,6 +83,97 @@ cat >"$pi_template" <<'JSON'
 JSON
 printf '{}\n' >"$repo_mcp"
 printf 'clean\n' >"${checkout}/marker"
+printf '%s\n' '---' 'name: existing-custom' '---' \
+    >"${custom_skills}/existing-custom/SKILL.md"
+
+cat >"$skill_lock_repo" <<'JSON'
+{
+  "dismissed": {},
+  "skills": {
+    "managed-skill": {
+      "skillPath": "package/skills/managed-skill/SKILL.md",
+      "source": "example/skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/example/skills.git"
+    }
+  }
+}
+JSON
+cat >"$skill_lock_live" <<'JSON'
+{
+  "dismissed": {},
+  "skills": {
+    "managed-skill": {
+      "installedAt": "local",
+      "skillFolderHash": "local",
+      "skillPath": "package/skills/managed-skill/SKILL.md",
+      "source": "example/skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/example/skills.git"
+    },
+    "new-managed": {
+      "installedAt": "local",
+      "skillFolderHash": "local",
+      "skillPath": "package/skills/new-managed/SKILL.md",
+      "source": "example/skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/example/skills.git"
+    }
+  }
+}
+JSON
+for skill in managed-skill new-managed existing-custom new-custom; do
+    mkdir -p "${home_dir}/.agents/skills/${skill}"
+    printf '%s\n' '---' "name: $skill" '---' \
+        >"${home_dir}/.agents/skills/${skill}/SKILL.md"
+done
+
+cat >"$plugin_manifest" <<'JSON'
+{
+  "codexMarketplaces": {
+    "third": "https://github.com/example/plugins.git"
+  },
+  "codexPlugins": ["keep-market@third"],
+  "marketplaces": {
+    "third": {"repo": "example/plugins", "source": "github"}
+  },
+  "plugins": {
+    "keep": {"claude": "keep@third", "codex": "plugin_keep"}
+  }
+}
+JSON
+mkdir -p "$codex_cache/keep" "$codex_cache/new-codex"
+printf '%s\n' '{"schema_version":1,"remote_plugin_id":"plugin_keep"}' \
+    >"$codex_cache/keep/.codex-remote-plugin-install.json"
+printf '%s\n' '{"schema_version":1,"remote_plugin_id":"plugin_new"}' \
+    >"$codex_cache/new-codex/.codex-remote-plugin-install.json"
+cat >"$codex_plugins" <<'JSON'
+{"installed":[
+  {"enabled":true,"installed":true,"pluginId":"keep-market@third",
+   "marketplaceName":"third",
+   "marketplaceSource":{"source":"https://github.com/example/plugins.git",
+                        "sourceType":"git"}},
+  {"enabled":true,"installed":true,"pluginId":"new-market@third",
+   "marketplaceName":"third",
+   "marketplaceSource":{"source":"https://github.com/example/plugins.git",
+                        "sourceType":"git"}}
+]}
+JSON
+cat >"$codex_marketplaces" <<'JSON'
+{"marketplaces":[
+  {"name":"third","marketplaceSource":{
+    "source":"https://github.com/example/plugins.git","sourceType":"git"}}
+]}
+JSON
+cat >"$claude_plugins" <<'JSON'
+{"plugins":{
+  "keep@third":[{"scope":"user"}],
+  "new-claude@third":[{"scope":"user"}]
+}}
+JSON
+cat >"$claude_marketplaces" <<'JSON'
+{"third":{"source":{"repo":"example/plugins","source":"github"}}}
+JSON
 
 cat >"$codex_live" <<'TOML'
 model = "live-codex"
@@ -175,7 +278,29 @@ if [ -n "${FAIL_COPY_TARGET:-}" ] && [ "$destination" = "$FAIL_COPY_TARGET" ] &&
 fi
 exec /bin/cp "$@"
 STUB
-chmod +x "${stub_dir}/codex" "${stub_dir}/cp"
+cat >"${stub_dir}/skills" <<'STUB'
+#!/bin/bash
+set -eu
+printf '%s\n' "$*" >>"$SKILL_TEST_LOG"
+skills=()
+collect=false
+for argument in "$@"; do
+    if [ "$argument" = --skill ]; then
+        collect=true
+        continue
+    fi
+    if [ "$argument" = --agent ]; then
+        collect=false
+    fi
+    [ "$collect" = true ] && skills+=("$argument")
+done
+for skill in "${skills[@]}"; do
+    mkdir -p "$HOME/.agents/skills/$skill"
+    printf '%s\n' '---' "name: $skill" '---' \
+        >"$HOME/.agents/skills/$skill/SKILL.md"
+done
+STUB
+chmod +x "${stub_dir}/codex" "${stub_dir}/cp" "${stub_dir}/skills"
 
 git -C "$checkout" init -q
 git -C "$checkout" config user.name smoke
@@ -204,6 +329,17 @@ export PI_SETTINGS_FILE="$pi_live"
 export PI_SETTINGS_TEMPLATE="$pi_template"
 export PI_MCP_CONFIG="$pi_mcp"
 export MCP_SERVERS="$repo_mcp"
+export SKILL_LOCK_REPO="$skill_lock_repo"
+export SKILL_LOCK_LIVE="$skill_lock_live"
+export SHARED_SKILLS_CUSTOM_DIR="$custom_skills"
+export SKILLS_CLI="${stub_dir}/skills"
+export SKILL_TEST_LOG="$skill_test_log"
+export PLUGIN_MANIFEST="$plugin_manifest"
+export CLAUDE_MANIFEST="$plugin_manifest"
+export CODEX_PLUGIN_MANIFEST="$plugin_manifest"
+export CODEX_REMOTE_PLUGIN_CACHE="$codex_cache"
+export CODEX_PLUGIN_LIST_FILE="$codex_plugins"
+export CODEX_MARKETPLACE_LIST_FILE="$codex_marketplaces"
 
 run_export() {
     local answer="$1" output="$2"
@@ -239,7 +375,8 @@ fi
 [ -z "$(git -C "$checkout" status --porcelain --untracked-files=all)" ] ||
     fail "cancelled export changed checkout"
 for label in 'Codex settings' 'Claude settings' 'OpenCode settings' \
-    'Pi settings' 'MCP inventory'; do
+    'Pi settings' 'MCP inventory' 'Skill inventory' 'Portable skills' \
+    'Plugin membership'; do
     grep -F "[PLAN] $label:" "${tmp_dir}/cancel.log" >/dev/null ||
         { cat "${tmp_dir}/cancel.log" >&2; fail "export plan omitted: $label"; }
 done
@@ -275,6 +412,38 @@ grep -F 'local path or secret' "${tmp_dir}/local-path.log" >/dev/null ||
 jq '.mcpServers["pi-only"].command = "pi-server"' "$pi_mcp" \
     >"${tmp_dir}/pi-restored.json"
 mv "${tmp_dir}/pi-restored.json" "$pi_mcp"
+
+# Removing or renaming a managed skill cannot become an accidental export.
+mv "${home_dir}/.agents/skills/managed-skill" \
+    "${tmp_dir}/managed-skill.saved"
+if run_export y "${tmp_dir}/removed-skill.log"; then
+    fail "export accepted a removed managed skill"
+fi
+grep -F 'Removed or renamed managed skills' \
+    "${tmp_dir}/removed-skill.log" >/dev/null ||
+    fail "removed managed skill was not reported"
+mv "${tmp_dir}/managed-skill.saved" \
+    "${home_dir}/.agents/skills/managed-skill"
+[ -z "$(git -C "$checkout" status --porcelain --untracked-files=all)" ] ||
+    fail "removed skill check changed checkout"
+
+# Plugin provider ownership is checked before the transaction can write.
+cp "$claude_plugins" "${tmp_dir}/claude-plugins.saved"
+jq '.plugins["foreign@openai-bundled"] = [{"scope":"user"}]' \
+    "$claude_plugins" >"${tmp_dir}/foreign-plugin.json"
+mv "${tmp_dir}/foreign-plugin.json" "$claude_plugins"
+if run_export y "${tmp_dir}/provider.log"; then
+    fail "export accepted a plugin from the wrong provider"
+fi
+grep -F 'Provider-specific marketplaces' "${tmp_dir}/provider.log" \
+    >/dev/null || fail "plugin provider error was not reported"
+mv "${tmp_dir}/claude-plugins.saved" "$claude_plugins"
+[ -z "$(git -C "$checkout" status --porcelain --untracked-files=all)" ] ||
+    fail "plugin provider check changed checkout"
+
+grep -E -- '--skill managed-skill new-managed --agent codex' \
+    "$skill_test_log" >/dev/null ||
+    fail "export did not preflight every managed skill"
 find "$home_dir" -type f -exec cksum {} \; | sort \
     >"${tmp_dir}/live.apply-before"
 
@@ -311,9 +480,23 @@ jq -e '
 ' "$pi_template" >/dev/null || fail "Pi allowlist export failed"
 grep -F 'model = "live-codex"' "$codex_template" >/dev/null ||
     fail "Codex allowlist export failed"
+jq -e '
+    (.skills | keys) == ["managed-skill", "new-managed"]
+' "$skill_lock_repo" >/dev/null || fail "managed skill export failed"
+[ -f "${custom_skills}/new-custom/SKILL.md" ] ||
+    fail "portable skill was not exported"
+jq -e '
+    .plugins.keep == {claude: "keep@third", codex: "plugin_keep"} and
+    .plugins["new-codex"].codex == "plugin_new" and
+    .plugins["new-claude"].claude == "new-claude@third" and
+    .codexPlugins == ["keep-market@third", "new-market@third"] and
+    (.marketplaces | keys) == ["third"] and
+    (.codexMarketplaces | keys) == ["third"]
+' "$plugin_manifest" >/dev/null || fail "plugin membership export failed"
 if grep -F 'must-not-enter-repo' \
     "$codex_template" "$claude_template" "$opencode_template" \
-    "$pi_template" "$repo_mcp" >/dev/null; then
+    "$pi_template" "$repo_mcp" "$skill_lock_repo" "$plugin_manifest" \
+    >/dev/null; then
     fail "export wrote a credential"
 fi
 if grep -F "$HOME/" \
@@ -330,10 +513,14 @@ jq -e '
 git -C "$checkout" diff --cached --quiet || fail "export staged changes"
 [ "$(git -C "$checkout" rev-parse HEAD)" = "$initial_head" ] ||
     fail "export created a commit"
-git -C "$checkout" status --porcelain | awk '{print $2}' | sort \
+git -C "$checkout" status --porcelain --untracked-files=all |
+    awk '{print $2}' | sort \
     >"${tmp_dir}/changed"
 printf '%s\n' \
     .agents/mcp-servers.json \
+    .agents/plugin-manifest.json \
+    .agents/skill-lock.json \
+    .agents/skills-custom/new-custom/SKILL.md \
     config/claude/settings.json \
     config/codex/settings.toml \
     config/opencode/opencode.json \

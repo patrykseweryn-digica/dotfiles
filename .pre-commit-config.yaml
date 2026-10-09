@@ -133,7 +133,7 @@ repos:
         pass_filenames: false
       - id: transactional-export-smoke
         name: Transactional export smoke test
-        description: Verify one-plan settings and MCP checkout export
+        description: Verify one-plan portable checkout export
         entry: ./scripts/smoke-export.sh
         language: system
         pass_filenames: false

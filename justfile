@@ -20,7 +20,7 @@ update-dotfiles:
 update:
     ./scripts/update-local.sh
 
-# Export portable live state into a clean checkout after one confirmation.
+# Export all portable live state after one confirmation.
 export:
     "{{ sync_agents }}" export
 

@@ -42,10 +42,20 @@ fi
     row FAIL links update "Links missing"
 [ -f "$state/hooks" ] && row PASS hooks none "Hooks match" ||
     row UPDATE hooks update "Hooks drift"
-[ -f "$state/skills" ] && row PASS skills none "Skills match" ||
+if [ -f "$state/export-skills" ]; then
+    row EXPORT skills export "Skills have a local addition"
+elif [ -f "$state/skills" ]; then
+    row PASS skills none "Skills match"
+else
     row UPDATE skills update "Skills drift"
-[ -f "$state/plugins" ] && row PASS plugins none "Plugins match" ||
+fi
+if [ -f "$state/export-plugins" ]; then
+    row EXPORT plugins export "Plugins have a local addition"
+elif [ -f "$state/plugins" ]; then
+    row PASS plugins none "Plugins match"
+else
     row UPDATE plugins update "Plugins drift"
+fi
 row PASS tools none "Tools match"
 row PASS node none "Node matches"
 row PASS platform none "Platform supported"
@@ -118,7 +128,8 @@ fi
 STUB
 chmod +x "${tmp_dir}/state-plan.sh" "${tmp_dir}/sync-agents.sh" \
     "${tmp_dir}/agent-tools.sh"
-touch "${state_dir}/export"
+touch "${state_dir}/export" "${state_dir}/export-skills" \
+    "${state_dir}/export-plugins"
 
 run_update() {
     HOME="$home_dir" ACTION_LOG="$action_log" MUTATION_LOG="$mutation_log" \
@@ -141,17 +152,26 @@ done
 [ ! -f "${state_dir}/mcp" ] || fail "EXPORT category was changed"
 grep -Fx 'settings-install codex' "$action_log" >/dev/null ||
     fail "settings adapter was not used"
-for action in latest-core-tools 'agent-tools update' skills-update \
-    push-plugins plugins-update; do
+for action in latest-core-tools 'agent-tools update'; do
     grep -Fx "$action" "$action_log" >/dev/null ||
         fail "independent upstream phase was not attempted: $action"
 done
+for action in skills-update push-plugins plugins-update; do
+    if grep -Fx "$action" "$action_log" >/dev/null; then
+        fail "EXPORT category was mutated: $action"
+    fi
+done
 grep -Fx '[BLOCKED] mcp: export local additions first' \
     "${tmp_dir}/update.log" >/dev/null || fail "EXPORT was not reported"
+grep -Fx '[BLOCKED] skills upstream refresh: export local additions first' \
+    "${tmp_dir}/update.log" >/dev/null || fail "skill EXPORT was not reported"
+grep -Fx '[BLOCKED] plugins upstream refresh: export local additions first' \
+    "${tmp_dir}/update.log" >/dev/null || fail "plugin EXPORT was not reported"
 grep -F '[SUMMARY]' "${tmp_dir}/update.log" >/dev/null ||
     fail "update omitted its summary"
 
-rm "${state_dir}/export"
+rm "${state_dir}/export" "${state_dir}/export-skills" \
+    "${state_dir}/export-plugins"
 : >"$action_log"
 : >"$mutation_log"
 run_update || fail "compatible update failed"
