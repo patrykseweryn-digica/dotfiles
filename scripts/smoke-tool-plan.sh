@@ -3,6 +3,7 @@
 set -eu
 
 DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+JQ_BIN="$(command -v jq)"
 
 fail() {
     echo "[ERROR] $*" >&2
@@ -175,14 +176,20 @@ smoke_package_manager_plan() {
             esac
         }
 
+        install_github_binary() { return 1; }
+        install_zoxide_native() { return 1; }
+        install_uv_tool() { return 1; }
+
         export SMOKE_LOG="$log_file"
         export SMOKE_BIN="$bin_dir"
         # shellcheck disable=SC2034
         HAS_SUDO=true
+        OS=Linux
+        ARCH=x86_64
         BIN_DIR="$bin_dir"
         PATH="${bin_dir}:${stub_dir}:/usr/bin:/bin"
 
-        install_core_cli_tools >/dev/null
+        install_declared_core_tools >/dev/null || true
     )
 
     assert_log_contains "$log_file" "apt-get install -y fzf"
@@ -232,14 +239,20 @@ smoke_linuxbrew_without_sudo_plan() {
             esac
         }
 
+        install_github_binary() { return 1; }
+        install_zoxide_native() { return 1; }
+        install_uv_tool() { return 1; }
+
         export SMOKE_LOG="$log_file"
         export SMOKE_BIN="$bin_dir"
         # shellcheck disable=SC2034
         HAS_SUDO=false
+        OS=Linux
+        ARCH=x86_64
         BIN_DIR="$bin_dir"
         PATH="${bin_dir}:${stub_dir}:/usr/bin:/bin"
 
-        install_core_cli_tools >/dev/null
+        install_declared_core_tools >/dev/null || true
     )
 
     assert_log_contains "$log_file" "brew install fzf"
@@ -297,11 +310,15 @@ smoke_remaining_tool_plan() {
         install_github_binary() {
             echo "github $*" >>"$log_file"
         }
+        install_zoxide_native() { return 1; }
+        install_uv_tool() { return 1; }
 
         export SMOKE_LOG="$log_file"
         export SMOKE_BIN="$bin_dir"
         # shellcheck disable=SC2034
         HAS_SUDO=true
+        OS=Linux
+        ARCH=x86_64
         # shellcheck disable=SC2034
         IS_LINUX=true
         # shellcheck disable=SC2034
@@ -309,11 +326,7 @@ smoke_remaining_tool_plan() {
         BIN_DIR="$bin_dir"
         PATH="${bin_dir}:${stub_dir}:/usr/bin:/bin"
 
-        install_eza >/dev/null
-        install_delta >/dev/null
-        install_tealdeer >/dev/null
-        install_lazygit >/dev/null
-        install_xclip >/dev/null
+        install_declared_core_tools >/dev/null || true
     )
 
     assert_log_contains "$log_file" "apt-get install -y eza"
@@ -341,7 +354,8 @@ smoke_installed_tools_are_skipped() {
     mkdir -p "$stub_dir" "$bin_dir"
     : >"$log_file"
 
-    for installed_tool in fzf bat rg fd jq tmux nvim git-lfs shfmt just hadolint bw eza delta tldr lazygit xclip; do
+    for installed_tool in fzf bat rg fd jq tmux nvim git-lfs shfmt just \
+        hadolint bw eza delta zoxide tldr lazygit xclip pre-commit; do
         printf '#!/bin/sh\n' >"${bin_dir}/${installed_tool}"
         chmod +x "${bin_dir}/${installed_tool}"
     done
@@ -381,6 +395,8 @@ STUB
         export SMOKE_LOG="$log_file"
         # shellcheck disable=SC2034
         HAS_SUDO=true
+        OS=Linux
+        ARCH=x86_64
         # shellcheck disable=SC2034
         IS_LINUX=true
         # shellcheck disable=SC2034
@@ -388,12 +404,7 @@ STUB
         BIN_DIR="$bin_dir"
         PATH="${bin_dir}:${stub_dir}:/usr/bin:/bin"
 
-        install_core_cli_tools >/dev/null
-        install_eza >/dev/null
-        install_delta >/dev/null
-        install_tealdeer >/dev/null
-        install_lazygit >/dev/null
-        install_xclip >/dev/null
+        install_declared_core_tools >/dev/null
     )
 
     assert_log_not_contains "$log_file" "brew install"
@@ -429,19 +440,19 @@ smoke_github_fallback_plan() {
         install_github_binary() {
             echo "github $*" >>"$log_file"
         }
+        install_zoxide_native() { return 1; }
+        install_uv_tool() { return 1; }
 
         # shellcheck disable=SC2034
         HAS_SUDO=false
+        OS=Linux
+        ARCH=x86_64
         # shellcheck disable=SC2034
         IS_LINUX=true
         BIN_DIR="$bin_dir"
         PATH="${bin_dir}:/usr/bin:/bin"
 
-        install_core_cli_tools >/dev/null
-        install_eza >/dev/null
-        install_delta >/dev/null
-        install_tealdeer >/dev/null
-        install_lazygit >/dev/null
+        install_declared_core_tools >/dev/null || true
     )
 
     assert_log_contains "$log_file" "github junegunn/fzf v0.67.0 fzf-{tag_no_v}-linux_amd64.tar.gz fzf"
@@ -459,25 +470,53 @@ smoke_github_fallback_plan() {
 }
 
 smoke_macos_github_patterns() {
-    (
-        # shellcheck source=/dev/null
+    "$JQ_BIN" -e '
+        .platforms as $platforms |
+        ($platforms | sort) == ([
+            "darwin-arm64", "darwin-x86_64",
+            "linux-arm64", "linux-x86_64"
+        ] | sort) and
+        ([.tools[] | select(.scope == "core") | .name] | length) > 0 and
+        (.tools[] | select(.name == "fzf") |
+            .github.artifacts."darwin-arm64".archive ==
+                "fzf-{tag_no_v}-darwin_arm64.tar.gz") and
+        (.tools[] | select(.name == "just") |
+            (.github.artifacts | keys | sort) == ($platforms | sort))
+    ' "${DOTFILES_DIR}/.agents/tool-versions.json" >/dev/null ||
+        fail "inventory platform artifacts are incomplete"
+}
+
+smoke_unsupported_artifact_stops_before_network() {
+    local tmp_dir manifest log_file
+    tmp_dir="$(mktemp -d)"
+    manifest="${tmp_dir}/tools.json"
+    log_file="${tmp_dir}/network.log"
+    : >"$log_file"
+    cat >"$manifest" <<'JSON'
+{"platforms":["linux-arm64"],"tools":[{
+  "scope":"core","name":"demo","commands":["demo"],
+  "versionPolicy":"pinned","github":{"repo":"example/demo","tag":"v1",
+  "artifacts":{}}
+}]}
+JSON
+
+    if (
+        TOOL_INVENTORY="$manifest"
+        OS=Linux
+        ARCH=arm64
+        HAS_SUDO=false
+        BIN_DIR="${tmp_dir}/bin"
+        mkdir -p "$BIN_DIR"
         source "${DOTFILES_DIR}/bootstrap.d/00-utils.sh"
-
-        # shellcheck disable=SC2034
-        OS="Darwin"
-        # shellcheck disable=SC2034
-        ARCH="arm64"
-
-        [ "$(github_binary_pattern fzf)" = "fzf-{tag_no_v}-darwin_arm64.tar.gz" ] || fail "bad macOS fzf archive pattern"
-        [ "$(github_binary_pattern bat)" = "bat-{tag}-aarch64-apple-darwin.tar.gz" ] || fail "bad macOS bat archive pattern"
-        [ "$(github_binary_pattern ripgrep)" = "ripgrep-{tag}-aarch64-apple-darwin.tar.gz" ] || fail "bad macOS ripgrep archive pattern"
-        [ "$(github_binary_pattern fd)" = "fd-{tag}-aarch64-apple-darwin.tar.gz" ] || fail "bad macOS fd archive pattern"
-        [ "$(github_binary_pattern delta)" = "delta-{tag}-aarch64-apple-darwin.tar.gz" ] || fail "bad macOS delta archive pattern"
-        [ "$(github_binary_pattern lazygit)" = "lazygit_{tag_no_v}_darwin_arm64.tar.gz" ] || fail "bad macOS lazygit archive pattern"
-        [ "$(github_binary_pattern jq)" = "jq-macos-arm64" ] || fail "bad macOS jq archive pattern"
-        [ "$(github_binary_pattern tealdeer)" = "tealdeer-macos-aarch64" ] || fail "bad macOS tealdeer archive pattern"
-        [ "$(github_binary_pattern just)" = "just-{tag}-aarch64-apple-darwin.tar.gz" ] || fail "bad macOS just archive pattern"
-    )
+        source "${DOTFILES_DIR}/bootstrap.d/05-tools.sh"
+        check_installed() { return 1; }
+        install_github_binary() { echo network >>"$log_file"; }
+        install_declared_core_tools >/dev/null 2>&1
+    ); then
+        fail "unsupported artifact was accepted"
+    fi
+    [ ! -s "$log_file" ] || fail "unsupported artifact reached the network"
+    rm -rf "$tmp_dir"
 }
 
 smoke_direct_binary_install() {
@@ -617,6 +656,7 @@ smoke_remaining_tool_plan
 smoke_installed_tools_are_skipped
 smoke_github_fallback_plan
 smoke_macos_github_patterns
+smoke_unsupported_artifact_stops_before_network
 smoke_direct_binary_install
 
 echo "[INFO] tool plan smoke test passed"

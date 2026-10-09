@@ -8,31 +8,55 @@ CLAUDE_INSTALL_URL="${CLAUDE_INSTALL_URL:-https://claude.ai/install.sh}"
 
 validate_manifest() {
     jq -e '
+        def command_name:
+            if has("command") then .command else .commands[0] end;
+        def valid_platforms:
+            type == "array" and length > 0 and
+            all(.[]; test("^(darwin|linux)-(arm64|x86_64)$"));
+        ((.platforms // ["darwin-arm64", "darwin-x86_64",
+            "linux-arm64", "linux-x86_64"]) | valid_platforms) and
         (.tools | type) == "array" and (.tools | length) > 0 and
         all(.tools[];
             (.name | type == "string" and test("^[^\\t\\r\\n]+$")) and
-            (.command | type == "string" and test("^[a-zA-Z0-9][a-zA-Z0-9._-]*$")) and
-            .channel == "latest" and
-            (has("version") | not) and
-            (if has("ignore_scripts") then
-                (.ignore_scripts | type) == "boolean" and .installer == "npm"
-             else true end) and
-            (if .installer == "npm" or .installer == "claude-native" then
-                (.package | type == "string" and
-                    test("^(@[a-z0-9._-]+/)?[a-z0-9][a-z0-9._-]*$"))
-             else
-                (.installer == "cursor-native" or
-                 .installer == "grok-native" or
-                 .installer == "hermes-native" or
-                 .installer == "herdr-native" or
-                 .installer == "treehouse-native" or
-                 .installer == "no-mistakes-native")
-             end)
+            (command_name | type == "string" and
+                test("^[a-zA-Z0-9][a-zA-Z0-9._-]*$")) and
+            ((.platforms // ["darwin-arm64", "darwin-x86_64",
+                "linux-arm64", "linux-x86_64"]) | valid_platforms) and
+            if (.scope // "agent") == "agent" then
+                .channel == "latest" and
+                (has("version") | not) and
+                (if has("ignore_scripts") then
+                    (.ignore_scripts | type) == "boolean" and .installer == "npm"
+                 else true end) and
+                (if .installer == "npm" or .installer == "claude-native" then
+                    (.package | type == "string" and
+                        test("^(@[a-z0-9._-]+/)?[a-z0-9][a-z0-9._-]*$"))
+                 else
+                    (.installer == "cursor-native" or
+                     .installer == "grok-native" or
+                     .installer == "hermes-native" or
+                     .installer == "herdr-native" or
+                     .installer == "treehouse-native" or
+                     .installer == "no-mistakes-native")
+                 end)
+            else
+                .scope == "core" and
+                (.commands | type == "array" and length > 0) and
+                (.versionPolicy == "latest" or
+                    .versionPolicy == "pinned" or
+                    .versionPolicy == "system") and
+                ((.packages // {}) | type == "object") and
+                ((.github // {}) | type == "object") and
+                ((.adapter // "package") == "package" or
+                    .adapter == "zoxide-native" or .adapter == "uv")
+            end
         ) and
-        (([.tools[].command] | length) ==
-         ([.tools[].command] | unique | length)) and
-        (([.tools[] | select(.package) | .package] | length) ==
-         ([.tools[] | select(.package) | .package] | unique | length))
+        (([.tools[] | command_name] | length) ==
+         ([.tools[] | command_name] | unique | length)) and
+        (([.tools[] | select((.scope // "agent") == "agent" and .package) |
+            .package] | length) ==
+         ([.tools[] | select((.scope // "agent") == "agent" and .package) |
+            .package] | unique | length))
     ' "$VERSIONS_FILE" >/dev/null || {
         echo "[ERROR] Invalid agent tool manifest: $VERSIONS_FILE" >&2
         return 1
@@ -40,10 +64,41 @@ validate_manifest() {
 }
 
 tool_rows() {
-    jq -r '.tools[] | [
+    jq -r '.tools[] | select((.scope // "agent") == "agent") | [
         .name, .command, (.package // .command),
         .channel, .installer, (.ignore_scripts // false)
     ] | @tsv' "$VERSIONS_FILE"
+}
+
+platform_key() {
+    local os arch
+    os="$(uname -s)"
+    arch="$(uname -m)"
+    case "$arch" in
+    arm64 | aarch64) arch=arm64 ;;
+    x86_64 | amd64) arch=x86_64 ;;
+    *) return 1 ;;
+    esac
+    case "$os" in
+    Darwin) os=darwin ;;
+    Linux) os=linux ;;
+    *) return 1 ;;
+    esac
+    printf '%s-%s\n' "$os" "$arch"
+}
+
+plan_rows() {
+    local platform
+    platform="$(platform_key)" || return 1
+    jq -r --arg platform "$platform" '
+        (.platforms // ["darwin-arm64", "darwin-x86_64",
+            "linux-arm64", "linux-x86_64"]) as $default_platforms |
+        .tools[] |
+        select(((.platforms // $default_platforms) | index($platform)) != null) |
+        [.name, (.scope // "agent"),
+         (if has("commands") then (.commands | join(" ")) else .command end)] |
+        @tsv
+    ' "$VERSIONS_FILE"
 }
 
 installed_version() {
@@ -109,16 +164,27 @@ report_versions() {
 }
 
 plan_tools() {
-    local name command_name package expected installer ignore_scripts current
+    local rows name scope commands command_name current available
 
-    while IFS=$'\t' read -r \
-        name command_name package expected installer ignore_scripts; do
-        if current=$(installed_version "$command_name"); then
+    rows="$(plan_rows)" || return 1
+    while IFS=$'\t' read -r name scope commands; do
+        command_name="${commands%% *}"
+        if [ "$scope" = agent ] && current=$(installed_version "$command_name"); then
             printf 'PASS\ttools\tnone\t%s %s is available\n' "$name" "$current"
+        elif [ "$scope" = core ]; then
+            available=false
+            for command_name in $commands; do
+                command -v "$command_name" >/dev/null 2>&1 && available=true
+            done
+            if [ "$available" = true ]; then
+                printf 'PASS\ttools\tnone\t%s is available\n' "$name"
+            else
+                printf 'FAIL\ttools\tupdate\t%s is missing or not runnable\n' "$name"
+            fi
         else
             printf 'FAIL\ttools\tupdate\t%s is missing or not runnable\n' "$name"
         fi
-    done < <(tool_rows)
+    done <<<"$rows"
 }
 
 check_tools() {

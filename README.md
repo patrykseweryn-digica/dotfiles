@@ -76,11 +76,14 @@ developer CLIs and activates it for their installation. Existing Node versions
 are retained. Doctor compares the active runtime with the newest locally
 installed Node; it does not check upstream Node releases.
 
-`.agents/tool-versions.json` lists developer CLIs with `channel: "latest"`,
-without exact versions. Install provisions missing tools without checking the
-network for tools already present. Update resolves current releases without
-rewriting the inventory. Reports resolve npm `latest` and fail explicitly
-when the registry is unavailable.
+`.agents/tool-versions.json` is the single inventory for core and developer
+CLIs. Core entries declare commands, package-manager names, version policy,
+platforms, and explicit GitHub artifacts. Install provisions missing tools
+without checking the network for tools already present. Unsupported direct
+download platforms fail before network access. Developer entries use
+`channel: "latest"`; update resolves current releases without rewriting the
+inventory. Reports resolve npm `latest` and fail explicitly when the registry
+is unavailable.
 Native latest installers resolve their own releases; their report checks
 installed availability, not whether a newer release exists.
 

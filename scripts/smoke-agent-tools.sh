@@ -15,7 +15,8 @@ fail() {
   exit 1
 }
 
-jq -e 'all(.tools[]; .channel == "latest" and (has("version") | not))' \
+jq -e 'all(.tools[] | select((.scope // "agent") == "agent");
+  .channel == "latest" and (has("version") | not))' \
   "$DOTFILES_DIR/.agents/tool-versions.json" >/dev/null ||
   fail "repository tools must follow latest without version pins"
 

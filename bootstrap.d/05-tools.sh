@@ -1,5 +1,8 @@
 #!/bin/bash
 
+TOOL_INVENTORY="${TOOL_INVENTORY:-${DOTFILES_DIR}/.agents/tool-versions.json}"
+JQ_BIN="${JQ_BIN:-jq}"
+
 tool_plan_installed() {
     local check_command
 
@@ -26,9 +29,13 @@ install_brew_package() {
 
 configure_git_lfs() {
     if check_installed git && git lfs version >/dev/null 2>&1; then
-        git lfs install --skip-repo || echo "[WARN] Failed to configure git-lfs"
+        git lfs install --skip-repo || {
+            echo "[ERROR] Failed to configure git-lfs" >&2
+            return 1
+        }
     else
-        echo "[WARN] git-lfs installed but git lfs is not available"
+        echo "[ERROR] git-lfs installed but git lfs is not available" >&2
+        return 1
     fi
 }
 
@@ -51,32 +58,64 @@ run_cli_tool_plan() {
     local github_binary="${10}"
     local github_installed_name="${11:-}"
     local post_install="${12:-}"
-    local installed=false
+    local adapter="${13:-package}"
+    local package_installed=false
+    local post_installed=false
 
     if tool_plan_installed "$check_commands"; then
         echo "[INFO] ${tool_name} is already installed"
-    elif command -v brew >/dev/null 2>&1; then
-        if install_brew_package "$tool_name" "$brew_package"; then
-            installed=true
-        fi
+        return 0
+    fi
+
+    if command -v brew >/dev/null 2>&1; then
+        install_brew_package "$tool_name" "$brew_package" &&
+            package_installed=true
     elif [ "$HAS_SUDO" = true ]; then
-        if install_package_manager_package "$tool_name" "$apt_package" "$dnf_package" "$pacman_package" "$brew_package"; then
-            installed=true
-        fi
+        install_package_manager_package "$tool_name" "$apt_package" \
+            "$dnf_package" "$pacman_package" "$brew_package" &&
+            package_installed=true
     fi
 
-    if ! tool_plan_installed "$check_commands" && [ "$installed" != true ]; then
-        if [ -z "$github_repo" ]; then
-            echo "[WARN] Skipping ${tool_name}: no package manager or GitHub fallback available"
-        elif [ -n "$github_installed_name" ]; then
-            install_github_binary "$github_repo" "$github_tag" "$github_archive" "$github_binary" "$github_installed_name" || true
-        else
-            install_github_binary "$github_repo" "$github_tag" "$github_archive" "$github_binary" || true
-        fi
+    if [ "$package_installed" = true ] && [ -n "$post_install" ]; then
+        "$post_install" || return 1
+        post_installed=true
     fi
 
-    if [ -n "$post_install" ]; then
-        "$post_install"
+    if ! tool_plan_installed "$check_commands"; then
+        case "$adapter" in
+        zoxide-native) install_zoxide_native || return 1 ;;
+        uv) install_uv_tool "$tool_name" || return 1 ;;
+        package)
+            if [ -z "$github_repo" ]; then
+                echo "[ERROR] ${tool_name}: no supported install source" >&2
+                return 1
+            fi
+            if [ -z "$github_archive" ] || [ -z "$github_binary" ]; then
+                echo "[ERROR] ${tool_name}: no GitHub artifact for $(tool_platform)" >&2
+                return 1
+            fi
+            if [ -n "$github_installed_name" ]; then
+                install_github_binary "$github_repo" "$github_tag" \
+                    "$github_archive" "$github_binary" "$github_installed_name" || return 1
+            else
+                install_github_binary "$github_repo" "$github_tag" \
+                    "$github_archive" "$github_binary" || return 1
+            fi
+            ;;
+        *)
+            echo "[ERROR] ${tool_name}: unknown adapter ${adapter}" >&2
+            return 1
+            ;;
+        esac
+    fi
+
+    if [ "$post_installed" = false ] && [ -n "$post_install" ]; then
+        "$post_install" || return 1
+    fi
+
+    if ! tool_plan_installed "$check_commands"; then
+        echo "[ERROR] ${tool_name}: installer finished but command is unavailable" >&2
+        return 1
     fi
 }
 
@@ -94,124 +133,88 @@ link_fd_alias() {
     fi
 }
 
-install_core_cli_tools() {
-    # fzf (required by fzf-tab zsh plugin)
-    run_cli_tool_plan "fzf" "fzf" \
-        "fzf" "fzf" "fzf" "fzf" \
-        "junegunn/fzf" "v0.67.0" "$(github_binary_pattern fzf)" "fzf"
+tool_platform() {
+    local os="${OS:-$(uname -s)}"
+    local arch="${ARCH:-$(uname -m)}"
 
-    # bat (required by zsh-bat plugin)
-    run_cli_tool_plan "bat" "bat batcat" \
-        "bat" "bat" "bat" "bat" \
-        "sharkdp/bat" "v0.26.1" "$(github_binary_pattern bat)" "bat" "" "link_bat_alias"
-
-    # ripgrep (fast grep replacement)
-    run_cli_tool_plan "ripgrep" "rg" \
-        "ripgrep" "ripgrep" "ripgrep" "ripgrep" \
-        "BurntSushi/ripgrep" "15.1.0" "$(github_binary_pattern ripgrep)" "rg"
-
-    # fd (fast find replacement)
-    run_cli_tool_plan "fd" "fd fdfind" \
-        "fd-find" "fd-find" "fd" "fd" \
-        "sharkdp/fd" "v10.2.0" "$(github_binary_pattern fd)" "fd" "" "link_fd_alias"
-
-    # jq (required by sync-agents.sh)
-    run_cli_tool_plan "jq" "jq" \
-        "jq" "jq" "jq" "jq" \
-        "jqlang/jq" "jq-1.7.1" "$(github_binary_pattern jq)" "$(github_binary_pattern jq)" "jq"
-
-    # tmux (terminal multiplexer)
-    run_cli_tool_plan "tmux" "tmux" \
-        "tmux" "tmux" "tmux" "tmux" \
-        "" "" "" ""
-
-    # Neovim (modern Vim)
-    run_cli_tool_plan "neovim" "nvim" \
-        "neovim" "neovim" "neovim" "neovim" \
-        "" "" "" ""
-
-    # git-lfs (large file support for Git)
-    run_cli_tool_plan "git-lfs" "git-lfs" \
-        "git-lfs" "git-lfs" "git-lfs" "git-lfs" \
-        "" "" "" "" "" "configure_git_lfs"
-
-    # shfmt (shell formatter)
-    run_cli_tool_plan "shfmt" "shfmt" \
-        "shfmt" "shfmt" "shfmt" "shfmt" \
-        "" "" "" ""
-
-    # just (command runner)
-    run_cli_tool_plan "just" "just" \
-        "just" "just" "just" "just" \
-        "casey/just" "1.56.0" "$(github_binary_pattern just)" "just"
-
-    # hadolint (Dockerfile linter)
-    run_cli_tool_plan "hadolint" "hadolint" \
-        "" "hadolint" "hadolint" "hadolint" \
-        "" "" "" ""
-
-    # Bitwarden CLI (bw)
-    run_cli_tool_plan "bitwarden-cli" "bw" \
-        "" "" "bitwarden-cli" "bitwarden-cli" \
-        "" "" "" ""
+    case "$os" in
+    Darwin) os=darwin ;;
+    Linux) os=linux ;;
+    *) return 1 ;;
+    esac
+    case "$arch" in
+    arm64 | aarch64) arch=arm64 ;;
+    x86_64 | amd64) arch=x86_64 ;;
+    *) return 1 ;;
+    esac
+    printf '%s-%s\n' "$os" "$arch"
 }
 
-install_eza() {
-    local github_repo=""
-    local github_tag=""
-    local github_archive=""
-    local github_binary=""
-
-    if [ "${IS_LINUX:-false}" = true ]; then
-        github_repo="eza-community/eza"
-        github_tag="v0.20.14"
-        github_archive="eza_x86_64-unknown-linux-gnu.tar.gz"
-        github_binary="eza"
-    fi
-
-    # eza (modern ls replacement)
-    run_cli_tool_plan "eza" "eza" \
-        "eza" "eza" "eza" "eza" \
-        "$github_repo" "$github_tag" "$github_archive" "$github_binary"
+core_tool_rows() {
+    local platform
+    platform="$(tool_platform)" || {
+        echo "[ERROR] Unsupported tool platform: $(uname -s)/$(uname -m)" >&2
+        return 1
+    }
+    "$JQ_BIN" -r --arg platform "$platform" '
+        (.platforms // ["darwin-arm64", "darwin-x86_64",
+            "linux-arm64", "linux-x86_64"]) as $defaults |
+        .tools[] | select(.scope == "core") |
+        select(((.platforms // $defaults) | index($platform)) != null) |
+        (.github.artifacts[$platform] // {}) as $artifact |
+        [.name, (.commands | join(" ")), (.packages.apt // "-"),
+         (.packages.dnf // "-"), (.packages.pacman // "-"),
+         (.packages.brew // "-"), (.github.repo // "-"),
+         (.github.tag // "-"), ($artifact.archive // "-"),
+         ($artifact.binary // "-"), ($artifact.installedName // "-"),
+         (.postInstall // "-"), (.adapter // "package")] | @tsv
+    ' "$TOOL_INVENTORY"
 }
 
-install_delta() {
-    # delta (syntax-highlighting git diff pager)
-    run_cli_tool_plan "delta" "delta" \
-        "" "" "" "git-delta" \
-        "dandavison/delta" "0.18.2" "$(github_binary_pattern delta)" "delta"
+empty_if_dash() {
+    [ "$1" = - ] || printf '%s' "$1"
 }
 
-install_tealdeer() {
-    local installed=false
-
-    tool_plan_installed "tldr" || installed=true
-    # tealdeer (tldr - practical command examples)
-    run_cli_tool_plan "tealdeer" "tldr" \
-        "tealdeer" "tealdeer" "tealdeer" "tealdeer" \
-        "tealdeer-rs/tealdeer" "v1.8.1" "$(github_binary_pattern tealdeer)" "$(github_binary_pattern tealdeer)" "tldr"
-    if [ "$installed" = true ] && tool_plan_installed "tldr"; then
-        update_tldr_cache
-    fi
-}
-
-install_lazygit() {
-    # lazygit (TUI for git)
-    run_cli_tool_plan "lazygit" "lazygit" \
-        "" "" "lazygit" "lazygit" \
-        "jesseduffield/lazygit" "v0.59.0" "$(github_binary_pattern lazygit)" "lazygit"
-}
-
-install_xclip() {
-    # xclip (clipboard from terminal — Linux only, macOS has built-in pbcopy/pbpaste)
-    if [ "${IS_MACOS:-false}" = true ]; then
-        echo "[INFO] Skipping xclip (macOS uses built-in pbcopy/pbpaste)"
+install_zoxide_native() {
+    if curl -sSf https://raw.githubusercontent.com/ajeetdsouza/zoxide/main/install.sh |
+        sh 2>/dev/null; then
         return 0
     fi
+    if check_installed cargo; then
+        cargo install zoxide --locked
+        return $?
+    fi
+    echo "[ERROR] zoxide: native installer failed and cargo is unavailable" >&2
+    return 1
+}
 
-    run_cli_tool_plan "xclip" "xclip" \
-        "xclip" "xclip" "xclip" "xclip" \
-        "" "" "" ""
+install_uv_tool() {
+    if ! check_installed uv; then
+        echo "[ERROR] $1: uv is unavailable" >&2
+        return 1
+    fi
+    uv tool install "$1"
+}
+
+install_declared_core_tools() {
+    local failed=false
+    local rows
+    local name commands apt dnf pacman brew repo tag archive binary
+    local installed_name post_install adapter
+
+    rows="$(core_tool_rows)" || return 1
+    while IFS=$'\t' read -r name commands apt dnf pacman brew repo tag \
+        archive binary installed_name post_install adapter; do
+        run_cli_tool_plan "$name" "$commands" \
+            "$(empty_if_dash "$apt")" "$(empty_if_dash "$dnf")" \
+            "$(empty_if_dash "$pacman")" "$(empty_if_dash "$brew")" \
+            "$(empty_if_dash "$repo")" "$(empty_if_dash "$tag")" \
+            "$(empty_if_dash "$archive")" "$(empty_if_dash "$binary")" \
+            "$(empty_if_dash "$installed_name")" \
+            "$(empty_if_dash "$post_install")" "$adapter" || failed=true
+    done <<<"$rows"
+
+    [ "$failed" = false ]
 }
 
 install_tpm() {
@@ -219,7 +222,11 @@ install_tpm() {
         echo "[INFO] tpm is already installed"
     else
         echo "[INFO] Installing tpm..."
-        git clone https://github.com/tmux-plugins/tpm "${HOME}/.tmux/plugins/tpm" --depth=1 || echo "[WARN] Failed to install tpm"
+        git clone https://github.com/tmux-plugins/tpm \
+            "${HOME}/.tmux/plugins/tpm" --depth=1 || {
+            echo "[ERROR] Failed to install tpm" >&2
+            return 1
+        }
     fi
 }
 
@@ -374,41 +381,7 @@ install_no_mistakes() {
 install_tools() {
     echo "[INFO] Installing CLI tools..."
 
-    install_core_cli_tools
-    install_eza
-    install_delta
-
-    # zoxide (smart cd replacement)
-    if check_installed zoxide; then
-        echo "[INFO] zoxide is already installed"
-    elif command -v brew >/dev/null 2>&1; then
-        brew install zoxide
-    elif curl -sSf https://raw.githubusercontent.com/ajeetdsouza/zoxide/main/install.sh | sh 2>/dev/null; then
-        echo "[INFO] zoxide installed successfully"
-    elif check_installed cargo; then
-        echo "[INFO] Installing zoxide via cargo..."
-        cargo install zoxide --locked
-    else
-        echo "[WARN] Skipping zoxide. Install manually: https://github.com/ajeetdsouza/zoxide#installation"
-    fi
-
-    install_tealdeer
-    install_lazygit
-    install_xclip
-
+    "$DOTFILES_DIR/scripts/agent-tools.sh" plan >/dev/null
+    install_declared_core_tools
     install_tpm
-
-    # pre-commit (via uv)
-    if pre-commit --version >/dev/null 2>&1; then
-        echo "[INFO] pre-commit is already installed"
-    elif check_installed uv; then
-        echo "[INFO] Installing pre-commit via uv..."
-        if uv tool install pre-commit; then
-            echo "[INFO] pre-commit installed successfully"
-        else
-            echo "[WARN] Failed to install pre-commit" >&2
-        fi
-    else
-        echo "[WARN] Skipping pre-commit (uv not available)"
-    fi
 }

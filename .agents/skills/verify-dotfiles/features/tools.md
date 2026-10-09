@@ -1,10 +1,14 @@
 # Tool inventory and updates
 
-List tools and update their latest releases without editing the inventory.
+Plan and install core and developer tools from one inventory. Update moving
+developer releases without editing that inventory.
 
 ## Sub-features
 
 - `report` shows installed and expected CLI versions.
+- `plan` checks every platform-applicable inventory entry offline.
+- `install` skips available commands and uses only declared package names,
+  adapters, or platform artifacts.
 - `update` updates Node and tools while preserving manifest contents.
 - `failure` retains previous Node and stops when downloads fail.
 
@@ -23,6 +27,9 @@ Preconditions: working host Node/npm; no live update needed for verification.
   installs a real fixture npm CLI from a local tarball, reads its version,
   checks that inventory bytes did not change, and verifies repair after
   independently changing the installed package.
+- **Core install plan.** Run `bash scripts/smoke-tool-plan.sh`. It exercises
+  package managers, explicit Darwin/Linux artifacts, installed-tool skips,
+  and failure before network access for an undeclared architecture.
 - **Node upgrade.** Run `bash scripts/smoke-node.sh`. It drives bootstrap
   with an isolated nvm provider, changes the upstream version, reads the
   selected Node and default alias, and verifies the previous runtime survives
