@@ -23,6 +23,18 @@ jq -e 'all(.tools[] | select((.scope // "agent") == "agent");
 tmp_dir="$(mktemp -d)"
 trap 'rm -rf "$tmp_dir"' EXIT
 
+invalid_manifest="${tmp_dir}/invalid-tool-versions.json"
+cat >"$invalid_manifest" <<'JSON'
+{"platforms":["linux-x86_64"],"tools":[{
+  "scope":"core","name":"uninstallable","commands":["uninstallable"],
+  "versionPolicy":"system","packages":{"brew":"uninstallable"}
+}]}
+JSON
+if AGENT_TOOL_VERSIONS="$invalid_manifest" \
+  "$AGENT_TOOLS" plan >/dev/null 2>&1; then
+  fail "manifest accepted a platform without an install source"
+fi
+
 manifest="${tmp_dir}/tool-versions.json"
 stub_dir="${tmp_dir}/stubs"
 npm_log="${tmp_dir}/npm.log"
@@ -92,6 +104,9 @@ JSON
 for command_name in pi codex claude opencode skills; do
   cat >"${stub_dir}/${command_name}" <<'STUB'
 #!/bin/bash
+if [ "${1:-}" = --version ] && [ -n "${VERSION_MARKER:-}" ]; then
+    : >"$VERSION_MARKER"
+fi
 name="$(basename "$0" | tr '[:lower:]' '[:upper:]')"
 variable="TEST_AGENT_${name}_VERSION"
 printf '%s %s\n' "$(basename "$0")" "${!variable:-1.2.3}"
@@ -121,16 +136,21 @@ chmod +x "${stub_dir}"/*
 export AGENT_TOOL_VERSIONS="$manifest"
 export NPM_LOG="$npm_log"
 export NATIVE_LOG="$native_log"
+export VERSION_MARKER="${tmp_dir}/version-called"
 export PATH="${stub_dir}:/usr/bin:/bin"
 
 plan="$("$AGENT_TOOLS" plan)"
+[ ! -e "$VERSION_MARKER" ] || fail "tool plan executed a CLI"
 [ "$(grep -c '^PASS[[:space:]]' <<<"$plan")" -eq 5 ] ||
   fail "offline plan omitted available tools"
-grep -F $'PASS\ttools\tnone\tCodex 1.2.3 is available' <<<"$plan" \
+grep -F $'PASS\ttools\tnone\tCodex is available' <<<"$plan" \
   >/dev/null || fail "tool plan omitted its contract fields"
 "$AGENT_TOOLS" check
+[ ! -e "$VERSION_MARKER" ] || fail "tool check executed a CLI"
 outdated_report="$(AGENT_TOOLS="$AGENT_TOOLS" \
   "$JUST_BIN" --justfile "${DOTFILES_DIR}/justfile" outdated)"
+[ -e "$VERSION_MARKER" ] || fail "outdated skipped version inspection"
+rm "$VERSION_MARKER"
 grep -F 'No outdated tools found' <<<"$outdated_report" >/dev/null ||
   fail "outdated did not report a current tool set"
 if grep -F 'OpenCode' <<<"$outdated_report" >/dev/null; then

@@ -97,8 +97,9 @@ name for explicit description; paths and package-manager state are not saved.
 
 `config/pi/settings.json` owns Pi's stable provider, model, thinking level, and
 pinned package list. Install keeps `auth.json`, sessions, `trust.json`, and
-changelog state local. Fast Mode remains off by default; its existing local
-preference is untouched. No runtime state or credentials are imported.
+the `deviceId`, `trackingId`, `apiKeys`, and changelog settings local. Fast
+Mode remains off by default; its existing local preference is untouched. No
+runtime state or credentials are imported.
 Apply only Pi with `./sync-agents.sh pi-install`; check semantic JSON and
 installed package versions with `./sync-agents.sh pi-check`.
 Before repository checks, run `npm --prefix config/pi ci --ignore-scripts`

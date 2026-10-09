@@ -61,6 +61,8 @@ if [ "$1" = "install" ]; then
             git-lfs)
                 printf '#!/bin/sh\n' > "${SMOKE_BIN}/git-lfs"
                 chmod +x "${SMOKE_BIN}/git-lfs"
+                printf '#!/bin/sh\n[ "$1" = lfs ]\n' > "${SMOKE_BIN}/git"
+                chmod +x "${SMOKE_BIN}/git"
                 ;;
             eza)
                 printf '#!/bin/sh\n' > "${SMOKE_BIN}/eza"
@@ -73,6 +75,18 @@ if [ "$1" = "install" ]; then
             xclip)
                 printf '#!/bin/sh\n' > "${SMOKE_BIN}/xclip"
                 chmod +x "${SMOKE_BIN}/xclip"
+                ;;
+            fzf|jq|tmux|shfmt|just)
+                printf '#!/bin/sh\n' > "${SMOKE_BIN}/${package_name}"
+                chmod +x "${SMOKE_BIN}/${package_name}"
+                ;;
+            ripgrep)
+                printf '#!/bin/sh\n' > "${SMOKE_BIN}/rg"
+                chmod +x "${SMOKE_BIN}/rg"
+                ;;
+            neovim)
+                printf '#!/bin/sh\n' > "${SMOKE_BIN}/nvim"
+                chmod +x "${SMOKE_BIN}/nvim"
                 ;;
         esac
     done
@@ -176,9 +190,20 @@ smoke_package_manager_plan() {
             esac
         }
 
-        install_github_binary() { return 1; }
-        install_zoxide_native() { return 1; }
-        install_uv_tool() { return 1; }
+        install_github_binary() {
+            local name="${5:-$4}"
+            echo "github $*" >>"$log_file"
+            printf '#!/bin/sh\n' >"${BIN_DIR}/${name}"
+            chmod +x "${BIN_DIR}/${name}"
+        }
+        install_zoxide_native() {
+            printf '#!/bin/sh\n' >"${BIN_DIR}/zoxide"
+            chmod +x "${BIN_DIR}/zoxide"
+        }
+        install_uv_tool() {
+            printf '#!/bin/sh\n' >"${BIN_DIR}/$1"
+            chmod +x "${BIN_DIR}/$1"
+        }
 
         export SMOKE_LOG="$log_file"
         export SMOKE_BIN="$bin_dir"
@@ -189,7 +214,7 @@ smoke_package_manager_plan() {
         BIN_DIR="$bin_dir"
         PATH="${bin_dir}:${stub_dir}:/usr/bin:/bin"
 
-        install_declared_core_tools >/dev/null || true
+        install_declared_core_tools >/dev/null
     )
 
     assert_log_contains "$log_file" "apt-get install -y fzf"
@@ -202,6 +227,9 @@ smoke_package_manager_plan() {
     assert_log_contains "$log_file" "apt-get install -y git-lfs"
     assert_log_contains "$log_file" "apt-get install -y shfmt"
     assert_log_contains "$log_file" "apt-get install -y just"
+    assert_log_contains "$log_file" \
+        "github hadolint/hadolint v2.15.1 hadolint-linux-x86_64 hadolint-linux-x86_64 hadolint"
+    assert_log_not_contains "$log_file" "bitwarden-cli"
     [ -L "${bin_dir}/bat" ] || fail "bat alias symlink was not created"
     [ -L "${bin_dir}/fd" ] || fail "fd alias symlink was not created"
 
@@ -266,7 +294,7 @@ smoke_linuxbrew_without_sudo_plan() {
     assert_log_contains "$log_file" "brew install shfmt"
     assert_log_contains "$log_file" "brew install just"
     assert_log_contains "$log_file" "brew install hadolint"
-    assert_log_contains "$log_file" "brew install bitwarden-cli"
+    assert_log_not_contains "$log_file" "bitwarden-cli"
     if grep -F "sudo " "$log_file" >/dev/null 2>&1 || grep -F "apt-get " "$log_file" >/dev/null 2>&1; then
         echo "[ERROR] Linuxbrew plan should not fall back to sudo or apt-get when HAS_SUDO=false" >&2
         cat "$log_file" >&2
@@ -333,7 +361,7 @@ smoke_remaining_tool_plan() {
     assert_log_contains "$log_file" "apt-get install -y tealdeer"
     assert_log_contains "$log_file" "apt-get install -y xclip"
     assert_log_contains "$log_file" "github dandavison/delta 0.18.2 delta-{tag}-x86_64-unknown-linux-gnu.tar.gz delta"
-    assert_log_contains "$log_file" "github jesseduffield/lazygit v0.59.0 lazygit_{tag_no_v}_Linux_x86_64.tar.gz lazygit"
+    assert_log_contains "$log_file" "github jesseduffield/lazygit v0.59.0 lazygit_{tag_no_v}_linux_x86_64.tar.gz lazygit"
     assert_log_contains "$log_file" "tldr --update"
 
     rm -rf "$tmp_dir"
@@ -461,10 +489,12 @@ smoke_github_fallback_plan() {
     assert_log_contains "$log_file" "github sharkdp/fd v10.2.0 fd-{tag}-x86_64-unknown-linux-gnu.tar.gz fd"
     assert_log_contains "$log_file" "github jqlang/jq jq-1.7.1 jq-linux-amd64 jq-linux-amd64 jq"
     assert_log_contains "$log_file" "github casey/just 1.56.0 just-{tag}-x86_64-unknown-linux-musl.tar.gz just"
+    assert_log_contains "$log_file" \
+        "github hadolint/hadolint v2.15.1 hadolint-linux-x86_64 hadolint-linux-x86_64 hadolint"
     assert_log_contains "$log_file" "github eza-community/eza v0.20.14 eza_x86_64-unknown-linux-gnu.tar.gz eza"
     assert_log_contains "$log_file" "github dandavison/delta 0.18.2 delta-{tag}-x86_64-unknown-linux-gnu.tar.gz delta"
     assert_log_contains "$log_file" "github tealdeer-rs/tealdeer v1.8.1 tealdeer-linux-x86_64-musl tealdeer-linux-x86_64-musl tldr"
-    assert_log_contains "$log_file" "github jesseduffield/lazygit v0.59.0 lazygit_{tag_no_v}_Linux_x86_64.tar.gz lazygit"
+    assert_log_contains "$log_file" "github jesseduffield/lazygit v0.59.0 lazygit_{tag_no_v}_linux_x86_64.tar.gz lazygit"
 
     rm -rf "$tmp_dir"
 }
@@ -481,7 +511,12 @@ smoke_macos_github_patterns() {
             .github.artifacts."darwin-arm64".archive ==
                 "fzf-{tag_no_v}-darwin_arm64.tar.gz") and
         (.tools[] | select(.name == "just") |
-            (.github.artifacts | keys | sort) == ($platforms | sort))
+            (.github.artifacts | keys | sort) == ($platforms | sort)) and
+        (.tools[] | select(.name == "hadolint") |
+            (.github.artifacts | keys | sort) == ($platforms | sort)) and
+        (.tools[] | select(.command == "bw") |
+            .package == "@bitwarden/cli" and .installer == "npm" and
+            .channel == "latest")
     ' "${DOTFILES_DIR}/.agents/tool-versions.json" >/dev/null ||
         fail "inventory platform artifacts are incomplete"
 }
@@ -504,6 +539,7 @@ JSON
         TOOL_INVENTORY="$manifest"
         OS=Linux
         ARCH=arm64
+        # shellcheck disable=SC2034
         HAS_SUDO=false
         BIN_DIR="${tmp_dir}/bin"
         mkdir -p "$BIN_DIR"

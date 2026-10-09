@@ -13,6 +13,21 @@ validate_manifest() {
         def valid_platforms:
             type == "array" and length > 0 and
             all(.[]; test("^(darwin|linux)-(arm64|x86_64)$"));
+        def nonempty: type == "string" and length > 0;
+        def github_source($tool; $platform):
+            (($tool.github.repo // "") | nonempty) and
+            (($tool.github.tag // "") | nonempty) and
+            (($tool.github.artifacts[$platform].archive // "") | nonempty) and
+            (($tool.github.artifacts[$platform].binary // "") | nonempty);
+        def install_source($tool; $platform):
+            if ($tool.adapter // "package") != "package" then true
+            elif ($platform | startswith("darwin-")) then
+                (($tool.packages.brew // "") | nonempty) or
+                github_source($tool; $platform)
+            else
+                (($tool.packages.apt // "") | nonempty) or
+                github_source($tool; $platform)
+            end;
         ((.platforms // ["darwin-arm64", "darwin-x86_64",
             "linux-arm64", "linux-x86_64"]) | valid_platforms) and
         (.tools | type) == "array" and (.tools | length) > 0 and
@@ -45,15 +60,21 @@ validate_manifest() {
                      .installer == "no-mistakes-native")
                  end)
             else
-                .scope == "core" and
-                (.commands | type == "array" and length > 0) and
-                (.versionPolicy == "latest" or
-                    .versionPolicy == "pinned" or
-                    .versionPolicy == "system") and
-                ((.packages // {}) | type == "object") and
-                ((.github // {}) | type == "object") and
-                ((.adapter // "package") == "package" or
-                    .adapter == "zoxide-native" or .adapter == "uv")
+                . as $tool |
+                $tool.scope == "core" and
+                ($tool.commands | type == "array" and length > 0) and
+                ($tool.versionPolicy == "latest" or
+                    $tool.versionPolicy == "pinned" or
+                    $tool.versionPolicy == "system") and
+                (($tool.packages // {}) | type == "object") and
+                (($tool.github // {}) | type == "object") and
+                (($tool.adapter // "package") == "package" or
+                    $tool.adapter == "zoxide-native" or
+                    $tool.adapter == "uv") and
+                all(($tool.platforms // [
+                    "darwin-arm64", "darwin-x86_64",
+                    "linux-arm64", "linux-x86_64"
+                ])[]; install_source($tool; .))
             end
         ) and
         (([.tools[] | command_name] | length) ==
@@ -327,14 +348,15 @@ report_versions() {
 }
 
 plan_tools() {
-    local rows name scope commands command_name current available
+    local rows name scope commands command_name available
     local candidate report
 
     rows="$(plan_rows)" || return 1
     while IFS=$'\t' read -r name scope commands; do
         command_name="${commands%% *}"
-        if [ "$scope" = agent ] && current=$(installed_version "$command_name"); then
-            printf 'PASS\ttools\tnone\t%s %s is available\n' "$name" "$current"
+        if [ "$scope" = agent ] &&
+            command -v "$command_name" >/dev/null 2>&1; then
+            printf 'PASS\ttools\tnone\t%s is available\n' "$name"
         elif [ "$scope" = core ]; then
             available=false
             for command_name in $commands; do

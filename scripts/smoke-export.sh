@@ -258,10 +258,13 @@ cat >"$opencode_live" <<'JSON'
 JSON
 cat >"$pi_live" <<'JSON'
 {
+  "apiKeys": {"fixture": "must-not-enter-repo"},
   "authToken": "must-not-enter-repo",
+  "deviceId": "local-device",
   "packages": ["npm:example@2"],
   "terminal": {"trueColor": true},
-  "theme": "live-theme"
+  "theme": "live-theme",
+  "trackingId": "local-tracking"
 }
 JSON
 cat >"$pi_mcp" <<'JSON'
@@ -284,6 +287,15 @@ cat >"$codex_mcp" <<'JSON'
     "transport": {
       "args": [],
       "command": "/Users/local/bin/codex-server",
+      "type": "stdio"
+    }
+  },
+  {
+    "enabled": true,
+    "name": "codex-portable",
+    "transport": {
+      "args": ["--stdio"],
+      "command": "codex-server",
       "type": "stdio"
     }
   },
@@ -439,16 +451,19 @@ jq '.mcpServers.shared.url = "https://shared.test/mcp"' "$claude_user" \
     >"${tmp_dir}/claude-restored.json"
 mv "${tmp_dir}/claude-restored.json" "$claude_user"
 
-# Local filesystem paths are never portable MCP state.
+# Unmanaged local MCP paths stay local and do not block the export plan.
 jq --arg command "$HOME/bin/pi-server" \
     '.mcpServers["pi-only"].command = $command' "$pi_mcp" \
     >"${tmp_dir}/pi-local.json"
 mv "${tmp_dir}/pi-local.json" "$pi_mcp"
-if run_export y "${tmp_dir}/local-path.log"; then
-    fail "export accepted a local MCP path"
+if run_export n "${tmp_dir}/local-path.log"; then
+    fail "cancelled export with local MCP state succeeded"
 fi
-grep -F 'local path or secret' "${tmp_dir}/local-path.log" >/dev/null ||
-    fail "local MCP path was not reported"
+grep -F '[PLAN] MCP inventory:' "${tmp_dir}/local-path.log" >/dev/null ||
+    fail "local MCP state blocked the export plan"
+if grep -F 'local path or secret' "${tmp_dir}/local-path.log" >/dev/null; then
+    fail "unmanaged local MCP state was treated as export data"
+fi
 jq '.mcpServers["pi-only"].command = "pi-server"' "$pi_mcp" \
     >"${tmp_dir}/pi-restored.json"
 mv "${tmp_dir}/pi-restored.json" "$pi_mcp"
@@ -516,8 +531,12 @@ jq -e '
     (has("session") | not) and (has("mcp") | not)
 ' "$opencode_template" >/dev/null || fail "OpenCode allowlist export failed"
 jq -e '
-    .theme == "live-theme" and .terminal.trueColor == true and
-    .packages == ["npm:example@2"] and (has("authToken") | not)
+    . as $settings |
+    $settings.theme == "live-theme" and
+    $settings.terminal.trueColor == true and
+    $settings.packages == ["npm:example@2"] and
+    (["apiKeys", "authToken", "deviceId", "trackingId"] |
+        all(. as $key | $settings | has($key) | not))
 ' "$pi_template" >/dev/null || fail "Pi allowlist export failed"
 grep -F 'model = "live-codex"' "$codex_template" >/dev/null ||
     fail "Codex allowlist export failed"
@@ -554,12 +573,17 @@ if grep -F "$HOME/" \
     fail "export wrote a local path"
 fi
 jq -e '
-    keys == ["claude-only", "opencode-only", "pi-only", "shared"] and
+    keys == [
+      "claude-only", "codex-portable", "opencode-only", "pi-only", "shared"
+    ] and
     .["claude-only"] == {
       type: "stdio", command: "claude-server", args: []
+    } and
+    .["codex-portable"] == {
+      type: "stdio", command: "codex-server", args: ["--stdio"]
     }
 ' "$repo_mcp" >/dev/null ||
-    fail "MCP export included Codex-only local state"
+    fail "MCP export mishandled portable or local-only state"
 git -C "$checkout" diff --cached --quiet || fail "export staged changes"
 [ "$(git -C "$checkout" rev-parse HEAD)" = "$initial_head" ] ||
     fail "export created a commit"

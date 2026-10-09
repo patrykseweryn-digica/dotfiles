@@ -152,6 +152,27 @@ if grep -F 'must-not-enter-repo' "$repo_mcp" >/dev/null; then
     fail "pull-mcp imported a credential"
 fi
 
+cp "$repo_mcp" "${tmp_dir}/before-local.json"
+jq --arg command "$HOME/bin/runtime-server" \
+    '. + [{
+      "name": "runtime-local",
+      "enabled": true,
+      "transport": {
+        "type": "stdio", "command": $command, "args": []
+      }
+    }]' "$codex_mcp" >"${tmp_dir}/local-codex.json"
+mv "${tmp_dir}/local-codex.json" "$codex_mcp"
+printf 'y\n' | "$SYNC" --quiet pull-mcp >"${tmp_dir}/local.log" ||
+    fail "pull-mcp rejected unmanaged local MCP state"
+cmp -s "$repo_mcp" "${tmp_dir}/before-local.json" ||
+    fail "pull-mcp imported unmanaged local MCP state"
+if jq -e 'has("runtime-local")' "$repo_mcp" >/dev/null; then
+    fail "pull-mcp wrote an unmanaged local MCP server"
+fi
+jq 'map(select(.name != "runtime-local"))' "$codex_mcp" \
+    >"${tmp_dir}/portable-codex.json"
+mv "${tmp_dir}/portable-codex.json" "$codex_mcp"
+
 cp "$repo_mcp" "${tmp_dir}/before-unsafe.json"
 jq --arg command "$HOME/bin/codex-server" \
     'map(if .name == "codex-only" then
@@ -162,8 +183,12 @@ if printf 'y\n' | "$SYNC" --quiet pull-mcp \
     >"${tmp_dir}/unsafe.log" 2>&1; then
     fail "pull-mcp accepted local MCP state"
 fi
-grep -F 'local path or secret' "${tmp_dir}/unsafe.log" >/dev/null ||
-    fail "pull-mcp did not report unsafe MCP state"
+grep -F 'Non-portable managed MCP servers: codex-only' \
+    "${tmp_dir}/unsafe.log" >/dev/null ||
+    fail "pull-mcp did not report unsafe managed MCP state"
+if grep -F "$HOME/bin/codex-server" "${tmp_dir}/unsafe.log" >/dev/null; then
+    fail "pull-mcp exposed an unsafe MCP definition"
+fi
 cmp -s "$repo_mcp" "${tmp_dir}/before-unsafe.json" ||
     fail "pull-mcp wrote unsafe MCP state"
 jq '. | map(if .name == "codex-only" then

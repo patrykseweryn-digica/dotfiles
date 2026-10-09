@@ -288,6 +288,14 @@ real_plan
 grep -E '^PASS[[:space:]]+mcp[[:space:]]' \
     "${tmp_dir}/real-plan" >/dev/null ||
     fail "Codex-only local MCP state was not ignored"
+cat >"$CODEX_MCP_STATE_FILE" <<'JSON'
+[{"enabled":true,"name":"codex-portable","transport":{
+  "type":"stdio","command":"portable-server","args":["--stdio"]}}]
+JSON
+real_plan
+grep -E '^EXPORT[[:space:]]+mcp[[:space:]]' \
+    "${tmp_dir}/real-plan" >/dev/null ||
+    fail "portable Codex-only MCP state is not exportable"
 printf '[]\n' >"$CODEX_MCP_STATE_FILE"
 
 cp "$CLAUDE_SETTINGS_FILE" "${tmp_dir}/claude-settings.before"

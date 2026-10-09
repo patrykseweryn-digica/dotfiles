@@ -634,23 +634,74 @@ mcp_rows_to_inventory() {
     ' "$rows_file"
 }
 
-filter_portable_mcp_rows() {
+classify_mcp_rows() {
     local source="$1" target="$2"
-    jq -c -s --slurpfile wanted "$MCP_SERVERS" '
-        . as $rows
-        | $rows[] as $row
-        | select(
-            $row.runtime != "codex" or
-            ($wanted[0] | has($row.name)) or
-            any($rows[];
-                .runtime != "codex" and .name == $row.name)
-        )
-        | $row
+    jq -c -s --arg home "$HOME" --slurpfile wanted "$MCP_SERVERS" '
+        def sensitive:
+            test(
+                "(^|[-_])(access[-_]?token|api[-_]?key|secret|" +
+                "password|oauth)(=|:|$)";
+                "i"
+            );
+        def portable:
+            all(.. | strings;
+                (startswith($home + "/") or
+                 test("^/(Users|home)/")) | not
+            ) and
+            if .type == "stdio" then
+                (.command | startswith("/") | not) and
+                all(.args[]?;
+                    type != "string" or
+                    ((startswith("/") or sensitive) | not)
+                )
+            elif .type == "http" then
+                (.url |
+                    (test("^[a-z][a-z0-9+.-]*://[^/@]+@"; "i") or
+                     test(
+                        "[?&](access_?token|api_?key|secret|" +
+                        "password|oauth)=";
+                        "i"
+                     )) | not
+                )
+            else false
+            end;
+        .[] as $row |
+        $row + {
+            managed: ($wanted[0] | has($row.name)),
+            portable: ($row.server | portable)
+        }
     ' "$source" >"$target"
 }
 
+filter_portable_mcp_rows() {
+    local source="$1" target="$2" classified managed local_names
+    classified="$(mktemp)"
+    classify_mcp_rows "$source" "$classified" || {
+        rm -f "$classified"
+        return 1
+    }
+    managed="$(jq -rs '
+        [.[] | select(.managed and (.portable | not)) | .name] |
+        unique | .[:20] | join(", ")
+    ' "$classified")"
+    if [ -n "$managed" ]; then
+        echo "[ERROR] Non-portable managed MCP servers: $managed" >&2
+        rm -f "$classified"
+        return 1
+    fi
+    local_names="$(jq -rs '
+        [.[] | select((.managed | not) and (.portable | not)) | .name] |
+        unique | .[:20] | join(", ")
+    ' "$classified")"
+    [ -z "$local_names" ] ||
+        log_info "Keeping non-portable MCP servers local: $local_names"
+    jq -c 'select(.managed or .portable) | del(.managed, .portable)' \
+        "$classified" >"$target"
+    rm -f "$classified"
+}
+
 build_mcp_candidate() {
-    local candidate="$1" include_codex_only="${2:-false}"
+    local candidate="$1"
     local rows filtered runtimes conflicts
     rows="$(mktemp)"
     runtimes="$(available_mcp_runtimes)"
@@ -663,14 +714,12 @@ build_mcp_candidate() {
         rm -f "$rows"
         return 1
     }
-    if [ "$include_codex_only" != true ]; then
-        filtered="$(mktemp)"
-        filter_portable_mcp_rows "$rows" "$filtered" || {
-            rm -f "$rows" "$filtered"
-            return 1
-        }
-        mv "$filtered" "$rows"
-    fi
+    filtered="$(mktemp)"
+    filter_portable_mcp_rows "$rows" "$filtered" || {
+        rm -f "$rows" "$filtered"
+        return 1
+    }
+    mv "$filtered" "$rows"
 
     conflicts=$(jq -s '
         sort_by(.name, .runtime)
@@ -682,10 +731,10 @@ build_mcp_candidate() {
         })
     ' "$rows")
     if [ "$(jq 'length' <<<"$conflicts")" -gt 0 ]; then
-        echo "[ERROR] Conflicting MCP definitions; repository unchanged:" >&2
-        jq -r '.[] | "  - \(.name): " +
-            ([.definitions[] | "\(.runtime)=\(.server | tojson)"] |
-             join(", "))' <<<"$conflicts" >&2
+        echo "[ERROR] Conflicting MCP definitions; repository unchanged: $(
+            jq -r 'map(.name) | unique | .[:20] | join(", ")' \
+                <<<"$conflicts"
+        )" >&2
         rm -f "$rows"
         return 1
     fi
@@ -703,7 +752,7 @@ cmd_pull_mcp() {
     local candidate current reply
     candidate="$(mktemp)"
     current="$(mktemp)"
-    if ! build_mcp_candidate "$candidate" true; then
+    if ! build_mcp_candidate "$candidate"; then
         rm -f "$candidate" "$current"
         return 1
     fi
@@ -851,6 +900,9 @@ build_json_settings_candidate() {
     }
     validate_json_config "$live" "${runtime}-install" || return 1
     validate_json_config "$template" "${runtime}-install" || return 1
+    if [ "$runtime" = pi ]; then
+        validate_pi_settings_template "$template" || return 1
+    fi
 
     jq -S --arg runtime "$runtime" --slurpfile managed "$template" '
         def import_managed($live; $wanted):
@@ -903,36 +955,25 @@ validate_settings_candidate() {
 }
 
 validate_mcp_candidate() {
-    local candidate="$1"
-    jq -e --arg home "$HOME" '
-        def sensitive:
-            test(
-                "(^|[-_])(access[-_]?token|api[-_]?key|secret|" +
-                "password|oauth)(=|:|$)";
-                "i"
-            );
-        all(.. | strings;
-            (startswith($home + "/") or test("^/(Users|home)/")) | not
-        ) and
-        all(.[];
-            if .type == "stdio" then
-                (.command | startswith("/") | not) and
-                all(.args[]?;
-                    type != "string" or
-                    ((startswith("/") or sensitive) | not)
-                )
-            else
-                (.url |
-                    (test("^[a-z][a-z0-9+.-]*://[^/@]+@"; "i") or
-                     test("[?&](access_?token|api_?key|secret|password|oauth)=";
-                          "i")) | not
-                )
-            end
-        )
-    ' "$candidate" >/dev/null || {
-        echo "[ERROR] MCP export contains a local path or secret" >&2
+    local candidate="$1" rows classified
+    rows="$(mktemp)"
+    classified="$(mktemp)"
+    jq -c 'to_entries[] | {
+        runtime: "candidate", name: .key, server: .value
+    }' "$candidate" >"$rows" || {
+        rm -f "$rows" "$classified"
         return 1
     }
+    classify_mcp_rows "$rows" "$classified" || {
+        rm -f "$rows" "$classified"
+        return 1
+    }
+    if ! jq -es 'all(.[]; .portable)' "$classified" >/dev/null; then
+        echo "[ERROR] MCP export contains a local path or secret" >&2
+        rm -f "$rows" "$classified"
+        return 1
+    fi
+    rm -f "$rows" "$classified"
 }
 
 require_clean_export_checkout() {
@@ -3248,18 +3289,35 @@ cmd_push_plugins() {
     [ "$failed" = false ]
 }
 
+validate_pi_settings_template() {
+    local template="$1" key
+    key="$(jq -r '
+        . as $settings |
+        ["lastChangelogVersion", "deviceId", "trackingId", "apiKeys"] |
+        map(select(. as $key | $settings | has($key))) |
+        .[0] // empty
+    ' "$template")" || return 1
+    if [ -n "$key" ]; then
+        echo "[ERROR] Pi settings template contains local-only key: $key" >&2
+        return 1
+    fi
+}
+
 render_pi_settings() {
     local source_file="$1"
     local target_file="$2"
 
+    validate_pi_settings_template "$PI_SETTINGS_TEMPLATE" || return 1
     jq -S --slurpfile wanted "$PI_SETTINGS_TEMPLATE" '
-        .lastChangelogVersion? as $last
-        | $wanted[0]
-        + if $last == null then
-            {}
-          else
-            {lastChangelogVersion: $last}
-          end
+        . as $live |
+        reduce [
+            "lastChangelogVersion", "deviceId", "trackingId", "apiKeys"
+        ][] as $key ($wanted[0];
+            if ($live | has($key)) then
+                .[$key] = $live[$key]
+            else .
+            end
+        )
     ' < <(
         if [ -f "$source_file" ]; then
             cat "$source_file"
@@ -3406,7 +3464,10 @@ cmd_pi_check() {
     pi_resources check || failed=true
     pi_models check || failed=true
     tmp="$(mktemp)"
-    render_pi_settings "$PI_SETTINGS_FILE" "$tmp"
+    render_pi_settings "$PI_SETTINGS_FILE" "$tmp" || {
+        rm -f "$tmp"
+        return 1
+    }
     if ! jq -e --slurpfile wanted "$tmp" '. == $wanted[0]' \
         "$PI_SETTINGS_FILE" >/dev/null; then
         echo "[ERROR] Pi settings drift detected: $PI_SETTINGS_FILE" >&2
