@@ -17,9 +17,6 @@ Install or apply dotfiles while preserving runtime credentials and sessions.
 - `just install` for full setup.
 - `just update` for planned local convergence and controlled upstream updates.
 - `just export` for one confirmed portable export into a clean checkout.
-- `just update-dotfiles` for config only.
-- `just skills-preflight` to resolve current upstream skills without applying.
-- `just push-mcp`, `just push-skills`, `just push-plugins`, `just push`.
 
 ## Driving it with Bash smoke scripts
 
@@ -41,8 +38,8 @@ Preconditions: dependencies from SKILL.md; run from the checkout root.
   Require current content in every runtime, no live changes after staging or
   network failures, rollback after apply failures, and no new backup on an
   unchanged repeated push.
-- **Sync public entries.** Run `bash scripts/smoke-agent-sync-interface.sh`.
-  Pull previews, cancellation/conflicts and public push entry points are
+- **Sync internals.** Run `bash scripts/smoke-agent-sync-interface.sh`.
+  Pull previews, cancellation/conflicts and direct adapter entries are
   exercised without importing or replacing live user preferences.
 - **Start shell.** Run `bash scripts/smoke-zshrc-startup.sh`. Require clean
   startup, correct platform paths and Cursor/Grok command precedence.
@@ -50,9 +47,9 @@ Preconditions: dependencies from SKILL.md; run from the checkout root.
 
 ## Gotchas
 
-- `just install` and config push can replace local preferences and skills.
+- `just install` and `just update` can replace local preferences and skills.
   Use fixture scripts for testing; back up and review before live application.
 - SSH, sudo and external downloads are simulated by smoke tests. The separate
-  upstream CI preflight and a live `just skills-preflight` use real networks;
-  report which boundary was exercised.
+  upstream CI preflight and a live `./sync-agents.sh skills-preflight` use real
+  networks; report which boundary was exercised.
 - Darwin/Linux uname fixtures do not replace actual Linux CI execution.

@@ -52,7 +52,7 @@ just check 2>&1 | tee "$proof/check.log"
 just doctor >"$proof/doctor-after.log" 2>&1
 ```
 
-Record both exit codes. `just verify` combines check and doctor for a single pass/fail command.
+Record both exit codes.
 Commit-time pre-commit hooks remain mandatory.
 Do not disable hooks or force a commit through a new failure. With existing
 live drift, state exactly what passed and which checks still fail. Before
@@ -80,8 +80,8 @@ Capture commands, exit codes, platform (`uname -s` and `uname -m`) and
 The install smoke scripts exercise public just recipes in disposable HOME;
 external installers are stubbed at the network/package-manager boundary.
 The tool smoke installs and updates a real local npm package through the
-public update command, reads back its version, verifies unchanged inventory,
-and tests download failure and a missing Node without touching live tools.
+internal adapter, exercises the public report, reads back the version, verifies
+unchanged inventory, and tests failures without touching live tools.
 The sync tests check credentials/session preservation and repeated setup.
 
 Record doctor failures before and after; investigate new failures. For changed
