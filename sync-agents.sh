@@ -8,7 +8,7 @@ SHARED_SKILLS_CUSTOM_DIR="${SHARED_SKILLS_CUSTOM_DIR:-${DOTFILES_DIR}/.agents/sk
 CODEX_AGENTS_SOURCE="${DOTFILES_DIR}/config/codex/AGENTS.md"
 CLAUDE_AGENTS_SOURCE="${DOTFILES_DIR}/config/claude/CLAUDE.md"
 OPENCODE_AGENTS_SOURCE="${DOTFILES_DIR}/config/opencode/AGENTS.md"
-OPENCODE_TEMPLATE="${DOTFILES_DIR}/config/opencode/opencode.json"
+OPENCODE_TEMPLATE="${OPENCODE_TEMPLATE:-${DOTFILES_DIR}/config/opencode/opencode.json}"
 PI_AGENTS_SOURCE="${PI_AGENTS_SOURCE:-${DOTFILES_DIR}/config/pi/AGENTS.md}"
 PI_SETTINGS_TEMPLATE="${PI_SETTINGS_TEMPLATE:-${DOTFILES_DIR}/config/pi/settings.json}"
 CODEX_HOME="${CODEX_HOME:-${HOME}/.codex}"
@@ -38,6 +38,7 @@ SKILL_LOCK_REPO="${SKILL_LOCK_REPO:-${DOTFILES_DIR}/.agents/skill-lock.json}"
 SKILL_LOCK_LIVE="${SKILL_LOCK_LIVE:-${HOME}/.agents/.skill-lock.json}"
 SKILL_SOURCE_REFS="${SKILL_SOURCE_REFS:-${HOME}/.agents/.skill-source-refs.json}"
 SKILLS_CLI="${SKILLS_CLI:-skills}"
+EXPORT_GIT_DIR="${EXPORT_GIT_DIR:-${DOTFILES_DIR}}"
 
 QUIET=false
 STAGED_SKILLS_ROOT=""
@@ -631,13 +632,9 @@ mcp_rows_to_inventory() {
     ' "$rows_file"
 }
 
-cmd_pull_mcp() {
-    [ "$#" -eq 0 ] || {
-        echo "[ERROR] pull-mcp takes no arguments" >&2
-        return 1
-    }
-
-    local rows runtimes conflicts candidate current reply
+build_mcp_candidate() {
+    local candidate="$1"
+    local rows runtimes conflicts
     rows="$(mktemp)"
     runtimes="$(available_mcp_runtimes)"
     [ -n "$runtimes" ] || {
@@ -668,11 +665,24 @@ cmd_pull_mcp() {
         return 1
     fi
 
+    mcp_rows_to_inventory "$rows" >"$candidate"
+    rm -f "$rows"
+}
+
+cmd_pull_mcp() {
+    [ "$#" -eq 0 ] || {
+        echo "[ERROR] pull-mcp takes no arguments" >&2
+        return 1
+    }
+
+    local candidate current reply
     candidate="$(mktemp)"
     current="$(mktemp)"
-    mcp_rows_to_inventory "$rows" >"$candidate"
+    if ! build_mcp_candidate "$candidate"; then
+        rm -f "$candidate" "$current"
+        return 1
+    fi
     normalize_mcp_inventory "$MCP_SERVERS" >"$current"
-    rm -f "$rows"
 
     if cmp -s "$current" "$candidate"; then
         rm -f "$current" "$candidate"
@@ -802,6 +812,239 @@ cmd_pull_codex_settings() {
         return 1
         ;;
     esac
+}
+
+build_json_settings_candidate() {
+    local runtime="$1" live="$2" template="$3" target="$4"
+    [ -f "$live" ] || {
+        echo "[ERROR] ${runtime} settings missing: $live" >&2
+        return 1
+    }
+    validate_json_config "$live" "${runtime}-install" || return 1
+    validate_json_config "$template" "${runtime}-install" || return 1
+
+    jq -S --arg runtime "$runtime" --slurpfile managed "$template" '
+        def select_managed($live; $wanted):
+            reduce ($wanted | keys_unsorted[]) as $key ({};
+                if ($live | has($key)) then
+                    .[$key] = (
+                        if (($wanted[$key] | type) == "object" and
+                            ($live[$key] | type) == "object") then
+                            select_managed($live[$key]; $wanted[$key])
+                        else
+                            $live[$key]
+                        end
+                    )
+                else . end
+            );
+        (if $runtime == "claude" then
+            .permissions.allow = ((.permissions.allow // []) |
+                map(select(
+                    (startswith("mcp__") and endswith("__*")) | not
+                )))
+         else . end) as $live |
+        select_managed($live; $managed[0])
+    ' "$live" >"$target"
+}
+
+validate_settings_candidate() {
+    local label="$1" candidate="$2"
+    if grep -F "$HOME/" "$candidate" >/dev/null 2>&1 ||
+        grep -E '(^|[[:space:]"=])/(Users|home)/' \
+            "$candidate" >/dev/null 2>&1; then
+        echo "[ERROR] ${label} export contains a local home path" >&2
+        return 1
+    fi
+    case "$candidate" in
+    *.json)
+        jq -e '
+            [paths(scalars) as $path |
+                ($path[-1] | tostring | ascii_downcase) |
+                select(test(
+                    "(^|_)(access_?token|refresh_?token|api_?key|" +
+                    "secret|password|oauth|session_?id|cache)(_.*)?$"
+                ))
+            ] | length == 0
+        ' "$candidate" >/dev/null || {
+            echo "[ERROR] ${label} export contains local secret state" >&2
+            return 1
+        }
+        ;;
+    esac
+}
+
+validate_mcp_candidate() {
+    local candidate="$1"
+    jq -e --arg home "$HOME" '
+        def sensitive:
+            test(
+                "(^|[-_])(access[-_]?token|api[-_]?key|secret|" +
+                "password|oauth)(=|:|$)";
+                "i"
+            );
+        all(.. | strings;
+            (startswith($home + "/") or test("^/(Users|home)/")) | not
+        ) and
+        all(.[];
+            if .type == "stdio" then
+                (.command | startswith("/") | not) and
+                all(.args[]?;
+                    type != "string" or
+                    ((startswith("/") or sensitive) | not)
+                )
+            else
+                (.url |
+                    (test("^[a-z][a-z0-9+.-]*://[^/@]+@"; "i") or
+                     test("[?&](access_?token|api_?key|secret|password|oauth)=";
+                          "i")) | not
+                )
+            end
+        )
+    ' "$candidate" >/dev/null || {
+        echo "[ERROR] MCP export contains a local path or secret" >&2
+        return 1
+    }
+}
+
+require_clean_export_checkout() {
+    local dirty
+    git -C "$EXPORT_GIT_DIR" rev-parse --is-inside-work-tree \
+        >/dev/null 2>&1 || {
+        echo "[ERROR] Export requires a Git checkout: $EXPORT_GIT_DIR" >&2
+        return 1
+    }
+    dirty="$(git -C "$EXPORT_GIT_DIR" status --porcelain \
+        --untracked-files=all)" || {
+        echo "[ERROR] Could not inspect export checkout" >&2
+        return 1
+    }
+    if [ -n "$dirty" ]; then
+        echo "[ERROR] Export requires a clean checkout" >&2
+        return 1
+    fi
+}
+
+rollback_export_targets() {
+    local backup_root="$1" failed=false index target
+    for index in "${!EXPORT_TARGETS[@]}"; do
+        target="${EXPORT_TARGETS[$index]}"
+        if [ -f "${backup_root}/${index}" ]; then
+            cp -p "${backup_root}/${index}" "$target" || failed=true
+        else
+            rm -f "$target" || failed=true
+        fi
+    done
+    [ "$failed" = false ]
+}
+
+apply_export_candidates() {
+    local root="$1"
+    local backup_root="${root}/backups"
+    local index target candidate
+    mkdir -p "$backup_root" || return 1
+    for index in "${!EXPORT_TARGETS[@]}"; do
+        target="${EXPORT_TARGETS[$index]}"
+        [ ! -e "$target" ] || cp -p "$target" "${backup_root}/${index}" ||
+            return 1
+    done
+    for index in "${!EXPORT_TARGETS[@]}"; do
+        target="${EXPORT_TARGETS[$index]}"
+        candidate="${EXPORT_CANDIDATES[$index]}"
+        mkdir -p "$(dirname "$target")" || {
+            rollback_export_targets "$backup_root" || true
+            return 1
+        }
+        if ! cp "$candidate" "$target"; then
+            echo "[ERROR] Export apply failed; rolling back checkout" >&2
+            rollback_export_targets "$backup_root" ||
+                echo "[ERROR] Export rollback incomplete" >&2
+            return 1
+        fi
+    done
+}
+
+cmd_export() {
+    [ "$#" -eq 0 ] || {
+        echo "[ERROR] export takes no arguments" >&2
+        return 1
+    }
+    require_clean_export_checkout || return 1
+
+    local root candidate target label reply index
+    root="$(mktemp -d)" || return 1
+    EXPORT_TARGETS=()
+    EXPORT_CANDIDATES=()
+    EXPORT_LABELS=()
+
+    candidate="${root}/codex-settings.toml"
+    codex_toml import "$candidate" || { rm -rf "$root"; return 1; }
+    validate_settings_candidate "Codex settings" "$candidate" || {
+        rm -rf "$root"
+        return 1
+    }
+    if ! cmp -s "$CODEX_SETTINGS_TEMPLATE" "$candidate"; then
+        EXPORT_TARGETS+=("$CODEX_SETTINGS_TEMPLATE")
+        EXPORT_CANDIDATES+=("$candidate")
+        EXPORT_LABELS+=("Codex settings")
+    fi
+
+    while IFS='|' read -r label target candidate runtime live; do
+        build_json_settings_candidate "$runtime" "$live" "$target" \
+            "$candidate" || { rm -rf "$root"; return 1; }
+        validate_settings_candidate "$label" "$candidate" || {
+            rm -rf "$root"
+            return 1
+        }
+        if ! cmp -s "$target" "$candidate"; then
+            EXPORT_TARGETS+=("$target")
+            EXPORT_CANDIDATES+=("$candidate")
+            EXPORT_LABELS+=("$label")
+        fi
+    done <<EOF
+Claude settings|$CLAUDE_TEMPLATE_FILE|${root}/claude.json|claude|$CLAUDE_SETTINGS_FILE
+OpenCode settings|$OPENCODE_TEMPLATE|${root}/opencode.json|opencode|$OPENCODE_CONFIG
+Pi settings|$PI_SETTINGS_TEMPLATE|${root}/pi-settings.json|pi|$PI_SETTINGS_FILE
+EOF
+
+    candidate="${root}/mcp-servers.json"
+    build_mcp_candidate "$candidate" || { rm -rf "$root"; return 1; }
+    validate_mcp_candidate "$candidate" || { rm -rf "$root"; return 1; }
+    if ! cmp -s "$MCP_SERVERS" "$candidate"; then
+        EXPORT_TARGETS+=("$MCP_SERVERS")
+        EXPORT_CANDIDATES+=("$candidate")
+        EXPORT_LABELS+=("MCP inventory")
+    fi
+
+    if [ "${#EXPORT_TARGETS[@]}" -eq 0 ]; then
+        rm -rf "$root"
+        log_info "Portable settings and MCP already match live state"
+        return 0
+    fi
+
+    echo "[INFO] Export plan"
+    for index in "${!EXPORT_TARGETS[@]}"; do
+        echo "[PLAN] ${EXPORT_LABELS[$index]}: ${EXPORT_TARGETS[$index]}"
+        diff -u "${EXPORT_TARGETS[$index]}" \
+            "${EXPORT_CANDIDATES[$index]}" || true
+    done
+    printf 'Apply this export plan? [y/N] '
+    read -r reply || reply=""
+    case "$reply" in
+    y | Y | yes | YES)
+        require_clean_export_checkout || { rm -rf "$root"; return 1; }
+        if ! apply_export_candidates "$root"; then
+            rm -rf "$root"
+            return 1
+        fi
+        ;;
+    *)
+        rm -rf "$root"
+        echo "[ERROR] Export cancelled; checkout unchanged" >&2
+        return 1
+        ;;
+    esac
+    rm -rf "$root"
+    log_info "Exported portable settings and MCP to the checkout"
 }
 
 sync_codex_mcp_config() {
@@ -3390,6 +3633,10 @@ plugins-export)
 plugins-update)
     cmd_plugins_update
     ;;
+export)
+    shift
+    cmd_export "$@"
+    ;;
 opencode-install)
     cmd_opencode_install
     ;;
@@ -3447,6 +3694,7 @@ claude-settings-check)
     echo "  plugins-check    Check Codex and Claude against shared plugin manifest"
     echo "  plugins-export   Export Codex and Claude into shared plugin manifest"
     echo "  plugins-update   Update Codex marketplaces and installed Claude plugins"
+    echo "  export           Transactionally export portable settings and MCP"
     echo "  codex-install    Link AGENTS.md and generate Codex config"
     echo "  codex-check      Exit 1 if Codex config is out of sync"
     echo "  codex-plugins-check"

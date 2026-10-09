@@ -8,12 +8,14 @@ Install or apply dotfiles while preserving runtime credentials and sessions.
 - `sync` applies repository config and detects drift on a second read.
 - `update` plans local state, preserves export-required additions, applies
   independent settings/MCP/link/hook categories, and checks the final state.
+- `export` prepares allowlisted settings and MCP in one checkout transaction.
 - `portable-shell` starts Zsh on simulated macOS/Linux layouts.
 
 ## How to get to it (user POV)
 
 - `just install` for full setup.
 - `just update` for planned local convergence and controlled upstream updates.
+- `just export` for one confirmed settings/MCP export into a clean checkout.
 - `just update-dotfiles` for config only.
 - `just skills-preflight` to resolve current upstream skills without applying.
 - `just push-mcp`, `just push-skills`, `just push-plugins`, `just push`.
@@ -30,6 +32,9 @@ Preconditions: dependencies from SKILL.md; run from the checkout root.
   public `just update` in an isolated HOME, checks a blocked export alongside
   successful independent categories and upstream refreshes, then proves a
   compatible repeat downloads or installs nothing unnecessarily.
+- **Export once.** Run `bash scripts/smoke-export.sh`. It checks the clean-tree
+  gate, one confirmation, settings allowlists, MCP conflict/privacy rejection,
+  rollback, and absence of staging, commits, pushes, or live mutations.
 - **Stage and apply skills.** Run `bash scripts/smoke-skill-install.sh`.
   Require current content in every runtime, no live changes after staging or
   network failures, rollback after apply failures, and no new backup on an

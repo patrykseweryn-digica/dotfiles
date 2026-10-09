@@ -12,6 +12,7 @@ just --list
 just check
 just doctor
 just update
+just export
 just verify
 just agent-versions
 just push
@@ -22,12 +23,13 @@ just pull-skills
 
 ## Sync direction
 
-Repository state is authoritative when pushing. Runtime state is only imported
-through category-specific pull commands.
+Repository state is authoritative when pushing. Runtime state is imported only
+through explicit export or category-specific pull commands.
 
 ```bash
 just pull-codex-settings # preview live Codex preferences, then confirm
 just pull-mcp       # preview live MCP state, then confirm
+just export         # one transaction for portable settings and MCP
 just push-mcp       # repository MCP state -> runtimes
 just pull-skills    # preview live skills, then confirm repository changes
 just skills-preflight # resolve current upstream skills without applying
@@ -41,6 +43,9 @@ There is no broad `just pull`. After saving a model or reasoning default in
 Codex, run `just pull-codex-settings`. MCP pull merges identical definitions
 and stops without writing on conflicts. Environment values, HTTP headers,
 credentials, OAuth state, and unsupported transports are not imported.
+`just export` requires a clean checkout, builds one allowlisted settings/MCP
+plan, and writes only after one confirmation. It never stages, commits, pushes,
+or changes runtime files; an apply failure rolls the checkout back.
 Skill pull previews lock and custom-skill additions, removals, and replacements
 before asking for confirmation. Skill preflight installs every locked skill
 from current upstream into a disposable home and changes no runtime state.

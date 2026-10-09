@@ -131,6 +131,12 @@ repos:
         entry: ./scripts/smoke-update-local.sh
         language: system
         pass_filenames: false
+      - id: transactional-export-smoke
+        name: Transactional export smoke test
+        description: Verify one-plan settings and MCP checkout export
+        entry: ./scripts/smoke-export.sh
+        language: system
+        pass_filenames: false
       - id: agent-sync-interface-smoke
         name: Agent sync interface smoke test
         description: Verify symmetric sync commands and normalized MCP behavior

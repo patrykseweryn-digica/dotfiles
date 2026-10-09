@@ -20,6 +20,10 @@ update-dotfiles:
 update:
     ./scripts/update-local.sh
 
+# Export portable live state into a clean checkout after one confirmation.
+export:
+    "{{ sync_agents }}" export
+
 # Run deterministic repository checks.
 check:
     pre-commit run --all-files
