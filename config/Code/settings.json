@@ -179,13 +179,6 @@
   },
   "workbench.colorTheme": "One Monokai",
   "chatgpt.composerEnterBehavior": "cmdIfMultiline",
-  "yaml.disableSchemaDetection": [
-    "**/.github/workflows/*.yml",
-    "**/.github/workflows/*.yaml",
-    "**/.gitea/workflows/*.yml",
-    "**/.gitea/workflows/*.yaml",
-    "**/.forgejo/workflows/*.yml",
-    "**/.forgejo/workflows/*.yaml"
-  ],
+  "yaml.disableSchemaDetection": [],
   "chatgpt.followUpQueueMode": "steer"
 }

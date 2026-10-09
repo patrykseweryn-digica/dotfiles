@@ -29,8 +29,9 @@ mkdir -p "$stub_dir" "$(dirname "$vscode_cli")"
 : > "$defaults_log"
 : > "$code_state"
 
-ln -s "$(command -v mkdir)" "${stub_dir}/mkdir"
-ln -s "$(command -v ln)" "${stub_dir}/ln"
+for command_name in cat grep ln mkdir touch; do
+    ln -s "$(command -v "$command_name")" "${stub_dir}/${command_name}"
+done
 
 cat > "${stub_dir}/brew" <<'STUB'
 #!/bin/sh
@@ -77,7 +78,7 @@ run_macos_apps_case() {
     (
         export DOTFILES_DIR
         export IS_MACOS="$is_macos"
-        export PATH="${stub_dir}:${brew_prefix}/bin:/usr/bin:/bin"
+        export PATH="${stub_dir}:${brew_prefix}/bin"
         export BREW_PREFIX="$brew_prefix"
         export VSCODE_CLI_PATH="$vscode_cli"
         export BREW_LOG="$brew_log"
