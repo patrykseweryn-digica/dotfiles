@@ -13,7 +13,7 @@ Install or apply dotfiles while preserving runtime credentials and sessions.
 ## How to get to it (user POV)
 
 - `just install` for full setup.
-- `just update` for planned local convergence without upstream updates.
+- `just update` for planned local convergence and controlled upstream updates.
 - `just update-dotfiles` for config only.
 - `just skills-preflight` to resolve current upstream skills without applying.
 - `just push-mcp`, `just push-skills`, `just push-plugins`, `just push`.
@@ -28,8 +28,8 @@ Preconditions: dependencies from SKILL.md; run from the checkout root.
   preserved credentials, repeated setup and failures.
 - **Plan and update.** Run `bash scripts/smoke-update-local.sh`. It drives
   public `just update` in an isolated HOME, checks a blocked export alongside
-  successful independent categories, then proves a compatible repeat changes
-  neither HOME nor the checkout.
+  successful independent categories and upstream refreshes, then proves a
+  compatible repeat downloads or installs nothing unnecessarily.
 - **Stage and apply skills.** Run `bash scripts/smoke-skill-install.sh`.
   Require current content in every runtime, no live changes after staging or
   network failures, rollback after apply failures, and no new backup on an

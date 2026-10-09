@@ -16,6 +16,7 @@ developer releases without editing that inventory.
 
 - `just agent-versions` for the live version report.
 - `just update-agent-tools` for an explicit update.
+- `just update` for the full controlled local and upstream update.
 - `just install` for setup including missing tools.
 
 ## Driving it with Bash smoke scripts
@@ -26,7 +27,8 @@ Preconditions: working host Node/npm; no live update needed for verification.
   Install skips available tools without a registry query. Public just update
   installs a real fixture npm CLI from a local tarball, reads its version,
   checks that inventory bytes did not change, and verifies repair after
-  independently changing the installed package.
+  independently changing the installed package. Native tools use only their
+  declared self-update commands.
 - **Core install plan.** Run `bash scripts/smoke-tool-plan.sh`. It exercises
   package managers, explicit Darwin/Linux artifacts, installed-tool skips,
   and failure before network access for an undeclared architecture.

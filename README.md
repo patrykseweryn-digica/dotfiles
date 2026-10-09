@@ -148,8 +148,9 @@ just setup-ssh        # explicit SSH key/config setup
 ```
 
 `just update` prints the plan, applies settings, MCP, managed links, and the
-Herdr hook independently, then prints the final state. `EXPORT` categories are
-left untouched and make the result incomplete until they are exported.
+Herdr hook, then refreshes inventory tools, Node, skills, and plugins.
+Categories with local `EXPORT` additions stay untouched. Independent failures
+do not stop the remaining categories; the final summary reports all results.
 
 Cursor CLI, Grok Build, Hermes Agent, Herdr, Treehouse and no-mistakes use
 official latest-release installers selected by the tool manifest.

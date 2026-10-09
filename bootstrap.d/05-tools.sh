@@ -171,6 +171,20 @@ core_tool_rows() {
     ' "$TOOL_INVENTORY"
 }
 
+latest_core_tool_rows() {
+    local platform
+    platform="$(tool_platform)" || return 1
+    "$JQ_BIN" -r --arg platform "$platform" '
+        (.platforms // ["darwin-arm64", "darwin-x86_64",
+            "linux-arm64", "linux-x86_64"]) as $defaults |
+        .tools[] |
+        select(.scope == "core" and .versionPolicy == "latest") |
+        select(((.platforms // $defaults) | index($platform)) != null) |
+        [.name, (.commands | join(" ")), (.github.repo // "-"),
+         (.adapter // "package")] | @tsv
+    ' "$TOOL_INVENTORY"
+}
+
 empty_if_dash() {
     [ "$1" = - ] || printf '%s' "$1"
 }
@@ -212,6 +226,66 @@ install_declared_core_tools() {
             "$(empty_if_dash "$archive")" "$(empty_if_dash "$binary")" \
             "$(empty_if_dash "$installed_name")" \
             "$(empty_if_dash "$post_install")" "$adapter" || failed=true
+    done <<<"$rows"
+
+    [ "$failed" = false ]
+}
+
+github_latest_version() {
+    local repo="$1" payload tag
+    payload="$(curl -fsSL \
+        "https://api.github.com/repos/${repo}/releases/latest")" || return 1
+    tag="$(printf '%s\n' "$payload" | "$JQ_BIN" -er '
+        .tag_name | select(test("^v?[0-9]+[.][0-9]+[.][0-9]+$"))
+    ')" || return 1
+    printf '%s\n' "${tag#v}"
+}
+
+update_declared_latest_core_tools() {
+    local rows name commands repo adapter command_name output current latest
+    local failed=false
+
+    rows="$(latest_core_tool_rows)" || return 1
+    while IFS=$'\t' read -r name commands repo adapter; do
+        [ -n "$name" ] || continue
+        command_name="${commands%% *}"
+        if ! command -v "$command_name" >/dev/null 2>&1; then
+            echo "[ERROR] ${name}: command unavailable after install" >&2
+            failed=true
+            continue
+        fi
+        case "$adapter" in
+        zoxide-native)
+            output="$("$command_name" --version 2>/dev/null)" || {
+                failed=true
+                continue
+            }
+            if [[ "$output" =~ ([0-9]+\.[0-9]+\.[0-9]+) ]]; then
+                current="${BASH_REMATCH[1]}"
+            else
+                echo "[ERROR] ${name}: unreadable installed version" >&2
+                failed=true
+                continue
+            fi
+            latest="$(github_latest_version "$repo")" || {
+                echo "[ERROR] ${name}: latest release unavailable" >&2
+                failed=true
+                continue
+            }
+            if [ "$current" = "$latest" ]; then
+                echo "[INFO] ${name} ${current} already current"
+            else
+                install_zoxide_native || failed=true
+            fi
+            ;;
+        uv)
+            uv tool upgrade "$name" || failed=true
+            ;;
+        *)
+            echo "[ERROR] ${name}: no latest update adapter" >&2
+            failed=true
+            ;;
+        esac
     done <<<"$rows"
 
     [ "$failed" = false ]

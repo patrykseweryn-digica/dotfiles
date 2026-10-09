@@ -28,6 +28,11 @@ validate_manifest() {
                 (if has("ignore_scripts") then
                     (.ignore_scripts | type) == "boolean" and .installer == "npm"
                  else true end) and
+                (if has("update") then
+                    (.update | type == "array" and length > 1 and
+                        all(.[]; type == "string" and
+                            test("^[a-zA-Z0-9][a-zA-Z0-9._-]*$")))
+                 else true end) and
                 (if .installer == "npm" or .installer == "claude-native" then
                     (.package | type == "string" and
                         test("^(@[a-z0-9._-]+/)?[a-z0-9][a-z0-9._-]*$"))
@@ -66,7 +71,8 @@ validate_manifest() {
 tool_rows() {
     jq -r '.tools[] | select((.scope // "agent") == "agent") | [
         .name, .command, (.package // .command),
-        .channel, .installer, (.ignore_scripts // false)
+        .channel, .installer, (.ignore_scripts // false),
+        ((.update // []) | join(" "))
     ] | @tsv' "$VERSIONS_FILE"
 }
 
@@ -127,11 +133,13 @@ resolve_latest() {
 
 report_versions() {
     local strict="$1" failed=false
-    local name command_name package expected installer ignore_scripts current status
+    local name command_name package expected installer ignore_scripts update_command
+    local current status
 
     printf '%-20s %-12s %-12s %s\n' "Tool" "Installed" "Expected" "Status"
     while IFS=$'\t' read -r \
-        name command_name package expected installer ignore_scripts; do
+        name command_name package expected installer ignore_scripts \
+        update_command; do
         if [ "$expected" = latest ] && { [ "$installer" = npm ] || [ "$installer" = claude-native ]; }; then
             expected=$(resolve_latest "$package") || return 1
         fi
@@ -198,14 +206,24 @@ check_tools() {
 install_declared_tools() {
     local refresh="${1:-false}"
     local failed=false script
-    local name command_name package expected installer ignore_scripts current install_spec
+    local -a update_args
+    local name command_name package expected installer ignore_scripts
+    local update_command current install_spec
 
     while IFS=$'\t' read -r \
-        name command_name package expected installer ignore_scripts; do
+        name command_name package expected installer ignore_scripts \
+        update_command; do
         install_spec="${package}@${expected}"
         current="$(installed_version "$command_name" || true)"
         if [ "$refresh" != true ] && [ -n "$current" ]; then
             echo "[INFO] $name $current already installed"
+            continue
+        fi
+        if [ "$refresh" = true ] && [ -n "$current" ] &&
+            [ -n "$update_command" ]; then
+            read -r -a update_args <<<"$update_command"
+            echo "[INFO] Updating $name..."
+            "${update_args[@]}" || failed=true
             continue
         fi
         if [ "$expected" = latest ] &&

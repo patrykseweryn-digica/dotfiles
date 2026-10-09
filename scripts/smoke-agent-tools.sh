@@ -218,12 +218,12 @@ mv "$HOME/.nvm/nvm.saved" "$HOME/.nvm/nvm.sh"
 # Native declarations dispatch through the existing installers.
 cat >"$manifest" <<'JSON'
 {"tools":[
- {"name":"Hermes Agent","command":"hermes","installer":"hermes-native","channel":"latest"},
- {"name":"Herdr","command":"herdr","installer":"herdr-native","channel":"latest"},
- {"name":"Treehouse","command":"treehouse","installer":"treehouse-native","channel":"latest"},
- {"name":"no-mistakes","command":"no-mistakes","installer":"no-mistakes-native","channel":"latest"},
- {"name":"Cursor CLI","command":"agent","installer":"cursor-native","channel":"latest"},
- {"name":"Grok Build","command":"grok","installer":"grok-native","channel":"latest"}
+ {"name":"Hermes Agent","command":"hermes","installer":"hermes-native","channel":"latest","update":["hermes","update"]},
+ {"name":"Herdr","command":"herdr","installer":"herdr-native","channel":"latest","update":["herdr","update"]},
+ {"name":"Treehouse","command":"treehouse","installer":"treehouse-native","channel":"latest","update":["treehouse","update"]},
+ {"name":"no-mistakes","command":"no-mistakes","installer":"no-mistakes-native","channel":"latest","update":["no-mistakes","update"]},
+ {"name":"Cursor CLI","command":"agent","installer":"cursor-native","channel":"latest","update":["agent","update"]},
+ {"name":"Grok Build","command":"grok","installer":"grok-native","channel":"latest","update":["grok","update"]}
 ]}
 JSON
 cat >"$stub_dir/curl" <<'STUB'
@@ -232,7 +232,7 @@ case "$*" in
     *cursor.com/install*)
         cat <<'INSTALLER'
 mkdir -p "$HOME/.local/bin"
-printf '#!/bin/sh\necho 2026.09.28-test\n' > "$HOME/.local/bin/cursor-agent"
+printf '#!/bin/sh\nif [ "$1" = update ]; then echo "update agent" >> "$NATIVE_LOG"; else echo 2026.09.28-test; fi\n' > "$HOME/.local/bin/cursor-agent"
 chmod +x "$HOME/.local/bin/cursor-agent"
 ln -sf cursor-agent "$HOME/.local/bin/agent"
 echo cursor-agent >> "$NATIVE_LOG"
@@ -244,7 +244,7 @@ INSTALLER
 [ "$SHELL" = /bin/false ] || exit 1
 case ":$PATH:" in *":$GROK_BIN_DIR:"*) ;; *) exit 1 ;; esac
 mkdir -p "$GROK_BIN_DIR"
-printf '#!/bin/sh\necho 1.2.3\n' > "$GROK_BIN_DIR/grok"
+printf '#!/bin/sh\nif [ "$1" = update ]; then echo "update grok" >> "$NATIVE_LOG"; else echo 1.2.3; fi\n' > "$GROK_BIN_DIR/grok"
 chmod +x "$GROK_BIN_DIR/grok"
 ln -sf grok "$GROK_BIN_DIR/agent"
 echo grok >> "$NATIVE_LOG"
@@ -259,7 +259,7 @@ INSTALLER
         [ "${NATIVE_DOWNLOAD_FAIL:-false}" = false ] || exit 22
         while [ "$1" != -o ]; do shift; done
         package_dir=$(mktemp -d)
-        printf '#!/bin/sh\necho 1.2.3\n' > "$package_dir/treehouse"
+        printf '#!/bin/sh\nif [ "$1" = update ]; then echo "update treehouse" >> "$NATIVE_LOG"; else echo 1.2.3; fi\n' > "$package_dir/treehouse"
         chmod +x "$package_dir/treehouse"
         tar czf "$2" -C "$package_dir" treehouse
         rm -rf "$package_dir"
@@ -281,6 +281,7 @@ mkdir -p "$HOME/.local/bin"
 cat > "$HOME/.local/bin/$name" <<'CLI'
 #!/bin/bash
 if [ "$1" = --version ]; then echo 1.2.3; exit; fi
+if [ "$1" = update ]; then echo "update $(basename "$0")" >> "$NATIVE_LOG"; exit; fi
 [ "$*" = 'integration install claude' ] || exit 1
 mkdir -p "$CLAUDE_CONFIG_DIR/hooks"
 printf '#!/bin/sh\n' > "$CLAUDE_CONFIG_DIR/hooks/herdr-agent-state.sh"
@@ -308,9 +309,13 @@ export PATH="$HOME/.local/bin:$PATH"
 "$AGENT_TOOLS" check >"$tmp_dir/native-report.log"
 [ "$(grep -c '^PASS[[:space:]]' "$tmp_dir/native-report.log")" -eq 6 ] ||
   fail "native tool plan omitted an available tool"
-"$AGENT_TOOLS" update
 for name in hermes herdr treehouse no-mistakes cursor-agent grok; do
-  [ "$(grep -Fxc "$name" "$native_log")" -eq 2 ] || fail "native dispatch missing: $name"
+  [ "$(grep -Fxc "$name" "$native_log")" -eq 1 ] || fail "native install missing: $name"
+done
+: >"$native_log"
+"$AGENT_TOOLS" update
+for name in hermes herdr treehouse no-mistakes agent grok; do
+  grep -Fx "update $name" "$native_log" >/dev/null || fail "native update missing: $name"
 done
 [ "$(agent --version)" = 2026.09.28-test ] || fail "Grok replaced Cursor's agent"
 [ ! -L "$HOME/.grok/bin/agent" ] || fail "Grok's agent symlink was not removed"

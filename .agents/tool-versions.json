@@ -329,37 +329,43 @@
       "channel": "latest",
       "command": "hermes",
       "installer": "hermes-native",
-      "name": "Hermes Agent"
+      "name": "Hermes Agent",
+      "update": ["hermes", "update"]
     },
     {
       "channel": "latest",
       "command": "herdr",
       "installer": "herdr-native",
-      "name": "Herdr"
+      "name": "Herdr",
+      "update": ["herdr", "update"]
     },
     {
       "channel": "latest",
       "command": "treehouse",
       "installer": "treehouse-native",
-      "name": "Treehouse"
+      "name": "Treehouse",
+      "update": ["treehouse", "update"]
     },
     {
       "channel": "latest",
       "command": "no-mistakes",
       "installer": "no-mistakes-native",
-      "name": "no-mistakes"
+      "name": "no-mistakes",
+      "update": ["no-mistakes", "update"]
     },
     {
       "channel": "latest",
       "command": "agent",
       "installer": "cursor-native",
-      "name": "Cursor CLI"
+      "name": "Cursor CLI",
+      "update": ["agent", "update"]
     },
     {
       "channel": "latest",
       "command": "grok",
       "installer": "grok-native",
-      "name": "Grok Build"
+      "name": "Grok Build",
+      "update": ["grok", "update"]
     }
   ]
 }

@@ -212,22 +212,28 @@ if grep -F $'\tplugin update ' "$update_log" >/dev/null; then
 fi
 
 : > "$update_log"
+jq '.codexMarketplaces = {
+    "managed-codex": "https://example.test/codex.git"
+}' "$manifest" > "${manifest}.next"
+mv "${manifest}.next" "$manifest"
 "$DOTFILES_DIR/sync-agents.sh" --quiet plugins-update \
     > "$sync_log" 2>&1 || {
     cat "$sync_log" >&2
     fail "Plugin update failed"
 }
 
-grep -Fx $'codex\tplugin marketplace upgrade' "$update_log" \
+grep -Fx $'codex\tplugin marketplace upgrade managed-codex' "$update_log" \
     >/dev/null || fail "Codex marketplaces were not updated"
-grep -F $'claude\t' "$update_log" |
-    grep -F $'\tplugin marketplace update' \
-    >/dev/null || fail "Claude marketplaces were not updated"
+for marketplace in keep-mp new-mp; do
+    grep -F $'claude\t' "$update_log" |
+        grep -F $'\tplugin marketplace update '"$marketplace" \
+        >/dev/null || fail "Claude marketplace was not updated: $marketplace"
+done
 grep -F $'\tplugin update keep@keep-mp --scope user' "$update_log" \
     >/dev/null || fail "User-scoped Claude plugin was not updated"
-grep -Fx $'claude\t'"${project_dir}"$'\tplugin update project-plugin@keep-mp --scope project' \
-    "$update_log" >/dev/null || \
-    fail "Project-scoped Claude plugin was not updated in its project"
+if grep -F $'\tplugin update project-plugin@keep-mp' "$update_log" >/dev/null; then
+    fail "Unmanaged Claude plugin was updated"
+fi
 
 # Claude must not import Codex-only marketplaces, even under an alias.
 cp "${home_dir}/.claude/plugins/installed_plugins.json" "$tmp_dir/provider-plugins.json"

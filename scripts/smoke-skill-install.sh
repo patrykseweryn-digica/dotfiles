@@ -4,6 +4,7 @@ repo="$(cd "$(dirname "$0")/.." && pwd)"
 task_dir="$(mktemp -d)"
 trap 'rm -rf "$task_dir"' EXIT
 mkdir -p "$task_dir/bin" "$task_dir/custom"
+real_git="$(command -v git)"
 jq '{skills: {
     "control-cli": .skills["control-cli"],
     "poteto-mode": .skills["poteto-mode"]
@@ -72,7 +73,19 @@ if [ -n "${FAIL_ROLLBACK_TARGET:-}" ] &&
 fi
 exec /bin/mv "$@"
 STUB
-chmod +x "$task_dir/bin/skills" "$task_dir/bin/cp" "$task_dir/bin/mv"
+cat > "$task_dir/bin/git" <<'STUB'
+#!/bin/bash
+set -eu
+if [ "${1:-}" = ls-remote ]; then
+    printf '%s\n' "$*" >>"$SKILL_REF_LOG"
+    printf '%s\t%s\n' "${SKILL_SOURCE_SHA:-1111111}" "${3:-HEAD}"
+    exit 0
+fi
+exec "$REAL_GIT" "$@"
+STUB
+chmod +x "$task_dir/bin/skills" "$task_dir/bin/cp" \
+    "$task_dir/bin/mv" "$task_dir/bin/git"
+export REAL_GIT="$real_git"
 
 preflight_home="$task_dir/preflight home"
 mkdir -p "$preflight_home"
@@ -252,14 +265,28 @@ done
 
 update_home="$task_dir/update command home"
 mkdir -p "$update_home"
-env -u CODEX_HOME -u OPENCODE_CONFIG_DIR -u PI_CODING_AGENT_DIR \
-    -u PI_SKILLS_DIR HOME="$update_home" \
-    SKILL_LOCK_LIVE="$update_home/.agents/.skill-lock.json" \
-    SKILL_LOCK_REPO="$task_dir/lock.json" \
-    SHARED_SKILLS_CUSTOM_DIR="$task_dir/custom" \
-    PATH="$task_dir/bin:$PATH" SKILLS_CLI="$task_dir/bin/skills" \
-    SKILL_TEST_LOG="$task_dir/update-calls" \
-    "$repo/sync-agents.sh" skills-update >"$task_dir/update-output" 2>&1
+update_refs="$update_home/.agents/.skill-source-refs.json"
+update_calls="$task_dir/update-calls"
+ref_calls="$task_dir/ref-calls"
+run_update() {
+    env -u CODEX_HOME -u OPENCODE_CONFIG_DIR -u PI_CODING_AGENT_DIR \
+        -u PI_SKILLS_DIR HOME="$update_home" \
+        SKILL_LOCK_LIVE="$update_home/.agents/.skill-lock.json" \
+        SKILL_LOCK_REPO="$task_dir/lock.json" \
+        SKILL_SOURCE_REFS="$update_refs" \
+        SHARED_SKILLS_CUSTOM_DIR="$task_dir/custom" \
+        PATH="$task_dir/bin:$PATH" SKILLS_CLI="$task_dir/bin/skills" \
+        SKILL_TEST_LOG="$update_calls" SKILL_REF_LOG="$ref_calls" \
+        "$repo/sync-agents.sh" skills-update \
+        >"$task_dir/update-output" 2>&1
+}
+run_update
 rg -q '^version: current$' "$update_home/.agents/skills/poteto-mode/SKILL.md"
+[ "$(wc -l <"$update_calls" | tr -d ' ')" = 1 ]
+run_update
+[ "$(wc -l <"$update_calls" | tr -d ' ')" = 1 ]
+[ "$(wc -l <"$ref_calls" | tr -d ' ')" = 2 ]
+SKILL_SOURCE_SHA=2222222 run_update
+[ "$(wc -l <"$update_calls" | tr -d ' ')" = 2 ]
 
 echo '[INFO] Skill install smoke test passed'

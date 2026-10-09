@@ -559,6 +559,58 @@ smoke_direct_binary_install() {
     rm -rf "$tmp_dir"
 }
 
+smoke_latest_core_updates() {
+    local tmp_dir manifest bin_dir log_file
+    tmp_dir="$(mktemp -d)"
+    manifest="${tmp_dir}/tools.json"
+    bin_dir="${tmp_dir}/bin"
+    log_file="${tmp_dir}/actions.log"
+    mkdir -p "$bin_dir"
+    : >"$log_file"
+    cat >"$manifest" <<'JSON'
+{"platforms":["linux-x86_64"],"tools":[
+  {"scope":"core","name":"zoxide","commands":["zoxide"],
+   "versionPolicy":"latest","adapter":"zoxide-native",
+   "github":{"repo":"example/zoxide"}},
+  {"scope":"core","name":"pre-commit","commands":["pre-commit"],
+   "versionPolicy":"latest","adapter":"uv"}
+]}
+JSON
+    printf '#!/bin/sh\necho "zoxide 1.0.0"\n' >"${bin_dir}/zoxide"
+    printf '#!/bin/sh\n' >"${bin_dir}/pre-commit"
+    cat >"${bin_dir}/uv" <<'STUB'
+#!/bin/sh
+echo "uv $*" >>"$SMOKE_LOG"
+STUB
+    chmod +x "${bin_dir}/zoxide" "${bin_dir}/pre-commit" "${bin_dir}/uv"
+
+    (
+        TOOL_INVENTORY="$manifest"
+        OS=Linux
+        ARCH=x86_64
+        PATH="${bin_dir}:/usr/bin:/bin"
+        export TOOL_INVENTORY OS ARCH PATH SMOKE_LOG="$log_file"
+        # shellcheck source=/dev/null
+        source "${DOTFILES_DIR}/bootstrap.d/05-tools.sh"
+        curl() {
+            echo curl >>"$SMOKE_LOG"
+            printf '{"tag_name":"v%s"}\n' "${LATEST_ZOXIDE:-1.0.0}"
+        }
+        install_zoxide_native() { echo zoxide-install >>"$SMOKE_LOG"; }
+
+        update_declared_latest_core_tools >/dev/null
+        LATEST_ZOXIDE=1.1.0 update_declared_latest_core_tools >/dev/null
+    )
+
+    [ "$(grep -Fxc curl "$log_file")" -eq 2 ] ||
+        fail "latest zoxide was not queried on each update"
+    [ "$(grep -Fxc zoxide-install "$log_file")" -eq 1 ] ||
+        fail "current zoxide was downloaded unnecessarily"
+    [ "$(grep -Fxc 'uv tool upgrade pre-commit' "$log_file")" -eq 2 ] ||
+        fail "latest uv tool was not queried on each update"
+    rm -rf "$tmp_dir"
+}
+
 smoke_latest_workflow_tools() {
     local tmp_dir
     tmp_dir="$(mktemp -d)"
@@ -658,5 +710,6 @@ smoke_github_fallback_plan
 smoke_macos_github_patterns
 smoke_unsupported_artifact_stops_before_network
 smoke_direct_binary_install
+smoke_latest_core_updates
 
 echo "[INFO] tool plan smoke test passed"

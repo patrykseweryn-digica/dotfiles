@@ -36,6 +36,7 @@ CLAUDE_SETTINGS_FILE="${CLAUDE_SETTINGS_FILE:-${HOME}/.claude/settings.json}"
 CLAUDE_USER_CONFIG="${CLAUDE_USER_CONFIG:-${HOME}/.claude.json}"
 SKILL_LOCK_REPO="${SKILL_LOCK_REPO:-${DOTFILES_DIR}/.agents/skill-lock.json}"
 SKILL_LOCK_LIVE="${SKILL_LOCK_LIVE:-${HOME}/.agents/.skill-lock.json}"
+SKILL_SOURCE_REFS="${SKILL_SOURCE_REFS:-${HOME}/.agents/.skill-source-refs.json}"
 SKILLS_CLI="${SKILLS_CLI:-skills}"
 
 QUIET=false
@@ -1280,6 +1281,7 @@ cmd_codex_plugins_push() {
 }
 
 cmd_codex_plugins_update() {
+    validate_plugin_manifest "$CODEX_PLUGIN_MANIFEST" || return 1
     command -v codex >/dev/null 2>&1 || {
         echo "[ERROR] codex CLI not found; cannot update plugin marketplaces" >&2
         return 1
@@ -1287,8 +1289,16 @@ cmd_codex_plugins_update() {
 
     read_codex_plugin_state >/dev/null || return 1
     read_codex_marketplace_state >/dev/null || return 1
-    log_info "Updating Codex plugin marketplaces..."
-    codex plugin marketplace upgrade
+
+    local marketplace failed=false
+    while IFS= read -r marketplace; do
+        [ -n "$marketplace" ] || continue
+        log_info "Updating Codex plugin marketplace: $marketplace"
+        codex plugin marketplace upgrade "$marketplace" || failed=true
+    done < <(jq -r '.codexMarketplaces // {} | keys[]' \
+        "$CODEX_PLUGIN_MANIFEST")
+
+    [ "$failed" = false ]
 }
 
 render_opencode_config() {
@@ -2249,27 +2259,37 @@ try_claude_plugin_update() {
 }
 
 cmd_claude_plugins_update() {
+    validate_plugin_manifest "$CLAUDE_MANIFEST" || return 1
     command -v claude >/dev/null 2>&1 || {
         echo "[ERROR] claude CLI not found; cannot update plugins" >&2
         return 1
     }
 
     check_claude_plugin_providers || return 1
-    log_info "Updating Claude plugin marketplaces..."
-    CLAUDECODE='' claude plugin marketplace update || return 1
+
+    local marketplace failed=false
+    while IFS= read -r marketplace; do
+        [ -n "$marketplace" ] || continue
+        log_info "Updating Claude plugin marketplace: $marketplace"
+        CLAUDECODE='' claude plugin marketplace update "$marketplace" ||
+            failed=true
+    done < <(jq -r '.marketplaces // {} | keys[]' "$CLAUDE_MANIFEST")
 
     local installed_json="${HOME}/.claude/plugins/installed_plugins.json"
     if [ ! -f "$installed_json" ]; then
         log_info "No installed Claude plugins to update"
+        [ "$failed" = false ] || return 1
         return 0
     fi
 
     local installed
-    installed=$(jq -r '
+    installed=$(jq -r --slurpfile manifest "$CLAUDE_MANIFEST" '
+        [$manifest[0].plugins[].claude // empty] as $wanted |
         [
             (.plugins // {} | to_entries[] |
                 .key as $plugin |
                 .value[]? |
+                select($wanted | index($plugin) != null) |
                 [$plugin, (.scope // "user"), (.projectPath // "")]
             )
         ] | unique[] | @tsv
@@ -2278,7 +2298,6 @@ cmd_claude_plugins_update() {
         return 1
     }
 
-    local failed=false
     local plugin scope project_path
     while IFS=$'\t' read -r plugin scope project_path; do
         [ -n "$plugin" ] || continue
@@ -2440,13 +2459,92 @@ cmd_lock_skills_export() {
     fi
 }
 
+resolve_skill_source_refs() {
+    jq -e '
+        .skills | all(.[];
+            .sourceType == "github" and
+            (.sourceUrl | type == "string" and
+                startswith("https://github.com/")) and
+            ((.ref // "HEAD") | type == "string" and length > 0)
+        )
+    ' "$SKILL_LOCK_REPO" >/dev/null || {
+        echo "[ERROR] Skill update requires resolvable GitHub sources" >&2
+        return 1
+    }
+
+    local rows refs source_url ref result revision lock_hash
+    rows="$(jq -r '
+        [.skills[] | {
+            sourceUrl,
+            ref: (.ref // "HEAD")
+        }] | unique_by([.sourceUrl, .ref])[] |
+        [.sourceUrl, .ref] | @tsv
+    ' "$SKILL_LOCK_REPO")" || return 1
+    refs="$(mktemp)" || return 1
+    : >"$refs"
+    while IFS=$'\t' read -r source_url ref; do
+        [ -n "$source_url" ] || continue
+        result="$(git ls-remote "$source_url" "$ref")" || {
+            echo "[ERROR] Could not resolve skill source: $source_url $ref" >&2
+            rm -f "$refs"
+            return 1
+        }
+        revision="$(awk 'NR == 1 { print $1 }' <<<"$result")"
+        if [ -z "$revision" ]; then
+            echo "[ERROR] Skill source ref not found: $source_url $ref" >&2
+            rm -f "$refs"
+            return 1
+        fi
+        printf '%s\t%s\t%s\n' "$source_url" "$ref" "$revision" >>"$refs"
+    done <<<"$rows"
+
+    lock_hash="$(git hash-object "$SKILL_LOCK_REPO")" || {
+        rm -f "$refs"
+        return 1
+    }
+    jq -Rn --arg lock "$lock_hash" '
+        {
+            lock: $lock,
+            sources: ([inputs | split("\t") |
+                {key: (.[0] + "#" + .[1]), value: .[2]}] | from_entries)
+        }
+    ' <"$refs"
+    rm -f "$refs"
+}
+
 cmd_skills_update() {
     [ "$#" -eq 0 ] || {
         echo "[ERROR] skills-update takes no arguments" >&2
         return 1
     }
+    local current_refs cache_tmp
+    current_refs="$(mktemp)" || return 1
+    if ! resolve_skill_source_refs >"$current_refs"; then
+        rm -f "$current_refs"
+        return 1
+    fi
+    if [ -f "$SKILL_SOURCE_REFS" ] &&
+        cmp -s "$current_refs" "$SKILL_SOURCE_REFS" &&
+        cmd_skills_check >/dev/null 2>&1; then
+        rm -f "$current_refs"
+        log_info "Global skills already match current upstream"
+        return 0
+    fi
+
     log_info "Updating global skills shared by Codex, Claude, Pi, and OpenCode..."
-    cmd_push_skills
+    if ! cmd_push_skills; then
+        rm -f "$current_refs"
+        return 1
+    fi
+    mkdir -p "$(dirname "$SKILL_SOURCE_REFS")" || {
+        rm -f "$current_refs"
+        return 1
+    }
+    cache_tmp="${SKILL_SOURCE_REFS}.tmp"
+    cp "$current_refs" "$cache_tmp" && mv "$cache_tmp" "$SKILL_SOURCE_REFS"
+    local status=$?
+    rm -f "$current_refs" "$cache_tmp"
+    return "$status"
 }
 
 cmd_plugins_check() {

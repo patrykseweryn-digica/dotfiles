@@ -6,6 +6,7 @@ DOTFILES_DIR="${DOTFILES_DIR:-$default_dotfiles_dir}"
 STATE_PLAN="${STATE_PLAN:-${DOTFILES_DIR}/scripts/state-plan.sh}"
 SYNC_AGENTS="${SYNC_AGENTS:-${DOTFILES_DIR}/sync-agents.sh}"
 INSTALL_SCRIPT="${INSTALL_SCRIPT:-${DOTFILES_DIR}/install.sh}"
+AGENT_TOOLS="${AGENT_TOOLS:-${DOTFILES_DIR}/scripts/agent-tools.sh}"
 
 # shellcheck source=/dev/null
 source "$INSTALL_SCRIPT"
@@ -49,6 +50,28 @@ apply_category() {
     esac
 }
 
+plan_status() {
+    awk -F '\t' -v category="$1" '$2 == category { print $1; exit }' \
+        "$plan_file"
+}
+
+refresh_phase() {
+    local label="$1"
+    shift
+
+    echo "[REFRESH] $label"
+    if "$@"; then
+        refreshed=$((refreshed + 1))
+    else
+        echo "[ERROR] Failed to refresh $label" >&2
+        failed=$((failed + 1))
+    fi
+}
+
+refresh_core_tools() {
+    ensure_install_dirs && install_declared_core_tools
+}
+
 if ! "$STATE_PLAN" all >"$plan_file"; then
     echo "[ERROR] Could not build local update plan" >&2
     exit 1
@@ -62,6 +85,7 @@ unchanged=0
 blocked=0
 failed=0
 skipped=0
+refreshed=0
 while IFS=$'\t' read -r status category action message; do
     case "$status:$action" in
     PASS:none)
@@ -73,12 +97,12 @@ while IFS=$'\t' read -r status category action message; do
         ;;
     UPDATE:update | FAIL:update)
         echo "[APPLY] ${category}"
-        apply_category "$category"
-        result=$?
+        result=0
+        apply_category "$category" || result=$?
         case "$result" in
         0) applied=$((applied + 1)) ;;
         2)
-            echo "[SKIP] ${category}: outside local configuration update"
+            echo "[DEFER] ${category}: handled by upstream refresh"
             skipped=$((skipped + 1))
             ;;
         *)
@@ -93,6 +117,27 @@ while IFS=$'\t' read -r status category action message; do
         ;;
     esac
 done <"$plan_file"
+
+refresh_phase "missing inventory tools" refresh_core_tools
+refresh_phase "latest core tools" update_declared_latest_core_tools
+refresh_phase "Node and agent tools" "$AGENT_TOOLS" update
+
+skills_status="$(plan_status skills)"
+if [ "$skills_status" = EXPORT ]; then
+    echo "[BLOCKED] skills upstream refresh: export local additions first"
+else
+    refresh_phase "skills" "$SYNC_AGENTS" skills-update
+fi
+
+plugins_status="$(plan_status plugins)"
+if [ "$plugins_status" = EXPORT ]; then
+    echo "[BLOCKED] plugins upstream refresh: export local additions first"
+else
+    if [ "$plugins_status" = UPDATE ] || [ "$plugins_status" = FAIL ]; then
+        refresh_phase "plugin membership" "$SYNC_AGENTS" push-plugins
+    fi
+    refresh_phase "plugin versions" "$SYNC_AGENTS" plugins-update
+fi
 
 if ! "$STATE_PLAN" all >"$final_file"; then
     echo "[ERROR] Could not run final local check" >&2
@@ -110,7 +155,8 @@ while IFS=$'\t' read -r status category action message; do
     esac
 done <"$final_file"
 
-printf '[SUMMARY] applied=%s unchanged=%s blocked=%s skipped=%s failed=%s remaining=%s\n' \
-    "$applied" "$unchanged" "$blocked" "$skipped" "$failed" "$remaining"
+printf '[SUMMARY] applied=%s refreshed=%s unchanged=%s blocked=%s skipped=%s failed=%s remaining=%s\n' \
+    "$applied" "$refreshed" "$unchanged" "$blocked" "$skipped" \
+    "$failed" "$remaining"
 
 [ "$blocked" -eq 0 ] && [ "$failed" -eq 0 ] && [ "$remaining" -eq 0 ]
