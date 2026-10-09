@@ -39,6 +39,8 @@ SKILL_LOCK_LIVE="${SKILL_LOCK_LIVE:-${HOME}/.agents/.skill-lock.json}"
 SKILL_SOURCE_REFS="${SKILL_SOURCE_REFS:-${HOME}/.agents/.skill-source-refs.json}"
 SKILLS_CLI="${SKILLS_CLI:-skills}"
 EXPORT_GIT_DIR="${EXPORT_GIT_DIR:-${DOTFILES_DIR}}"
+AGENT_TOOLS="${AGENT_TOOLS:-${DOTFILES_DIR}/scripts/agent-tools.sh}"
+TOOL_INVENTORY="${TOOL_INVENTORY:-${DOTFILES_DIR}/.agents/tool-versions.json}"
 
 QUIET=false
 STAGED_SKILLS_ROOT=""
@@ -1065,6 +1067,24 @@ EOF
         EXPORT_TARGETS+=("$PLUGIN_MANIFEST")
         EXPORT_CANDIDATES+=("$plugin_candidate")
         EXPORT_LABELS+=("Plugin membership")
+        EXPORT_TYPES+=(file)
+    fi
+
+    local tool_candidate="${root}/tool-versions.json"
+    local tool_report="${root}/tool-candidates.txt"
+    AGENT_TOOL_VERSIONS="$TOOL_INVENTORY" \
+        "$AGENT_TOOLS" export-candidate "$tool_candidate" "$tool_report" || {
+        rm -rf "$root"
+        return 1
+    }
+    while IFS= read -r candidate; do
+        [ -n "$candidate" ] || continue
+        echo "[CANDIDATE] Tool ${candidate} needs a source and installer"
+    done <"$tool_report"
+    if ! cmp -s "$TOOL_INVENTORY" "$tool_candidate"; then
+        EXPORT_TARGETS+=("$TOOL_INVENTORY")
+        EXPORT_CANDIDATES+=("$tool_candidate")
+        EXPORT_LABELS+=("Tool inventory")
         EXPORT_TYPES+=(file)
     fi
 

@@ -8,7 +8,8 @@ Install or apply dotfiles while preserving runtime credentials and sessions.
 - `sync` applies repository config and detects drift on a second read.
 - `update` plans local state, preserves export-required additions, applies
   independent settings/MCP/link/hook categories, and checks the final state.
-- `export` prepares settings, MCP, skills, and plugins in one transaction.
+- `export` prepares settings, MCP, skills, plugins, and recognized tools in one
+  transaction.
 - `portable-shell` starts Zsh on simulated macOS/Linux layouts.
 
 ## How to get to it (user POV)
@@ -34,8 +35,8 @@ Preconditions: dependencies from SKILL.md; run from the checkout root.
   compatible repeat downloads or installs nothing unnecessarily.
 - **Export once.** Run `bash scripts/smoke-export.sh`. It checks the clean-tree
   gate, one confirmation, settings allowlists, MCP conflict/privacy rejection,
-  skill upstream/rename gates, plugin providers, rollback, and absence of
-  staging, commits, pushes, or live mutations.
+  skill upstream/rename gates, plugin providers, recognized and unknown tools,
+  rollback, and absence of staging, commits, pushes, or live mutations.
 - **Stage and apply skills.** Run `bash scripts/smoke-skill-install.sh`.
   Require current content in every runtime, no live changes after staging or
   network failures, rollback after apply failures, and no new backup on an

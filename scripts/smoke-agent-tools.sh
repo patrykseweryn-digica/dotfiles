@@ -196,7 +196,7 @@ REGISTRY_FAIL=true "$AGENT_TOOLS" check >/dev/null ||
 REGISTRY_FAIL=true "$AGENT_TOOLS" install >/dev/null ||
   fail "install queried the registry for available tools"
 
-if grep -En 'agent-tools|npm view|@latest' \
+if grep -En 'npm view|@latest|"\$AGENT_TOOLS" (install|update)' \
   "${DOTFILES_DIR}/sync-agents.sh" >/dev/null; then
   fail "configuration push path can update agent tool versions"
 fi

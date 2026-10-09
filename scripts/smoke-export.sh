@@ -31,6 +31,8 @@ mkdir -p \
     "${home_dir}/.config/opencode" \
     "${home_dir}/.pi/agent" \
     "${home_dir}/.agents/skills" \
+    "${home_dir}/tool-bin" \
+    "${home_dir}/lib/node_modules/portable-cli/bin" \
     "$stub_dir"
 
 codex_template="${checkout}/config/codex/settings.toml"
@@ -49,6 +51,8 @@ skill_lock_repo="${checkout}/.agents/skill-lock.json"
 skill_lock_live="${home_dir}/.agents/.skill-lock.json"
 custom_skills="${checkout}/.agents/skills-custom"
 plugin_manifest="${checkout}/.agents/plugin-manifest.json"
+tool_manifest="${checkout}/.agents/tool-versions.json"
+tool_bin="${home_dir}/tool-bin"
 codex_cache="${home_dir}/.codex/plugins/cache"
 codex_plugins="${tmp_dir}/codex-plugins.json"
 codex_marketplaces="${tmp_dir}/codex-marketplaces.json"
@@ -142,6 +146,32 @@ cat >"$plugin_manifest" <<'JSON'
   }
 }
 JSON
+cat >"$tool_manifest" <<'JSON'
+{
+  "tools": [
+    {
+      "channel": "latest",
+      "command": "known-cli",
+      "installer": "npm",
+      "name": "known-cli",
+      "package": "known-cli"
+    }
+  ]
+}
+JSON
+cat >"${home_dir}/lib/node_modules/portable-cli/package.json" <<'JSON'
+{
+  "name": "portable-cli",
+  "bin": {"portable-cli": "bin/portable-cli.js"}
+}
+JSON
+printf '#!/bin/sh\nexit 0\n' \
+    >"${home_dir}/lib/node_modules/portable-cli/bin/portable-cli.js"
+chmod +x "${home_dir}/lib/node_modules/portable-cli/bin/portable-cli.js"
+ln -s ../lib/node_modules/portable-cli/bin/portable-cli.js \
+    "${tool_bin}/portable-cli"
+printf '#!/bin/sh\nexit 0\n' >"${tool_bin}/manual-tool"
+chmod +x "${tool_bin}/manual-tool"
 mkdir -p "$codex_cache/keep" "$codex_cache/new-codex"
 printf '%s\n' '{"schema_version":1,"remote_plugin_id":"plugin_keep"}' \
     >"$codex_cache/keep/.codex-remote-plugin-install.json"
@@ -340,6 +370,8 @@ export CODEX_PLUGIN_MANIFEST="$plugin_manifest"
 export CODEX_REMOTE_PLUGIN_CACHE="$codex_cache"
 export CODEX_PLUGIN_LIST_FILE="$codex_plugins"
 export CODEX_MARKETPLACE_LIST_FILE="$codex_marketplaces"
+export TOOL_INVENTORY="$tool_manifest"
+export TOOL_EXPORT_BIN_DIRS="$tool_bin"
 
 run_export() {
     local answer="$1" output="$2"
@@ -376,10 +408,13 @@ fi
     fail "cancelled export changed checkout"
 for label in 'Codex settings' 'Claude settings' 'OpenCode settings' \
     'Pi settings' 'MCP inventory' 'Skill inventory' 'Portable skills' \
-    'Plugin membership'; do
+    'Plugin membership' 'Tool inventory'; do
     grep -F "[PLAN] $label:" "${tmp_dir}/cancel.log" >/dev/null ||
         { cat "${tmp_dir}/cancel.log" >&2; fail "export plan omitted: $label"; }
 done
+grep -F '[CANDIDATE] Tool manual-tool needs a source and installer' \
+    "${tmp_dir}/cancel.log" >/dev/null ||
+    fail "unknown binary was not reported for manual description"
 find "$home_dir" -type f -exec cksum {} \; | sort >"${tmp_dir}/live.after"
 cmp "${tmp_dir}/live.before" "${tmp_dir}/live.after" ||
     fail "cancelled export changed live state"
@@ -493,9 +528,17 @@ jq -e '
     (.marketplaces | keys) == ["third"] and
     (.codexMarketplaces | keys) == ["third"]
 ' "$plugin_manifest" >/dev/null || fail "plugin membership export failed"
+jq -e '
+    [.tools[] | select(.package == "portable-cli")] == [{
+      channel: "latest", command: "portable-cli", installer: "npm",
+      name: "portable-cli", package: "portable-cli"
+    }] and
+    ([.tools[].command] | index("manual-tool")) == null
+' "$tool_manifest" >/dev/null || fail "portable tool export failed"
 if grep -F 'must-not-enter-repo' \
     "$codex_template" "$claude_template" "$opencode_template" \
     "$pi_template" "$repo_mcp" "$skill_lock_repo" "$plugin_manifest" \
+    "$tool_manifest" \
     >/dev/null; then
     fail "export wrote a credential"
 fi
@@ -521,6 +564,7 @@ printf '%s\n' \
     .agents/plugin-manifest.json \
     .agents/skill-lock.json \
     .agents/skills-custom/new-custom/SKILL.md \
+    .agents/tool-versions.json \
     config/claude/settings.json \
     config/codex/settings.toml \
     config/opencode/opencode.json \

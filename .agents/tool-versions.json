@@ -7,221 +7,408 @@
   ],
   "tools": [
     {
-      "commands": ["fzf"],
+      "commands": [
+        "fzf"
+      ],
       "github": {
         "artifacts": {
-          "darwin-arm64": {"archive": "fzf-{tag_no_v}-darwin_arm64.tar.gz", "binary": "fzf"},
-          "linux-x86_64": {"archive": "fzf-{tag_no_v}-linux_amd64.tar.gz", "binary": "fzf"}
+          "darwin-arm64": {
+            "archive": "fzf-{tag_no_v}-darwin_arm64.tar.gz",
+            "binary": "fzf"
+          },
+          "linux-x86_64": {
+            "archive": "fzf-{tag_no_v}-linux_amd64.tar.gz",
+            "binary": "fzf"
+          }
         },
         "repo": "junegunn/fzf",
         "tag": "v0.67.0"
       },
       "name": "fzf",
-      "packages": {"apt": "fzf", "brew": "fzf", "dnf": "fzf", "pacman": "fzf"},
+      "packages": {
+        "apt": "fzf",
+        "brew": "fzf",
+        "dnf": "fzf",
+        "pacman": "fzf"
+      },
       "scope": "core",
       "versionPolicy": "pinned"
     },
     {
-      "commands": ["bat"],
+      "commands": [
+        "bat"
+      ],
       "github": {
         "artifacts": {
-          "darwin-arm64": {"archive": "bat-{tag}-aarch64-apple-darwin.tar.gz", "binary": "bat"},
-          "linux-x86_64": {"archive": "bat-{tag}-x86_64-unknown-linux-gnu.tar.gz", "binary": "bat"}
+          "darwin-arm64": {
+            "archive": "bat-{tag}-aarch64-apple-darwin.tar.gz",
+            "binary": "bat"
+          },
+          "linux-x86_64": {
+            "archive": "bat-{tag}-x86_64-unknown-linux-gnu.tar.gz",
+            "binary": "bat"
+          }
         },
         "repo": "sharkdp/bat",
         "tag": "v0.26.1"
       },
       "name": "bat",
-      "packages": {"apt": "bat", "brew": "bat", "dnf": "bat", "pacman": "bat"},
+      "packages": {
+        "apt": "bat",
+        "brew": "bat",
+        "dnf": "bat",
+        "pacman": "bat"
+      },
       "postInstall": "link_bat_alias",
       "scope": "core",
       "versionPolicy": "pinned"
     },
     {
-      "commands": ["rg"],
+      "commands": [
+        "rg"
+      ],
       "github": {
         "artifacts": {
-          "darwin-arm64": {"archive": "ripgrep-{tag}-aarch64-apple-darwin.tar.gz", "binary": "rg"},
-          "linux-x86_64": {"archive": "ripgrep-{tag}-x86_64-unknown-linux-musl.tar.gz", "binary": "rg"}
+          "darwin-arm64": {
+            "archive": "ripgrep-{tag}-aarch64-apple-darwin.tar.gz",
+            "binary": "rg"
+          },
+          "linux-x86_64": {
+            "archive": "ripgrep-{tag}-x86_64-unknown-linux-musl.tar.gz",
+            "binary": "rg"
+          }
         },
         "repo": "BurntSushi/ripgrep",
         "tag": "15.1.0"
       },
       "name": "ripgrep",
-      "packages": {"apt": "ripgrep", "brew": "ripgrep", "dnf": "ripgrep", "pacman": "ripgrep"},
+      "packages": {
+        "apt": "ripgrep",
+        "brew": "ripgrep",
+        "dnf": "ripgrep",
+        "pacman": "ripgrep"
+      },
       "scope": "core",
       "versionPolicy": "pinned"
     },
     {
-      "commands": ["fd"],
+      "commands": [
+        "fd"
+      ],
       "github": {
         "artifacts": {
-          "darwin-arm64": {"archive": "fd-{tag}-aarch64-apple-darwin.tar.gz", "binary": "fd"},
-          "linux-x86_64": {"archive": "fd-{tag}-x86_64-unknown-linux-gnu.tar.gz", "binary": "fd"}
+          "darwin-arm64": {
+            "archive": "fd-{tag}-aarch64-apple-darwin.tar.gz",
+            "binary": "fd"
+          },
+          "linux-x86_64": {
+            "archive": "fd-{tag}-x86_64-unknown-linux-gnu.tar.gz",
+            "binary": "fd"
+          }
         },
         "repo": "sharkdp/fd",
         "tag": "v10.2.0"
       },
       "name": "fd",
-      "packages": {"apt": "fd-find", "brew": "fd", "dnf": "fd-find", "pacman": "fd"},
+      "packages": {
+        "apt": "fd-find",
+        "brew": "fd",
+        "dnf": "fd-find",
+        "pacman": "fd"
+      },
       "postInstall": "link_fd_alias",
       "scope": "core",
       "versionPolicy": "pinned"
     },
     {
-      "commands": ["jq"],
+      "commands": [
+        "jq"
+      ],
       "github": {
         "artifacts": {
-          "darwin-arm64": {"archive": "jq-macos-arm64", "binary": "jq-macos-arm64", "installedName": "jq"},
-          "linux-x86_64": {"archive": "jq-linux-amd64", "binary": "jq-linux-amd64", "installedName": "jq"}
+          "darwin-arm64": {
+            "archive": "jq-macos-arm64",
+            "binary": "jq-macos-arm64",
+            "installedName": "jq"
+          },
+          "linux-x86_64": {
+            "archive": "jq-linux-amd64",
+            "binary": "jq-linux-amd64",
+            "installedName": "jq"
+          }
         },
         "repo": "jqlang/jq",
         "tag": "jq-1.7.1"
       },
       "name": "jq",
-      "packages": {"apt": "jq", "brew": "jq", "dnf": "jq", "pacman": "jq"},
+      "packages": {
+        "apt": "jq",
+        "brew": "jq",
+        "dnf": "jq",
+        "pacman": "jq"
+      },
       "scope": "core",
       "versionPolicy": "pinned"
     },
     {
-      "commands": ["tmux"],
+      "commands": [
+        "tmux"
+      ],
       "name": "tmux",
-      "packages": {"apt": "tmux", "brew": "tmux", "dnf": "tmux", "pacman": "tmux"},
+      "packages": {
+        "apt": "tmux",
+        "brew": "tmux",
+        "dnf": "tmux",
+        "pacman": "tmux"
+      },
       "scope": "core",
       "versionPolicy": "system"
     },
     {
-      "commands": ["nvim"],
+      "commands": [
+        "nvim"
+      ],
       "name": "neovim",
-      "packages": {"apt": "neovim", "brew": "neovim", "dnf": "neovim", "pacman": "neovim"},
+      "packages": {
+        "apt": "neovim",
+        "brew": "neovim",
+        "dnf": "neovim",
+        "pacman": "neovim"
+      },
       "scope": "core",
       "versionPolicy": "system"
     },
     {
-      "commands": ["git-lfs"],
+      "commands": [
+        "git-lfs"
+      ],
       "name": "git-lfs",
-      "packages": {"apt": "git-lfs", "brew": "git-lfs", "dnf": "git-lfs", "pacman": "git-lfs"},
+      "packages": {
+        "apt": "git-lfs",
+        "brew": "git-lfs",
+        "dnf": "git-lfs",
+        "pacman": "git-lfs"
+      },
       "postInstall": "configure_git_lfs",
       "scope": "core",
       "versionPolicy": "system"
     },
     {
-      "commands": ["shfmt"],
+      "commands": [
+        "shfmt"
+      ],
       "name": "shfmt",
-      "packages": {"apt": "shfmt", "brew": "shfmt", "dnf": "shfmt", "pacman": "shfmt"},
+      "packages": {
+        "apt": "shfmt",
+        "brew": "shfmt",
+        "dnf": "shfmt",
+        "pacman": "shfmt"
+      },
       "scope": "core",
       "versionPolicy": "system"
     },
     {
-      "commands": ["just"],
+      "commands": [
+        "just"
+      ],
       "github": {
         "artifacts": {
-          "darwin-arm64": {"archive": "just-{tag}-aarch64-apple-darwin.tar.gz", "binary": "just"},
-          "darwin-x86_64": {"archive": "just-{tag}-x86_64-apple-darwin.tar.gz", "binary": "just"},
-          "linux-arm64": {"archive": "just-{tag}-aarch64-unknown-linux-musl.tar.gz", "binary": "just"},
-          "linux-x86_64": {"archive": "just-{tag}-x86_64-unknown-linux-musl.tar.gz", "binary": "just"}
+          "darwin-arm64": {
+            "archive": "just-{tag}-aarch64-apple-darwin.tar.gz",
+            "binary": "just"
+          },
+          "darwin-x86_64": {
+            "archive": "just-{tag}-x86_64-apple-darwin.tar.gz",
+            "binary": "just"
+          },
+          "linux-arm64": {
+            "archive": "just-{tag}-aarch64-unknown-linux-musl.tar.gz",
+            "binary": "just"
+          },
+          "linux-x86_64": {
+            "archive": "just-{tag}-x86_64-unknown-linux-musl.tar.gz",
+            "binary": "just"
+          }
         },
         "repo": "casey/just",
         "tag": "1.56.0"
       },
       "name": "just",
-      "packages": {"apt": "just", "brew": "just", "dnf": "just", "pacman": "just"},
+      "packages": {
+        "apt": "just",
+        "brew": "just",
+        "dnf": "just",
+        "pacman": "just"
+      },
       "scope": "core",
       "versionPolicy": "pinned"
     },
     {
-      "commands": ["hadolint"],
+      "commands": [
+        "hadolint"
+      ],
       "name": "hadolint",
-      "packages": {"brew": "hadolint", "dnf": "hadolint", "pacman": "hadolint"},
+      "packages": {
+        "brew": "hadolint",
+        "dnf": "hadolint",
+        "pacman": "hadolint"
+      },
       "scope": "core",
       "versionPolicy": "system"
     },
     {
-      "commands": ["bw"],
+      "commands": [
+        "bw"
+      ],
       "name": "bitwarden-cli",
-      "packages": {"brew": "bitwarden-cli", "pacman": "bitwarden-cli"},
+      "packages": {
+        "brew": "bitwarden-cli",
+        "pacman": "bitwarden-cli"
+      },
       "scope": "core",
       "versionPolicy": "system"
     },
     {
-      "commands": ["eza"],
+      "commands": [
+        "eza"
+      ],
       "github": {
         "artifacts": {
-          "linux-x86_64": {"archive": "eza_x86_64-unknown-linux-gnu.tar.gz", "binary": "eza"}
+          "linux-x86_64": {
+            "archive": "eza_x86_64-unknown-linux-gnu.tar.gz",
+            "binary": "eza"
+          }
         },
         "repo": "eza-community/eza",
         "tag": "v0.20.14"
       },
       "name": "eza",
-      "packages": {"apt": "eza", "brew": "eza", "dnf": "eza", "pacman": "eza"},
+      "packages": {
+        "apt": "eza",
+        "brew": "eza",
+        "dnf": "eza",
+        "pacman": "eza"
+      },
       "scope": "core",
       "versionPolicy": "pinned"
     },
     {
-      "commands": ["delta"],
+      "commands": [
+        "delta"
+      ],
       "github": {
         "artifacts": {
-          "darwin-arm64": {"archive": "delta-{tag}-aarch64-apple-darwin.tar.gz", "binary": "delta"},
-          "linux-x86_64": {"archive": "delta-{tag}-x86_64-unknown-linux-gnu.tar.gz", "binary": "delta"}
+          "darwin-arm64": {
+            "archive": "delta-{tag}-aarch64-apple-darwin.tar.gz",
+            "binary": "delta"
+          },
+          "linux-x86_64": {
+            "archive": "delta-{tag}-x86_64-unknown-linux-gnu.tar.gz",
+            "binary": "delta"
+          }
         },
         "repo": "dandavison/delta",
         "tag": "0.18.2"
       },
       "name": "delta",
-      "packages": {"brew": "git-delta", "pacman": "git-delta"},
+      "packages": {
+        "brew": "git-delta",
+        "pacman": "git-delta"
+      },
       "scope": "core",
       "versionPolicy": "pinned"
     },
     {
       "adapter": "zoxide-native",
-      "commands": ["zoxide"],
+      "commands": [
+        "zoxide"
+      ],
       "name": "zoxide",
-      "packages": {"brew": "zoxide"},
+      "packages": {
+        "brew": "zoxide"
+      },
       "scope": "core",
       "versionPolicy": "latest"
     },
     {
-      "commands": ["tldr"],
+      "commands": [
+        "tldr"
+      ],
       "github": {
         "artifacts": {
-          "darwin-arm64": {"archive": "tealdeer-macos-aarch64", "binary": "tealdeer-macos-aarch64", "installedName": "tldr"},
-          "linux-x86_64": {"archive": "tealdeer-linux-x86_64-musl", "binary": "tealdeer-linux-x86_64-musl", "installedName": "tldr"}
+          "darwin-arm64": {
+            "archive": "tealdeer-macos-aarch64",
+            "binary": "tealdeer-macos-aarch64",
+            "installedName": "tldr"
+          },
+          "linux-x86_64": {
+            "archive": "tealdeer-linux-x86_64-musl",
+            "binary": "tealdeer-linux-x86_64-musl",
+            "installedName": "tldr"
+          }
         },
         "repo": "tealdeer-rs/tealdeer",
         "tag": "v1.8.1"
       },
       "name": "tealdeer",
-      "packages": {"apt": "tealdeer", "brew": "tealdeer", "dnf": "tealdeer", "pacman": "tealdeer"},
+      "packages": {
+        "apt": "tealdeer",
+        "brew": "tealdeer",
+        "dnf": "tealdeer",
+        "pacman": "tealdeer"
+      },
       "postInstall": "update_tldr_cache",
       "scope": "core",
       "versionPolicy": "pinned"
     },
     {
-      "commands": ["lazygit"],
+      "commands": [
+        "lazygit"
+      ],
       "github": {
         "artifacts": {
-          "darwin-arm64": {"archive": "lazygit_{tag_no_v}_darwin_arm64.tar.gz", "binary": "lazygit"},
-          "linux-x86_64": {"archive": "lazygit_{tag_no_v}_Linux_x86_64.tar.gz", "binary": "lazygit"}
+          "darwin-arm64": {
+            "archive": "lazygit_{tag_no_v}_darwin_arm64.tar.gz",
+            "binary": "lazygit"
+          },
+          "linux-x86_64": {
+            "archive": "lazygit_{tag_no_v}_Linux_x86_64.tar.gz",
+            "binary": "lazygit"
+          }
         },
         "repo": "jesseduffield/lazygit",
         "tag": "v0.59.0"
       },
       "name": "lazygit",
-      "packages": {"brew": "lazygit", "pacman": "lazygit"},
+      "packages": {
+        "brew": "lazygit",
+        "pacman": "lazygit"
+      },
       "scope": "core",
       "versionPolicy": "pinned"
     },
     {
-      "commands": ["xclip"],
+      "commands": [
+        "xclip"
+      ],
       "name": "xclip",
-      "packages": {"apt": "xclip", "dnf": "xclip", "pacman": "xclip"},
-      "platforms": ["linux-arm64", "linux-x86_64"],
+      "packages": {
+        "apt": "xclip",
+        "dnf": "xclip",
+        "pacman": "xclip"
+      },
+      "platforms": [
+        "linux-arm64",
+        "linux-x86_64"
+      ],
       "scope": "core",
       "versionPolicy": "system"
     },
     {
       "adapter": "uv",
-      "commands": ["pre-commit"],
+      "commands": [
+        "pre-commit"
+      ],
       "name": "pre-commit",
       "scope": "core",
       "versionPolicy": "latest"
@@ -330,42 +517,60 @@
       "command": "hermes",
       "installer": "hermes-native",
       "name": "Hermes Agent",
-      "update": ["hermes", "update"]
+      "update": [
+        "hermes",
+        "update"
+      ]
     },
     {
       "channel": "latest",
       "command": "herdr",
       "installer": "herdr-native",
       "name": "Herdr",
-      "update": ["herdr", "update"]
+      "update": [
+        "herdr",
+        "update"
+      ]
     },
     {
       "channel": "latest",
       "command": "treehouse",
       "installer": "treehouse-native",
       "name": "Treehouse",
-      "update": ["treehouse", "update"]
+      "update": [
+        "treehouse",
+        "update"
+      ]
     },
     {
       "channel": "latest",
       "command": "no-mistakes",
       "installer": "no-mistakes-native",
       "name": "no-mistakes",
-      "update": ["no-mistakes", "update"]
+      "update": [
+        "no-mistakes",
+        "update"
+      ]
     },
     {
       "channel": "latest",
       "command": "agent",
       "installer": "cursor-native",
       "name": "Cursor CLI",
-      "update": ["agent", "update"]
+      "update": [
+        "agent",
+        "update"
+      ]
     },
     {
       "channel": "latest",
       "command": "grok",
       "installer": "grok-native",
       "name": "Grok Build",
-      "update": ["grok", "update"]
+      "update": [
+        "grok",
+        "update"
+      ]
     }
   ]
 }

@@ -122,6 +122,11 @@ Install, report, check and update discover the entry automatically. A tool
 needing a new native installer uses a small bootstrap function and a corresponding
 installer case and validation entry in the existing tool script.
 
+`just export` can add a CLI when its executable is an unambiguous global npm
+link with one command. It scans command directories, not complete package
+manager inventories. Unknown or manual executables are reported by command
+name for explicit description; paths and package-manager state are not saved.
+
 `config/pi/settings.json` owns Pi's stable provider, model, thinking level, and
 pinned package list. Install keeps `auth.json`, sessions, `trust.json`, and
 changelog state local. Fast Mode remains off by default; its existing local

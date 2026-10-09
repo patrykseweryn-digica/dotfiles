@@ -107,6 +107,142 @@ plan_rows() {
     ' "$VERSIONS_FILE"
 }
 
+declared_commands() {
+    jq -r '.tools[] | if has("commands") then .commands[] else .command end' \
+        "$VERSIONS_FILE"
+}
+
+declared_npm_packages() {
+    jq -r '.tools[] | select(.installer == "npm") | .package' \
+        "$VERSIONS_FILE"
+}
+
+tool_export_dirs() {
+    local command_name command_path
+    if [ -n "${TOOL_EXPORT_BIN_DIRS:-}" ]; then
+        tr ':' '\n' <<<"$TOOL_EXPORT_BIN_DIRS"
+        return
+    fi
+
+    while IFS= read -r command_name; do
+        command_path="$(command -v "$command_name" 2>/dev/null || true)"
+        [[ "$command_path" == /* ]] && dirname "$command_path"
+    done < <(declared_commands)
+    [ ! -d "${HOME}/.local/bin" ] || printf '%s\n' "${HOME}/.local/bin"
+}
+
+npm_link_identity() {
+    local path="$1" link rest scope name
+    [ -L "$path" ] || return 1
+    link="$(readlink "$path")"
+    case "$link" in
+    ../lib/node_modules/@*/*/*)
+        rest="${link#../lib/node_modules/}"
+        scope="${rest%%/*}"
+        rest="${rest#*/}"
+        name="${rest%%/*}"
+        printf '%s/%s\n' "$scope" "$name"
+        ;;
+    ../lib/node_modules/*/*)
+        rest="${link#../lib/node_modules/}"
+        printf '%s\n' "${rest%%/*}"
+        ;;
+    *) return 1 ;;
+    esac
+}
+
+single_command_npm_link() {
+    local path="$1" package="$2" command_name="$3"
+    local directory link relative package_json
+    directory="$(dirname "$path")"
+    link="$(readlink "$path")"
+    relative="${link#../lib/node_modules/${package}/}"
+    [ "$relative" != "$link" ] || return 1
+    package_json="${directory}/../lib/node_modules/${package}/package.json"
+    [ -f "$package_json" ] || return 1
+
+    jq -er --arg package "$package" --arg command "$command_name" \
+        --arg relative "$relative" '
+        select(.name == $package) |
+        .bin as $bin |
+        (if ($bin | type) == "string" then
+            select(($package | split("/") | last) == $command) | $bin
+         elif ($bin | type) == "object" and ($bin | length) == 1 then
+            $bin[$command]
+         else empty end) |
+        select(type == "string") |
+        sub("^\\./"; "") |
+        select(test("(^/|(^|/)\\.\\.(/|$))") | not) |
+        select(. == $relative)
+    ' "$package_json" >/dev/null
+}
+
+build_tool_export_candidate() {
+    local output="$1" report="$2"
+    local directory path command_name package report_unknown
+    local commands packages additions addition_array rendered
+    commands="$(mktemp)"
+    packages="$(mktemp)"
+    additions="$(mktemp)"
+    addition_array="$(mktemp)"
+    rendered="$(mktemp)"
+    declared_commands | sort -u >"$commands"
+    declared_npm_packages | sort -u >"$packages"
+    : >"$additions"
+    : >"$report"
+
+    while IFS= read -r directory; do
+        [ -d "$directory" ] || continue
+        report_unknown=false
+        if [ -n "${TOOL_EXPORT_BIN_DIRS:-}" ] ||
+            [[ "$directory" == "$HOME"/* ]]; then
+            report_unknown=true
+        fi
+        for path in "$directory"/*; do
+            [ -x "$path" ] || continue
+            command_name="${path##*/}"
+            [[ "$command_name" =~ ^[a-zA-Z0-9][a-zA-Z0-9._-]*$ ]] ||
+                continue
+            case "$command_name" in node | npm | npx | corepack) continue ;; esac
+            grep -Fxq "$command_name" "$commands" && continue
+
+            package="$(npm_link_identity "$path" || true)"
+            if [ -n "$package" ] && grep -Fxq "$package" "$packages"; then
+                continue
+            fi
+            if [ -n "$package" ] &&
+                [[ "$package" =~ ^(@[a-z0-9._-]+/)?[a-z0-9][a-z0-9._-]*$ ]] &&
+                single_command_npm_link \
+                    "$path" "$package" "$command_name"; then
+                jq -nc --arg name "$package" --arg command "$command_name" '
+                    {channel: "latest", command: $command, installer: "npm",
+                     name: $name, package: $name}
+                ' >>"$additions"
+                printf '%s\n' "$command_name" >>"$commands"
+                printf '%s\n' "$package" >>"$packages"
+            elif [ "$report_unknown" = true ]; then
+                printf '%s\n' "$command_name" >>"$report"
+            fi
+        done
+    done < <(tool_export_dirs | awk 'NF && !seen[$0]++')
+
+    sort -u -o "$report" "$report"
+    jq -s '.' "$additions" >"$addition_array"
+    jq --slurpfile additions "$addition_array" \
+        '.tools += $additions[0]' "$VERSIONS_FILE" >"$rendered"
+    local previous_versions="$VERSIONS_FILE"
+    VERSIONS_FILE="$rendered"
+    if ! validate_manifest; then
+        VERSIONS_FILE="$previous_versions"
+        rm -f "$commands" "$packages" "$additions" \
+            "$addition_array" "$rendered"
+        return 1
+    fi
+    VERSIONS_FILE="$previous_versions"
+    mv "$rendered" "$output"
+    rm -f "$commands" "$packages" "$additions" "$addition_array"
+}
+
 installed_version() {
     local command_name="$1" output
     command -v "$command_name" >/dev/null 2>&1 || return 1
@@ -173,6 +309,7 @@ report_versions() {
 
 plan_tools() {
     local rows name scope commands command_name current available
+    local candidate report
 
     rows="$(plan_rows)" || return 1
     while IFS=$'\t' read -r name scope commands; do
@@ -193,6 +330,20 @@ plan_tools() {
             printf 'FAIL\ttools\tupdate\t%s is missing or not runnable\n' "$name"
         fi
     done <<<"$rows"
+
+    candidate="$(mktemp)"
+    report="$(mktemp)"
+    build_tool_export_candidate "$candidate" "$report" || {
+        rm -f "$candidate" "$report"
+        return 1
+    }
+    jq -r --slurpfile current "$VERSIONS_FILE" '
+        .tools[] |
+        select(([.command] - [$current[0].tools[].command]) | length > 0) |
+        ["EXPORT", "tools", "export",
+         (.name + " can be exported to the tool inventory")] | @tsv
+    ' "$candidate"
+    rm -f "$candidate" "$report"
 }
 
 check_tools() {
@@ -281,6 +432,13 @@ case "${1:-}" in
 report) report_versions false ;;
 plan) plan_tools ;;
 check) check_tools ;;
+export-candidate)
+    [ "$#" -eq 3 ] || {
+        echo "Usage: $0 export-candidate OUTPUT REPORT" >&2
+        exit 1
+    }
+    build_tool_export_candidate "$2" "$3"
+    ;;
 install | update)
     # Also protect direct callers such as just update-agent-tools in old shells.
     # shellcheck source=bootstrap.d/07-node.sh
@@ -297,7 +455,7 @@ install | update)
     install_declared_tools "$refresh"
     ;;
 *)
-    echo "Usage: $0 {plan|report|check|install|update}" >&2
+    echo "Usage: $0 {plan|report|check|install|update|export-candidate}" >&2
     exit 1
     ;;
 esac
