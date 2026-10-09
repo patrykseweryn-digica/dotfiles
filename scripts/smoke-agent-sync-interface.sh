@@ -312,12 +312,17 @@ fi
 [ "$(cat "$sync_log")" = $'push-skills\npush-mcp\npush-plugins' ] || \
     fail "just push did not invoke every category in order"
 
-just_commands="$("$JUST_BIN" --justfile "${DOTFILES_DIR}/justfile" --list)"
-grep -Eq '^    (pull|push)-(mcp|skills|plugins)' <<<"$just_commands" || \
-    fail "symmetric sync commands missing from just"
-grep -Eq '^    skills-preflight' <<<"$just_commands" || \
-    fail "skill preflight command missing from just"
-if grep -Eq '^    pull[[:space:]]' <<<"$just_commands"; then
+for command_name in pull-mcp push-mcp pull-skills push-skills \
+    pull-plugins push-plugins skills-preflight; do
+    "$JUST_BIN" --justfile "${DOTFILES_DIR}/justfile" \
+        --show "$command_name" >/dev/null ||
+        fail "internal sync command missing from just: $command_name"
+done
+just_commands="$("$JUST_BIN" --justfile "${DOTFILES_DIR}/justfile" --summary)"
+grep -Eq '(^| )(pull|push)-(mcp|skills|plugins)( |$)' <<<"$just_commands" &&
+    fail "internal sync command leaked into the public menu"
+if "$JUST_BIN" --justfile "${DOTFILES_DIR}/justfile" --show pull \
+    >/dev/null 2>&1; then
     fail "broad pull command must not exist"
 fi
 

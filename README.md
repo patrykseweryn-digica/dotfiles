@@ -8,63 +8,31 @@ details unless you are debugging them.
 ## Daily commands
 
 ```bash
-just --list
-just check
-just doctor
-just update
-just export
-just verify
-just agent-versions
-just push
-just pull-codex-settings
-just pull-mcp
-just pull-skills
+just install  # prepare a new machine without upgrading existing tools
+just doctor   # inspect local state offline and without writes
+just update   # apply repository state and refresh managed upstream state
+just export   # review and save portable local additions to the checkout
 ```
 
 ## Sync direction
 
-Repository state is authoritative when pushing. Runtime state is imported only
-through explicit export or category-specific pull commands.
+Repository state is authoritative for `update`. Portable runtime additions
+enter the repository only through `export`.
 
-```bash
-just pull-codex-settings # preview live Codex preferences, then confirm
-just pull-mcp       # preview live MCP state, then confirm
-just export         # one transaction for all portable live state
-just push-mcp       # repository MCP state -> runtimes
-just pull-skills    # preview live skills, then confirm repository changes
-just skills-preflight # resolve current upstream skills without applying
-just push-skills    # update and reconcile current upstream skills
-just pull-plugins   # preview live plugins, then confirm repository changes
-just push-plugins   # apply membership without upgrades
-just push           # push skills, MCP, and plugins in order
-```
-
-There is no broad `just pull`. After saving a model or reasoning default in
-Codex, run `just pull-codex-settings`. MCP pull merges identical definitions
-and stops without writing on conflicts. Environment values, HTTP headers,
-credentials, OAuth state, and unsupported transports are not imported.
 `just export` requires a clean checkout and builds one plan for allowlisted
-settings, normalized MCP, skills, and plugin membership. It validates every
-managed skill against current upstream and enforces plugin provider ownership
-before one confirmation. Removed or renamed skills stop the operation. Export
-never stages, commits, pushes, or changes runtime files; an apply failure rolls
-the checkout back.
-Skill pull previews lock and custom-skill additions, removals, and replacements
-before asking for confirmation. Skill preflight installs every locked skill
-from current upstream into a disposable home and changes no runtime state.
-Skill push performs that preflight, then atomically replaces the managed skill
-roots for Codex, Claude Code, OpenCode, and Pi. Missing skills and network
-failures stop before live changes; apply failures roll back from backup.
-Remote skills intentionally remain unpinned and are refreshed on every push.
+settings, normalized MCP, skills, plugin membership, and recognized tools.
+It validates every managed skill against current upstream and enforces plugin
+provider ownership before one confirmation. Removed or renamed skills stop the
+operation. Export never stages, commits, pushes, or changes runtime files; an
+apply failure rolls the checkout back. Environment values, HTTP headers,
+credentials, OAuth state, unsupported transports, and local paths stay local.
+
+`just update` applies repository settings and membership, then refreshes
+managed tools, remote skills, and plugins. Categories with portable local
+additions are blocked and point to `just export`; independent categories can
+continue. Remote skills remain unpinned and follow current upstream.
 Doctor ignores Codex's active model and reasoning selection; repository values
 remain install defaults.
-
-Plugin pull combines supported Codex remote and Claude plugin membership,
-shows the manifest diff, and writes only after confirmation. That explicit
-pull makes the shared manifest authoritative. Plugin push uses Claude's CLI
-for membership changes. Codex remote plugins still require `/plugins`; drift
-stops with the plugin names, OAuth step, and verification command. Pull and
-push never update marketplaces, plugins, or agent CLIs.
 
 Anthropic marketplaces belong only in Claude Code; OpenAI marketplaces belong
 only in Codex. Plugin checks, exports, installs, and updates reject
@@ -96,15 +64,13 @@ is unavailable.
 Native latest installers resolve their own releases; their report checks
 installed availability, not whether a newer release exists.
 
-```bash
-just agent-versions      # compare developer tools with their version policies
-just update-agent-tools  # update Node + CLIs; inventory stays unchanged
-```
+The hidden maintainer recipes `agent-versions` and `update-agent-tools` expose
+focused reporting and updates for tests and diagnosis. Daily maintenance uses
+`just doctor` and `just update`.
 
 Pi, Codex, OpenCode, and the skill manager use global npm packages. Claude
 Code uses Anthropic's native installer with the resolved latest version.
-Configuration commands such as `just push` never resolve channels or update
-tool versions.
+Configuration application never resolves channels or updates tool versions.
 
 To add an npm CLI, add one entry to the manifest:
 
@@ -151,13 +117,11 @@ Declare a new portable setting there before importing its live value.
 Claude settings come from `config/claude/`. Missing required configuration
 causes `just doctor` to fail and print the corresponding install command.
 
-## Setup commands
+## Installation and update
 
 ```bash
-just install          # converge missing tools and local config
-just update           # plan and apply safe local configuration changes
-just update-dotfiles  # existing machine: links + agents, no tools, no SSH
-just setup-ssh        # explicit SSH key/config setup
+just install  # converge missing tools and local config
+just update   # plan and apply safe local configuration changes
 ```
 
 `just update` prints the plan, applies settings, MCP, managed links, and the
@@ -169,7 +133,7 @@ Cursor CLI, Grok Build, Hermes Agent, Herdr, Treehouse and no-mistakes use
 official latest-release installers selected by the tool manifest.
 Native commands use `~/.local/bin`;
 no-mistakes keeps its binary in `~/.no-mistakes/bin` and restarts its daemon.
-Both setup commands merge scalar `agent: codex` into
+Installation and configuration application merge scalar `agent: codex` into
 `~/.no-mistakes/config.yaml`, preserving other local settings and comments.
 There is no automatic or Claude fallback in this global default; repository
 agent overrides remain local. Configuration-only setup does not touch the
@@ -203,18 +167,20 @@ The existing CI runs repository checks on macOS and Linux. A separate job
 resolves every current upstream skill on pushes, pull requests, and daily.
 A local macOS run alone proves only macOS execution and the simulated Linux
 cases.
-`just verify` runs repository checks followed by the live machine doctor.
-Commit hooks run repository tests; live drift remains a separate check because
-it depends on the machine's tools, credentials and installed configuration.
+The hidden maintainer recipe `just verify` runs repository checks followed by
+the live machine doctor. Commit hooks run repository tests; live drift remains
+a separate check because it depends on the machine's tools, credentials and
+installed configuration.
 
 ### Firstmate crew dispatch
 
 Set `DOTFILES_FIRSTMATE_HOME` in the local `.env` to the absolute primary
-Firstmate home containing `config/`. Both setup commands install
-`config/firstmate/crew-dispatch.json` there as a regular file. An unset target
-skips setup; an invalid target or differing existing dispatch fails without
-replacing it. Equivalent JSON is left untouched. Other Firstmate settings
-are never changed. There is no path guessing or secondmate-home scan:
+Firstmate home containing `config/`. Full installation and the internal
+config-only step write `config/firstmate/crew-dispatch.json` there as a regular
+file. An unset target skips setup; an invalid target or differing existing
+dispatch fails without replacing it. Equivalent JSON is left untouched. Other
+Firstmate settings are never changed. There is no path guessing or
+secondmate-home scan:
 Firstmate's runtime `FM_HOME`/`FM_ROOT_OVERRIDE` can name an isolated home,
 so dotfiles deliberately requires its own persistent, explicit target.
 
@@ -239,10 +205,11 @@ and reconcile it explicitly before rerunning; setup never overwrites it.
 
 ### Herdr sidebar configuration
 
-Both setup commands also merge `config/herdr/config.toml` into
-`~/.config/herdr/config.toml` (or `HERDR_CONFIG_PATH`). Agents retain their
-existing rows and gain a separate raw `terminal_title` row, showing Pi's
-session name, spinner and final state even while another tab is selected.
+Full installation and the internal config-only step also merge
+`config/herdr/config.toml` into `~/.config/herdr/config.toml` (or
+`HERDR_CONFIG_PATH`). Agents retain their existing rows and gain a separate raw
+`terminal_title` row, showing Pi's session name, spinner and final state even
+while another tab is selected.
 Other settings and comments stay local; agent-specific `rows_by_agent`
 overrides remain untouched and take precedence over these shared rows.
 Apply only this configuration, without installing tools or reloading sessions:
@@ -266,8 +233,8 @@ git remote add origin git@github-personal:p-severin/dotfiles.git
 git remote add work git@github-work:patrykseweryn-digica/dotfiles.git
 ```
 
-`just install` and `just update-dotfiles` configure merges for pulls in
-this checkout. Other repositories retain the global rebase preference.
+Installation configures merges for pulls in this checkout. Other repositories
+retain the global rebase preference.
 With a clean working tree, combine both published histories, then push:
 
 ```bash
@@ -287,8 +254,8 @@ Resolve and commit any merge conflicts before continuing. All three SHAs
 should match. If only one push succeeds, fix the connection and retry the
 other. If a remote advanced, fetch it, merge its master, then push the new
 HEAD to both again. These are ordinary fast-forward pushes; published
-commits stay in history. Configuration sync with `just push` is separate
-from Git publication.
+commits stay in history. Configuration application is separate from Git
+publication.
 
 ## What is what
 
@@ -307,16 +274,11 @@ from Git publication.
 
 ## Rule of thumb
 
-- Need to use repo: start with `just --list`.
-- Need to verify repo: `just check`.
-- Need to check this machine for drift: `just doctor`.
-- Need to inspect agent versions: `just agent-versions`.
-- Need to update agent tools: `just update-agent-tools`.
-- Need to apply repository state: `just push`.
-- Need to validate current upstream skills only: `just skills-preflight`.
-- Changed Codex model/preferences interactively: `just pull-codex-settings`.
-- Need to inspect runtime MCP additions: `just pull-mcp`.
-- Need to review live skill changes: `just pull-skills`.
-- Need a new machine: `just install`.
-- Need only dotfile links refreshed: `just update-dotfiles`.
-- Need SSH changes: run `just setup-ssh` explicitly.
+- New machine: `just install`.
+- Routine check: `just doctor`.
+- `UPDATE` result: `just update`.
+- `EXPORT` result: `just export`.
+
+CI and repository development use the hidden `just check` maintenance recipe.
+Category-specific recipes remain callable for implementation and tests, but
+are intentionally absent from the human menu.

@@ -59,6 +59,20 @@ live drift, state exactly what passed and which checks still fail. Before
 applying configuration, compare both sides and back up valuable local state.
 A passing repository check does not authorize overwriting local preferences.
 
+For changes to the daily workflow, drive all public mutating paths through
+their isolated E2E tests:
+
+```bash
+bash scripts/smoke-install-dotfiles.sh
+bash scripts/smoke-plugin-install.sh
+bash scripts/smoke-update-local.sh
+bash scripts/smoke-export.sh
+```
+
+These tests invoke `just install`, `just update`, and `just export` with
+disposable HOME directories and checkouts. Never substitute a live update or
+export for this proof.
+
 ## Evidence
 
 Capture commands, exit codes, platform (`uname -s` and `uname -m`) and

@@ -87,7 +87,10 @@ repos:
         language: system
         pass_filenames: false
       - id: plugin-install-smoke
-        name: Full plugin install smoke test
+        name: Public install lifecycle smoke test
+        description: >-
+          Verify fresh, partial, converged, retry, and repeated install states
+          on the Linux/macOS matrix with external adapters stubbed
         entry: bash scripts/smoke-plugin-install.sh
         language: system
         pass_filenames: false

@@ -15,6 +15,7 @@ fail() {
 JQ_BIN="$(command -v jq 2>/dev/null || true)"
 [ -n "$JQ_BIN" ] || fail "jq is required"
 UV_BIN="$(command -v uv)"
+JUST_BIN="$(command -v just)"
 export UV_CACHE_DIR="${UV_CACHE_DIR:-$(uv cache dir)}"
 # Runtime overrides must never escape the temporary HOME used by each case.
 unset DOTFILES_FIRSTMATE_HOME
@@ -26,6 +27,17 @@ unset PI_CODING_AGENT_DIR PI_SETTINGS_FILE PI_SKILLS_DIR PI_MCP_CONFIG
 unset PI_SETTINGS_TEMPLATE PI_AGENTS_SOURCE SKILL_LOCK_LIVE SKILLS_CLI
 unset PLUGIN_MANIFEST MCP_SERVERS SKILL_LOCK_REPO SHARED_SKILLS_CUSTOM_DIR
 unset HERDR_CONFIG_PATH
+
+smoke_public_menu() {
+    local actual expected
+    actual="$(mktemp)"
+    expected="$(mktemp)"
+    "$JUST_BIN" --justfile "${DOTFILES_DIR}/justfile" --summary |
+        tr ' ' '\n' | sort >"$actual"
+    printf '%s\n' doctor export install update >"$expected"
+    cmp "$expected" "$actual" || fail "public menu is not the four daily commands"
+    rm -f "$actual" "$expected"
+}
 
 smoke_source_has_no_home_side_effect() {
     local tmp_dir
@@ -578,6 +590,7 @@ smoke_no_mistakes_config() {
 }
 
 smoke_no_mistakes_config
+smoke_public_menu
 smoke_node_activation_before_tools
 smoke_source_has_no_home_side_effect
 smoke_run_steps_preserve_errexit

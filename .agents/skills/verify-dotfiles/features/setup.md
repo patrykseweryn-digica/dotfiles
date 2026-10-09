@@ -26,9 +26,9 @@ Install or apply dotfiles while preserving runtime credentials and sessions.
 Preconditions: dependencies from SKILL.md; run from the checkout root.
 
 - **Install and repeat.** Run `bash scripts/smoke-install-dotfiles.sh` and
-  `bash scripts/smoke-plugin-install.sh`. They drive the public install/update
-  recipes with an isolated HOME and inspect links, package/config state,
-  preserved credentials, repeated setup and failures.
+  `bash scripts/smoke-plugin-install.sh`. They drive the public install recipe
+  with an isolated HOME through fresh, partial, converged, failed and repeated
+  states on the platform matrix. External installers are stubbed.
 - **Plan and update.** Run `bash scripts/smoke-update-local.sh`. It drives
   public `just update` in an isolated HOME, checks a blocked export alongside
   successful independent categories and upstream refreshes, then proves a
