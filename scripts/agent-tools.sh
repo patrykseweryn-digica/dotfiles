@@ -302,7 +302,7 @@ report_versions() {
     done < <(tool_rows)
 
     if [ "$strict" = true ] && [ "$failed" = true ]; then
-        echo "Run: just update-agent-tools" >&2
+        echo "Run: just update" >&2
         return 1
     fi
 }
@@ -440,7 +440,7 @@ export-candidate)
     build_tool_export_candidate "$2" "$3"
     ;;
 install | update)
-    # Also protect direct callers such as just update-agent-tools in old shells.
+    # Also protect direct callers such as the local update workflow.
     # shellcheck source=bootstrap.d/07-node.sh
     source "$DOTFILES_DIR/bootstrap.d/07-node.sh"
     refresh=false

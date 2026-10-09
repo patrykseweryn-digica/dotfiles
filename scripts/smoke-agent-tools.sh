@@ -130,7 +130,7 @@ grep -F $'PASS\ttools\tnone\tCodex 1.2.3 is available' <<<"$plan" \
   >/dev/null || fail "tool plan omitted its contract fields"
 "$AGENT_TOOLS" check
 AGENT_TOOLS="$AGENT_TOOLS" \
-  "$JUST_BIN" --justfile "${DOTFILES_DIR}/justfile" agent-versions |
+  "$JUST_BIN" --justfile "${DOTFILES_DIR}/justfile" outdated |
   grep -F 'OpenCode' >/dev/null || fail "version report omitted OpenCode"
 
 TEST_AGENT_CODEX_VERSION=1.2.2
@@ -160,8 +160,7 @@ export TEST_AGENT_PI_VERSION TEST_AGENT_CODEX_VERSION TEST_AGENT_CLAUDE_VERSION 
 [ ! -s "$native_log" ] || fail "install replaced available native tools"
 
 cp "$manifest" "$manifest.before"
-LATEST_VERSION=2.0.0 AGENT_TOOLS="$AGENT_TOOLS" \
-  "$JUST_BIN" --justfile "${DOTFILES_DIR}/justfile" update-agent-tools
+LATEST_VERSION=2.0.0 "$AGENT_TOOLS" update
 cmp "$manifest" "$manifest.before" || fail "update changed the tool inventory"
 grep -Fx 'install -g --ignore-scripts @example/pi@latest' "$npm_log" >/dev/null ||
   fail "Pi did not install latest"
@@ -380,8 +379,7 @@ REGISTRY_FAIL=true "$AGENT_TOOLS" install
 "$AGENT_TOOLS" install
 [ ! -s "$npm_log" ] || fail "current npm package reinstalled"
 cp "$manifest" "$manifest.before"
-LATEST_VERSION=2.0.0 AGENT_TOOLS="$AGENT_TOOLS" \
-  "$JUST_BIN" --justfile "${DOTFILES_DIR}/justfile" update-agent-tools
+LATEST_VERSION=2.0.0 "$AGENT_TOOLS" update
 [ "$(dotfiles-fixture --version)" = 2.0.0 ] || fail "explicit update omitted new declaration"
 LATEST_VERSION=2.0.0 "$AGENT_TOOLS" check
 cmp "$manifest" "$manifest.before" || fail "real update changed inventory"

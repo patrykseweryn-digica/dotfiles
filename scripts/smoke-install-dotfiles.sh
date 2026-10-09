@@ -34,8 +34,8 @@ smoke_public_menu() {
     expected="$(mktemp)"
     "$JUST_BIN" --justfile "${DOTFILES_DIR}/justfile" --summary |
         tr ' ' '\n' | sort >"$actual"
-    printf '%s\n' doctor export install update >"$expected"
-    cmp "$expected" "$actual" || fail "public menu is not the four daily commands"
+    printf '%s\n' doctor export install outdated update >"$expected"
+    cmp "$expected" "$actual" || fail "public menu is not the five daily commands"
     rm -f "$actual" "$expected"
 }
 
