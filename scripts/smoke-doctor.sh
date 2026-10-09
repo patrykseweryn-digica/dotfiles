@@ -14,13 +14,11 @@ fail() {
 
 tmp_dir="$(mktemp -d)"
 trap 'rm -rf "$tmp_dir"' EXIT
-
 home_dir="${tmp_dir}/home with spaces"
 stub_dir="${tmp_dir}/stubs"
 check_log="${tmp_dir}/checks.log"
 network_log="${tmp_dir}/network.log"
 
-# Pin every sync input/output instead of inheriting the caller's live overrides.
 export CODEX_CONFIG="${home_dir}/.codex/config.toml"
 export CODEX_SETTINGS_TEMPLATE="${tmp_dir}/codex-settings.toml"
 export CODEX_REMOTE_PLUGIN_CACHE="${home_dir}/.codex/plugins/cache/openai-curated-remote"
@@ -55,9 +53,7 @@ mkdir -p \
 ln -s "$UV_BIN" "${stub_dir}/uv"
 cp "${DOTFILES_DIR}/config/claude/settings.json" "$CLAUDE_TEMPLATE_FILE"
 cp "${DOTFILES_DIR}/config/codex/settings.toml" "$CODEX_SETTINGS_TEMPLATE"
-
-cp "${DOTFILES_DIR}/.agents/skill-lock.json" \
-    "${home_dir}/.agents/.skill-lock.json"
+cp "${DOTFILES_DIR}/.agents/skill-lock.json" "$SKILL_LOCK_LIVE"
 ln -s "${DOTFILES_DIR}/config/codex/AGENTS.md" \
     "${home_dir}/.codex/AGENTS.md"
 ln -s "${DOTFILES_DIR}/config/claude/CLAUDE.md" \
@@ -71,15 +67,25 @@ ln -s "${DOTFILES_DIR}/config/pi/AGENTS.md" \
 
 cat >"${stub_dir}/sync-agents" <<'STUB'
 #!/bin/bash
-printf '%s\n' "$*" >> "$DOCTOR_CHECK_LOG"
-if [ "$*" = "${REAL_CHECK:-}" ]; then
-    exec "$DOTFILES_DIR/sync-agents.sh" "$@"
-fi
-if [ "$*" = "${FAIL_CHECK:-}" ]; then
+printf '%s\n' "$*" >>"$DOCTOR_CHECK_LOG"
+[ "$*" = '--quiet state-plan' ] || exit 1
+if [ "${PLAN_SCENARIO:-normal}" = planner-fail ]; then
     printf '%s\n' '+ "PASSWORD": "private-doctor-sentinel"'
     for ((i=0; i<100; i++)); do echo "[ERROR] Test diagnostic $i"; done
+    exit 1
 fi
-[ "$*" != "${FAIL_CHECK:-}" ]
+case "${PLAN_SCENARIO:-normal}" in
+normal) printf 'PASS\tsettings:codex\tnone\tCodex settings match\n' ;;
+update) printf 'UPDATE\tsettings:codex\tupdate\tCodex settings need repository state\n' ;;
+export) printf 'EXPORT\tsettings:codex\texport\tCodex settings have portable changes\n' ;;
+fail) printf 'FAIL\tsettings:codex\tupdate\tCodex settings are invalid\n' ;;
+esac
+printf 'PASS\tsettings:claude\tnone\tClaude settings match\n'
+printf 'PASS\tsettings:opencode\tnone\tOpenCode settings match\n'
+printf 'PASS\tsettings:pi\tnone\tPi settings match\n'
+printf 'PASS\tmcp\tnone\tMCP matches\n'
+printf 'PASS\tskills\tnone\tSkills match\n'
+printf 'PASS\tplugins\tnone\tPlugins match\n'
 STUB
 
 cat >"${stub_dir}/agent-tools" <<'STUB'
@@ -102,12 +108,15 @@ normal)
     ;;
 esac
 STUB
+
 cat >"${stub_dir}/node" <<'STUB'
 #!/bin/bash
 [ "$*" = --version ] || exit 1
 printf 'v%s\n' "${NODE_TEST_VERSION:-99.0.0}"
 STUB
-chmod +x "${stub_dir}/sync-agents" "${stub_dir}/agent-tools" "${stub_dir}/node"
+
+chmod +x "${stub_dir}/sync-agents" "${stub_dir}/agent-tools" \
+    "${stub_dir}/node"
 for command_name in npm curl gh; do
     cat >"${stub_dir}/${command_name}" <<'STUB'
 #!/bin/bash
@@ -116,7 +125,7 @@ exit 99
 STUB
     chmod +x "${stub_dir}/${command_name}"
 done
-cp "${DOTFILES_DIR}/config/claude/settings.json" "${home_dir}/.claude/settings.json"
+cp "${DOTFILES_DIR}/config/claude/settings.json" "$CLAUDE_SETTINGS_FILE"
 mkdir -p "${home_dir}/.claude/hooks"
 printf '#!/bin/bash\n' >"${home_dir}/.claude/hooks/herdr-agent-state.sh"
 
@@ -127,18 +136,16 @@ run_doctor() {
         AGENT_TOOLS="${stub_dir}/agent-tools" \
         NETWORK_LOG="$network_log" \
         DOCTOR_CHECK_LOG="$check_log" \
-        FAIL_CHECK="${FAIL_CHECK:-}" \
-        REAL_CHECK="${REAL_CHECK:-}" \
+        PLAN_SCENARIO="${PLAN_SCENARIO:-normal}" \
         NODE_TEST_VERSION="${NODE_TEST_VERSION:-}" \
         TOOL_DRIFT="${TOOL_DRIFT:-false}" \
         env -u CODEX_HOME DOTFILES_DIR="$DOTFILES_DIR" \
-        "$JUST_BIN" --justfile "${DOTFILES_DIR}/justfile" \
-        doctor >"${tmp_dir}/doctor.log" 2>&1
+        "$JUST_BIN" --justfile "${DOTFILES_DIR}/justfile" doctor \
+        >"${tmp_dir}/doctor.log" 2>&1
 }
 
 snapshot_state() {
     local output="$1"
-
     {
         find "$home_dir" -print | LC_ALL=C sort
         find "$home_dir" -type f -exec cksum {} \; | LC_ALL=C sort
@@ -158,226 +165,160 @@ fi
 : >"$check_log"
 : >"$network_log"
 snapshot_state "${tmp_dir}/before"
-run_doctor || {
-    cat "${tmp_dir}/doctor.log" >&2
-    fail "doctor failed"
-}
+run_doctor || fail "doctor rejected a healthy plan"
 snapshot_state "${tmp_dir}/after"
 cmp "${tmp_dir}/before" "${tmp_dir}/after" ||
     fail "doctor changed HOME or checkout"
 [ ! -s "$network_log" ] || fail "doctor attempted network access"
+grep -Fx -- '--quiet state-plan' "$check_log" >/dev/null ||
+    fail "doctor skipped the shared state plan"
 
-for expected in \
-    plugins-check \
-    codex-check \
-    claude-settings-check \
-    opencode-check \
-    mcp-check \
-    pi-check \
-    skills-check; do
-    grep -Fx "$expected" "$check_log" >/dev/null ||
-        fail "doctor skipped: $expected"
-done
+PLAN_SCENARIO=update
+run_doctor || fail "doctor rejected UPDATE"
+grep -F '[UPDATE] settings:codex:' "${tmp_dir}/doctor.log" >/dev/null ||
+    fail "doctor omitted UPDATE"
+grep -F 'Run: just update' "${tmp_dir}/doctor.log" >/dev/null ||
+    fail "doctor omitted update action"
 
-FAIL_CHECK=plugins-check
-if run_doctor; then
-    fail "doctor passed with plugin drift"
-fi
-unset FAIL_CHECK
+PLAN_SCENARIO="export"
+run_doctor || fail "doctor rejected EXPORT"
+grep -F '[EXPORT] settings:codex:' "${tmp_dir}/doctor.log" >/dev/null ||
+    fail "doctor omitted EXPORT"
+grep -F 'Run: just export' "${tmp_dir}/doctor.log" >/dev/null ||
+    fail "doctor omitted export action"
+
+PLAN_SCENARIO=fail
+if run_doctor; then fail "doctor passed with FAIL"; fi
+grep -F '[FAIL] settings:codex:' "${tmp_dir}/doctor.log" >/dev/null ||
+    fail "doctor omitted FAIL"
+
+PLAN_SCENARIO=planner-fail
+if run_doctor; then fail "doctor passed when planning failed"; fi
+unset PLAN_SCENARIO
 if grep -F 'private-doctor-sentinel' "${tmp_dir}/doctor.log"; then
     fail "doctor exposed raw configuration values"
 fi
-[ "$(grep -c '^\[ERROR\] Test diagnostic' "${tmp_dir}/doctor.log")" -eq 20 ] ||
+[ "$(grep -c '^\[ERROR\] Invalid state plan' "${tmp_dir}/doctor.log")" -eq 20 ] ||
     fail "doctor did not bound diagnostics"
 
 ln -s "${home_dir}/missing" "${home_dir}/.agents/skills/broken-link"
-if run_doctor; then
-    fail "doctor passed with a broken skill link"
-fi
+if run_doctor; then fail "doctor passed with a broken skill link"; fi
 rm "${home_dir}/.agents/skills/broken-link"
 
 TOOL_DRIFT=true
-if run_doctor; then
-    fail "doctor passed with version drift"
-fi
+if run_doctor; then fail "doctor passed with a missing tool"; fi
 unset TOOL_DRIFT
 
 NODE_TEST_VERSION=invalid
-if run_doctor; then
-    fail "doctor passed with Node drift"
-fi
-grep -F '[FAIL] Node version' "${tmp_dir}/doctor.log" >/dev/null ||
-    fail "doctor did not identify Node drift"
+if run_doctor; then fail "doctor passed with invalid Node"; fi
+grep -F '[FAIL] node:' "${tmp_dir}/doctor.log" >/dev/null ||
+    fail "doctor omitted Node failure"
 unset NODE_TEST_VERSION
 
 rm "${home_dir}/.claude/hooks/herdr-agent-state.sh"
-if run_doctor; then
-    fail "doctor passed with missing enabled Herdr hook"
-fi
-grep -F 'herdr integration install claude' "${tmp_dir}/doctor.log" >/dev/null ||
-    fail "doctor omitted Herdr repair command"
-jq '.disableAllHooks = true' "${home_dir}/.claude/settings.json" >"${tmp_dir}/disabled.json"
-mv "${tmp_dir}/disabled.json" "${home_dir}/.claude/settings.json"
-run_doctor || fail "doctor rejected explicitly disabled hooks"
-grep -F '[SKIP] Herdr Claude hook: disableAllHooks is true' \
-    "${tmp_dir}/doctor.log" >/dev/null || fail "doctor omitted SKIP reason"
+if run_doctor; then fail "doctor passed with a missing enabled hook"; fi
+grep -F '[FAIL] hooks:' "${tmp_dir}/doctor.log" >/dev/null ||
+    fail "doctor omitted hook failure"
+jq '.disableAllHooks = true' "$CLAUDE_SETTINGS_FILE" \
+    >"${tmp_dir}/disabled.json"
+mv "${tmp_dir}/disabled.json" "$CLAUDE_SETTINGS_FILE"
+run_doctor || fail "doctor rejected intentionally disabled hooks"
+grep -F '[PASS] hooks: Herdr hook is intentionally inactive' \
+    "${tmp_dir}/doctor.log" >/dev/null || fail "doctor omitted inactive hook reason"
 printf '#!/bin/bash\n' >"${home_dir}/.claude/hooks/herdr-agent-state.sh"
 
-jq '.skills.extra = {source: "example/skills"}' \
-    "${home_dir}/.agents/.skill-lock.json" >"${tmp_dir}/lock.json"
-mv "${tmp_dir}/lock.json" "${home_dir}/.agents/.skill-lock.json"
-FAIL_CHECK=skills-check
-if run_doctor; then
-    fail "doctor passed with skill lock drift"
-fi
-unset FAIL_CHECK
-
-# Exercise the real settings commands through doctor; other subsystems remain
-# isolated so their installed CLIs and network access cannot affect this test.
+# Real planner: local adapters, isolated HOME, and stubbed external CLIs.
 printf '{}\n' >"$MCP_SERVERS"
-printf '{"plugins":{},"marketplaces":{}}\n' >"$CLAUDE_MANIFEST"
+printf '%s\n' \
+    '{"plugins":{},"marketplaces":{},"codexPlugins":[],"codexMarketplaces":{}}' \
+    >"$PLUGIN_MANIFEST"
 printf '{"skills":{},"dismissed":{}}\n' >"$SKILL_LOCK_REPO"
-
-sync_real() {
-    HOME="$home_dir" PATH="${stub_dir}:/usr/bin:/bin" \
-        env -u CODEX_HOME "$DOTFILES_DIR/sync-agents.sh" "$@" >"${tmp_dir}/sync.log" 2>&1
-}
-
-for component in claude opencode; do
-    case "$component" in
-    claude)
-        REAL_CHECK=claude-settings-check
-        config="${home_dir}/.claude/settings.json"
-        drift='.model = "changed"'
-        ;;
-    opencode)
-        REAL_CHECK=opencode-check
-        config="${home_dir}/.config/opencode/opencode.json"
-        drift='.instructions = []'
-        ;;
-    esac
-    sync_real "${component}-install" || {
-        cat "${tmp_dir}/sync.log"
-        fail "install $component"
-    }
-    cp "$config" "${tmp_dir}/expected.json"
-    run_doctor || {
-        cat "${tmp_dir}/doctor.log"
-        fail "valid $component settings rejected"
-    }
-    cmp -s "$config" "${tmp_dir}/expected.json" || fail "doctor wrote settings"
-
-    rm "$config"
-    if run_doctor; then fail "doctor passed with missing $component settings"; fi
-    [ ! -e "$config" ] || fail "doctor recreated missing settings"
-    grep -F "$config" "${tmp_dir}/doctor.log" >/dev/null || fail "missing path omitted"
-    grep -F "./sync-agents.sh ${component}-install" "${tmp_dir}/doctor.log" \
-        >/dev/null || fail "repair command omitted"
-
-    for invalid in '' '{' '{} {}' '[]' 'null'; do
-        printf '%s' "$invalid" >"$config"
-        if run_doctor; then fail "doctor passed with invalid $component JSON: $invalid"; fi
-        grep -F "expected exactly one object: $config" "${tmp_dir}/doctor.log" \
-            >/dev/null || fail "invalid JSON diagnostic omitted"
-        grep -F "./sync-agents.sh ${component}-install" "${tmp_dir}/doctor.log" \
-            >/dev/null || fail "invalid JSON repair command omitted"
-        [ "$(cat "$config")" = "$invalid" ] || fail "doctor modified invalid JSON"
-    done
-
-    jq "$drift" "${tmp_dir}/expected.json" >"$config"
-    if run_doctor; then fail "doctor passed with changed $component settings"; fi
-    cp "${tmp_dir}/expected.json" "$config"
-done
-unset REAL_CHECK
-
-# Codex uses TOML; exercise its real install/check through the same doctor.
-printf 'approval_policy = "never"\n' >"$CODEX_SETTINGS_TEMPLATE"
-REAL_CHECK=codex-check
-sync_real codex-install || {
-    cat "${tmp_dir}/sync.log"
-    fail 'install Codex'
-}
-config="${home_dir}/.codex/config.toml"
-cp "$config" "${tmp_dir}/expected.toml"
-run_doctor || {
-    cat "${tmp_dir}/doctor.log"
-    fail 'valid Codex settings rejected'
-}
-cmp -s "$config" "${tmp_dir}/expected.toml" || fail 'doctor wrote Codex settings'
-rm "$config"
-if run_doctor; then fail 'doctor passed with missing Codex settings'; fi
-[ ! -e "$config" ] || fail 'doctor recreated Codex settings'
-grep -F './sync-agents.sh codex-install' "${tmp_dir}/doctor.log" >/dev/null ||
-    fail 'missing Codex repair command'
-sed 's/never/on-request/' "${tmp_dir}/expected.toml" >"$config"
-if cmp -s "$config" "${tmp_dir}/expected.toml"; then
-    fail 'Codex drift fixture did not change approval_policy'
-fi
-if run_doctor; then fail 'doctor passed with changed Codex settings'; fi
-cp "${tmp_dir}/expected.toml" "$config"
-unset REAL_CHECK
-
-# Empty shared MCP inventory still requires each managed runtime's config.
-mkdir -p "${home_dir}/.codex"
-printf '\n' >"${home_dir}/.codex/config.toml"
-printf '{"mcpServers":{}}\n' >"${home_dir}/.agents/mcp.json"
+cp "$SKILL_LOCK_REPO" "$SKILL_LOCK_LIVE"
+export CODEX_PLUGIN_LIST_FILE="${tmp_dir}/codex-plugins.json"
+export CODEX_MARKETPLACE_LIST_FILE="${tmp_dir}/codex-marketplaces.json"
+printf '{"installed":[]}\n' >"$CODEX_PLUGIN_LIST_FILE"
+printf '{"marketplaces":[]}\n' >"$CODEX_MARKETPLACE_LIST_FILE"
 cat >"${stub_dir}/codex" <<'STUB'
 #!/bin/bash
 [ "$*" = 'mcp list --json' ] || exit 1
 printf '[]\n'
 STUB
 chmod +x "${stub_dir}/codex"
-REAL_CHECK=mcp-check
-run_doctor || {
-    cat "${tmp_dir}/doctor.log"
-    fail "valid MCP settings rejected"
+
+sync_real() {
+    HOME="$home_dir" PATH="${stub_dir}:/usr/bin:/bin" \
+        env -u CODEX_HOME "$DOTFILES_DIR/sync-agents.sh" "$@" \
+        >"${tmp_dir}/sync.log" 2>&1
 }
-for config in \
-    "${home_dir}/.codex/config.toml" \
-    "${home_dir}/.claude.json" \
-    "${home_dir}/.config/opencode/opencode.json" \
-    "${home_dir}/.agents/mcp.json"; do
-    mv "$config" "${tmp_dir}/saved-config"
-    if run_doctor; then fail "doctor passed with missing MCP file: $config"; fi
-    grep -F "$config" "${tmp_dir}/doctor.log" >/dev/null || fail "missing MCP path omitted"
-    grep -F './sync-agents.sh push-mcp' "${tmp_dir}/doctor.log" >/dev/null ||
-        fail "missing MCP repair command"
-    if [[ "$config" == *.json ]]; then
-        for invalid in '' '{'; do
-            printf '%s' "$invalid" >"$config"
-            if run_doctor; then fail "doctor passed with invalid MCP JSON: $config"; fi
-            grep -F "expected exactly one object: $config" "${tmp_dir}/doctor.log" \
-                >/dev/null || fail "invalid MCP JSON diagnostic omitted"
-        done
-    fi
-    mv "${tmp_dir}/saved-config" "$config"
-done
-unset REAL_CHECK
 
-REAL_CHECK=pi-check
-for invalid in '' '{'; do
-    printf '%s' "$invalid" >"$PI_SETTINGS_FILE"
-    if run_doctor; then fail 'doctor passed with invalid Pi JSON'; fi
-    grep -F "expected exactly one object: $PI_SETTINGS_FILE" "${tmp_dir}/doctor.log" \
-        >/dev/null || fail 'invalid Pi JSON diagnostic omitted'
+for component in codex opencode pi claude; do
+    sync_real "${component}-install" || {
+        cat "${tmp_dir}/sync.log"
+        fail "install $component"
+    }
 done
-unset REAL_CHECK
+sync_real push-mcp || fail "prepare MCP fixture"
 
-# A manifest declaring plugins makes their installed state required.
-printf '{"plugins":{"example":{"claude":"example@market"}},"marketplaces":{}}\n' \
-    >"$CLAUDE_MANIFEST"
-if sync_real claude-export --check; then fail "missing Claude plugin state passed"; fi
-grep -F 'installed_plugins.json' "${tmp_dir}/sync.log" >/dev/null ||
-    fail "missing Claude plugin path omitted"
-mkdir -p "${home_dir}/.claude/plugins"
-printf '{"plugins":{"example@market":[{"scope":"user"}]}}\n' \
-    >"${home_dir}/.claude/plugins/installed_plugins.json"
-jq '.marketplaces.market = {source: "github", repo: "example/plugins"}' \
-    "$CLAUDE_MANIFEST" >"${tmp_dir}/manifest.json"
-mv "${tmp_dir}/manifest.json" "$CLAUDE_MANIFEST"
-if sync_real claude-export --check; then fail "missing Claude marketplaces passed"; fi
-grep -F 'known_marketplaces.json' "${tmp_dir}/sync.log" >/dev/null ||
-    fail "missing Claude marketplace path omitted"
+real_plan() {
+    HOME="$home_dir" PATH="${stub_dir}:/usr/bin:/bin" \
+        NETWORK_LOG="$network_log" \
+        env -u CODEX_HOME "$DOTFILES_DIR/sync-agents.sh" --quiet state-plan \
+        >"${tmp_dir}/real-plan" 2>"${tmp_dir}/real-plan.err"
+}
+
+: >"$network_log"
+snapshot_state "${tmp_dir}/real-before"
+real_plan || fail "real state plan failed"
+for category in settings:codex settings:claude settings:opencode mcp skills plugins; do
+    grep -E "^PASS[[:space:]]+${category}[[:space:]]" \
+        "${tmp_dir}/real-plan" >/dev/null || fail "real plan omitted PASS: $category"
+done
+snapshot_state "${tmp_dir}/real-after"
+cmp "${tmp_dir}/real-before" "${tmp_dir}/real-after" ||
+    fail "real state plan changed HOME or checkout"
+[ ! -s "$network_log" ] || fail "real state plan attempted network access"
+
+cp "$CLAUDE_SETTINGS_FILE" "${tmp_dir}/claude-settings.before"
+jq '.model = "changed"' "$CLAUDE_SETTINGS_FILE" >"${tmp_dir}/changed.json"
+mv "${tmp_dir}/changed.json" "$CLAUDE_SETTINGS_FILE"
+real_plan
+grep -E '^UPDATE[[:space:]]+settings:claude[[:space:]]' \
+    "${tmp_dir}/real-plan" >/dev/null || fail "settings drift is not UPDATE"
+mv "${tmp_dir}/claude-settings.before" "$CLAUDE_SETTINGS_FILE"
+
+mv "$CLAUDE_SETTINGS_FILE" "${tmp_dir}/claude-settings.saved"
+real_plan
+grep -E '^FAIL[[:space:]]+settings:claude[[:space:]]' \
+    "${tmp_dir}/real-plan" >/dev/null || fail "missing settings are not FAIL"
+mv "${tmp_dir}/claude-settings.saved" "$CLAUDE_SETTINGS_FILE"
+
+jq '.mcpServers.extra = {type: "http", url: "https://extra.test/mcp"}' \
+    "$CLAUDE_USER_CONFIG" >"${tmp_dir}/claude-extra.json"
+mv "${tmp_dir}/claude-extra.json" "$CLAUDE_USER_CONFIG"
+real_plan
+grep -E '^EXPORT[[:space:]]+mcp[[:space:]]' \
+    "${tmp_dir}/real-plan" >/dev/null || fail "portable MCP addition is not EXPORT"
+sync_real push-mcp || fail "restore MCP fixture"
+
+mkdir -p "${home_dir}/.agents/skills/local-skill"
+printf '%s\n' '# local' >"${home_dir}/.agents/skills/local-skill/SKILL.md"
+real_plan
+grep -E '^EXPORT[[:space:]]+skills[[:space:]]' \
+    "${tmp_dir}/real-plan" >/dev/null || fail "portable skill addition is not EXPORT"
+rm -rf "${home_dir}/.agents/skills/local-skill"
+
+cat >"$CODEX_PLUGIN_LIST_FILE" <<'JSON'
+{"installed":[{"installed":true,"enabled":true,"pluginId":"demo@third",
+"marketplaceName":"third","marketplaceSource":{"sourceType":"git",
+"source":"https://github.com/example/plugins"}}]}
+JSON
+cat >"$CODEX_MARKETPLACE_LIST_FILE" <<'JSON'
+{"marketplaces":[{"name":"third","marketplaceSource":{"sourceType":"git",
+"source":"https://github.com/example/plugins"}}]}
+JSON
+real_plan
+grep -E '^EXPORT[[:space:]]+plugins[[:space:]]' \
+    "${tmp_dir}/real-plan" >/dev/null || fail "portable plugin addition is not EXPORT"
 
 if grep -Eq \
     'agent-plugin-check|claude-settings-check|mcp-config-check' \

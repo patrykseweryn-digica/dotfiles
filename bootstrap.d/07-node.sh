@@ -30,7 +30,7 @@ check_node() {
         if [ "$current" != "$installed" ]; then
             echo "[ERROR] Active Node $current differs from latest installed $installed" >&2
             echo "Run: nvm use node" >&2
-            return 1
+            return 2
         fi
     else
         printf 'Node: policy=latest active=%s (latest not checked)\n' "$current"

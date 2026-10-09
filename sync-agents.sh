@@ -758,9 +758,15 @@ codex_toml() {
         echo "[ERROR] uv is required for Codex settings; run ./install.sh" >&2
         return 1
     }
-    uv run --quiet --no-project --script \
-        "${DOTFILES_DIR}/scripts/codex-toml.py" \
-        "$action" "$CODEX_CONFIG" "$CODEX_SETTINGS_TEMPLATE" "$MCP_SERVERS" "$@"
+    if [ "$action" = check ]; then
+        uv run --quiet --offline --no-project --script \
+            "${DOTFILES_DIR}/scripts/codex-toml.py" \
+            "$action" "$CODEX_CONFIG" "$CODEX_SETTINGS_TEMPLATE" "$MCP_SERVERS" "$@"
+    else
+        uv run --quiet --no-project --script \
+            "${DOTFILES_DIR}/scripts/codex-toml.py" \
+            "$action" "$CODEX_CONFIG" "$CODEX_SETTINGS_TEMPLATE" "$MCP_SERVERS" "$@"
+    fi
 }
 
 cmd_pull_codex_settings() {
@@ -813,7 +819,7 @@ cmd_codex_check() {
         echo "Run: ./sync-agents.sh codex-install" >&2
         return 1
     }
-    codex_toml check || return 1
+    codex_toml check || return $?
     log_info "Codex config in sync"
 }
 
@@ -1382,7 +1388,7 @@ cmd_opencode_check() {
         diff -u "$OPENCODE_CONFIG" "$tmp" >&2 || true
     fi
     rm -f "$tmp"
-    return 1
+    return 2
 }
 
 render_pi_mcp_config() {
@@ -1577,7 +1583,7 @@ cmd_claude_settings_check() {
     echo "Run: ./sync-agents.sh claude-install" >&2
     diff -u "$expected" "$CLAUDE_SETTINGS_FILE" >&2 || true
     rm -f "$expected"
-    return 1
+    return 2
 }
 
 generate_claude_settings() {
@@ -2902,7 +2908,248 @@ cmd_pi_check() {
         fi
     done < <(jq -r '.packages[]' "$PI_SETTINGS_TEMPLATE")
 
-    [ "$failed" = false ]
+    [ "$failed" = false ] || return 2
+}
+
+emit_state_plan() {
+    printf '%s\t%s\t%s\t%s\n' "$1" "$2" "$3" "$4"
+}
+
+plan_check() {
+    local category="$1" label="$2" status=0
+    shift 2
+
+    "$@" >/dev/null 2>&1 || status=$?
+    case "$status" in
+    0) emit_state_plan PASS "$category" none "$label state matches repository intent" ;;
+    2) emit_state_plan UPDATE "$category" update "$label state needs repository state" ;;
+    3) emit_state_plan EXPORT "$category" export "$label state has portable local changes" ;;
+    *) emit_state_plan FAIL "$category" update "$label state is missing, invalid, or unreadable" ;;
+    esac
+}
+
+merge_plan_status() {
+    local current="$1" candidate="$2"
+
+    case "$current:$candidate" in
+    FAIL:* | *:FAIL) echo FAIL ;;
+    EXPORT:* | *:EXPORT) echo EXPORT ;;
+    UPDATE:* | *:UPDATE) echo UPDATE ;;
+    *) echo PASS ;;
+    esac
+}
+
+emit_category_plan() {
+    local status="$1" category="$2" label="$3"
+
+    case "$status" in
+    PASS) emit_state_plan PASS "$category" none "$label state matches repository intent" ;;
+    UPDATE) emit_state_plan UPDATE "$category" update "$label state needs repository state" ;;
+    EXPORT) emit_state_plan EXPORT "$category" export "$label state has portable local changes" ;;
+    FAIL) emit_state_plan FAIL "$category" update "$label state is missing, invalid, or conflicting" ;;
+    esac
+}
+
+cmd_mcp_plan() {
+    local rows wanted candidate conflicts actual runtime config
+    local status=PASS
+    rows="$(mktemp)"
+    wanted="$(mktemp)"
+    candidate="$(mktemp)"
+
+    if ! normalize_mcp_inventory "$MCP_SERVERS" >"$wanted"; then
+        rm -f "$rows" "$wanted" "$candidate"
+        emit_category_plan FAIL mcp MCP
+        return 0
+    fi
+    while IFS='|' read -r runtime config; do
+        if [ ! -f "$config" ] || {
+            [ "$runtime" != codex ] &&
+                ! jq -e -s 'length == 1 and (.[0] | type == "object")' \
+                    "$config" >/dev/null 2>&1
+        }; then
+            status=FAIL
+        fi
+    done <<EOF
+codex|$CODEX_CONFIG
+claude|$CLAUDE_USER_CONFIG
+opencode|$OPENCODE_CONFIG
+pi|$PI_MCP_CONFIG
+EOF
+    if [ "$status" = FAIL ] || ! collect_mcp_rows >"$rows"; then
+        rm -f "$rows" "$wanted" "$candidate"
+        emit_category_plan FAIL mcp MCP
+        return 0
+    fi
+
+    conflicts=$(jq -s '
+        sort_by(.name, .runtime) | group_by(.name) |
+        map(select((map(.server | tojson) | unique | length) > 1)) |
+        length
+    ' "$rows") || conflicts=1
+    if [ "$conflicts" -gt 0 ]; then
+        rm -f "$rows" "$wanted" "$candidate"
+        emit_category_plan FAIL mcp MCP
+        return 0
+    fi
+
+    mcp_rows_to_inventory "$rows" >"$candidate"
+    if jq -e --slurpfile wanted "$wanted" '
+        to_entries | any(.[]; $wanted[0][.key] != .value)
+    ' "$candidate" >/dev/null; then
+        status=EXPORT
+    elif ! cmp -s "$wanted" "$candidate"; then
+        status=UPDATE
+    fi
+
+    for runtime in codex claude opencode pi; do
+        actual="$(mktemp)"
+        mcp_rows_to_inventory "$rows" "$runtime" >"$actual"
+        if ! cmp -s "$wanted" "$actual"; then
+            status="$(merge_plan_status "$status" UPDATE)"
+        fi
+        rm -f "$actual"
+    done
+    rm -f "$rows" "$wanted" "$candidate"
+    emit_category_plan "$status" mcp MCP
+}
+
+write_custom_skill_names() {
+    local root="$1" target="$2" path
+
+    : >"$target"
+    [ -d "$root" ] || return 0
+    for path in "$root"/*/ "$root"/*.skill; do
+        [ -e "$path" ] || continue
+        basename "${path%/}" >>"$target"
+    done
+    sort -u -o "$target" "$target"
+}
+
+cmd_skills_plan() {
+    local tmp_dir live_lock live_custom repo_lock expected actual
+    local repo_custom live_custom_names missing extra stale name
+    local runtime root status=PASS
+    tmp_dir="$(mktemp -d)"
+    live_lock="${tmp_dir}/live-lock.json"
+    live_custom="${tmp_dir}/live-custom"
+    repo_lock="${tmp_dir}/repo-lock.json"
+    expected="${tmp_dir}/expected.txt"
+    actual="${tmp_dir}/actual.txt"
+    repo_custom="${tmp_dir}/repo-custom.txt"
+    live_custom_names="${tmp_dir}/live-custom.txt"
+
+    if ! build_live_skill_inventory "$live_lock" "$live_custom" ||
+        ! normalize_skill_lock "$SKILL_LOCK_REPO" >"$repo_lock"; then
+        rm -rf "$tmp_dir"
+        emit_category_plan FAIL skills Skills
+        return 0
+    fi
+
+    if jq -e --slurpfile repo "$repo_lock" '
+        .skills | to_entries | any(.[]; $repo[0].skills[.key] == null)
+    ' "$live_lock" >/dev/null; then
+        status=EXPORT
+    elif ! cmp -s "$repo_lock" "$live_lock"; then
+        status=UPDATE
+    fi
+
+    write_custom_skill_names "$SHARED_SKILLS_CUSTOM_DIR" "$repo_custom"
+    write_custom_skill_names "$live_custom" "$live_custom_names"
+    missing="$(comm -23 "$repo_custom" "$live_custom_names")"
+    extra="$(comm -13 "$repo_custom" "$live_custom_names")"
+    [ -z "$missing" ] || status="$(merge_plan_status "$status" UPDATE)"
+    [ -z "$extra" ] || status="$(merge_plan_status "$status" EXPORT)"
+    while IFS= read -r name; do
+        [ -n "$name" ] || continue
+        if ! diff_custom_skills -qr \
+            "${SHARED_SKILLS_CUSTOM_DIR}/${name}" \
+            "${live_custom}/${name}" >/dev/null 2>&1; then
+            status="$(merge_plan_status "$status" EXPORT)"
+        fi
+    done < <(comm -12 "$repo_custom" "$live_custom_names")
+
+    write_expected_skill_names "$expected"
+    while IFS='|' read -r runtime root; do
+        if ! write_live_skill_names "$root" "$actual"; then
+            status=FAIL
+            continue
+        fi
+        missing="$(comm -23 "$expected" "$actual")"
+        extra="$(comm -13 "$expected" "$actual")"
+        stale="$(find "$root" -mindepth 1 -maxdepth 1 \
+            -type l ! -exec test -e {} \; -print)"
+        [ -z "$missing" ] || status="$(merge_plan_status "$status" UPDATE)"
+        [ -z "$extra" ] || status="$(merge_plan_status "$status" EXPORT)"
+        [ -z "$stale" ] || status=FAIL
+    done < <(skill_runtime_rows)
+
+    rm -rf "$tmp_dir"
+    emit_category_plan "$status" skills Skills
+}
+
+write_plugin_memberships() {
+    jq -r '
+        (.plugins | to_entries[] as $plugin | $plugin.value | to_entries[] |
+            ["plugin", .key, $plugin.key, (.value | tojson)] | @tsv),
+        (.marketplaces | to_entries[] |
+            ["marketplace", "claude", .key, (.value | tojson)] | @tsv),
+        ((.codexMarketplaces // {}) | to_entries[] |
+            ["marketplace", "codex", .key, (.value | tojson)] | @tsv),
+        ((.codexPlugins // [])[] |
+            ["plugin", "codex-marketplace", ., .] | @tsv)
+    ' "$1" | sort -u >"$2"
+}
+
+cmd_plugins_plan() {
+    local candidate wanted actual extra missing requested_quiet
+    local status=PASS claude_plugins
+    candidate="$(mktemp)"
+    wanted="$(mktemp)"
+    actual="$(mktemp)"
+    claude_plugins="${HOME}/.claude/plugins/installed_plugins.json"
+
+    if ! validate_plugin_manifest "$PLUGIN_MANIFEST" >/dev/null 2>&1 ||
+        ! check_claude_plugin_providers >/dev/null 2>&1 ||
+        { ! codex_remote_plugin_state_available &&
+            ! codex_marketplace_plugin_state_available &&
+            ! claude_plugin_state_available "$claude_plugins"; }; then
+        rm -f "$candidate" "$wanted" "$actual"
+        emit_category_plan FAIL plugins Plugins
+        return 0
+    fi
+
+    cp "$PLUGIN_MANIFEST" "$candidate"
+    local CODEX_PLUGIN_MANIFEST="$candidate"
+    local CLAUDE_MANIFEST="$candidate"
+    requested_quiet="$QUIET"
+    QUIET=true
+    if ! cmd_plugins_export >/dev/null 2>&1; then
+        QUIET="$requested_quiet"
+        rm -f "$candidate" "$wanted" "$actual"
+        emit_category_plan FAIL plugins Plugins
+        return 0
+    fi
+    QUIET="$requested_quiet"
+
+    write_plugin_memberships "$PLUGIN_MANIFEST" "$wanted"
+    write_plugin_memberships "$candidate" "$actual"
+    extra="$(comm -13 "$wanted" "$actual")"
+    missing="$(comm -23 "$wanted" "$actual")"
+    [ -z "$missing" ] || status=UPDATE
+    [ -z "$extra" ] || status=EXPORT
+    rm -f "$candidate" "$wanted" "$actual"
+    emit_category_plan "$status" plugins Plugins
+}
+
+cmd_state_plan() {
+    plan_check settings:codex "Codex settings" cmd_codex_check
+    plan_check settings:claude "Claude settings" cmd_claude_settings_check
+    plan_check settings:opencode "OpenCode settings" cmd_opencode_check
+    plan_check settings:pi "Pi settings" cmd_pi_check
+    cmd_mcp_plan
+    cmd_skills_plan
+    cmd_plugins_plan
 }
 
 cmd_claude_install() {
@@ -2952,6 +3199,9 @@ while [[ "${1:-}" == --* ]]; do
 done
 
 case "${1:-}" in
+state-plan)
+    cmd_state_plan
+    ;;
 install)
     cmd_install
     ;;
@@ -3049,6 +3299,7 @@ claude-settings-check)
 *)
     echo "Usage: $0 [--quiet] <command>"
     echo
+    echo "  state-plan      Print the offline local state plan"
     echo "  pull-codex-settings"
     echo "                  Preview and confirm live Codex settings import"
     echo "  pull-mcp         Preview and confirm live MCP import"
