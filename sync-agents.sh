@@ -853,13 +853,13 @@ build_json_settings_candidate() {
     validate_json_config "$template" "${runtime}-install" || return 1
 
     jq -S --arg runtime "$runtime" --slurpfile managed "$template" '
-        def select_managed($live; $wanted):
-            reduce ($wanted | keys_unsorted[]) as $key ({};
+        def import_managed($live; $wanted):
+            reduce ($wanted | keys_unsorted[]) as $key ($wanted;
                 if ($live | has($key)) then
                     .[$key] = (
                         if (($wanted[$key] | type) == "object" and
                             ($live[$key] | type) == "object") then
-                            select_managed($live[$key]; $wanted[$key])
+                            import_managed($live[$key]; $wanted[$key])
                         else
                             $live[$key]
                         end
@@ -872,7 +872,7 @@ build_json_settings_candidate() {
                     (startswith("mcp__") and endswith("__*")) | not
                 )))
          else . end) as $live |
-        select_managed($live; $managed[0])
+        import_managed($live; $managed[0])
     ' "$live" >"$target"
 }
 
@@ -1038,7 +1038,8 @@ cmd_export() {
             rm -rf "$root"
             return 1
         }
-        if ! cmp -s "$target" "$candidate"; then
+        if ! jq -e --slurpfile candidate "$candidate" \
+            '. == $candidate[0]' "$target" >/dev/null; then
             EXPORT_TARGETS+=("$target")
             EXPORT_CANDIDATES+=("$candidate")
             EXPORT_LABELS+=("$label")

@@ -75,6 +75,7 @@ JSON
 cat >"$opencode_template" <<'JSON'
 {
   "model": "repo-opencode",
+  "preserveWhenMissing": "repo",
   "provider": {"ollama": {"options": {"baseURL": "http://repo.test"}}}
 }
 JSON
@@ -510,6 +511,7 @@ jq -e '
 ' "$claude_template" >/dev/null || fail "Claude allowlist export failed"
 jq -e '
     .model == "live-opencode" and
+    .preserveWhenMissing == "repo" and
     .provider.ollama.options.baseURL == "http://live.test" and
     (has("session") | not) and (has("mcp") | not)
 ' "$opencode_template" >/dev/null || fail "OpenCode allowlist export failed"
