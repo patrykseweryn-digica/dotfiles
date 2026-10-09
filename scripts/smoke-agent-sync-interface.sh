@@ -3,7 +3,6 @@ set -eu
 
 DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SYNC="${DOTFILES_DIR}/sync-agents.sh"
-JUST_BIN="$(command -v just)"
 UV_BIN="$(command -v uv)"
 UV_CACHE_DIR="${UV_CACHE_DIR:-$("$UV_BIN" cache dir)}"
 export UV_CACHE_DIR
@@ -153,6 +152,25 @@ if grep -F 'must-not-enter-repo' "$repo_mcp" >/dev/null; then
     fail "pull-mcp imported a credential"
 fi
 
+cp "$repo_mcp" "${tmp_dir}/before-unsafe.json"
+jq --arg command "$HOME/bin/codex-server" \
+    'map(if .name == "codex-only" then
+        .transport.command = $command else . end)' \
+    "$codex_mcp" >"${tmp_dir}/unsafe-codex.json"
+mv "${tmp_dir}/unsafe-codex.json" "$codex_mcp"
+if printf 'y\n' | "$SYNC" --quiet pull-mcp \
+    >"${tmp_dir}/unsafe.log" 2>&1; then
+    fail "pull-mcp accepted local MCP state"
+fi
+grep -F 'local path or secret' "${tmp_dir}/unsafe.log" >/dev/null ||
+    fail "pull-mcp did not report unsafe MCP state"
+cmp -s "$repo_mcp" "${tmp_dir}/before-unsafe.json" ||
+    fail "pull-mcp wrote unsafe MCP state"
+jq '. | map(if .name == "codex-only" then
+    .transport.command = "codex-server" else . end)' \
+    "$codex_mcp" >"${tmp_dir}/safe-codex.json"
+mv "${tmp_dir}/safe-codex.json" "$codex_mcp"
+
 cp "$repo_mcp" "${tmp_dir}/before-conflict.json"
 jq '.mcpServers.shared.url = "https://conflict.test/mcp"' \
     "$claude_config" > "${tmp_dir}/claude-conflict.json"
@@ -292,38 +310,6 @@ jq '.mcpServers.extra = {type: "http", url: "https://extra.test/mcp"}' \
 mv "${tmp_dir}/claude-extra.json" "$claude_config"
 if "$SYNC" --quiet mcp-check > "${tmp_dir}/check.log" 2>&1; then
     fail "mcp-check ignored semantic drift"
-fi
-
-cat > "${stub_dir}/sync-agents" <<'STUB'
-#!/bin/bash
-printf '%s\n' "$1" >> "$SYNC_LOG"
-[ "$1" != "${FAIL_SYNC:-}" ]
-STUB
-chmod +x "${stub_dir}/sync-agents"
-
-sync_log="${tmp_dir}/push.log"
-if SYNC_AGENTS="${stub_dir}/sync-agents" \
-    SYNC_LOG="$sync_log" \
-    FAIL_SYNC=push-skills \
-    "$JUST_BIN" --justfile "${DOTFILES_DIR}/justfile" push \
-    > "${tmp_dir}/just-push.log" 2>&1; then
-    fail "just push passed when a category failed"
-fi
-[ "$(cat "$sync_log")" = $'push-skills\npush-mcp\npush-plugins' ] || \
-    fail "just push did not invoke every category in order"
-
-for command_name in pull-mcp push-mcp pull-skills push-skills \
-    pull-plugins push-plugins skills-preflight; do
-    "$JUST_BIN" --justfile "${DOTFILES_DIR}/justfile" \
-        --show "$command_name" >/dev/null ||
-        fail "internal sync command missing from just: $command_name"
-done
-just_commands="$("$JUST_BIN" --justfile "${DOTFILES_DIR}/justfile" --summary)"
-grep -Eq '(^| )(pull|push)-(mcp|skills|plugins)( |$)' <<<"$just_commands" &&
-    fail "internal sync command leaked into the public menu"
-if "$JUST_BIN" --justfile "${DOTFILES_DIR}/justfile" --show pull \
-    >/dev/null 2>&1; then
-    fail "broad pull command must not exist"
 fi
 
 echo "[INFO] agent sync interface smoke test passed"

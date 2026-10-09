@@ -10,6 +10,7 @@ details unless you are debugging them.
 ```bash
 just install  # prepare a new machine without upgrading existing tools
 just doctor   # inspect local state offline and without writes
+just outdated # list tools with known newer versions
 just update   # apply repository state and refresh managed upstream state
 just export   # review and save portable local additions to the checkout
 ```
@@ -61,12 +62,13 @@ download platforms fail before network access. Developer entries use
 `channel: "latest"`; update resolves current releases without rewriting the
 inventory. Reports resolve npm `latest` and fail explicitly when the registry
 is unavailable.
-Native latest installers resolve their own releases; their report checks
+Native latest installers resolve their own releases; local checks verify
 installed availability, not whether a newer release exists.
 
-The hidden maintainer recipes `agent-versions` and `update-agent-tools` expose
-focused reporting and updates for tests and diagnosis. Daily maintenance uses
-`just doctor` and `just update`.
+`just outdated` is a read-only online report. It lists only known version
+drift or missing commands and omits current tools. Native latest versions are
+not checked because their installers do not expose one common version source.
+`just update` performs updates.
 
 Pi, Codex, OpenCode, and the skill manager use global npm packages. Claude
 Code uses Anthropic's native installer with the resolved latest version.
@@ -167,10 +169,8 @@ The existing CI runs repository checks on macOS and Linux. A separate job
 resolves every current upstream skill on pushes, pull requests, and daily.
 A local macOS run alone proves only macOS execution and the simulated Linux
 cases.
-The hidden maintainer recipe `just verify` runs repository checks followed by
-the live machine doctor. Commit hooks run repository tests; live drift remains
-a separate check because it depends on the machine's tools, credentials and
-installed configuration.
+Commit hooks run repository tests; live drift remains a separate check because
+it depends on the machine's tools, credentials and installed configuration.
 
 ### Firstmate crew dispatch
 
@@ -280,5 +280,5 @@ publication.
 - `EXPORT` result: `just export`.
 
 CI and repository development use the hidden `just check` maintenance recipe.
-Category-specific recipes remain callable for implementation and tests, but
-are intentionally absent from the human menu.
+Category-specific operations remain internal script subcommands for
+implementation and tests.

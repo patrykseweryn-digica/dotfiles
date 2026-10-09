@@ -71,7 +71,7 @@ grep -F 'Open Codex and enter: /plugins' "$sync_log" \
     >/dev/null || fail "Codex plugin check omitted the interactive command"
 grep -F 'Complete OAuth when prompted' "$sync_log" \
     >/dev/null || fail "Codex plugin check omitted OAuth instructions"
-grep -F 'Run again: just push-plugins' "$sync_log" \
+grep -F 'Run again: just update' "$sync_log" \
     >/dev/null || fail "Codex plugin check omitted the verification command"
 
 "$DOTFILES_DIR/sync-agents.sh" --quiet codex-plugins-export \

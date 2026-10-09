@@ -12,11 +12,6 @@ default:
 install:
     ./install.sh
 
-# Update dotfile links and agent config only. No tools, no SSH.
-[private]
-update-dotfiles:
-    DOTFILES_SKIP_SSH=true bash -c 'source ./install.sh; load_env; setup_repo_git; setup_dotfiles'
-
 # Apply repository local state while preserving additions that need export.
 update:
     ./scripts/update-local.sh
@@ -34,68 +29,6 @@ check:
 doctor:
     ./scripts/doctor.sh
 
-# Verify repository behavior and this machine before applying or committing.
-[private]
-verify: check doctor
-
-# Report installed and expected developer tool versions.
-[private]
-agent-versions:
-    "{{ agent_tools }}" report
-
-# Update Node and developer tools to latest without changing the inventory.
-[private]
-update-agent-tools:
-    "{{ agent_tools }}" update
-
-# Preview live portable Codex settings, then confirm the repository update.
-[private]
-pull-codex-settings:
-    "{{ sync_agents }}" pull-codex-settings
-
-# Preview runtime MCP state, then confirm the repository update.
-[private]
-pull-mcp:
-    "{{ sync_agents }}" pull-mcp
-
-# Render repository MCP state into supported runtimes.
-[private]
-push-mcp:
-    "{{ sync_agents }}" push-mcp
-
-# Preview runtime skills, then confirm the repository update.
-[private]
-pull-skills:
-    "{{ sync_agents }}" pull-skills
-
-# Verify every repository skill against current upstream without applying it.
-[private]
-skills-preflight:
-    "{{ sync_agents }}" skills-preflight
-
-# Update and reconcile repository skills from current upstream.
-[private]
-push-skills:
-    "{{ sync_agents }}" push-skills
-
-# Preview runtime plugins, then confirm the repository update.
-[private]
-pull-plugins:
-    "{{ sync_agents }}" pull-plugins
-
-# Apply plugin membership without updating plugin versions.
-[private]
-push-plugins:
-    "{{ sync_agents }}" push-plugins
-
-# Push MCP, skill, and plugin repository state in order.
-[private]
-push:
-    failed=false; for category in skills mcp plugins; do \
-        "{{ sync_agents }}" "push-${category}" || failed=true; \
-    done; [ "$failed" = false ]
-
-# Set up SSH keys and ~/.ssh/config.
-[private]
-setup-ssh:
-    set -a; . ./.env; set +a; ./ssh.sh "$EMAIL" "$WORK_EMAIL"
+# List developer tools that need install or update without changes.
+outdated:
+    "{{ agent_tools }}" outdated

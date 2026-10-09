@@ -164,8 +164,9 @@ if "$DOTFILES_DIR/sync-agents.sh" --quiet plugins-check \
 fi
 grep -F 'new@new-mp' "$sync_log" >/dev/null || \
     fail "Plugin check did not report the missing Claude plugin"
-grep -F 'Run: just push-plugins' "$sync_log" >/dev/null || \
-    fail "Plugin check did not recommend authoritative push"
+grep -F 'Run: just export to review local state, or just update to restore it' \
+    "$sync_log" >/dev/null || \
+    fail "Plugin check did not recommend the public recovery commands"
 
 cat > "${home_dir}/.claude/plugins/installed_plugins.json" <<JSON
 {

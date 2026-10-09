@@ -297,7 +297,7 @@ setup_dotfiles() {
     # Fail on dispatch conflicts before changing unrelated configuration.
     setup_firstmate || return $?
     ensure_install_dirs
-    # Merge after tool installation; also runs for just update-dotfiles.
+    # Merge after tool installation; the update workflow also calls this.
     uv run --no-project --script "$DOTFILES_DIR/scripts/no-mistakes-config.py"
     uv run --no-project --script "$DOTFILES_DIR/scripts/herdr-config.py"
     mkdir -p "${HOME}/.claude/plugins" "${HOME}/.claude/output-styles" "${HOME}/.claude/skills" "${HOME}/.agents/skills" "${HOME}/.codex" "${HOME}/.summarize"

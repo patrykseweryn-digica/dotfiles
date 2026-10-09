@@ -634,9 +634,24 @@ mcp_rows_to_inventory() {
     ' "$rows_file"
 }
 
+filter_portable_mcp_rows() {
+    local source="$1" target="$2"
+    jq -c -s --slurpfile wanted "$MCP_SERVERS" '
+        . as $rows
+        | $rows[] as $row
+        | select(
+            $row.runtime != "codex" or
+            ($wanted[0] | has($row.name)) or
+            any($rows[];
+                .runtime != "codex" and .name == $row.name)
+        )
+        | $row
+    ' "$source" >"$target"
+}
+
 build_mcp_candidate() {
-    local candidate="$1"
-    local rows runtimes conflicts
+    local candidate="$1" include_codex_only="${2:-false}"
+    local rows filtered runtimes conflicts
     rows="$(mktemp)"
     runtimes="$(available_mcp_runtimes)"
     [ -n "$runtimes" ] || {
@@ -648,6 +663,14 @@ build_mcp_candidate() {
         rm -f "$rows"
         return 1
     }
+    if [ "$include_codex_only" != true ]; then
+        filtered="$(mktemp)"
+        filter_portable_mcp_rows "$rows" "$filtered" || {
+            rm -f "$rows" "$filtered"
+            return 1
+        }
+        mv "$filtered" "$rows"
+    fi
 
     conflicts=$(jq -s '
         sort_by(.name, .runtime)
@@ -680,10 +703,14 @@ cmd_pull_mcp() {
     local candidate current reply
     candidate="$(mktemp)"
     current="$(mktemp)"
-    if ! build_mcp_candidate "$candidate"; then
+    if ! build_mcp_candidate "$candidate" true; then
         rm -f "$candidate" "$current"
         return 1
     fi
+    validate_mcp_candidate "$candidate" || {
+        rm -f "$candidate" "$current"
+        return 1
+    }
     normalize_mcp_inventory "$MCP_SERVERS" >"$current"
 
     if cmp -s "$current" "$candidate"; then
@@ -826,13 +853,13 @@ build_json_settings_candidate() {
     validate_json_config "$template" "${runtime}-install" || return 1
 
     jq -S --arg runtime "$runtime" --slurpfile managed "$template" '
-        def select_managed($live; $wanted):
-            reduce ($wanted | keys_unsorted[]) as $key ({};
+        def import_managed($live; $wanted):
+            reduce ($wanted | keys_unsorted[]) as $key ($wanted;
                 if ($live | has($key)) then
                     .[$key] = (
                         if (($wanted[$key] | type) == "object" and
                             ($live[$key] | type) == "object") then
-                            select_managed($live[$key]; $wanted[$key])
+                            import_managed($live[$key]; $wanted[$key])
                         else
                             $live[$key]
                         end
@@ -845,7 +872,7 @@ build_json_settings_candidate() {
                     (startswith("mcp__") and endswith("__*")) | not
                 )))
          else . end) as $live |
-        select_managed($live; $managed[0])
+        import_managed($live; $managed[0])
     ' "$live" >"$target"
 }
 
@@ -1011,7 +1038,8 @@ cmd_export() {
             rm -rf "$root"
             return 1
         }
-        if ! cmp -s "$target" "$candidate"; then
+        if ! jq -e --slurpfile candidate "$candidate" \
+            '. == $candidate[0]' "$target" >/dev/null; then
             EXPORT_TARGETS+=("$target")
             EXPORT_CANDIDATES+=("$candidate")
             EXPORT_LABELS+=("$label")
@@ -1315,7 +1343,7 @@ cmd_codex_remote_plugins_check() {
         echo "  - Install the missing plugins listed above" >&2
         echo "  - Complete OAuth when prompted" >&2
     fi
-    echo "  - Run again: just push-plugins" >&2
+    echo "  - Run again: just update" >&2
     return 1
 }
 
@@ -1443,7 +1471,7 @@ cmd_codex_marketplace_plugins_check() {
     validate_plugin_manifest "$CODEX_PLUGIN_MANIFEST" || return 1
     codex_marketplace_plugin_state_available || {
         echo "[ERROR] Required Codex marketplace plugin state missing" >&2
-        echo "Run: ./install.sh, then just push-plugins" >&2
+        echo "Run: ./install.sh, then just update" >&2
         return 1
     }
 
@@ -2553,7 +2581,7 @@ cmd_claude_plugins_export() {
         diff <(jq -S '{plugins, marketplaces}' "$CLAUDE_MANIFEST") \
             <(jq -S '{plugins, marketplaces}' "$tmp") >&2 || true
         echo "" >&2
-        echo "Run: just push-plugins" >&2
+        echo "Run: just export to review local state, or just update to restore it" >&2
         rm -f "$tmp"
         return 1
     fi
@@ -3438,7 +3466,7 @@ emit_category_plan() {
 }
 
 cmd_mcp_plan() {
-    local rows wanted candidate conflicts actual runtime config
+    local rows filtered wanted candidate conflicts actual runtime config
     local status=PASS
     rows="$(mktemp)"
     wanted="$(mktemp)"
@@ -3468,6 +3496,13 @@ EOF
         emit_category_plan FAIL mcp MCP
         return 0
     fi
+    filtered="$(mktemp)"
+    if ! filter_portable_mcp_rows "$rows" "$filtered"; then
+        rm -f "$rows" "$filtered" "$wanted" "$candidate"
+        emit_category_plan FAIL mcp MCP
+        return 0
+    fi
+    mv "$filtered" "$rows"
 
     conflicts=$(jq -s '
         sort_by(.name, .runtime) | group_by(.name) |
