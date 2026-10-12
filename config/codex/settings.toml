@@ -1,6 +1,6 @@
-model = "gpt-6-astra"
+model = "gpt-5.6-sol"
 model_verbosity = "low"
-model_reasoning_effort = "medium"
+model_reasoning_effort = "xhigh"
 approvals_reviewer = "guardian_subagent"
 service_tier = "default"
 plan_mode_reasoning_effort = "high"

@@ -2177,7 +2177,7 @@ stage_locked_skills() {
             [ "$source_url" = "https://github.com/openclaw/agent-skills.git" ]; then
             command_args+=(--dangerously-accept-openclaw-risks)
         fi
-        command_args+=(--agent codex -y)
+        command_args+=(--agent codex -y --full-depth)
         if ! HOME="$STAGED_SKILLS_HOME" \
             SKILL_LOCK_LIVE="$STAGED_SKILL_LOCK" \
             "$SKILLS_CLI" "${command_args[@]}" </dev/null; then
