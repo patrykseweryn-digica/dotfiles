@@ -178,7 +178,7 @@ PLAN_SCENARIO=update
 run_doctor || fail "doctor rejected UPDATE"
 grep -F '[UPDATE] settings:codex:' "${tmp_dir}/doctor.log" >/dev/null ||
     fail "doctor omitted UPDATE"
-grep -F 'Run: just update' "${tmp_dir}/doctor.log" >/dev/null ||
+grep -F 'Run: just sync' "${tmp_dir}/doctor.log" >/dev/null ||
     fail "doctor omitted update action"
 
 PLAN_SCENARIO="export"

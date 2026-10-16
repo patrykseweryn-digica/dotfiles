@@ -21,7 +21,7 @@ run_plan() {
     while IFS=$'\t' read -r status category action message; do
         echo "[$status] ${category}: ${message}"
         case "$action" in
-        update) echo "Run: just update" ;;
+        update) echo "Run: just sync" ;;
         export) echo "Run: just export" ;;
         esac
         [ "$status" != FAIL ] || failed=true

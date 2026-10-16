@@ -342,7 +342,7 @@ report_versions() {
     fi
 
     if [ "$strict" = true ] && [ "$failed" = true ]; then
-        echo "Run: just update" >&2
+        echo "Run: just sync" >&2
         return 1
     fi
 }

@@ -69,7 +69,7 @@ bash scripts/smoke-update-local.sh
 bash scripts/smoke-export.sh
 ```
 
-These tests invoke `just install`, `just update`, and `just export` with
+These tests invoke `just install`, `just sync`, and `just export` with
 disposable HOME directories and checkouts. Never substitute a live update or
 export for this proof.
 

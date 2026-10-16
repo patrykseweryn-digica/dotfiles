@@ -1384,7 +1384,7 @@ cmd_codex_remote_plugins_check() {
         echo "  - Install the missing plugins listed above" >&2
         echo "  - Complete OAuth when prompted" >&2
     fi
-    echo "  - Run again: just update" >&2
+    echo "  - Run again: just sync" >&2
     return 1
 }
 
@@ -1512,7 +1512,7 @@ cmd_codex_marketplace_plugins_check() {
     validate_plugin_manifest "$CODEX_PLUGIN_MANIFEST" || return 1
     codex_marketplace_plugin_state_available || {
         echo "[ERROR] Required Codex marketplace plugin state missing" >&2
-        echo "Run: ./install.sh, then just update" >&2
+        echo "Run: ./install.sh, then just sync" >&2
         return 1
     }
 
@@ -2622,7 +2622,7 @@ cmd_claude_plugins_export() {
         diff <(jq -S '{plugins, marketplaces}' "$CLAUDE_MANIFEST") \
             <(jq -S '{plugins, marketplaces}' "$tmp") >&2 || true
         echo "" >&2
-        echo "Run: just export to review local state, or just update to restore it" >&2
+        echo "Run: just export to review local state, or just sync to restore it" >&2
         rm -f "$tmp"
         return 1
     fi

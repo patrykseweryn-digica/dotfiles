@@ -8,16 +8,15 @@ details unless you are debugging them.
 ## Daily commands
 
 ```bash
-just install  # prepare a new machine without upgrading existing tools
+just sync     # daily pull, local convergence, and managed updates
+just install  # prepare or repair a machine
+just export   # review and save portable local additions
 just doctor   # inspect local state offline and without writes
-just outdated # list tools with known newer versions
-just update   # apply repository state and refresh managed upstream state
-just export   # review and save portable local additions to the checkout
 ```
 
 ## Sync direction
 
-Repository state is authoritative for `update`. Portable runtime additions
+Repository state is authoritative for `sync`. Portable runtime additions
 enter the repository only through `export`.
 
 `just export` requires a clean checkout and builds one plan for allowlisted
@@ -28,10 +27,12 @@ operation. Export never stages, commits, pushes, or changes runtime files; an
 apply failure rolls the checkout back. Environment values, HTTP headers,
 credentials, OAuth state, unsupported transports, and local paths stay local.
 
-`just update` applies repository settings and membership, then refreshes
-managed tools, remote skills, and plugins. Categories with portable local
-additions are blocked and point to `just export`; independent categories can
-continue. Remote skills remain unpinned and follow current upstream.
+`just sync` requires a clean checkout. It runs `git pull --ff-only`, applies
+repository settings and membership, then refreshes managed tools, remote
+skills, and plugins. Categories with portable local additions are blocked and
+point to `just export`; independent categories can continue. The final result
+is `PASS`, `EXPORT`, or `FAIL`. Sync never exports, commits, or pushes.
+Remote skills remain unpinned and follow current upstream.
 Doctor ignores Codex's active model and reasoning selection; repository values
 remain install defaults.
 
@@ -65,10 +66,8 @@ is unavailable.
 Native latest installers resolve their own releases; local checks verify
 installed availability, not whether a newer release exists.
 
-`just outdated` is a read-only online report. It lists only known version
-drift or missing commands and omits current tools. Native latest versions are
-not checked because their installers do not expose one common version source.
-`just update` performs updates.
+`just sync` resolves known online versions and performs managed updates.
+Native latest installers do not expose one common version source.
 
 Pi, Codex, OpenCode, and the skill manager use global npm packages. Claude
 Code uses Anthropic's native installer with the resolved latest version.
@@ -120,14 +119,14 @@ Declare a new portable setting there before importing its live value.
 Claude settings come from `config/claude/`. Missing required configuration
 causes `just doctor` to fail and print the corresponding install command.
 
-## Installation and update
+## Installation and synchronization
 
 ```bash
 just install  # converge missing tools and local config
-just update   # plan and apply safe local configuration changes
+just sync     # pull and apply safe local and upstream changes
 ```
 
-`just update` prints the plan, applies settings, MCP, managed links, and the
+`just sync` prints the plan, applies settings, MCP, managed links, and the
 Herdr hook, then refreshes inventory tools, Node, skills, and plugins.
 Categories with local `EXPORT` additions stay untouched. Independent failures
 do not stop the remaining categories; the final summary reports all results.
@@ -162,7 +161,7 @@ is reported as SKIP.
 
 Use [.agents/skills/verify-dotfiles/SKILL.md](.agents/skills/verify-dotfiles/SKILL.md)
 before changing or applying dotfiles and before commits. It reuses the existing
-isolated-HOME install/update smoke tests and `just check`, then compares the
+isolated-HOME install/sync smoke tests and `just check`, then compares the
 read-only live `just doctor` result with the baseline. Doctor prints bounded
 diagnostics rather than raw config diffs, which may contain credentials.
 Evidence stays under ignored `.agent-runs/verify-dotfiles/`.
@@ -276,9 +275,9 @@ publication.
 ## Rule of thumb
 
 - New machine: `just install`.
-- Routine check: `just doctor`.
-- `UPDATE` result: `just update`.
+- Daily synchronization: `just sync`.
 - `EXPORT` result: `just export`.
+- Diagnostics: `just doctor`.
 
 CI and repository development use the hidden `just check` maintenance recipe.
 Category-specific operations remain internal script subcommands for
