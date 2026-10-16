@@ -9,6 +9,14 @@
     "command": "npx",
     "type": "stdio"
   },
+  "cloudflare": {
+    "type": "http",
+    "url": "https://bindings.mcp.cloudflare.com/mcp"
+  },
+  "exa": {
+    "type": "http",
+    "url": "https://mcp.exa.ai/mcp"
+  },
   "garmin": {
     "args": [
       "--python",
@@ -23,6 +31,17 @@
   "logfire": {
     "type": "http",
     "url": "https://logfire-us.pydantic.dev/mcp"
+  },
+  "obsidian": {
+    "args": [
+      "mcp-obsidian"
+    ],
+    "command": "uvx",
+    "type": "stdio"
+  },
+  "openaiDeveloperDocs": {
+    "type": "http",
+    "url": "https://developers.openai.com/mcp"
   },
   "playwright": {
     "args": [
