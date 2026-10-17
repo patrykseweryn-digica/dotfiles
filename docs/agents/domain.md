@@ -10,3 +10,10 @@ Before domain exploration:
 
 Use glossary terms in tickets, proposals, and tests.
 Surface conflicts with existing ADRs explicitly.
+
+## Vocabulary
+
+- `STEPS_COMMANDS`: Codex coding mode. It shows concrete commands and
+  technical tool actions.
+- `STEPS_PROSE`: Work mode. It uses general prose and hides some command
+  details.

@@ -99,10 +99,7 @@ env -u CODEX_HOME -u OPENCODE_CONFIG_DIR -u PI_CODING_AGENT_DIR \
     "$repo/sync-agents.sh" skills-preflight >"$task_dir/preflight-output" 2>&1
 test ! -e "$preflight_home/.agents"
 rg -qx \
-    'add -g https://github.com/cursor/plugins/tree/main/cursor-team-kit --skill control-cli --agent codex -y' \
-    "$task_dir/preflight-calls"
-rg -qx \
-    'add -g https://github.com/cursor/plugins/tree/main/pstack --skill Poteto Mode --agent codex -y' \
+    'add -g cursor/plugins --skill control-cli Poteto Mode --agent codex -y --full-depth' \
     "$task_dir/preflight-calls"
 
 multi_home="$task_dir/multi failure home"
@@ -126,7 +123,9 @@ if env -u CODEX_HOME -u OPENCODE_CONFIG_DIR -u PI_CODING_AGENT_DIR \
     exit 1
 fi
 rg -q 'No matching skills found for: Missing Skill' "$task_dir/multi-output"
-rg -q -- '--skill Poteto Mode Missing Skill --agent codex' "$task_dir/multi-calls"
+rg -q -- \
+    '--skill control-cli Poteto Mode Missing Skill --agent codex -y --full-depth' \
+    "$task_dir/multi-calls"
 rg -q '^preserve me$' "$multi_home/.agents/skills/preserve/SKILL.md"
 test ! -e "$multi_home/.agents/.skill-lock.json"
 

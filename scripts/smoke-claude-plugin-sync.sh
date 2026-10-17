@@ -164,7 +164,7 @@ if "$DOTFILES_DIR/sync-agents.sh" --quiet plugins-check \
 fi
 grep -F 'new@new-mp' "$sync_log" >/dev/null || \
     fail "Plugin check did not report the missing Claude plugin"
-grep -F 'Run: just export to review local state, or just update to restore it' \
+grep -F 'Run: just export to review local state, or just sync to restore it' \
     "$sync_log" >/dev/null || \
     fail "Plugin check did not recommend the public recovery commands"
 

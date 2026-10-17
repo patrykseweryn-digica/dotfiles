@@ -1,7 +1,6 @@
 set shell := ["bash", "-eu", "-o", "pipefail", "-c"]
 
 sync_agents := env_var_or_default("SYNC_AGENTS", "./sync-agents.sh")
-agent_tools := env_var_or_default("AGENT_TOOLS", "./scripts/agent-tools.sh")
 
 # Show the public command menu.
 [private]
@@ -12,7 +11,12 @@ default:
 install:
     ./install.sh
 
+# Pull repository changes, then converge local and upstream state.
+sync:
+    ./scripts/sync-local.sh
+
 # Apply repository local state while preserving additions that need export.
+[private]
 update:
     ./scripts/update-local.sh
 
@@ -28,7 +32,3 @@ check:
 # Check this machine against repository intent.
 doctor:
     ./scripts/doctor.sh
-
-# List developer tools that need install or update without changes.
-outdated:
-    "{{ agent_tools }}" outdated

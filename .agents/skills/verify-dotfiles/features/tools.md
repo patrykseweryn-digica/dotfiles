@@ -15,8 +15,7 @@ developer releases without editing that inventory.
 
 ## How to get to it (user POV)
 
-- `just outdated` for tools with a known newer version or missing command.
-- `just update` for the full controlled local and upstream update.
+- `just sync` for the full controlled local and upstream update.
 - `just install` for setup including missing tools.
 
 ## Driving it with Bash smoke scripts
@@ -36,10 +35,10 @@ Preconditions: working host Node/npm; no live update needed for verification.
   with an isolated nvm provider, changes the upstream version, reads the
   selected Node and default alias, and verifies the previous runtime survives
   download/install failure. No global packages may be imported implicitly.
-- **Live report.** Run `just outdated`; capture the exit code. This queries
-  npm metadata but does not install tools. It omits current tools and reports
-  only drift or missing commands. Native latest versions remain unchecked and
-  appear only as one bounded informational message.
+- **Live report.** Run `./scripts/agent-tools.sh outdated`; capture the exit
+  code. This queries npm metadata but does not install tools. It omits current
+  tools and reports only drift or missing commands. Native latest versions
+  remain unchecked. One bounded message reports that limitation.
 - **Proof.** Capture transcripts and versions. All three smoke scripts exit zero.
 
 ## Gotchas

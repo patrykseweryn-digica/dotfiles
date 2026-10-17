@@ -159,4 +159,17 @@ printf '[SUMMARY] applied=%s refreshed=%s unchanged=%s blocked=%s skipped=%s fai
     "$applied" "$refreshed" "$unchanged" "$blocked" "$skipped" \
     "$failed" "$remaining"
 
-[ "$blocked" -eq 0 ] && [ "$failed" -eq 0 ] && [ "$remaining" -eq 0 ]
+if [ "$failed" -ne 0 ]; then
+    echo "[RESULT] FAIL"
+    exit 1
+fi
+if [ "$blocked" -ne 0 ]; then
+    echo "[RESULT] EXPORT"
+    exit 1
+fi
+if [ "$remaining" -ne 0 ]; then
+    echo "[RESULT] FAIL"
+    exit 1
+fi
+
+echo "[RESULT] PASS"
