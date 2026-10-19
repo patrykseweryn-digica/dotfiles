@@ -256,6 +256,11 @@ update_declared_latest_core_tools() {
         fi
         case "$adapter" in
         zoxide-native)
+            if [ "$repo" = - ]; then
+                echo "[ERROR] ${name}: GitHub release repository is missing" >&2
+                failed=true
+                continue
+            fi
             output="$("$command_name" --version 2>/dev/null)" || {
                 failed=true
                 continue

@@ -516,7 +516,9 @@ smoke_macos_github_patterns() {
             (.github.artifacts | keys | sort) == ($platforms | sort)) and
         (.tools[] | select(.command == "bw") |
             .package == "@bitwarden/cli" and .installer == "npm" and
-            .channel == "latest")
+            .channel == "latest") and
+        (.tools[] | select(.name == "zoxide") |
+            .github.repo == "ajeetdsouza/zoxide")
     ' "${DOTFILES_DIR}/.agents/tool-versions.json" >/dev/null ||
         fail "inventory platform artifacts are incomplete"
 }
@@ -596,9 +598,10 @@ smoke_direct_binary_install() {
 }
 
 smoke_latest_core_updates() {
-    local tmp_dir manifest bin_dir log_file
+    local tmp_dir manifest invalid_manifest bin_dir log_file
     tmp_dir="$(mktemp -d)"
     manifest="${tmp_dir}/tools.json"
+    invalid_manifest="${tmp_dir}/invalid-tools.json"
     bin_dir="${tmp_dir}/bin"
     log_file="${tmp_dir}/actions.log"
     mkdir -p "$bin_dir"
@@ -612,6 +615,8 @@ smoke_latest_core_updates() {
    "versionPolicy":"latest","adapter":"uv"}
 ]}
 JSON
+    jq '.tools |= map(select(.name == "zoxide")) |
+        del(.tools[0].github)' "$manifest" >"$invalid_manifest"
     printf '#!/bin/sh\necho "zoxide 1.0.0"\n' >"${bin_dir}/zoxide"
     printf '#!/bin/sh\n' >"${bin_dir}/pre-commit"
     cat >"${bin_dir}/uv" <<'STUB'
@@ -636,6 +641,10 @@ STUB
 
         update_declared_latest_core_tools >/dev/null
         LATEST_ZOXIDE=1.1.0 update_declared_latest_core_tools >/dev/null
+        if TOOL_INVENTORY="$invalid_manifest" \
+            update_declared_latest_core_tools >/dev/null 2>&1; then
+            fail "latest zoxide accepted a missing GitHub repository"
+        fi
     )
 
     [ "$(grep -Fxc curl "$log_file")" -eq 2 ] ||

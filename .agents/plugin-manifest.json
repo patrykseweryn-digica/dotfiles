@@ -7,6 +7,12 @@
     "pydantic-skills": "https://github.com/pydantic/skills.git",
     "ui-ux-pro-max-skill": "https://github.com/nextlevelbuilder/ui-ux-pro-max-skill.git"
   },
+  "codexMarketplaceSparsePaths": {
+    "impeccable": [
+      ".claude-plugin",
+      "plugin"
+    ]
+  },
   "codexPlugins": [
     "impeccable@impeccable",
     "last30days@last30days-skill",

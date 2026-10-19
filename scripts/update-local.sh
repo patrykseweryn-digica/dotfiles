@@ -65,6 +65,7 @@ refresh_phase() {
     else
         echo "[ERROR] Failed to refresh $label" >&2
         failed=$((failed + 1))
+        failed_phases+=("$label")
     fi
 }
 
@@ -86,6 +87,7 @@ blocked=0
 failed=0
 skipped=0
 refreshed=0
+failed_phases=()
 while IFS=$'\t' read -r status category action message; do
     case "$status:$action" in
     PASS:none)
@@ -158,6 +160,11 @@ done <"$final_file"
 printf '[SUMMARY] applied=%s refreshed=%s unchanged=%s blocked=%s skipped=%s failed=%s remaining=%s\n' \
     "$applied" "$refreshed" "$unchanged" "$blocked" "$skipped" \
     "$failed" "$remaining"
+if [ "${#failed_phases[@]}" -gt 0 ]; then
+    printf '[FAILED] phases:'
+    printf ' %s;' "${failed_phases[@]}"
+    printf '\n'
+fi
 
 if [ "$failed" -ne 0 ]; then
     echo "[RESULT] FAIL"

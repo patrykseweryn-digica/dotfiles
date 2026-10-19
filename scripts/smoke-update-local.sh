@@ -211,6 +211,9 @@ grep -Fx '[BLOCKED] plugins upstream refresh: export local additions first' \
     "${tmp_dir}/update.log" >/dev/null || fail "plugin EXPORT was not reported"
 grep -F '[SUMMARY]' "${tmp_dir}/update.log" >/dev/null ||
     fail "sync omitted its summary"
+grep -Fx '[FAILED] phases: Node and agent tools;' \
+    "${tmp_dir}/update.log" >/dev/null ||
+    fail "sync summary omitted the failed phase"
 
 : >"$action_log"
 : >"$mutation_log"
