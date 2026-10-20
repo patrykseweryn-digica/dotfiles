@@ -2121,6 +2121,37 @@ cleanup_staged_skills() {
     STAGED_SKILL_LOCK=""
 }
 
+set_staged_skill_runtime_name() {
+    local skill_file="$1"
+    local runtime_name="$2"
+    local tmp="${skill_file}.tmp"
+
+    if ! awk -v runtime_name="$runtime_name" '
+        NR == 1 {
+            if ($0 != "---") exit 1
+            in_frontmatter = 1
+        }
+        in_frontmatter && NR > 1 && $0 == "---" {
+            if (name_count != 1) exit 1
+            in_frontmatter = 0
+        }
+        in_frontmatter && /^name:[[:space:]]*/ {
+            name_count++
+            print "name: " runtime_name
+            next
+        }
+        { print }
+        END {
+            if (in_frontmatter || name_count != 1) exit 1
+        }
+    ' "$skill_file" >"$tmp"; then
+        rm -f "$tmp"
+        echo "[ERROR] Invalid skill frontmatter: $skill_file" >&2
+        return 1
+    fi
+    mv "$tmp" "$skill_file"
+}
+
 merge_staged_skill_lock() {
     local staged_lock="$1"
     local target_lock="$2"
@@ -2177,6 +2208,7 @@ stage_locked_skills() {
     }
 
     local groups group names name source source_url install_source install_name
+    local runtime_name skill_file
     local failed=false
     groups=$(jq -c '
         def install_source:
@@ -2202,7 +2234,8 @@ stage_locked_skills() {
                 source: .value.source,
                 sourceUrl: (.value.sourceUrl // ""),
                 installSource: (.value | install_source),
-                installName: (.value.installName // .key)
+                installName: (.value.installName // .key),
+                runtimeName: (.value.runtimeName // "")
             }
         ]
         | group_by([.installSource, .sourceUrl])[]
@@ -2243,13 +2276,19 @@ stage_locked_skills() {
             failed=true
             break
         fi
-        while IFS= read -r name; do
-            if [ ! -r "${STAGED_SKILLS_HOME}/.agents/skills/${name}/SKILL.md" ]; then
+        while IFS=$'\t' read -r name runtime_name; do
+            skill_file="${STAGED_SKILLS_HOME}/.agents/skills/${name}/SKILL.md"
+            if [ ! -r "$skill_file" ]; then
                 echo "[ERROR] Staged skill missing expected file: $name/SKILL.md" >&2
                 failed=true
                 break
             fi
-        done < <(jq -r '.[].name' <<<"$group")
+            if [ -n "$runtime_name" ] &&
+                ! set_staged_skill_runtime_name "$skill_file" "$runtime_name"; then
+                failed=true
+                break
+            fi
+        done < <(jq -r '.[] | [.name, .runtimeName] | @tsv' <<<"$group")
         [ "$failed" = false ] || break
     done <<<"$groups"
 

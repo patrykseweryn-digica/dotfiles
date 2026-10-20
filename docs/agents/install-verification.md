@@ -1,6 +1,6 @@
 # Installation fixes #32-#35
 
-Verified on 2026-09-15. Base commit: `dd5b7d2`.
+Verified on 2026-10-20. Base commit: `ab589331f00f`.
 
 ## Behavior
 
@@ -18,7 +18,8 @@ Verified on 2026-09-15. Base commit: `dd5b7d2`.
 - Treehouse downloads official release archives via the public latest-release
   redirect. Extraction and execution checks precede replacement in the user's
   bin directory. Failed downloads preserve the installed binary.
-- The poteto-mode lock entry declares upstream `installName: Poteto Mode`.
+- The poteto-mode lock selects upstream as `installName: poteto-mode`.
+  Its `runtimeName: Poteto Mode` preserves the established runtime name.
   Skills CLI installs into Codex's shared skill directory; existing runtime
   linking distributes it to Claude, OpenCode and Pi. Upstream lock rewrites
   are reconciled with repository intent. Missing required skills fail install
@@ -30,8 +31,9 @@ Verified on 2026-09-15. Base commit: `dd5b7d2`.
   `https://api.github.com/repos/kunchenguid/treehouse/releases/latest`.
   HTTP 403 contained `API rate limit exceeded`; response headers reported
   limit 60 and remaining 0. No credentials are needed for the new route.
-- Skills 1.5.23 rejected `--skill poteto-mode` with
-  `No matching skills found`. Upstream frontmatter names it `Poteto Mode`.
+- Skills 1.5.23 rejected `--skill poteto-mode` when upstream used
+  `Poteto Mode`. Current upstream uses `poteto-mode`; the lock follows it.
+  The staging override preserves the established runtime name.
   A fresh home also exposed broad runtime autodetection and a lock rewrite
   under the upstream display name. Explicit agent selection and lock
   reconciliation address those cases.
