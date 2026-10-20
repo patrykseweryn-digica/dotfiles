@@ -260,6 +260,16 @@ for state in empty partial complete broken alias no_url apply_failure rollback_f
         mv "$live_lock.next" "$live_lock"
         run_sync || { cat "$task_dir/output" >&2; exit 1; }
         jq -e '.skills["poteto-mode"].pluginName == "pstack"' "$live_lock" >/dev/null
+        # A source field removed from the repository must leave the live lock.
+        jq '.skills["poteto-mode"].ref = "main"' "$live_lock" > "$live_lock.next"
+        mv "$live_lock.next" "$live_lock"
+        run_sync || { cat "$task_dir/output" >&2; exit 1; }
+        jq -e '.skills["poteto-mode"] |
+            (has("ref") | not) and .pluginName == "pstack"' \
+            "$live_lock" >/dev/null || {
+            echo 'Stale skill source field survived sync' >&2
+            exit 1
+        }
     fi
 done
 

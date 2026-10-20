@@ -38,6 +38,10 @@ SKILL_LOCK_REPO="${SKILL_LOCK_REPO:-${DOTFILES_DIR}/.agents/skill-lock.json}"
 SKILL_LOCK_LIVE="${SKILL_LOCK_LIVE:-${HOME}/.agents/.skill-lock.json}"
 SKILL_SOURCE_REFS="${SKILL_SOURCE_REFS:-${HOME}/.agents/.skill-source-refs.json}"
 SKILLS_CLI="${SKILLS_CLI:-skills}"
+# The skills CLI owns these lock fields; the repository owns all others.
+SKILL_LOCK_RUNTIME_FIELDS='def runtime_fields:
+    {skillFolderHash, installedAt, updatedAt, pluginName}
+    | with_entries(select(.value != null));'
 EXPORT_GIT_DIR="${EXPORT_GIT_DIR:-${DOTFILES_DIR}}"
 AGENT_TOOLS="${AGENT_TOOLS:-${DOTFILES_DIR}/scripts/agent-tools.sh}"
 TOOL_INVENTORY="${TOOL_INVENTORY:-${DOTFILES_DIR}/.agents/tool-versions.json}"
@@ -2086,13 +2090,13 @@ ensure_live_skill_lock() {
     local tmp
     tmp=$(mktemp)
     if [ -f "$SKILL_LOCK_LIVE" ]; then
-        jq -s '
+        jq -s "$SKILL_LOCK_RUNTIME_FIELDS"'
           .[0] as $live | .[1] as $repo |
           {
             dismissed: $repo.dismissed,
             skills: ($repo.skills | with_entries(
               .key as $k |
-              .value = (($live.skills[$k] // {}) * .value)
+              .value = (($live.skills[$k] // {} | runtime_fields) * .value)
             ))
           } + ($live | del(.skills, .dismissed))
         ' "$SKILL_LOCK_LIVE" "$SKILL_LOCK_REPO" >"$tmp" || {
@@ -2156,7 +2160,7 @@ merge_staged_skill_lock() {
     local staged_lock="$1"
     local target_lock="$2"
 
-    jq -e -S --slurpfile staged "$staged_lock" '
+    jq -e -S --slurpfile staged "$staged_lock" "$SKILL_LOCK_RUNTIME_FIELDS"'
         ($staged[0].skills // {}) as $live
         | {
             dismissed: (.dismissed // {}),
@@ -2172,7 +2176,7 @@ merge_staged_skill_lock() {
                         ($live[$key] //
                          $live[$install_name] //
                          $live[$path_name] //
-                         {}) * $repo
+                         {} | runtime_fields) * $repo
                     )
                 )
                 | from_entries
@@ -2372,22 +2376,23 @@ prepare_skill_runtime_candidates() {
 prepare_staged_live_lock() {
     local target_lock="$1"
     if [ -f "$SKILL_LOCK_LIVE" ]; then
-        jq -e -S -s '
+        jq -e -S -s "$SKILL_LOCK_RUNTIME_FIELDS"'
             .[0] as $old | .[1] as $staged |
             $staged
             | .skills |= with_entries(
                 .key as $key |
                 ($old.skills[$key] // null) as $previous |
+                ($previous // {} | runtime_fields) as $runtime |
                 .value = (
                     if $previous != null and
                        $previous.skillFolderHash == .value.skillFolderHash
                     then
-                        $previous * (
+                        $runtime * (
                             .value |
                             del(.installedAt, .updatedAt, .pluginName)
                         )
                     else
-                        ($previous // {}) * .value
+                        $runtime * .value
                     end
                 )
             )
