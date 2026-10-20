@@ -69,6 +69,8 @@ inventory. Reports resolve npm `latest` and fail explicitly when the registry
 is unavailable.
 Native latest installers resolve their own releases; local checks verify
 installed availability, not whether a newer release exists.
+Herdr refuses to update from inside its own panes. In a Herdr pane, sync
+reports `[SKIP] Herdr` and continues; run `herdr update` after detaching.
 
 `just sync` resolves known online versions and performs managed updates.
 Native latest installers do not expose one common version source.

@@ -420,6 +420,11 @@ install_declared_tools() {
         fi
         if [ "$refresh" = true ] && [ -n "$current" ] &&
             [ -n "$update_command" ]; then
+            # Herdr refuses to update from inside its own panes.
+            if [ "$installer" = herdr-native ] && [ "${HERDR_ENV:-}" = 1 ]; then
+                echo "[SKIP] $name: run \`herdr update\` outside Herdr after detaching"
+                continue
+            fi
             read -r -a update_args <<<"$update_command"
             echo "[INFO] Updating $name..."
             "${update_args[@]}" || failed=true
