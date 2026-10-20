@@ -15,6 +15,7 @@ fail() {
 JQ_BIN="$(command -v jq 2>/dev/null || true)"
 [ -n "$JQ_BIN" ] || fail "jq is required"
 UV_BIN="$(command -v uv)"
+JUST_BIN="$(command -v just)"
 export UV_CACHE_DIR="${UV_CACHE_DIR:-$(uv cache dir)}"
 # Runtime overrides must never escape the temporary HOME used by each case.
 unset DOTFILES_FIRSTMATE_HOME
@@ -26,6 +27,17 @@ unset PI_CODING_AGENT_DIR PI_SETTINGS_FILE PI_SKILLS_DIR PI_MCP_CONFIG
 unset PI_SETTINGS_TEMPLATE PI_AGENTS_SOURCE SKILL_LOCK_LIVE SKILLS_CLI
 unset PLUGIN_MANIFEST MCP_SERVERS SKILL_LOCK_REPO SHARED_SKILLS_CUSTOM_DIR
 unset HERDR_CONFIG_PATH
+
+smoke_public_menu() {
+    local actual expected
+    actual="$(mktemp)"
+    expected="$(mktemp)"
+    "$JUST_BIN" --justfile "${DOTFILES_DIR}/justfile" --summary |
+        tr ' ' '\n' | sort >"$actual"
+    printf '%s\n' doctor export install sync >"$expected"
+    cmp "$expected" "$actual" || fail "public menu is not the four daily commands"
+    rm -f "$actual" "$expected"
+}
 
 smoke_source_has_no_home_side_effect() {
     local tmp_dir
@@ -221,7 +233,12 @@ smoke_pi_drift_check() {
             "npm:example-package@1.2.3"
         ]
     }' >"$template"
-    jq -c '. + {lastChangelogVersion: "local-only"}' "$template" \
+    jq -c '. + {
+        lastChangelogVersion: "local-only",
+        deviceId: "local-device",
+        trackingId: "local-tracking",
+        apiKeys: {fixture: "local-api-key"}
+    }' "$template" \
         >"${pi_dir}/settings.json"
     printf '{"version":"1.2.3"}\n' \
         >"${pi_dir}/npm/node_modules/example-package/package.json"
@@ -248,6 +265,21 @@ smoke_pi_drift_check() {
         "${DOTFILES_DIR}/sync-agents.sh" --quiet pi-check \
         >/dev/null 2>&1; then
         fail "Pi check ignored missing package"
+    fi
+
+    jq '.deviceId = "template-device-sentinel"' "$template" \
+        >"${tmp_dir}/unsafe-template.json"
+    if HOME="$home_dir" PI_CODING_AGENT_DIR="$pi_dir" \
+        PI_SETTINGS_TEMPLATE="${tmp_dir}/unsafe-template.json" \
+        "${DOTFILES_DIR}/sync-agents.sh" --quiet pi-install \
+        >"${tmp_dir}/unsafe-template.log" 2>&1; then
+        fail "Pi install accepted an installation-local template key"
+    fi
+    grep -F 'deviceId' "${tmp_dir}/unsafe-template.log" >/dev/null ||
+        fail "Pi install did not name the unsafe template key"
+    if grep -F 'template-device-sentinel' \
+        "${tmp_dir}/unsafe-template.log" >/dev/null; then
+        fail "Pi install exposed an installation-local template value"
     fi
 
     rm -rf "$tmp_dir"
@@ -316,6 +348,9 @@ TOML
     cat >"${home_dir}/.pi/agent/settings.json" <<'JSON'
 {
   "lastChangelogVersion": "local-only",
+  "deviceId": "local-device",
+  "trackingId": "local-tracking",
+  "apiKeys": {"fixture": "local-api-key"},
   "theme": "unmanaged"
 }
 JSON
@@ -395,6 +430,9 @@ STUB
             cat "$sync_log" >&2
             exit 1
         fi
+        local skill_install_count
+        skill_install_count="$(wc -l <"$npx_log" | tr -d ' ')"
+        [ "$skill_install_count" -gt 0 ] || fail "$os_name: skills were not installed"
         local config="${HOME}/.no-mistakes/config.yaml"
         [ -f "$config" ] || fail "$os_name: missing no-mistakes config"
         if [ "$os_name" = Darwin ]; then
@@ -420,6 +458,8 @@ YAML
             cat "$sync_log" >&2
             exit 1
         fi
+        [ "$(wc -l <"$npx_log" | tr -d ' ')" -eq "$skill_install_count" ] ||
+            fail "$os_name: repeated setup reinstalled matching skills"
         cmp "$config" "${tmp_dir}/expected.yaml" ||
             fail "$os_name: repeated setup changed no-mistakes settings"
         echo "[INFO] $os_name: no-mistakes fresh/existing + repeat passed"
@@ -442,6 +482,8 @@ YAML
             cat "$sync_log" >&2
             exit 1
         fi
+        [ "$(wc -l <"$npx_log" | tr -d ' ')" -eq "$skill_install_count" ] ||
+            fail "$os_name: unrelated config repair reinstalled matching skills"
         cmp "$herdr_config" "${tmp_dir}/herdr-expected.toml" ||
             fail "$os_name: Herdr title not restored or local settings lost"
         echo "[INFO] $os_name: Herdr fresh/existing + repeat + restore passed"
@@ -460,7 +502,15 @@ YAML
     [ -f "${home_dir}/.pi/agent/settings.json" ] || fail "$os_name: missing Pi settings"
     jq -e --slurpfile wanted "${DOTFILES_DIR}/config/pi/settings.json" '
         .lastChangelogVersion == "local-only" and
-        (del(.lastChangelogVersion) == $wanted[0])
+        .deviceId == "local-device" and
+        .trackingId == "local-tracking" and
+        .apiKeys == {fixture: "local-api-key"} and
+        (del(
+            .lastChangelogVersion,
+            .deviceId,
+            .trackingId,
+            .apiKeys
+        ) == $wanted[0])
     ' "${home_dir}/.pi/agent/settings.json" >/dev/null ||
         fail "$os_name: Pi stable settings or local changelog state differ"
     while IFS= read -r package; do
@@ -471,8 +521,12 @@ YAML
         cmp -s "${DOTFILES_DIR}/config/pi/$resource" \
             "${home_dir}/.pi/agent/$resource" || fail "missing Pi $resource"
     done
+    cp "${home_dir}/.pi/agent/settings.json" "${tmp_dir}/pi-settings.before"
     HOME="$home_dir" PATH="${stub_dir}:/usr/bin:/bin" PI_LOG="$pi_log" \
         "${DOTFILES_DIR}/sync-agents.sh" pi-install >/dev/null
+    cmp "${tmp_dir}/pi-settings.before" \
+        "${home_dir}/.pi/agent/settings.json" ||
+        fail "$os_name: repeated Pi install rewrote stable settings"
     [ "$(find "${home_dir}/.pi/agent/extensions" -name terminal-title.ts | wc -l)" -eq 1 ] ||
         fail "Pi repeat install duplicated extension"
     [ -f "${home_dir}/.codex/config.toml" ] || fail "$os_name: missing Codex config"
@@ -571,6 +625,7 @@ smoke_no_mistakes_config() {
 }
 
 smoke_no_mistakes_config
+smoke_public_menu
 smoke_node_activation_before_tools
 smoke_source_has_no_home_side_effect
 smoke_run_steps_preserve_errexit

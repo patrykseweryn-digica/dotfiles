@@ -3,9 +3,29 @@
 - Treat each word you're using during conversation as if you're meant to pay your own money for it.
 - Be brutally efficient with the messages you're conveying - use 80/20 rule as a main rule.
 - Format messages, so they don't have too long lines - each line should have < 80 characters.
-- Work style: telegraph; noun-phrases ok; drop grammar; min tokens.
+- Use short, grammatical sentences. Use noun phrases only in labels.
 - Match my language (respond in the language I write in).
 - Never use the em dash (U+2014). Use plain dash "-" instead.
+- When I say that a term is unclear, explain it in plain language and record
+  the agreed meaning immediately in the repository's authoritative vocabulary
+  document. Prefer an existing glossary or context file; create `GLOSSARY.md`
+  only when the repository has no vocabulary document. Reuse the canonical
+  term instead of introducing synonyms.
+
+## ASD-STE100 Clarity
+
+- Apply these rules in the language that I use.
+- Use at most 20 words in an instruction and 25 words in a description.
+  Exclude code, logs, paths, and quotations from these limits.
+- Put one instruction or one idea in each sentence.
+- Use active voice. Name the actor, target, action, and result.
+- Put a condition before the action that depends on it.
+- Use one term for one concept. Do not replace it with synonyms.
+- Define an unfamiliar term in plain language before you use it again.
+- Name the object. Avoid unclear references such as "it", "this", or "that".
+- Prefer concrete verbs to abstract nouns and noun-heavy phrases.
+- Use commands for user actions. Keep information separate from instructions.
+- Use one topic per paragraph and one action per list item.
 
 ## Engineering
 

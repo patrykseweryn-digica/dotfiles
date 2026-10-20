@@ -3,7 +3,6 @@
   "autoCompactEnabled": false,
   "autoUpdatesChannel": "latest",
   "defaultMode": "acceptEdits",
-  "effortLevel": "xhigh",
   "env": {
     "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
   },
@@ -44,6 +43,11 @@
   },
   "language": "Polish",
   "model": "opus",
+  "modelSettings": {
+    "claude-opus-5-5": {
+      "effortLevel": "xhigh"
+    }
+  },
   "permissions": {
     "allow": [
       "Read",
@@ -150,6 +154,7 @@
     "command": "bash $HOME/.claude/statusline-command.sh",
     "type": "command"
   },
+  "theme": "dark",
   "tui": "fullscreen",
   "voiceEnabled": true
 }

@@ -1,7 +1,7 @@
 # Issue tracker: GitHub
 
-Scope: patrykseweryn-digica/dotfiles.
-Use the gh CLI with --repo patrykseweryn-digica/dotfiles.
+Scope: p-severin/dotfiles.
+Use the gh CLI with --repo p-severin/dotfiles.
 Issues, specs, and tickets live in GitHub Issues.
 
 Read the full issue body, labels, and comments before working.

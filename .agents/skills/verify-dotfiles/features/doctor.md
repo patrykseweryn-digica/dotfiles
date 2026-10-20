@@ -1,6 +1,8 @@
 # Machine doctor
 
-Check machine configuration without installing tools or copying credentials.
+Build one offline, read-only plan without installing tools or copying
+credentials. Every category reports `PASS`, `UPDATE`, `EXPORT`, or `FAIL`;
+only `FAIL` makes the command fail.
 
 ## Sub-features
 
@@ -16,11 +18,12 @@ Check machine configuration without installing tools or copying credentials.
 
 Preconditions: repository dependencies; retain before/after evidence.
 
-- **Test failures.** Run `bash scripts/smoke-doctor.sh`. Its isolated doctor
-  checks matching state, then changed/missing config, broken links, missing
-  tools, invalid Node and disabled hooks. Read-only checks must not recreate
-  missing config. A secret sentinel in a raw diff must not appear in output;
-  long diagnostics must be bounded.
+- **Test statuses and failures.** Run `bash scripts/smoke-doctor.sh`. Its
+  isolated public `just doctor` drives the shared plan through matching,
+  update, export and failure states, then checks broken links, missing tools,
+  invalid Node and disabled hooks. The real local adapters verify settings,
+  MCP, skills and plugins without network or writes. A secret sentinel in a
+  raw planner failure must not appear; diagnostics stay bounded.
 - **Live baseline and result.** Run `just doctor` before and after the
   change, with output paths from SKILL.md. Compare failed categories. For
   changed check code, run `cksum` on affected live files before and after;

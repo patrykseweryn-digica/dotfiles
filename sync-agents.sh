@@ -8,7 +8,7 @@ SHARED_SKILLS_CUSTOM_DIR="${SHARED_SKILLS_CUSTOM_DIR:-${DOTFILES_DIR}/.agents/sk
 CODEX_AGENTS_SOURCE="${DOTFILES_DIR}/config/codex/AGENTS.md"
 CLAUDE_AGENTS_SOURCE="${DOTFILES_DIR}/config/claude/CLAUDE.md"
 OPENCODE_AGENTS_SOURCE="${DOTFILES_DIR}/config/opencode/AGENTS.md"
-OPENCODE_TEMPLATE="${DOTFILES_DIR}/config/opencode/opencode.json"
+OPENCODE_TEMPLATE="${OPENCODE_TEMPLATE:-${DOTFILES_DIR}/config/opencode/opencode.json}"
 PI_AGENTS_SOURCE="${PI_AGENTS_SOURCE:-${DOTFILES_DIR}/config/pi/AGENTS.md}"
 PI_SETTINGS_TEMPLATE="${PI_SETTINGS_TEMPLATE:-${DOTFILES_DIR}/config/pi/settings.json}"
 CODEX_HOME="${CODEX_HOME:-${HOME}/.codex}"
@@ -36,7 +36,11 @@ CLAUDE_SETTINGS_FILE="${CLAUDE_SETTINGS_FILE:-${HOME}/.claude/settings.json}"
 CLAUDE_USER_CONFIG="${CLAUDE_USER_CONFIG:-${HOME}/.claude.json}"
 SKILL_LOCK_REPO="${SKILL_LOCK_REPO:-${DOTFILES_DIR}/.agents/skill-lock.json}"
 SKILL_LOCK_LIVE="${SKILL_LOCK_LIVE:-${HOME}/.agents/.skill-lock.json}"
+SKILL_SOURCE_REFS="${SKILL_SOURCE_REFS:-${HOME}/.agents/.skill-source-refs.json}"
 SKILLS_CLI="${SKILLS_CLI:-skills}"
+EXPORT_GIT_DIR="${EXPORT_GIT_DIR:-${DOTFILES_DIR}}"
+AGENT_TOOLS="${AGENT_TOOLS:-${DOTFILES_DIR}/scripts/agent-tools.sh}"
+TOOL_INVENTORY="${TOOL_INVENTORY:-${DOTFILES_DIR}/.agents/tool-versions.json}"
 
 QUIET=false
 STAGED_SKILLS_ROOT=""
@@ -630,13 +634,75 @@ mcp_rows_to_inventory() {
     ' "$rows_file"
 }
 
-cmd_pull_mcp() {
-    [ "$#" -eq 0 ] || {
-        echo "[ERROR] pull-mcp takes no arguments" >&2
+classify_mcp_rows() {
+    local source="$1" target="$2"
+    jq -c -s --arg home "$HOME" --slurpfile wanted "$MCP_SERVERS" '
+        def sensitive:
+            test(
+                "(^|[-_])(access[-_]?token|api[-_]?key|secret|" +
+                "password|oauth)(=|:|$)";
+                "i"
+            );
+        def portable:
+            all(.. | strings;
+                (startswith($home + "/") or
+                 test("^/(Users|home)/")) | not
+            ) and
+            if .type == "stdio" then
+                (.command | startswith("/") | not) and
+                all(.args[]?;
+                    type != "string" or
+                    ((startswith("/") or sensitive) | not)
+                )
+            elif .type == "http" then
+                (.url |
+                    (test("^[a-z][a-z0-9+.-]*://[^/@]+@"; "i") or
+                     test(
+                        "[?&](access_?token|api_?key|secret|" +
+                        "password|oauth)=";
+                        "i"
+                     )) | not
+                )
+            else false
+            end;
+        .[] as $row |
+        $row + {
+            managed: ($wanted[0] | has($row.name)),
+            portable: ($row.server | portable)
+        }
+    ' "$source" >"$target"
+}
+
+filter_portable_mcp_rows() {
+    local source="$1" target="$2" classified managed local_names
+    classified="$(mktemp)"
+    classify_mcp_rows "$source" "$classified" || {
+        rm -f "$classified"
         return 1
     }
+    managed="$(jq -rs '
+        [.[] | select(.managed and (.portable | not)) | .name] |
+        unique | .[:20] | join(", ")
+    ' "$classified")"
+    if [ -n "$managed" ]; then
+        echo "[ERROR] Non-portable managed MCP servers: $managed" >&2
+        rm -f "$classified"
+        return 1
+    fi
+    local_names="$(jq -rs '
+        [.[] | select((.managed | not) and (.portable | not)) | .name] |
+        unique | .[:20] | join(", ")
+    ' "$classified")"
+    [ -z "$local_names" ] ||
+        log_info "Keeping non-portable MCP servers local: $local_names"
+    jq -c 'select(.managed or .portable) | del(.managed, .portable)' \
+        "$classified" >"$target"
+    rm -f "$classified"
+}
 
-    local rows runtimes conflicts candidate current reply
+build_mcp_candidate() {
+    local candidate="$1"
+    local rows filtered runtimes conflicts
     rows="$(mktemp)"
     runtimes="$(available_mcp_runtimes)"
     [ -n "$runtimes" ] || {
@@ -648,6 +714,12 @@ cmd_pull_mcp() {
         rm -f "$rows"
         return 1
     }
+    filtered="$(mktemp)"
+    filter_portable_mcp_rows "$rows" "$filtered" || {
+        rm -f "$rows" "$filtered"
+        return 1
+    }
+    mv "$filtered" "$rows"
 
     conflicts=$(jq -s '
         sort_by(.name, .runtime)
@@ -659,19 +731,36 @@ cmd_pull_mcp() {
         })
     ' "$rows")
     if [ "$(jq 'length' <<<"$conflicts")" -gt 0 ]; then
-        echo "[ERROR] Conflicting MCP definitions; repository unchanged:" >&2
-        jq -r '.[] | "  - \(.name): " +
-            ([.definitions[] | "\(.runtime)=\(.server | tojson)"] |
-             join(", "))' <<<"$conflicts" >&2
+        echo "[ERROR] Conflicting MCP definitions; repository unchanged: $(
+            jq -r 'map(.name) | unique | .[:20] | join(", ")' \
+                <<<"$conflicts"
+        )" >&2
         rm -f "$rows"
         return 1
     fi
 
+    mcp_rows_to_inventory "$rows" >"$candidate"
+    rm -f "$rows"
+}
+
+cmd_pull_mcp() {
+    [ "$#" -eq 0 ] || {
+        echo "[ERROR] pull-mcp takes no arguments" >&2
+        return 1
+    }
+
+    local candidate current reply
     candidate="$(mktemp)"
     current="$(mktemp)"
-    mcp_rows_to_inventory "$rows" >"$candidate"
+    if ! build_mcp_candidate "$candidate"; then
+        rm -f "$candidate" "$current"
+        return 1
+    fi
+    validate_mcp_candidate "$candidate" || {
+        rm -f "$candidate" "$current"
+        return 1
+    }
     normalize_mcp_inventory "$MCP_SERVERS" >"$current"
-    rm -f "$rows"
 
     if cmp -s "$current" "$candidate"; then
         rm -f "$current" "$candidate"
@@ -758,9 +847,15 @@ codex_toml() {
         echo "[ERROR] uv is required for Codex settings; run ./install.sh" >&2
         return 1
     }
-    uv run --quiet --no-project --script \
-        "${DOTFILES_DIR}/scripts/codex-toml.py" \
-        "$action" "$CODEX_CONFIG" "$CODEX_SETTINGS_TEMPLATE" "$MCP_SERVERS" "$@"
+    if [ "$action" = check ]; then
+        uv run --quiet --offline --no-project --script \
+            "${DOTFILES_DIR}/scripts/codex-toml.py" \
+            "$action" "$CODEX_CONFIG" "$CODEX_SETTINGS_TEMPLATE" "$MCP_SERVERS" "$@"
+    else
+        uv run --quiet --no-project --script \
+            "${DOTFILES_DIR}/scripts/codex-toml.py" \
+            "$action" "$CODEX_CONFIG" "$CODEX_SETTINGS_TEMPLATE" "$MCP_SERVERS" "$@"
+    fi
 }
 
 cmd_pull_codex_settings() {
@@ -797,6 +892,308 @@ cmd_pull_codex_settings() {
     esac
 }
 
+build_json_settings_candidate() {
+    local runtime="$1" live="$2" template="$3" target="$4"
+    [ -f "$live" ] || {
+        echo "[ERROR] ${runtime} settings missing: $live" >&2
+        return 1
+    }
+    validate_json_config "$live" "${runtime}-install" || return 1
+    validate_json_config "$template" "${runtime}-install" || return 1
+    if [ "$runtime" = pi ]; then
+        validate_pi_settings_template "$template" || return 1
+    fi
+
+    jq -S --arg runtime "$runtime" --slurpfile managed "$template" '
+        def import_managed($live; $wanted):
+            reduce ($wanted | keys_unsorted[]) as $key ($wanted;
+                if ($live | has($key)) then
+                    .[$key] = (
+                        if (($wanted[$key] | type) == "object" and
+                            ($live[$key] | type) == "object") then
+                            import_managed($live[$key]; $wanted[$key])
+                        else
+                            $live[$key]
+                        end
+                    )
+                else . end
+            );
+        (if $runtime == "claude" then
+            .permissions.allow = ((.permissions.allow // []) |
+                map(select(
+                    (startswith("mcp__") and endswith("__*")) | not
+                )))
+         else . end) as $live |
+        import_managed($live; $managed[0])
+    ' "$live" >"$target"
+}
+
+validate_settings_candidate() {
+    local label="$1" candidate="$2"
+    if grep -F "$HOME/" "$candidate" >/dev/null 2>&1 ||
+        grep -E '(^|[[:space:]"=])/(Users|home)/' \
+            "$candidate" >/dev/null 2>&1; then
+        echo "[ERROR] ${label} export contains a local home path" >&2
+        return 1
+    fi
+    case "$candidate" in
+    *.json)
+        jq -e '
+            [paths(scalars) as $path |
+                ($path[-1] | tostring | ascii_downcase) |
+                select(test(
+                    "(^|_)(access_?token|refresh_?token|api_?key|" +
+                    "secret|password|oauth|session_?id|cache)(_.*)?$"
+                ))
+            ] | length == 0
+        ' "$candidate" >/dev/null || {
+            echo "[ERROR] ${label} export contains local secret state" >&2
+            return 1
+        }
+        ;;
+    esac
+}
+
+validate_mcp_candidate() {
+    local candidate="$1" rows classified
+    rows="$(mktemp)"
+    classified="$(mktemp)"
+    jq -c 'to_entries[] | {
+        runtime: "candidate", name: .key, server: .value
+    }' "$candidate" >"$rows" || {
+        rm -f "$rows" "$classified"
+        return 1
+    }
+    classify_mcp_rows "$rows" "$classified" || {
+        rm -f "$rows" "$classified"
+        return 1
+    }
+    if ! jq -es 'all(.[]; .portable)' "$classified" >/dev/null; then
+        echo "[ERROR] MCP export contains a local path or secret" >&2
+        rm -f "$rows" "$classified"
+        return 1
+    fi
+    rm -f "$rows" "$classified"
+}
+
+require_clean_export_checkout() {
+    local dirty
+    git -C "$EXPORT_GIT_DIR" rev-parse --is-inside-work-tree \
+        >/dev/null 2>&1 || {
+        echo "[ERROR] Export requires a Git checkout: $EXPORT_GIT_DIR" >&2
+        return 1
+    }
+    dirty="$(git -C "$EXPORT_GIT_DIR" status --porcelain \
+        --untracked-files=all)" || {
+        echo "[ERROR] Could not inspect export checkout" >&2
+        return 1
+    }
+    if [ -n "$dirty" ]; then
+        echo "[ERROR] Export requires a clean checkout" >&2
+        return 1
+    fi
+}
+
+rollback_export_targets() {
+    local backup_root="$1" failed=false index target type
+    for index in "${!EXPORT_TARGETS[@]}"; do
+        target="${EXPORT_TARGETS[$index]}"
+        type="${EXPORT_TYPES[$index]}"
+        if [ -f "${backup_root}/${index}" ]; then
+            cp -p "${backup_root}/${index}" "$target" || failed=true
+        elif [ -d "${backup_root}/${index}" ]; then
+            mkdir -p "$target" || failed=true
+            rsync -a --delete "${backup_root}/${index}/" "$target/" ||
+                failed=true
+        else
+            if [ "$type" = directory ]; then
+                rm -rf "$target" || failed=true
+            else
+                rm -f "$target" || failed=true
+            fi
+        fi
+    done
+    [ "$failed" = false ]
+}
+
+apply_export_candidates() {
+    local root="$1"
+    local backup_root="${root}/backups"
+    local index target candidate type
+    mkdir -p "$backup_root" || return 1
+    for index in "${!EXPORT_TARGETS[@]}"; do
+        target="${EXPORT_TARGETS[$index]}"
+        [ ! -e "$target" ] || cp -a "$target" "${backup_root}/${index}" ||
+            return 1
+    done
+    for index in "${!EXPORT_TARGETS[@]}"; do
+        target="${EXPORT_TARGETS[$index]}"
+        candidate="${EXPORT_CANDIDATES[$index]}"
+        type="${EXPORT_TYPES[$index]}"
+        mkdir -p "$(dirname "$target")" || {
+            rollback_export_targets "$backup_root" || true
+            return 1
+        }
+        if { [ "$type" = directory ] &&
+            ! rsync -a --delete "$candidate/" "$target/"; } ||
+            { [ "$type" = file ] && ! cp "$candidate" "$target"; }; then
+            echo "[ERROR] Export apply failed; rolling back checkout" >&2
+            rollback_export_targets "$backup_root" ||
+                echo "[ERROR] Export rollback incomplete" >&2
+            return 1
+        fi
+    done
+}
+
+cmd_export() {
+    [ "$#" -eq 0 ] || {
+        echo "[ERROR] export takes no arguments" >&2
+        return 1
+    }
+    require_clean_export_checkout || return 1
+
+    local root candidate target label reply index
+    root="$(mktemp -d)" || return 1
+    EXPORT_TARGETS=()
+    EXPORT_CANDIDATES=()
+    EXPORT_LABELS=()
+    EXPORT_TYPES=()
+
+    candidate="${root}/codex-settings.toml"
+    codex_toml import "$candidate" || { rm -rf "$root"; return 1; }
+    validate_settings_candidate "Codex settings" "$candidate" || {
+        rm -rf "$root"
+        return 1
+    }
+    if ! cmp -s "$CODEX_SETTINGS_TEMPLATE" "$candidate"; then
+        EXPORT_TARGETS+=("$CODEX_SETTINGS_TEMPLATE")
+        EXPORT_CANDIDATES+=("$candidate")
+        EXPORT_LABELS+=("Codex settings")
+        EXPORT_TYPES+=(file)
+    fi
+
+    while IFS='|' read -r label target candidate runtime live; do
+        build_json_settings_candidate "$runtime" "$live" "$target" \
+            "$candidate" || { rm -rf "$root"; return 1; }
+        validate_settings_candidate "$label" "$candidate" || {
+            rm -rf "$root"
+            return 1
+        }
+        if ! jq -e --slurpfile candidate "$candidate" \
+            '. == $candidate[0]' "$target" >/dev/null; then
+            EXPORT_TARGETS+=("$target")
+            EXPORT_CANDIDATES+=("$candidate")
+            EXPORT_LABELS+=("$label")
+            EXPORT_TYPES+=(file)
+        fi
+    done <<EOF
+Claude settings|$CLAUDE_TEMPLATE_FILE|${root}/claude.json|claude|$CLAUDE_SETTINGS_FILE
+OpenCode settings|$OPENCODE_TEMPLATE|${root}/opencode.json|opencode|$OPENCODE_CONFIG
+Pi settings|$PI_SETTINGS_TEMPLATE|${root}/pi-settings.json|pi|$PI_SETTINGS_FILE
+EOF
+
+    candidate="${root}/mcp-servers.json"
+    build_mcp_candidate "$candidate" || { rm -rf "$root"; return 1; }
+    validate_mcp_candidate "$candidate" || { rm -rf "$root"; return 1; }
+    if ! cmp -s "$MCP_SERVERS" "$candidate"; then
+        EXPORT_TARGETS+=("$MCP_SERVERS")
+        EXPORT_CANDIDATES+=("$candidate")
+        EXPORT_LABELS+=("MCP inventory")
+        EXPORT_TYPES+=(file)
+    fi
+
+    local skill_lock="${root}/skill-lock.json"
+    local custom_skills="${root}/skills-custom"
+    build_skill_export_candidate "$skill_lock" "$custom_skills" || {
+        rm -rf "$root"
+        return 1
+    }
+    if ! cmp -s "$SKILL_LOCK_REPO" "$skill_lock"; then
+        EXPORT_TARGETS+=("$SKILL_LOCK_REPO")
+        EXPORT_CANDIDATES+=("$skill_lock")
+        EXPORT_LABELS+=("Skill inventory")
+        EXPORT_TYPES+=(file)
+    fi
+    if ! diff_custom_skills -qr \
+        "$SHARED_SKILLS_CUSTOM_DIR" "$custom_skills" \
+        >/dev/null 2>&1; then
+        EXPORT_TARGETS+=("$SHARED_SKILLS_CUSTOM_DIR")
+        EXPORT_CANDIDATES+=("$custom_skills")
+        EXPORT_LABELS+=("Portable skills")
+        EXPORT_TYPES+=(directory)
+    fi
+
+    local plugin_candidate="${root}/plugin-manifest.json"
+    local requested_quiet="$QUIET"
+    QUIET=true
+    if ! build_plugin_candidate "$plugin_candidate"; then
+        QUIET="$requested_quiet"
+        rm -rf "$root"
+        return 1
+    fi
+    QUIET="$requested_quiet"
+    if ! cmp -s "$PLUGIN_MANIFEST" "$plugin_candidate"; then
+        EXPORT_TARGETS+=("$PLUGIN_MANIFEST")
+        EXPORT_CANDIDATES+=("$plugin_candidate")
+        EXPORT_LABELS+=("Plugin membership")
+        EXPORT_TYPES+=(file)
+    fi
+
+    local tool_candidate="${root}/tool-versions.json"
+    local tool_report="${root}/tool-candidates.txt"
+    AGENT_TOOL_VERSIONS="$TOOL_INVENTORY" \
+        "$AGENT_TOOLS" export-candidate "$tool_candidate" "$tool_report" || {
+        rm -rf "$root"
+        return 1
+    }
+    while IFS= read -r candidate; do
+        [ -n "$candidate" ] || continue
+        echo "[CANDIDATE] Tool ${candidate} needs a source and installer"
+    done <"$tool_report"
+    if ! cmp -s "$TOOL_INVENTORY" "$tool_candidate"; then
+        EXPORT_TARGETS+=("$TOOL_INVENTORY")
+        EXPORT_CANDIDATES+=("$tool_candidate")
+        EXPORT_LABELS+=("Tool inventory")
+        EXPORT_TYPES+=(file)
+    fi
+
+    if [ "${#EXPORT_TARGETS[@]}" -eq 0 ]; then
+        rm -rf "$root"
+        log_info "Portable repository state already matches live state"
+        return 0
+    fi
+
+    echo "[INFO] Export plan"
+    for index in "${!EXPORT_TARGETS[@]}"; do
+        echo "[PLAN] ${EXPORT_LABELS[$index]}: ${EXPORT_TARGETS[$index]}"
+        if [ "${EXPORT_TYPES[$index]}" = directory ]; then
+            diff_custom_skills -ruN "${EXPORT_TARGETS[$index]}" \
+                "${EXPORT_CANDIDATES[$index]}" || true
+        else
+            diff -u "${EXPORT_TARGETS[$index]}" \
+                "${EXPORT_CANDIDATES[$index]}" || true
+        fi
+    done
+    printf 'Apply this export plan? [y/N] '
+    read -r reply || reply=""
+    case "$reply" in
+    y | Y | yes | YES)
+        require_clean_export_checkout || { rm -rf "$root"; return 1; }
+        if ! apply_export_candidates "$root"; then
+            rm -rf "$root"
+            return 1
+        fi
+        ;;
+    *)
+        rm -rf "$root"
+        echo "[ERROR] Export cancelled; checkout unchanged" >&2
+        return 1
+        ;;
+    esac
+    rm -rf "$root"
+    log_info "Exported portable state to the checkout"
+}
+
 sync_codex_mcp_config() {
     codex_toml install
 }
@@ -813,12 +1210,12 @@ cmd_codex_check() {
         echo "Run: ./sync-agents.sh codex-install" >&2
         return 1
     }
-    codex_toml check || return 1
+    codex_toml check || return $?
     log_info "Codex config in sync"
 }
 
 check_marketplace_provider() {
-    local runtime="$1" foreign
+    local runtime="$1" show_repair="${2:-false}" foreign marketplace
     foreign=$(jq -ser --arg runtime "$runtime" '
         if length != 1 then error("Expected one marketplace inventory")
         else .[0] end |
@@ -838,6 +1235,12 @@ check_marketplace_provider() {
     [ -n "$foreign" ] || return 0
     echo "[ERROR] Provider-specific marketplaces do not belong in $runtime:" >&2
     printf '%s\n' "$foreign" >&2
+    if [ "$show_repair" = true ]; then
+        while IFS= read -r marketplace; do
+            [ -n "$marketplace" ] || continue
+            echo "Run: $runtime plugin marketplace remove $marketplace" >&2
+        done <<<"$foreign"
+    fi
     return 1
 }
 
@@ -981,7 +1384,7 @@ cmd_codex_remote_plugins_check() {
         echo "  - Install the missing plugins listed above" >&2
         echo "  - Complete OAuth when prompted" >&2
     fi
-    echo "  - Run again: just push-plugins" >&2
+    echo "  - Run again: just sync" >&2
     return 1
 }
 
@@ -1059,7 +1462,7 @@ read_codex_plugin_state() {
         select(.installed == true) |
         {name: (.marketplaceName // (.pluginId | split("@")[-1])),
          source: (.marketplaceSource.source // "")}
-    ]' | check_marketplace_provider codex || return 1
+    ]' | check_marketplace_provider codex true || return 1
     printf '%s\n' "$state"
 }
 
@@ -1072,7 +1475,7 @@ read_codex_marketplace_state() {
     fi
     printf '%s\n' "$state" | jq '[.marketplaces[]? |
         {name, source: (.marketplaceSource.source // "")}
-    ]' | check_marketplace_provider codex || return 1
+    ]' | check_marketplace_provider codex true || return 1
     printf '%s\n' "$state"
 }
 
@@ -1109,7 +1512,7 @@ cmd_codex_marketplace_plugins_check() {
     validate_plugin_manifest "$CODEX_PLUGIN_MANIFEST" || return 1
     codex_marketplace_plugin_state_available || {
         echo "[ERROR] Required Codex marketplace plugin state missing" >&2
-        echo "Run: ./install.sh, then just push-plugins" >&2
+        echo "Run: ./install.sh, then just sync" >&2
         return 1
     }
 
@@ -1268,6 +1671,7 @@ cmd_codex_plugins_push() {
 }
 
 cmd_codex_plugins_update() {
+    validate_plugin_manifest "$CODEX_PLUGIN_MANIFEST" || return 1
     command -v codex >/dev/null 2>&1 || {
         echo "[ERROR] codex CLI not found; cannot update plugin marketplaces" >&2
         return 1
@@ -1275,8 +1679,16 @@ cmd_codex_plugins_update() {
 
     read_codex_plugin_state >/dev/null || return 1
     read_codex_marketplace_state >/dev/null || return 1
-    log_info "Updating Codex plugin marketplaces..."
-    codex plugin marketplace upgrade
+
+    local marketplace failed=false
+    while IFS= read -r marketplace; do
+        [ -n "$marketplace" ] || continue
+        log_info "Updating Codex plugin marketplace: $marketplace"
+        codex plugin marketplace upgrade "$marketplace" || failed=true
+    done < <(jq -r '.codexMarketplaces // {} | keys[]' \
+        "$CODEX_PLUGIN_MANIFEST")
+
+    [ "$failed" = false ]
 }
 
 render_opencode_config() {
@@ -1376,7 +1788,7 @@ cmd_opencode_check() {
         diff -u "$OPENCODE_CONFIG" "$tmp" >&2 || true
     fi
     rm -f "$tmp"
-    return 1
+    return 2
 }
 
 render_pi_mcp_config() {
@@ -1571,7 +1983,7 @@ cmd_claude_settings_check() {
     echo "Run: ./sync-agents.sh claude-install" >&2
     diff -u "$expected" "$CLAUDE_SETTINGS_FILE" >&2 || true
     rm -f "$expected"
-    return 1
+    return 2
 }
 
 generate_claude_settings() {
@@ -1706,18 +2118,36 @@ stage_locked_skills() {
         return 1
     }
 
-    local groups group names name source source_url install_name failed=false
+    local groups group names name source source_url install_source install_name
+    local failed=false
     groups=$(jq -c '
+        def install_source:
+            (.source // "") as $source
+            | (.sourceUrl // "") as $source_url
+            | (.ref // "") as $ref
+            | (.skillPath // "") as $skill_path
+            | if .sourceType == "github" and
+                 ($source_url | startswith("https://github.com/")) and
+                 ($ref | length) > 0 and
+                 ($skill_path | contains("/skills/"))
+              then
+                ($skill_path | split("/skills/")[0]) as $package_path
+                | ($source_url | sub("\\.git$"; "")) +
+                  "/tree/" + $ref + "/" + $package_path
+              else
+                $source
+              end;
         [
             .skills | to_entries[] |
             {
                 name: .key,
                 source: .value.source,
                 sourceUrl: (.value.sourceUrl // ""),
+                installSource: (.value | install_source),
                 installName: (.value.installName // .key)
             }
         ]
-        | group_by([.source, .sourceUrl])[]
+        | group_by([.installSource, .sourceUrl])[]
     ' "$SKILL_LOCK_REPO") || {
         cleanup_staged_skills
         echo "[ERROR] Invalid repository skill lock: $SKILL_LOCK_REPO" >&2
@@ -1736,9 +2166,10 @@ stage_locked_skills() {
         [ -n "$group" ] || continue
         source="$(jq -r '.[0].source' <<<"$group")"
         source_url="$(jq -r '.[0].sourceUrl' <<<"$group")"
+        install_source="$(jq -r '.[0].installSource' <<<"$group")"
         names="$(jq -r 'map(.name) | join(", ")' <<<"$group")"
-        log_info "Staging current skills: $names (from $source)"
-        local -a command_args=(add -g "$source" --skill)
+        log_info "Staging current skills: $names (from $install_source)"
+        local -a command_args=(add -g "$install_source" --skill)
         while IFS= read -r install_name; do
             command_args+=("$install_name")
         done < <(jq -r '.[].installName' <<<"$group")
@@ -1746,7 +2177,7 @@ stage_locked_skills() {
             [ "$source_url" = "https://github.com/openclaw/agent-skills.git" ]; then
             command_args+=(--dangerously-accept-openclaw-risks)
         fi
-        command_args+=(--agent codex -y)
+        command_args+=(--agent codex -y --full-depth)
         if ! HOME="$STAGED_SKILLS_HOME" \
             SKILL_LOCK_LIVE="$STAGED_SKILL_LOCK" \
             "$SKILLS_CLI" "${command_args[@]}" </dev/null; then
@@ -2082,12 +2513,12 @@ check_claude_plugin_providers() {
     local known_mp="${HOME}/.claude/plugins/known_marketplaces.json"
     if [ -f "$installed_json" ]; then
         jq '[(.plugins // {} | keys[]) | {name: split("@")[-1]}]' \
-            "$installed_json" | check_marketplace_provider claude || return 1
+            "$installed_json" | check_marketplace_provider claude true || return 1
     fi
     if [ -f "$known_mp" ]; then
         jq '[to_entries[] | {name: .key,
             source: (.value.source.repo // .value.source.url // "")}]' \
-            "$known_mp" | check_marketplace_provider claude || return 1
+            "$known_mp" | check_marketplace_provider claude true || return 1
     fi
 }
 
@@ -2191,7 +2622,7 @@ cmd_claude_plugins_export() {
         diff <(jq -S '{plugins, marketplaces}' "$CLAUDE_MANIFEST") \
             <(jq -S '{plugins, marketplaces}' "$tmp") >&2 || true
         echo "" >&2
-        echo "Run: just push-plugins" >&2
+        echo "Run: just export to review local state, or just sync to restore it" >&2
         rm -f "$tmp"
         return 1
     fi
@@ -2218,27 +2649,37 @@ try_claude_plugin_update() {
 }
 
 cmd_claude_plugins_update() {
+    validate_plugin_manifest "$CLAUDE_MANIFEST" || return 1
     command -v claude >/dev/null 2>&1 || {
         echo "[ERROR] claude CLI not found; cannot update plugins" >&2
         return 1
     }
 
     check_claude_plugin_providers || return 1
-    log_info "Updating Claude plugin marketplaces..."
-    CLAUDECODE='' claude plugin marketplace update || return 1
+
+    local marketplace failed=false
+    while IFS= read -r marketplace; do
+        [ -n "$marketplace" ] || continue
+        log_info "Updating Claude plugin marketplace: $marketplace"
+        CLAUDECODE='' claude plugin marketplace update "$marketplace" ||
+            failed=true
+    done < <(jq -r '.marketplaces // {} | keys[]' "$CLAUDE_MANIFEST")
 
     local installed_json="${HOME}/.claude/plugins/installed_plugins.json"
     if [ ! -f "$installed_json" ]; then
         log_info "No installed Claude plugins to update"
+        [ "$failed" = false ] || return 1
         return 0
     fi
 
     local installed
-    installed=$(jq -r '
+    installed=$(jq -r --slurpfile manifest "$CLAUDE_MANIFEST" '
+        [$manifest[0].plugins[].claude // empty] as $wanted |
         [
             (.plugins // {} | to_entries[] |
                 .key as $plugin |
                 .value[]? |
+                select($wanted | index($plugin) != null) |
                 [$plugin, (.scope // "user"), (.projectPath // "")]
             )
         ] | unique[] | @tsv
@@ -2247,7 +2688,6 @@ cmd_claude_plugins_update() {
         return 1
     }
 
-    local failed=false
     local plugin scope project_path
     while IFS=$'\t' read -r plugin scope project_path; do
         [ -n "$plugin" ] || continue
@@ -2409,13 +2849,92 @@ cmd_lock_skills_export() {
     fi
 }
 
+resolve_skill_source_refs() {
+    jq -e '
+        .skills | all(.[];
+            .sourceType == "github" and
+            (.sourceUrl | type == "string" and
+                startswith("https://github.com/")) and
+            ((.ref // "HEAD") | type == "string" and length > 0)
+        )
+    ' "$SKILL_LOCK_REPO" >/dev/null || {
+        echo "[ERROR] Skill update requires resolvable GitHub sources" >&2
+        return 1
+    }
+
+    local rows refs source_url ref result revision lock_hash
+    rows="$(jq -r '
+        [.skills[] | {
+            sourceUrl,
+            ref: (.ref // "HEAD")
+        }] | unique_by([.sourceUrl, .ref])[] |
+        [.sourceUrl, .ref] | @tsv
+    ' "$SKILL_LOCK_REPO")" || return 1
+    refs="$(mktemp)" || return 1
+    : >"$refs"
+    while IFS=$'\t' read -r source_url ref; do
+        [ -n "$source_url" ] || continue
+        result="$(git ls-remote "$source_url" "$ref")" || {
+            echo "[ERROR] Could not resolve skill source: $source_url $ref" >&2
+            rm -f "$refs"
+            return 1
+        }
+        revision="$(awk 'NR == 1 { print $1 }' <<<"$result")"
+        if [ -z "$revision" ]; then
+            echo "[ERROR] Skill source ref not found: $source_url $ref" >&2
+            rm -f "$refs"
+            return 1
+        fi
+        printf '%s\t%s\t%s\n' "$source_url" "$ref" "$revision" >>"$refs"
+    done <<<"$rows"
+
+    lock_hash="$(git hash-object "$SKILL_LOCK_REPO")" || {
+        rm -f "$refs"
+        return 1
+    }
+    jq -Rn --arg lock "$lock_hash" '
+        {
+            lock: $lock,
+            sources: ([inputs | split("\t") |
+                {key: (.[0] + "#" + .[1]), value: .[2]}] | from_entries)
+        }
+    ' <"$refs"
+    rm -f "$refs"
+}
+
 cmd_skills_update() {
     [ "$#" -eq 0 ] || {
         echo "[ERROR] skills-update takes no arguments" >&2
         return 1
     }
+    local current_refs cache_tmp
+    current_refs="$(mktemp)" || return 1
+    if ! resolve_skill_source_refs >"$current_refs"; then
+        rm -f "$current_refs"
+        return 1
+    fi
+    if [ -f "$SKILL_SOURCE_REFS" ] &&
+        cmp -s "$current_refs" "$SKILL_SOURCE_REFS" &&
+        cmd_skills_check >/dev/null 2>&1; then
+        rm -f "$current_refs"
+        log_info "Global skills already match current upstream"
+        return 0
+    fi
+
     log_info "Updating global skills shared by Codex, Claude, Pi, and OpenCode..."
-    cmd_push_skills
+    if ! cmd_push_skills; then
+        rm -f "$current_refs"
+        return 1
+    fi
+    mkdir -p "$(dirname "$SKILL_SOURCE_REFS")" || {
+        rm -f "$current_refs"
+        return 1
+    }
+    cache_tmp="${SKILL_SOURCE_REFS}.tmp"
+    cp "$current_refs" "$cache_tmp" && mv "$cache_tmp" "$SKILL_SOURCE_REFS"
+    local status=$?
+    rm -f "$current_refs" "$cache_tmp"
+    return "$status"
 }
 
 cmd_plugins_check() {
@@ -2437,6 +2956,67 @@ cmd_plugins_update() {
     [ "$failed" = false ]
 }
 
+validate_skill_export_continuity() {
+    local candidate_lock="$1" candidate_custom="$2"
+    local repo_names candidate_names missing changed
+    local repo_custom candidate_custom_names
+    repo_names="$(mktemp)"
+    candidate_names="$(mktemp)"
+    repo_custom="$(mktemp)"
+    candidate_custom_names="$(mktemp)"
+    jq -r '.skills | keys[]' "$SKILL_LOCK_REPO" | sort -u >"$repo_names"
+    jq -r '.skills | keys[]' "$candidate_lock" | sort -u >"$candidate_names"
+    missing="$(comm -23 "$repo_names" "$candidate_names")"
+    if [ -n "$missing" ]; then
+        echo "[ERROR] Removed or renamed managed skills:" >&2
+        printf '%s\n' "$missing" | sed 's/^/  - /' >&2
+        rm -f "$repo_names" "$candidate_names" \
+            "$repo_custom" "$candidate_custom_names"
+        return 1
+    fi
+
+    changed="$(jq -r --slurpfile live "$candidate_lock" '
+        .skills | to_entries[] |
+        select($live[0].skills[.key] != .value) | .key
+    ' "$SKILL_LOCK_REPO")"
+    if [ -n "$changed" ]; then
+        echo "[ERROR] Existing managed skill metadata changed:" >&2
+        printf '%s\n' "$changed" | sed 's/^/  - /' >&2
+        rm -f "$repo_names" "$candidate_names" \
+            "$repo_custom" "$candidate_custom_names"
+        return 1
+    fi
+
+    write_custom_skill_names "$SHARED_SKILLS_CUSTOM_DIR" "$repo_custom"
+    write_custom_skill_names "$candidate_custom" "$candidate_custom_names"
+    missing="$(comm -23 "$repo_custom" "$candidate_custom_names")"
+    if [ -n "$missing" ]; then
+        echo "[ERROR] Removed or renamed portable skills:" >&2
+        printf '%s\n' "$missing" | sed 's/^/  - /' >&2
+        rm -f "$repo_names" "$candidate_names" \
+            "$repo_custom" "$candidate_custom_names"
+        return 1
+    fi
+    rm -f "$repo_names" "$candidate_names" \
+        "$repo_custom" "$candidate_custom_names"
+}
+
+preflight_skill_candidate() {
+    local candidate_lock="$1"
+    local SKILL_LOCK_REPO="$candidate_lock"
+    stage_locked_skills || return 1
+    cleanup_staged_skills
+}
+
+build_skill_export_candidate() {
+    local candidate_lock="$1" candidate_custom="$2"
+    build_live_skill_inventory "$candidate_lock" "$candidate_custom" ||
+        return 1
+    validate_skill_export_continuity "$candidate_lock" "$candidate_custom" ||
+        return 1
+    preflight_skill_candidate "$candidate_lock"
+}
+
 cmd_pull_skills() {
     [ "$#" -eq 0 ] || {
         echo "[ERROR] pull-skills takes no arguments" >&2
@@ -2447,7 +3027,7 @@ cmd_pull_skills() {
     candidate_dir="$(mktemp -d)"
     candidate_lock="${candidate_dir}/skill-lock.json"
     candidate_custom="${candidate_dir}/skills-custom"
-    build_live_skill_inventory "$candidate_lock" "$candidate_custom" || {
+    build_skill_export_candidate "$candidate_lock" "$candidate_custom" || {
         rm -rf "$candidate_dir"
         return 1
     }
@@ -2605,12 +3185,10 @@ cmd_pull_plugins() {
     fi
 
     candidate="$(mktemp)"
-    cp "$PLUGIN_MANIFEST" "$candidate"
-    local CODEX_PLUGIN_MANIFEST="$candidate"
-    local CLAUDE_MANIFEST="$candidate"
     requested_quiet="$QUIET"
     QUIET=true
-    if ! cmd_plugins_export; then
+    if ! build_plugin_candidate "$candidate"; then
+        QUIET="$requested_quiet"
         rm -f "$candidate"
         return 1
     fi
@@ -2637,6 +3215,15 @@ cmd_pull_plugins() {
         return 1
         ;;
     esac
+}
+
+build_plugin_candidate() {
+    local candidate="$1"
+    cp "$PLUGIN_MANIFEST" "$candidate" || return 1
+    local CODEX_PLUGIN_MANIFEST="$candidate"
+    local CLAUDE_MANIFEST="$candidate"
+    cmd_plugins_export || return 1
+    validate_plugin_manifest "$candidate"
 }
 
 cmd_claude_plugins_push() {
@@ -2702,18 +3289,35 @@ cmd_push_plugins() {
     [ "$failed" = false ]
 }
 
+validate_pi_settings_template() {
+    local template="$1" key
+    key="$(jq -r '
+        . as $settings |
+        ["lastChangelogVersion", "deviceId", "trackingId", "apiKeys"] |
+        map(select(. as $key | $settings | has($key))) |
+        .[0] // empty
+    ' "$template")" || return 1
+    if [ -n "$key" ]; then
+        echo "[ERROR] Pi settings template contains local-only key: $key" >&2
+        return 1
+    fi
+}
+
 render_pi_settings() {
     local source_file="$1"
     local target_file="$2"
 
+    validate_pi_settings_template "$PI_SETTINGS_TEMPLATE" || return 1
     jq -S --slurpfile wanted "$PI_SETTINGS_TEMPLATE" '
-        .lastChangelogVersion? as $last
-        | $wanted[0]
-        + if $last == null then
-            {}
-          else
-            {lastChangelogVersion: $last}
-          end
+        . as $live |
+        reduce [
+            "lastChangelogVersion", "deviceId", "trackingId", "apiKeys"
+        ][] as $key ($wanted[0];
+            if ($live | has($key)) then
+                .[$key] = $live[$key]
+            else .
+            end
+        )
     ' < <(
         if [ -f "$source_file" ]; then
             cat "$source_file"
@@ -2860,7 +3464,10 @@ cmd_pi_check() {
     pi_resources check || failed=true
     pi_models check || failed=true
     tmp="$(mktemp)"
-    render_pi_settings "$PI_SETTINGS_FILE" "$tmp"
+    render_pi_settings "$PI_SETTINGS_FILE" "$tmp" || {
+        rm -f "$tmp"
+        return 1
+    }
     if ! jq -e --slurpfile wanted "$tmp" '. == $wanted[0]' \
         "$PI_SETTINGS_FILE" >/dev/null; then
         echo "[ERROR] Pi settings drift detected: $PI_SETTINGS_FILE" >&2
@@ -2877,7 +3484,284 @@ cmd_pi_check() {
         fi
     done < <(jq -r '.packages[]' "$PI_SETTINGS_TEMPLATE")
 
-    [ "$failed" = false ]
+    [ "$failed" = false ] || return 2
+}
+
+emit_state_plan() {
+    printf '%s\t%s\t%s\t%s\n' "$1" "$2" "$3" "$4"
+}
+
+plan_check() {
+    local category="$1" label="$2" status=0
+    shift 2
+
+    "$@" >/dev/null 2>&1 || status=$?
+    case "$status" in
+    0) emit_state_plan PASS "$category" none "$label state matches repository intent" ;;
+    2) emit_state_plan UPDATE "$category" update "$label state needs repository state" ;;
+    3) emit_state_plan EXPORT "$category" export "$label state has portable local changes" ;;
+    *) emit_state_plan FAIL "$category" update "$label state is missing, invalid, or unreadable" ;;
+    esac
+}
+
+merge_plan_status() {
+    local current="$1" candidate="$2"
+
+    case "$current:$candidate" in
+    FAIL:* | *:FAIL) echo FAIL ;;
+    EXPORT:* | *:EXPORT) echo EXPORT ;;
+    UPDATE:* | *:UPDATE) echo UPDATE ;;
+    *) echo PASS ;;
+    esac
+}
+
+emit_category_plan() {
+    local status="$1" category="$2" label="$3"
+
+    case "$status" in
+    PASS) emit_state_plan PASS "$category" none "$label state matches repository intent" ;;
+    UPDATE) emit_state_plan UPDATE "$category" update "$label state needs repository state" ;;
+    EXPORT) emit_state_plan EXPORT "$category" export "$label state has portable local changes" ;;
+    FAIL) emit_state_plan FAIL "$category" update "$label state is missing, invalid, or conflicting" ;;
+    esac
+}
+
+cmd_mcp_plan() {
+    local rows filtered wanted candidate conflicts actual runtime config
+    local status=PASS
+    rows="$(mktemp)"
+    wanted="$(mktemp)"
+    candidate="$(mktemp)"
+
+    if ! normalize_mcp_inventory "$MCP_SERVERS" >"$wanted"; then
+        rm -f "$rows" "$wanted" "$candidate"
+        emit_category_plan FAIL mcp MCP
+        return 0
+    fi
+    while IFS='|' read -r runtime config; do
+        if [ ! -f "$config" ] || {
+            [ "$runtime" != codex ] &&
+                ! jq -e -s 'length == 1 and (.[0] | type == "object")' \
+                    "$config" >/dev/null 2>&1
+        }; then
+            status=FAIL
+        fi
+    done <<EOF
+codex|$CODEX_CONFIG
+claude|$CLAUDE_USER_CONFIG
+opencode|$OPENCODE_CONFIG
+pi|$PI_MCP_CONFIG
+EOF
+    if [ "$status" = FAIL ] || ! collect_mcp_rows >"$rows"; then
+        rm -f "$rows" "$wanted" "$candidate"
+        emit_category_plan FAIL mcp MCP
+        return 0
+    fi
+    filtered="$(mktemp)"
+    if ! filter_portable_mcp_rows "$rows" "$filtered"; then
+        rm -f "$rows" "$filtered" "$wanted" "$candidate"
+        emit_category_plan FAIL mcp MCP
+        return 0
+    fi
+    mv "$filtered" "$rows"
+
+    conflicts=$(jq -s '
+        sort_by(.name, .runtime) | group_by(.name) |
+        map(select((map(.server | tojson) | unique | length) > 1)) |
+        length
+    ' "$rows") || conflicts=1
+    if [ "$conflicts" -gt 0 ]; then
+        rm -f "$rows" "$wanted" "$candidate"
+        emit_category_plan FAIL mcp MCP
+        return 0
+    fi
+
+    mcp_rows_to_inventory "$rows" >"$candidate"
+    if jq -e --slurpfile wanted "$wanted" '
+        to_entries | any(.[]; $wanted[0][.key] != .value)
+    ' "$candidate" >/dev/null; then
+        status=EXPORT
+    elif ! cmp -s "$wanted" "$candidate"; then
+        status=UPDATE
+    fi
+
+    for runtime in codex claude opencode pi; do
+        actual="$(mktemp)"
+        mcp_rows_to_inventory "$rows" "$runtime" >"$actual"
+        if ! cmp -s "$wanted" "$actual"; then
+            status="$(merge_plan_status "$status" UPDATE)"
+        fi
+        rm -f "$actual"
+    done
+    rm -f "$rows" "$wanted" "$candidate"
+    emit_category_plan "$status" mcp MCP
+}
+
+write_custom_skill_names() {
+    local root="$1" target="$2" path
+
+    : >"$target"
+    [ -d "$root" ] || return 0
+    for path in "$root"/*/ "$root"/*.skill; do
+        [ -e "$path" ] || continue
+        basename "${path%/}" >>"$target"
+    done
+    sort -u -o "$target" "$target"
+}
+
+cmd_skills_plan() {
+    local tmp_dir live_lock live_custom repo_lock expected actual
+    local repo_custom live_custom_names missing extra stale name
+    local runtime root status=PASS
+    tmp_dir="$(mktemp -d)"
+    live_lock="${tmp_dir}/live-lock.json"
+    live_custom="${tmp_dir}/live-custom"
+    repo_lock="${tmp_dir}/repo-lock.json"
+    expected="${tmp_dir}/expected.txt"
+    actual="${tmp_dir}/actual.txt"
+    repo_custom="${tmp_dir}/repo-custom.txt"
+    live_custom_names="${tmp_dir}/live-custom.txt"
+
+    if ! build_live_skill_inventory "$live_lock" "$live_custom" ||
+        ! normalize_skill_lock "$SKILL_LOCK_REPO" >"$repo_lock"; then
+        rm -rf "$tmp_dir"
+        emit_category_plan FAIL skills Skills
+        return 0
+    fi
+
+    if jq -e --slurpfile repo "$repo_lock" '
+        .skills | to_entries | any(.[]; $repo[0].skills[.key] == null)
+    ' "$live_lock" >/dev/null; then
+        status=EXPORT
+    elif ! cmp -s "$repo_lock" "$live_lock"; then
+        status=UPDATE
+    fi
+
+    write_custom_skill_names "$SHARED_SKILLS_CUSTOM_DIR" "$repo_custom"
+    write_custom_skill_names "$live_custom" "$live_custom_names"
+    missing="$(comm -23 "$repo_custom" "$live_custom_names")"
+    extra="$(comm -13 "$repo_custom" "$live_custom_names")"
+    [ -z "$missing" ] || status="$(merge_plan_status "$status" UPDATE)"
+    [ -z "$extra" ] || status="$(merge_plan_status "$status" EXPORT)"
+    while IFS= read -r name; do
+        [ -n "$name" ] || continue
+        if ! diff_custom_skills -qr \
+            "${SHARED_SKILLS_CUSTOM_DIR}/${name}" \
+            "${live_custom}/${name}" >/dev/null 2>&1; then
+            status="$(merge_plan_status "$status" EXPORT)"
+        fi
+    done < <(comm -12 "$repo_custom" "$live_custom_names")
+
+    write_expected_skill_names "$expected"
+    while IFS='|' read -r runtime root; do
+        if ! write_live_skill_names "$root" "$actual"; then
+            status=FAIL
+            continue
+        fi
+        missing="$(comm -23 "$expected" "$actual")"
+        extra="$(comm -13 "$expected" "$actual")"
+        stale="$(find "$root" -mindepth 1 -maxdepth 1 \
+            -type l ! -exec test -e {} \; -print)"
+        [ -z "$missing" ] || status="$(merge_plan_status "$status" UPDATE)"
+        [ -z "$extra" ] || status="$(merge_plan_status "$status" EXPORT)"
+        [ -z "$stale" ] || status=FAIL
+    done < <(skill_runtime_rows)
+
+    rm -rf "$tmp_dir"
+    emit_category_plan "$status" skills Skills
+}
+
+write_plugin_memberships() {
+    jq -r '
+        (.plugins | to_entries[] as $plugin | $plugin.value | to_entries[] |
+            ["plugin", .key, $plugin.key, (.value | tojson)] | @tsv),
+        (.marketplaces | to_entries[] |
+            ["marketplace", "claude", .key, (.value | tojson)] | @tsv),
+        ((.codexMarketplaces // {}) | to_entries[] |
+            ["marketplace", "codex", .key, (.value | tojson)] | @tsv),
+        ((.codexPlugins // [])[] |
+            ["plugin", "codex-marketplace", ., .] | @tsv)
+    ' "$1" | sort -u >"$2"
+}
+
+cmd_plugins_plan() {
+    local candidate wanted actual extra missing requested_quiet
+    local status=PASS claude_plugins
+    candidate="$(mktemp)"
+    wanted="$(mktemp)"
+    actual="$(mktemp)"
+    claude_plugins="${HOME}/.claude/plugins/installed_plugins.json"
+
+    if ! validate_plugin_manifest "$PLUGIN_MANIFEST" >/dev/null 2>&1 ||
+        ! check_claude_plugin_providers >/dev/null 2>&1 ||
+        { ! codex_remote_plugin_state_available &&
+            ! codex_marketplace_plugin_state_available &&
+            ! claude_plugin_state_available "$claude_plugins"; }; then
+        rm -f "$candidate" "$wanted" "$actual"
+        emit_category_plan FAIL plugins Plugins
+        return 0
+    fi
+
+    cp "$PLUGIN_MANIFEST" "$candidate"
+    local CODEX_PLUGIN_MANIFEST="$candidate"
+    local CLAUDE_MANIFEST="$candidate"
+    requested_quiet="$QUIET"
+    QUIET=true
+    if ! cmd_plugins_export >/dev/null 2>&1; then
+        QUIET="$requested_quiet"
+        rm -f "$candidate" "$wanted" "$actual"
+        emit_category_plan FAIL plugins Plugins
+        return 0
+    fi
+    QUIET="$requested_quiet"
+
+    write_plugin_memberships "$PLUGIN_MANIFEST" "$wanted"
+    write_plugin_memberships "$candidate" "$actual"
+    extra="$(comm -13 "$wanted" "$actual")"
+    missing="$(comm -23 "$wanted" "$actual")"
+    [ -z "$missing" ] || status=UPDATE
+    [ -z "$extra" ] || status=EXPORT
+    rm -f "$candidate" "$wanted" "$actual"
+    emit_category_plan "$status" plugins Plugins
+}
+
+cmd_state_plan() {
+    plan_check settings:codex "Codex settings" cmd_codex_check
+    plan_check settings:claude "Claude settings" cmd_claude_settings_check
+    plan_check settings:opencode "OpenCode settings" cmd_opencode_check
+    plan_check settings:pi "Pi settings" cmd_pi_check
+    cmd_mcp_plan
+    cmd_skills_plan
+    cmd_plugins_plan
+}
+
+cmd_settings_install() {
+    if [ "$#" -ne 1 ]; then
+        echo "Usage: $0 settings-install {codex|claude|opencode|pi}" >&2
+        return 1
+    fi
+    case "${1:-}" in
+    codex)
+        sync_codex_mcp_config
+        ;;
+    claude)
+        generate_claude_settings
+        ;;
+    opencode)
+        sync_opencode_mcp_config
+        ;;
+    pi)
+        mkdir -p "$PI_AGENT_DIR" || return 1
+        sync_pi_settings || return 1
+        pi_resources install || return 1
+        pi_models install || return 1
+        restore_pi_packages
+        ;;
+    *)
+        echo "Usage: $0 settings-install {codex|claude|opencode|pi}" >&2
+        return 1
+        ;;
+    esac
 }
 
 cmd_claude_install() {
@@ -2898,7 +3782,11 @@ cmd_claude_install() {
 
 cmd_install() {
     cmd_plugin_provider_preflight || return 1
-    cmd_push_skills || return 1
+    if cmd_skills_check >/dev/null 2>&1; then
+        log_info "Runtime skills already match repository intent"
+    else
+        cmd_push_skills || return 1
+    fi
     cmd_codex_install || return 1
     cmd_opencode_install || return 1
     cmd_pi_install || return 1
@@ -2923,6 +3811,13 @@ while [[ "${1:-}" == --* ]]; do
 done
 
 case "${1:-}" in
+state-plan)
+    cmd_state_plan
+    ;;
+settings-install)
+    shift
+    cmd_settings_install "$@"
+    ;;
 install)
     cmd_install
     ;;
@@ -2980,6 +3875,10 @@ plugins-export)
 plugins-update)
     cmd_plugins_update
     ;;
+export)
+    shift
+    cmd_export "$@"
+    ;;
 opencode-install)
     cmd_opencode_install
     ;;
@@ -3020,6 +3919,8 @@ claude-settings-check)
 *)
     echo "Usage: $0 [--quiet] <command>"
     echo
+    echo "  state-plan      Print the offline local state plan"
+    echo "  settings-install Apply one runtime's repository settings"
     echo "  pull-codex-settings"
     echo "                  Preview and confirm live Codex settings import"
     echo "  pull-mcp         Preview and confirm live MCP import"
@@ -3035,6 +3936,7 @@ claude-settings-check)
     echo "  plugins-check    Check Codex and Claude against shared plugin manifest"
     echo "  plugins-export   Export Codex and Claude into shared plugin manifest"
     echo "  plugins-update   Update Codex marketplaces and installed Claude plugins"
+    echo "  export           Transactionally export portable live state"
     echo "  codex-install    Link AGENTS.md and generate Codex config"
     echo "  codex-check      Exit 1 if Codex config is out of sync"
     echo "  codex-plugins-check"

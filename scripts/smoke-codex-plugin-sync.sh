@@ -71,7 +71,7 @@ grep -F 'Open Codex and enter: /plugins' "$sync_log" \
     >/dev/null || fail "Codex plugin check omitted the interactive command"
 grep -F 'Complete OAuth when prompted' "$sync_log" \
     >/dev/null || fail "Codex plugin check omitted OAuth instructions"
-grep -F 'Run again: just push-plugins' "$sync_log" \
+grep -F 'Run again: just sync' "$sync_log" \
     >/dev/null || fail "Codex plugin check omitted the verification command"
 
 "$DOTFILES_DIR/sync-agents.sh" --quiet codex-plugins-export \
@@ -257,7 +257,7 @@ fi
 
 # Provider ownership must survive imports, aliases, and disabled plugins.
 reject_provider() {
-    local command="$1" marketplace="$2"
+    local command="$1" marketplace="$2" expect_repair="${3:-false}"
     cp "$manifest" "$tmp_dir/provider-before.json"
     : > "$plugin_log"
     if HOME="$tmp_dir/home" CODEX_PLUGIN_LOG="$plugin_log" \
@@ -269,6 +269,11 @@ reject_provider() {
         fail "$command omitted the provider ownership error"
     grep -F "$marketplace" "$sync_log" >/dev/null ||
         fail "$command omitted the foreign marketplace name"
+    if [ "$expect_repair" = true ]; then
+        grep -F "Run: codex plugin marketplace remove $marketplace" \
+            "$sync_log" >/dev/null ||
+            fail "$command omitted the foreign marketplace repair"
+    fi
     cmp -s "$manifest" "$tmp_dir/provider-before.json" ||
         fail "$command imported foreign provider state"
     [ ! -s "$plugin_log" ] || fail "$command mutated foreign provider state"
@@ -283,7 +288,7 @@ for marketplace in claude-plugins-official anthropic-agent-skills; do
         marketplaceSource: {sourceType: "local"}}]' \
         "$tmp_dir/provider-plugins.json" > "$plugin_list"
     for command in codex-plugins-check codex-plugins-export push-plugins plugins-update; do
-        reject_provider "$command" "$marketplace"
+        reject_provider "$command" "$marketplace" true
     done
 done
 
@@ -291,12 +296,12 @@ jq '.installed += [{pluginId: "foreign@renamed", installed: true,
     enabled: true, marketplaceSource: {sourceType: "git",
     source: "git@github.com:anthropics/claude-plugins-official.git"}}]' \
     "$tmp_dir/provider-plugins.json" > "$plugin_list"
-reject_provider codex-plugins-check renamed
+reject_provider codex-plugins-check renamed true
 cp "$tmp_dir/provider-plugins.json" "$plugin_list"
 jq '.marketplaces += [{name: "renamed", marketplaceSource: {sourceType: "git",
     source: "https://github.com/anthropics/skills.git"}}]' \
     "$tmp_dir/provider-marketplaces.json" > "$marketplace_list"
-reject_provider codex-plugins-export renamed
+reject_provider codex-plugins-export renamed true
 cp "$tmp_dir/provider-marketplaces.json" "$marketplace_list"
 
 for filter in \

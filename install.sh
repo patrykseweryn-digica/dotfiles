@@ -279,6 +279,17 @@ setup_repo_git() {
     git -C "$DOTFILES_DIR" config --local branch.master.rebase false
 }
 
+update_managed_links() {
+    ensure_install_dirs
+    deploy_targets <<EOF
+symlink|$DOTFILES_DIR/config/codex/AGENTS.md|$HOME/.codex/AGENTS.md
+symlink|$DOTFILES_DIR/config/claude/CLAUDE.md|$HOME/.claude/CLAUDE.md
+symlink|$DOTFILES_DIR/config/claude/settings.local.json|$HOME/.claude/settings.local.json
+symlink|$DOTFILES_DIR/config/opencode/AGENTS.md|$HOME/.config/opencode/AGENTS.md
+symlink|$DOTFILES_DIR/config/pi/AGENTS.md|$HOME/.pi/agent/AGENTS.md
+EOF
+}
+
 # Setup and link configuration files
 setup_dotfiles() {
     echo "[INFO] Setting up dotfile configurations..."
@@ -286,7 +297,7 @@ setup_dotfiles() {
     # Fail on dispatch conflicts before changing unrelated configuration.
     setup_firstmate || return $?
     ensure_install_dirs
-    # Merge after tool installation; also runs for just update-dotfiles.
+    # Merge after tool installation; the update workflow also calls this.
     uv run --no-project --script "$DOTFILES_DIR/scripts/no-mistakes-config.py"
     uv run --no-project --script "$DOTFILES_DIR/scripts/herdr-config.py"
     mkdir -p "${HOME}/.claude/plugins" "${HOME}/.claude/output-styles" "${HOME}/.claude/skills" "${HOME}/.agents/skills" "${HOME}/.codex" "${HOME}/.summarize"

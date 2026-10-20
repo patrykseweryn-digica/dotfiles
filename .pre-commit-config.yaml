@@ -87,7 +87,10 @@ repos:
         language: system
         pass_filenames: false
       - id: plugin-install-smoke
-        name: Full plugin install smoke test
+        name: Public install lifecycle smoke test
+        description: >-
+          Verify fresh, partial, converged, retry, and repeated install states
+          on the Linux/macOS matrix with external adapters stubbed
         entry: bash scripts/smoke-plugin-install.sh
         language: system
         pass_filenames: false
@@ -123,6 +126,18 @@ repos:
         name: Live machine doctor smoke test
         description: Ensure live drift checks stay outside commit-time hooks
         entry: ./scripts/smoke-doctor.sh
+        language: system
+        pass_filenames: false
+      - id: local-update-smoke
+        name: Local state update smoke test
+        description: Verify planned partial updates and idempotent convergence
+        entry: ./scripts/smoke-update-local.sh
+        language: system
+        pass_filenames: false
+      - id: transactional-export-smoke
+        name: Transactional export smoke test
+        description: Verify one-plan portable checkout export
+        entry: ./scripts/smoke-export.sh
         language: system
         pass_filenames: false
       - id: agent-sync-interface-smoke

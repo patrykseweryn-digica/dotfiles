@@ -1,78 +1,34 @@
 set shell := ["bash", "-eu", "-o", "pipefail", "-c"]
 
 sync_agents := env_var_or_default("SYNC_AGENTS", "./sync-agents.sh")
-agent_tools := env_var_or_default("AGENT_TOOLS", "./scripts/agent-tools.sh")
 
 # Show the public command menu.
 [private]
 default:
     just --list
 
-# Full setup: tools, links, agent config, SSH, hooks.
+# Converge missing tools, links, agent config, SSH, and hooks.
 install:
     ./install.sh
 
-# Update dotfile links and agent config only. No tools, no SSH.
-update-dotfiles:
-    DOTFILES_SKIP_SSH=true bash -c 'source ./install.sh; load_env; setup_repo_git; setup_dotfiles'
+# Pull repository changes, then converge local and upstream state.
+sync:
+    ./scripts/sync-local.sh
+
+# Apply repository local state while preserving additions that need export.
+[private]
+update:
+    ./scripts/update-local.sh
+
+# Export all portable live state after one confirmation.
+export:
+    "{{ sync_agents }}" export
 
 # Run deterministic repository checks.
+[private]
 check:
     pre-commit run --all-files
 
 # Check this machine against repository intent.
 doctor:
     ./scripts/doctor.sh
-
-# Verify repository behavior and this machine before applying or committing.
-verify: check doctor
-
-# Report installed and expected developer tool versions.
-agent-versions:
-    "{{ agent_tools }}" report
-
-# Update Node and developer tools to latest without changing the inventory.
-update-agent-tools:
-    "{{ agent_tools }}" update
-
-# Preview live portable Codex settings, then confirm the repository update.
-pull-codex-settings:
-    "{{ sync_agents }}" pull-codex-settings
-
-# Preview runtime MCP state, then confirm the repository update.
-pull-mcp:
-    "{{ sync_agents }}" pull-mcp
-
-# Render repository MCP state into supported runtimes.
-push-mcp:
-    "{{ sync_agents }}" push-mcp
-
-# Preview runtime skills, then confirm the repository update.
-pull-skills:
-    "{{ sync_agents }}" pull-skills
-
-# Verify every repository skill against current upstream without applying it.
-skills-preflight:
-    "{{ sync_agents }}" skills-preflight
-
-# Update and reconcile repository skills from current upstream.
-push-skills:
-    "{{ sync_agents }}" push-skills
-
-# Preview runtime plugins, then confirm the repository update.
-pull-plugins:
-    "{{ sync_agents }}" pull-plugins
-
-# Apply plugin membership without updating plugin versions.
-push-plugins:
-    "{{ sync_agents }}" push-plugins
-
-# Push MCP, skill, and plugin repository state in order.
-push:
-    failed=false; for category in skills mcp plugins; do \
-        "{{ sync_agents }}" "push-${category}" || failed=true; \
-    done; [ "$failed" = false ]
-
-# Set up SSH keys and ~/.ssh/config.
-setup-ssh:
-    set -a; . ./.env; set +a; ./ssh.sh "$EMAIL" "$WORK_EMAIL"

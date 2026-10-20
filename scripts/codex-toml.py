@@ -167,7 +167,7 @@ def main():
             tofile="repository",
         )
     )
-    return 1
+    return 2
 
 
 if __name__ == "__main__":

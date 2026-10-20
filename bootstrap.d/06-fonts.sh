@@ -43,6 +43,8 @@ install_font() {
 }
 
 install_fonts() {
+    local fonts_changed=false
+
     echo "[INFO] Installing fonts..."
 
     # JetBrains Mono Nerd Font (required by powerlevel10k)
@@ -51,6 +53,7 @@ install_fonts() {
     else
         install_font "JetBrains Mono Nerd Font" \
             "https://github.com/ryanoasis/nerd-fonts/releases/download/v3.4.0/JetBrainsMono.zip"
+        fonts_changed=true
     fi
 
     # JetBrains Mono (clean monospace, no Nerd Font icons)
@@ -59,6 +62,7 @@ install_fonts() {
     else
         install_font "JetBrains Mono" \
             "https://github.com/JetBrains/JetBrainsMono/releases/download/v2.304/JetBrainsMono-2.304.zip"
+        fonts_changed=true
     fi
 
     # FiraCode (programming font with ligatures)
@@ -67,6 +71,7 @@ install_fonts() {
     else
         install_font "FiraCode" \
             "https://github.com/tonsky/FiraCode/releases/download/6.2/Fira_Code_v6.2.zip"
+        fonts_changed=true
     fi
 
     # Source Code Pro (Adobe)
@@ -75,6 +80,7 @@ install_fonts() {
     else
         install_font "Source Code Pro" \
             "https://github.com/adobe-fonts/source-code-pro/releases/download/2.042R-u%2F1.062R-i%2F1.026R-vf/TTF-source-code-pro-2.042R-u_1.062R-i.zip"
+        fonts_changed=true
     fi
 
     # Cascadia Code (Microsoft, with Mono variant without ligatures)
@@ -83,6 +89,7 @@ install_fonts() {
     else
         install_font "Cascadia Code" \
             "https://github.com/microsoft/cascadia-code/releases/download/v2407.24/CascadiaCode-2407.24.zip"
+        fonts_changed=true
     fi
 
     # Iosevka (ultra-configurable, narrow monospace)
@@ -91,6 +98,7 @@ install_fonts() {
     else
         install_font "Iosevka" \
             "https://github.com/be5invis/Iosevka/releases/download/v34.1.0/PkgTTF-Iosevka-34.1.0.zip"
+        fonts_changed=true
     fi
 
     # Monaspace (GitHub, 5 stylistic variants with texture healing)
@@ -99,10 +107,11 @@ install_fonts() {
     else
         install_font "Monaspace" \
             "https://github.com/githubnext/monaspace/releases/download/v1.301/monaspace-static-v1.301.zip"
+        fonts_changed=true
     fi
 
     # Rebuild font cache (Linux only — macOS handles this automatically)
-    if command -v fc-cache >/dev/null 2>&1; then
+    if [ "$fonts_changed" = true ] && command -v fc-cache >/dev/null 2>&1; then
         echo "[INFO] Rebuilding font cache..."
         fc-cache -f
     fi
