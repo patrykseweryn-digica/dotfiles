@@ -123,6 +123,11 @@ done <"$plan_file"
 refresh_phase "missing inventory tools" refresh_core_tools
 refresh_phase "latest core tools" update_declared_latest_core_tools
 refresh_phase "Node and agent tools" "$AGENT_TOOLS" update
+# The refresh activates Node only in its own process. Later phases and the
+# final check must use the same runtime and its global CLIs.
+if ! activate_node >/dev/null; then
+    echo "[WARN] Could not activate the latest installed Node" >&2
+fi
 
 skills_status="$(plan_status skills)"
 if [ "$skills_status" = EXPORT ]; then

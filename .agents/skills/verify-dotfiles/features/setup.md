@@ -30,6 +30,8 @@ Preconditions: dependencies from SKILL.md; run from the checkout root.
   public `just sync` in an isolated HOME and checkout, checks a blocked export
   alongside successful independent categories and upstream refreshes, then
   proves a compatible repeat causes no unnecessary downloads or installs.
+  The caller starts with an older Node; the final check must see the Node
+  and npm CLIs that the refresh installed.
 - **Export once.** Run `bash scripts/smoke-export.sh`. It checks the clean-tree
   gate, one confirmation, settings allowlists, MCP conflict/privacy rejection,
   skill upstream/rename gates, plugin providers, recognized and unknown tools,

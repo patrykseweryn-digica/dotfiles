@@ -83,9 +83,36 @@ elif [ -f "$state/plugins" ]; then
 else
     row UPDATE plugins update "Plugins drift"
 fi
-row PASS tools none "Tools match"
-row PASS node none "Node matches"
+command -v smoke-npm-tool >/dev/null &&
+    row PASS tools none "Tools match" ||
+    row FAIL tools update "smoke-npm-tool is missing"
+latest=""
+for candidate in "$HOME"/.nvm/versions/node/v*; do
+    latest="${candidate##*/}"
+done
+[ "$(node --version)" = "$latest" ] &&
+    row PASS node none "Node matches" ||
+    row UPDATE node update "Active Node differs from latest installed"
 row PASS platform none "Platform supported"
+STUB
+
+# The caller's shell starts with an older Node, as on a long-lived session.
+nvm_dir="${home_dir}/.nvm"
+mkdir -p "${nvm_dir}/versions/node/v24.0.0/bin"
+printf '#!/bin/sh\necho v24.0.0\n' >"${nvm_dir}/versions/node/v24.0.0/bin/node"
+chmod +x "${nvm_dir}/versions/node/v24.0.0/bin/node"
+cat >"${nvm_dir}/nvm.sh" <<'STUB'
+nvm() {
+    local latest="" candidate
+    for candidate in "$NVM_DIR"/versions/node/v*; do
+        latest="${candidate##*/}"
+    done
+    case "$1" in
+    version) echo "$latest" ;;
+    use) export PATH="$NVM_DIR/versions/node/$latest/bin:$PATH" ;;
+    *) return 90 ;;
+    esac
+}
 STUB
 
 cat >"${tmp_dir}/sync-agents.sh" <<'STUB'
@@ -142,6 +169,9 @@ configure_herdr_hook() {
     echo hooks >>"$MUTATION_LOG"
 }
 STUB
+printf 'source %q\n' "${DOTFILES_DIR}/bootstrap.d/07-node.sh" \
+    >>"${tmp_dir}/install.sh"
+# The tool refresh installs a newer Node and an npm CLI in a child process.
 cat >"${tmp_dir}/agent-tools.sh" <<'STUB'
 #!/bin/bash
 set -eu
@@ -149,6 +179,11 @@ printf 'agent-tools %s\n' "$*" >>"$ACTION_LOG"
 [ "$1" = update ]
 [ "${FAIL_AGENT_UPDATE:-false}" = false ] || exit 1
 if [ ! -f "$HOME/.state/agent-tools" ]; then
+    node_bin="$HOME/.nvm/versions/node/v26.0.0/bin"
+    mkdir -p "$node_bin"
+    printf '#!/bin/sh\necho v26.0.0\n' >"$node_bin/node"
+    printf '#!/bin/sh\n' >"$node_bin/smoke-npm-tool"
+    chmod +x "$node_bin/node" "$node_bin/smoke-npm-tool"
     touch "$HOME/.state/agent-tools"
     echo agent-tools >>"$MUTATION_LOG"
 fi
@@ -160,6 +195,7 @@ touch "${state_dir}/export" "${state_dir}/export-skills" \
 
 run_sync() {
     HOME="$home_dir" ACTION_LOG="$action_log" MUTATION_LOG="$mutation_log" \
+        PATH="${nvm_dir}/versions/node/v24.0.0/bin:$PATH" \
         DOTFILES_DIR="$sync_repo" \
         UPDATE_SCRIPT="$UPDATE_SCRIPT" \
         FAIL_AGENT_UPDATE="${1:-false}" \
@@ -233,6 +269,10 @@ grep -Fx 'push-mcp' "$action_log" >/dev/null ||
     fail "MCP adapter was not used"
 grep -Fx '[RESULT] PASS' "${tmp_dir}/update.log" >/dev/null ||
     fail "compatible sync omitted its result"
+for category in node tools; do
+    grep -F "[FINAL] [PASS] ${category}:" "${tmp_dir}/update.log" >/dev/null ||
+        fail "final check missed the refreshed Node: $category"
+done
 
 find "$home_dir" -type f -exec cksum {} \; | sort \
     >"${tmp_dir}/home.before"
