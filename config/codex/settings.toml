@@ -6,6 +6,9 @@ service_tier = "default"
 plan_mode_reasoning_effort = "high"
 personality = "pragmatic"
 
+[sandbox_workspace_write]
+writable_roots = ["/home/pseweryn/.cache/uv"]
+
 [tui]
 status_line = [
     "model-with-reasoning",
