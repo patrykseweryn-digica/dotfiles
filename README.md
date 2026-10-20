@@ -59,7 +59,11 @@ installed Node; it does not check upstream Node releases.
 CLIs. Core entries declare commands, package-manager names, version policy,
 platforms, and explicit GitHub artifacts. Install provisions missing tools
 without checking the network for tools already present. Unsupported direct
-download platforms fail before network access. Developer entries use
+download platforms fail before network access. Without sudo, install skips
+system packages, warns, and uses declared GitHub artifacts. Set
+`adapter: "github-tree"` when a binary needs files from its archive. Install
+then keeps the archive in `~/.local/opt/<command>` and links the binary into
+`~/.local/bin`. Developer entries use
 `channel: "latest"`; update resolves current releases without rewriting the
 inventory. Reports resolve npm `latest` and fail explicitly when the registry
 is unavailable.

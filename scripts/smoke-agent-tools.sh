@@ -33,6 +33,14 @@ if AGENT_TOOL_VERSIONS="$invalid_manifest" \
   "$AGENT_TOOLS" plan >/dev/null 2>&1; then
   fail "manifest accepted a platform without an install source"
 fi
+jq '.tools[0].packages.apt = "demo" |
+  .tools[0] += {"adapter":"github-tree","github":{"repo":"example/demo",
+  "tag":"v1","artifacts":{"linux-x86_64":{"archive":"demo.tar.gz",
+  "binary":"demo"}}}}' "$invalid_manifest" >"${tmp_dir}/invalid-tree.json"
+if AGENT_TOOL_VERSIONS="${tmp_dir}/invalid-tree.json" \
+  "$AGENT_TOOLS" plan >/dev/null 2>&1; then
+  fail "manifest accepted a tree binary outside an archive directory"
+fi
 
 manifest="${tmp_dir}/tool-versions.json"
 stub_dir="${tmp_dir}/stubs"

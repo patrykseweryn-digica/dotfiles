@@ -165,9 +165,26 @@
       "versionPolicy": "system"
     },
     {
+      "adapter": "github-tree",
       "commands": [
         "nvim"
       ],
+      "github": {
+        "artifacts": {
+          "linux-arm64": {
+            "archive": "nvim-linux-arm64.tar.gz",
+            "binary": "nvim-linux-arm64/bin/nvim",
+            "installedName": "nvim"
+          },
+          "linux-x86_64": {
+            "archive": "nvim-linux-x86_64.tar.gz",
+            "binary": "nvim-linux-x86_64/bin/nvim",
+            "installedName": "nvim"
+          }
+        },
+        "repo": "neovim/neovim",
+        "tag": "v0.12.6"
+      },
       "name": "neovim",
       "packages": {
         "apt": "neovim",
@@ -176,7 +193,7 @@
         "pacman": "neovim"
       },
       "scope": "core",
-      "versionPolicy": "system"
+      "versionPolicy": "pinned"
     },
     {
       "commands": [
@@ -197,6 +214,22 @@
       "commands": [
         "shfmt"
       ],
+      "github": {
+        "artifacts": {
+          "linux-arm64": {
+            "archive": "shfmt_{tag}_linux_arm64",
+            "binary": "shfmt_{tag}_linux_arm64",
+            "installedName": "shfmt"
+          },
+          "linux-x86_64": {
+            "archive": "shfmt_{tag}_linux_amd64",
+            "binary": "shfmt_{tag}_linux_amd64",
+            "installedName": "shfmt"
+          }
+        },
+        "repo": "mvdan/sh",
+        "tag": "v3.14.1"
+      },
       "name": "shfmt",
       "packages": {
         "apt": "shfmt",
@@ -205,7 +238,7 @@
         "pacman": "shfmt"
       },
       "scope": "core",
-      "versionPolicy": "system"
+      "versionPolicy": "pinned"
     },
     {
       "commands": [

@@ -74,6 +74,8 @@ run_cli_tool_plan() {
         install_package_manager_package "$tool_name" "$apt_package" \
             "$dnf_package" "$pacman_package" "$brew_package" &&
             package_installed=true
+    elif [ -n "${apt_package}${dnf_package}${pacman_package}" ]; then
+        echo "[WARN] ${tool_name}: sudo unavailable; skipping system package" >&2
     fi
 
     if [ "$package_installed" = true ] && [ -n "$post_install" ]; then
@@ -85,7 +87,7 @@ run_cli_tool_plan() {
         case "$adapter" in
         zoxide-native) install_zoxide_native || return 1 ;;
         uv) install_uv_tool "$tool_name" || return 1 ;;
-        package)
+        package | github-tree)
             if [ -z "$github_repo" ]; then
                 echo "[ERROR] ${tool_name}: no supported install source" >&2
                 return 1
@@ -94,7 +96,11 @@ run_cli_tool_plan() {
                 echo "[ERROR] ${tool_name}: no GitHub artifact for $(tool_platform)" >&2
                 return 1
             fi
-            if [ -n "$github_installed_name" ]; then
+            if [ "$adapter" = github-tree ]; then
+                install_github_tree "$github_repo" "$github_tag" \
+                    "$github_archive" "$github_binary" \
+                    "${github_installed_name:-${github_binary##*/}}" || return 1
+            elif [ -n "$github_installed_name" ]; then
                 install_github_binary "$github_repo" "$github_tag" \
                     "$github_archive" "$github_binary" "$github_installed_name" || return 1
             else

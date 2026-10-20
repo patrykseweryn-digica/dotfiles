@@ -19,8 +19,11 @@ validate_manifest() {
             (($tool.github.tag // "") | nonempty) and
             (($tool.github.artifacts[$platform].archive // "") | nonempty) and
             (($tool.github.artifacts[$platform].binary // "") | nonempty);
+        def artifact_adapter($tool):
+            ($tool.adapter // "package") as $adapter |
+            $adapter == "package" or $adapter == "github-tree";
         def install_source($tool; $platform):
-            if ($tool.adapter // "package") != "package" then true
+            if artifact_adapter($tool) | not then true
             elif ($platform | startswith("darwin-")) then
                 (($tool.packages.brew // "") | nonempty) or
                 github_source($tool; $platform)
@@ -68,9 +71,13 @@ validate_manifest() {
                     $tool.versionPolicy == "system") and
                 (($tool.packages // {}) | type == "object") and
                 (($tool.github // {}) | type == "object") and
-                (($tool.adapter // "package") == "package" or
+                (artifact_adapter($tool) or
                     $tool.adapter == "zoxide-native" or
                     $tool.adapter == "uv") and
+                (if $tool.adapter == "github-tree" then
+                    all(($tool.github.artifacts // {})[];
+                        (.binary // "") | test("^[^/]+/."))
+                 else true end) and
                 all(($tool.platforms // [
                     "darwin-arm64", "darwin-x86_64",
                     "linux-arm64", "linux-x86_64"
