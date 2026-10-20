@@ -15,9 +15,9 @@ Verified on 2026-10-20. Base commit: `ab589331f00f`.
 - Full installation prepares Node and developer tools before agent sync.
   Agent sync adds marketplaces, installs/enables missing required Codex
   plugins, then checks state. Marketplace source conflicts fail explicitly.
-- Treehouse downloads official release archives via the public latest-release
-  redirect. Extraction and execution checks precede replacement in the user's
-  bin directory. Failed downloads preserve the installed binary.
+- Zoxide and Treehouse resolve versions through public latest-release
+  redirects. Treehouse skips a current binary. Validation precedes replacement.
+  Failed downloads preserve the installed binary.
 - The poteto-mode lock selects upstream as `installName: poteto-mode`.
   Its `runtimeName: Poteto Mode` preserves the established runtime name.
   Skills CLI installs into Codex's shared skill directory; existing runtime
@@ -27,10 +27,8 @@ Verified on 2026-10-20. Base commit: `ab589331f00f`.
 
 ## Reproduced causes
 
-- Treehouse's upstream shell installer called
-  `https://api.github.com/repos/kunchenguid/treehouse/releases/latest`.
-  HTTP 403 contained `API rate limit exceeded`; response headers reported
-  limit 60 and remaining 0. No credentials are needed for the new route.
+- GitHub's unauthenticated REST quota blocked zoxide checks and Treehouse's
+  self-update command. Both updates now use public release redirects.
 - Skills 1.5.23 rejected `--skill poteto-mode` when upstream used
   `Poteto Mode`. Current upstream uses `poteto-mode`; the lock follows it.
   The staging override preserves the established runtime name.

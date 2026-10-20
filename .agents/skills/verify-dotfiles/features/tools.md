@@ -27,7 +27,8 @@ Preconditions: working host Node/npm; no live update needed for verification.
   path installs a real fixture npm CLI from a local tarball, reads its version,
   checks that inventory bytes did not change, and verifies repair after
   independently changing the installed package. Native tools use only their
-  declared self-update commands.
+  declared self-update commands. Treehouse uses the managed public release
+  redirect and skips a current binary.
 - **Core install plan.** Run `bash scripts/smoke-tool-plan.sh`. It exercises
   package managers, explicit Darwin/Linux artifacts, installed-tool skips,
   and failure before network access for an undeclared architecture.

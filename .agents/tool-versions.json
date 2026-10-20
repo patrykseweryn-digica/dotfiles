@@ -568,11 +568,7 @@
       "channel": "latest",
       "command": "treehouse",
       "installer": "treehouse-native",
-      "name": "Treehouse",
-      "update": [
-        "treehouse",
-        "update"
-      ]
+      "name": "Treehouse"
     },
     {
       "channel": "latest",

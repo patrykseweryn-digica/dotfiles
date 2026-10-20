@@ -634,8 +634,15 @@ STUB
         # shellcheck source=/dev/null
         source "${DOTFILES_DIR}/bootstrap.d/05-tools.sh"
         curl() {
-            echo curl >>"$SMOKE_LOG"
-            printf '{"tag_name":"v%s"}\n' "${LATEST_ZOXIDE:-1.0.0}"
+            echo "curl $*" >>"$SMOKE_LOG"
+            case "$*" in
+            *api.github.com*) return 22 ;;
+            *example/zoxide/releases/latest*)
+                printf 'https://github.com/example/zoxide/releases/tag/v%s\n' \
+                    "${LATEST_ZOXIDE:-1.0.0}"
+                ;;
+            *) return 1 ;;
+            esac
         }
         install_zoxide_native() { echo zoxide-install >>"$SMOKE_LOG"; }
 
@@ -647,8 +654,10 @@ STUB
         fi
     )
 
-    [ "$(grep -Fxc curl "$log_file")" -eq 2 ] ||
+    [ "$(grep -Fc 'example/zoxide/releases/latest' "$log_file")" -eq 2 ] ||
         fail "latest zoxide was not queried on each update"
+    ! grep -F 'api.github.com' "$log_file" >/dev/null ||
+        fail "latest zoxide used the rate-limited GitHub API"
     [ "$(grep -Fxc zoxide-install "$log_file")" -eq 1 ] ||
         fail "current zoxide was downloaded unnecessarily"
     [ "$(grep -Fxc 'uv tool upgrade pre-commit' "$log_file")" -eq 2 ] ||
