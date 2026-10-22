@@ -196,6 +196,7 @@ smoke_package_manager_plan() {
             printf '#!/bin/sh\n' >"${BIN_DIR}/${name}"
             chmod +x "${BIN_DIR}/${name}"
         }
+        install_github_tree() { echo "github-tree $*" >>"$log_file"; }
         install_zoxide_native() {
             printf '#!/bin/sh\n' >"${BIN_DIR}/zoxide"
             chmod +x "${BIN_DIR}/zoxide"
@@ -268,6 +269,7 @@ smoke_linuxbrew_without_sudo_plan() {
         }
 
         install_github_binary() { return 1; }
+        install_github_tree() { return 1; }
         install_zoxide_native() { return 1; }
         install_uv_tool() { return 1; }
 
@@ -338,6 +340,7 @@ smoke_remaining_tool_plan() {
         install_github_binary() {
             echo "github $*" >>"$log_file"
         }
+        install_github_tree() { echo "github-tree $*" >>"$log_file"; }
         install_zoxide_native() { return 1; }
         install_uv_tool() { return 1; }
 
@@ -419,6 +422,7 @@ STUB
         install_github_binary() {
             echo "github $*" >>"$log_file"
         }
+        install_github_tree() { echo "github-tree $*" >>"$log_file"; }
 
         export SMOKE_LOG="$log_file"
         # shellcheck disable=SC2034
@@ -438,6 +442,7 @@ STUB
     assert_log_not_contains "$log_file" "brew install"
     assert_log_not_contains "$log_file" "apt-get install"
     assert_log_not_contains "$log_file" "github "
+    assert_log_not_contains "$log_file" "github-tree "
     assert_log_not_contains "$log_file" "tldr --update"
 
     rm -rf "$tmp_dir"
@@ -468,6 +473,9 @@ smoke_github_fallback_plan() {
         install_github_binary() {
             echo "github $*" >>"$log_file"
         }
+        install_github_tree() {
+            echo "github-tree $*" >>"$log_file"
+        }
         install_zoxide_native() { return 1; }
         install_uv_tool() { return 1; }
 
@@ -480,8 +488,18 @@ smoke_github_fallback_plan() {
         BIN_DIR="$bin_dir"
         PATH="${bin_dir}:/usr/bin:/bin"
 
-        install_declared_core_tools >/dev/null || true
+        install_declared_core_tools >/dev/null 2>"${tmp_dir}/errors.log" ||
+            true
     )
+
+    assert_log_contains "$log_file" \
+        "github mvdan/sh v3.14.1 shfmt_{tag}_linux_amd64 shfmt_{tag}_linux_amd64 shfmt"
+    assert_log_contains "$log_file" \
+        "github-tree neovim/neovim v0.12.6 nvim-linux-x86_64.tar.gz nvim-linux-x86_64/bin/nvim nvim"
+    assert_log_contains "${tmp_dir}/errors.log" \
+        "[WARN] tmux: sudo unavailable; skipping system package"
+    assert_log_contains "${tmp_dir}/errors.log" \
+        "[ERROR] tmux: no supported install source"
 
     assert_log_contains "$log_file" "github junegunn/fzf v0.67.0 fzf-{tag_no_v}-linux_amd64.tar.gz fzf"
     assert_log_contains "$log_file" "github sharkdp/bat v0.26.1 bat-{tag}-x86_64-unknown-linux-gnu.tar.gz bat"
@@ -514,9 +532,15 @@ smoke_macos_github_patterns() {
             (.github.artifacts | keys | sort) == ($platforms | sort)) and
         (.tools[] | select(.name == "hadolint") |
             (.github.artifacts | keys | sort) == ($platforms | sort)) and
+        (.tools[] | select(.name == "neovim") | .adapter == "github-tree" and
+            (.github.artifacts | keys) == ["linux-arm64", "linux-x86_64"]) and
+        (.tools[] | select(.name == "shfmt") |
+            (.github.artifacts | keys) == ["linux-arm64", "linux-x86_64"]) and
         (.tools[] | select(.command == "bw") |
             .package == "@bitwarden/cli" and .installer == "npm" and
-            .channel == "latest")
+            .channel == "latest") and
+        (.tools[] | select(.name == "zoxide") |
+            .github.repo == "ajeetdsouza/zoxide")
     ' "${DOTFILES_DIR}/.agents/tool-versions.json" >/dev/null ||
         fail "inventory platform artifacts are incomplete"
 }
@@ -547,6 +571,7 @@ JSON
         source "${DOTFILES_DIR}/bootstrap.d/05-tools.sh"
         check_installed() { return 1; }
         install_github_binary() { echo network >>"$log_file"; }
+        install_github_tree() { echo network >>"$log_file"; }
         install_declared_core_tools >/dev/null 2>&1
     ); then
         fail "unsupported artifact was accepted"
@@ -588,17 +613,86 @@ smoke_direct_binary_install() {
         BIN_DIR="$bin_dir"
 
         install_github_binary "jqlang/jq" "jq-1.7.1" "jq-linux-amd64" "jq-linux-amd64" "jq" >/dev/null
+        install_github_binary "mvdan/sh" "v3.14.1" "shfmt_{tag}_linux_amd64" \
+            "shfmt_{tag}_linux_amd64" "shfmt" >/dev/null
     )
 
     [ -x "${bin_dir}/jq" ] || fail "direct GitHub binary asset was not installed"
+    [ -x "${bin_dir}/shfmt" ] ||
+        fail "versioned GitHub binary asset was not installed"
+
+    rm -rf "$tmp_dir"
+}
+
+smoke_tree_install() {
+    local tmp_dir bin_dir opt_dir fixture
+
+    tmp_dir="$(mktemp -d)"
+    bin_dir="${tmp_dir}/bin"
+    opt_dir="${tmp_dir}/opt"
+    fixture="${tmp_dir}/fixture"
+    mkdir -p "$bin_dir" "${fixture}/demo-linux/bin" \
+        "${fixture}/demo-linux/share/demo"
+    printf '#!/bin/sh\necho demo\n' >"${fixture}/demo-linux/bin/demo"
+    chmod +x "${fixture}/demo-linux/bin/demo"
+    echo first >"${fixture}/demo-linux/share/demo/runtime.txt"
+    tar -czf "${tmp_dir}/first.tar.gz" -C "$fixture" demo-linux
+    echo second >"${fixture}/demo-linux/share/demo/runtime.txt"
+    tar -czf "${tmp_dir}/second.tar.gz" -C "$fixture" demo-linux
+    rm "${fixture}/demo-linux/bin/demo"
+    tar -czf "${tmp_dir}/broken.tar.gz" -C "$fixture" demo-linux
+
+    (
+        # shellcheck source=/dev/null
+        source "${DOTFILES_DIR}/bootstrap.d/00-utils.sh"
+
+        curl() {
+            local output_path=""
+
+            while [ "$#" -gt 0 ]; do
+                case "$1" in
+                -o)
+                    shift
+                    output_path="$1"
+                    ;;
+                esac
+                shift
+            done
+            cp "${SMOKE_ARCHIVES}/${SMOKE_FIXTURE}.tar.gz" "$output_path"
+        }
+
+        SMOKE_ARCHIVES="$tmp_dir"
+        # shellcheck disable=SC2034
+        BIN_DIR="$bin_dir"
+        # shellcheck disable=SC2034
+        OPT_DIR="$opt_dir"
+        for SMOKE_FIXTURE in first second; do
+            install_github_tree "example/demo" "v1" "demo-{tag}.tar.gz" \
+                "demo-linux/bin/demo" "demo" >/dev/null
+        done
+        SMOKE_FIXTURE=broken
+        if install_github_tree "example/demo" "v1" "demo-{tag}.tar.gz" \
+            "demo-linux/bin/demo" "demo" >/dev/null 2>&1; then
+            fail "archive without its executable was accepted"
+        fi
+    )
+
+    [ "$("${bin_dir}/demo")" = demo ] || fail "tree executable is not runnable"
+    [ "$(readlink "${bin_dir}/demo")" = "${opt_dir}/demo/bin/demo" ] ||
+        fail "tree executable link points outside its tree"
+    [ "$(cat "${opt_dir}/demo/share/demo/runtime.txt")" = second ] ||
+        fail "tree reinstall did not replace runtime files"
+    [ ! -e "${opt_dir}/demo/demo-linux" ] ||
+        fail "tree reinstall nested the archive root"
 
     rm -rf "$tmp_dir"
 }
 
 smoke_latest_core_updates() {
-    local tmp_dir manifest bin_dir log_file
+    local tmp_dir manifest invalid_manifest bin_dir log_file
     tmp_dir="$(mktemp -d)"
     manifest="${tmp_dir}/tools.json"
+    invalid_manifest="${tmp_dir}/invalid-tools.json"
     bin_dir="${tmp_dir}/bin"
     log_file="${tmp_dir}/actions.log"
     mkdir -p "$bin_dir"
@@ -612,6 +706,8 @@ smoke_latest_core_updates() {
    "versionPolicy":"latest","adapter":"uv"}
 ]}
 JSON
+    jq '.tools |= map(select(.name == "zoxide")) |
+        del(.tools[0].github)' "$manifest" >"$invalid_manifest"
     printf '#!/bin/sh\necho "zoxide 1.0.0"\n' >"${bin_dir}/zoxide"
     printf '#!/bin/sh\n' >"${bin_dir}/pre-commit"
     cat >"${bin_dir}/uv" <<'STUB'
@@ -629,17 +725,30 @@ STUB
         # shellcheck source=/dev/null
         source "${DOTFILES_DIR}/bootstrap.d/05-tools.sh"
         curl() {
-            echo curl >>"$SMOKE_LOG"
-            printf '{"tag_name":"v%s"}\n' "${LATEST_ZOXIDE:-1.0.0}"
+            echo "curl $*" >>"$SMOKE_LOG"
+            case "$*" in
+            *api.github.com*) return 22 ;;
+            *example/zoxide/releases/latest*)
+                printf 'https://github.com/example/zoxide/releases/tag/v%s\n' \
+                    "${LATEST_ZOXIDE:-1.0.0}"
+                ;;
+            *) return 1 ;;
+            esac
         }
         install_zoxide_native() { echo zoxide-install >>"$SMOKE_LOG"; }
 
         update_declared_latest_core_tools >/dev/null
         LATEST_ZOXIDE=1.1.0 update_declared_latest_core_tools >/dev/null
+        if TOOL_INVENTORY="$invalid_manifest" \
+            update_declared_latest_core_tools >/dev/null 2>&1; then
+            fail "latest zoxide accepted a missing GitHub repository"
+        fi
     )
 
-    [ "$(grep -Fxc curl "$log_file")" -eq 2 ] ||
+    [ "$(grep -Fc 'example/zoxide/releases/latest' "$log_file")" -eq 2 ] ||
         fail "latest zoxide was not queried on each update"
+    ! grep -F 'api.github.com' "$log_file" >/dev/null ||
+        fail "latest zoxide used the rate-limited GitHub API"
     [ "$(grep -Fxc zoxide-install "$log_file")" -eq 1 ] ||
         fail "current zoxide was downloaded unnecessarily"
     [ "$(grep -Fxc 'uv tool upgrade pre-commit' "$log_file")" -eq 2 ] ||
@@ -746,6 +855,7 @@ smoke_github_fallback_plan
 smoke_macos_github_patterns
 smoke_unsupported_artifact_stops_before_network
 smoke_direct_binary_install
+smoke_tree_install
 smoke_latest_core_updates
 
 echo "[INFO] tool plan smoke test passed"

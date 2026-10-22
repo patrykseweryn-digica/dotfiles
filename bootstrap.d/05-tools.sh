@@ -74,6 +74,8 @@ run_cli_tool_plan() {
         install_package_manager_package "$tool_name" "$apt_package" \
             "$dnf_package" "$pacman_package" "$brew_package" &&
             package_installed=true
+    elif [ -n "${apt_package}${dnf_package}${pacman_package}" ]; then
+        echo "[WARN] ${tool_name}: sudo unavailable; skipping system package" >&2
     fi
 
     if [ "$package_installed" = true ] && [ -n "$post_install" ]; then
@@ -85,7 +87,7 @@ run_cli_tool_plan() {
         case "$adapter" in
         zoxide-native) install_zoxide_native || return 1 ;;
         uv) install_uv_tool "$tool_name" || return 1 ;;
-        package)
+        package | github-tree)
             if [ -z "$github_repo" ]; then
                 echo "[ERROR] ${tool_name}: no supported install source" >&2
                 return 1
@@ -94,7 +96,11 @@ run_cli_tool_plan() {
                 echo "[ERROR] ${tool_name}: no GitHub artifact for $(tool_platform)" >&2
                 return 1
             fi
-            if [ -n "$github_installed_name" ]; then
+            if [ "$adapter" = github-tree ]; then
+                install_github_tree "$github_repo" "$github_tag" \
+                    "$github_archive" "$github_binary" \
+                    "${github_installed_name:-${github_binary##*/}}" || return 1
+            elif [ -n "$github_installed_name" ]; then
                 install_github_binary "$github_repo" "$github_tag" \
                     "$github_archive" "$github_binary" "$github_installed_name" || return 1
             else
@@ -232,12 +238,11 @@ install_declared_core_tools() {
 }
 
 github_latest_version() {
-    local repo="$1" payload tag
-    payload="$(curl -fsSL \
-        "https://api.github.com/repos/${repo}/releases/latest")" || return 1
-    tag="$(printf '%s\n' "$payload" | "$JQ_BIN" -er '
-        .tag_name | select(test("^v?[0-9]+[.][0-9]+[.][0-9]+$"))
-    ')" || return 1
+    local repo="$1" release tag
+    release="$(curl -fsSL -o /dev/null -w '%{url_effective}' \
+        "https://github.com/${repo}/releases/latest")" || return 1
+    tag="${release##*/}"
+    [[ "$tag" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+$ ]] || return 1
     printf '%s\n' "${tag#v}"
 }
 
@@ -256,6 +261,11 @@ update_declared_latest_core_tools() {
         fi
         case "$adapter" in
         zoxide-native)
+            if [ "$repo" = - ]; then
+                echo "[ERROR] ${name}: GitHub release repository is missing" >&2
+                failed=true
+                continue
+            fi
             output="$("$command_name" --version 2>/dev/null)" || {
                 failed=true
                 continue
@@ -405,7 +415,7 @@ configure_herdr_hook() {
 }
 
 install_treehouse() (
-    local os arch release version archive task_dir
+    local os arch latest version archive task_dir output current
     os="$(uname -s)"
     arch="$(uname -m)"
     case "$os" in
@@ -419,16 +429,20 @@ install_treehouse() (
     *) echo "[ERROR] Unsupported architecture for Treehouse: $arch" >&2; return 1 ;;
     esac
 
-    # Public release redirects avoid GitHub's unauthenticated API quota.
-    release=$(curl -fsSL -o /dev/null -w '%{url_effective}' \
-        https://github.com/kunchenguid/treehouse/releases/latest) || {
+    latest="$(github_latest_version kunchenguid/treehouse)" || {
         echo "[ERROR] Treehouse: failed to resolve latest release" >&2
         return 1
     }
-    version="${release##*/}"
-    if [[ ! "$version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-        echo "[ERROR] Treehouse: invalid release URL: $release" >&2
-        return 1
+    version="v${latest}"
+    if [ -x "$BIN_DIR/treehouse" ]; then
+        output="$("$BIN_DIR/treehouse" --version 2>/dev/null || true)"
+        if [[ "$output" =~ ([0-9]+\.[0-9]+\.[0-9]+) ]]; then
+            current="${BASH_REMATCH[1]}"
+        fi
+        if [ "${current:-}" = "$latest" ]; then
+            echo "[INFO] Treehouse $version already current"
+            return 0
+        fi
     fi
     mkdir -p "$BIN_DIR" || return 1
     task_dir=$(mktemp -d "${BIN_DIR}/.treehouse.XXXXXX") || return 1

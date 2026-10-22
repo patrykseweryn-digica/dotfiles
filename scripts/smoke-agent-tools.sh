@@ -33,6 +33,14 @@ if AGENT_TOOL_VERSIONS="$invalid_manifest" \
   "$AGENT_TOOLS" plan >/dev/null 2>&1; then
   fail "manifest accepted a platform without an install source"
 fi
+jq '.tools[0].packages.apt = "demo" |
+  .tools[0] += {"adapter":"github-tree","github":{"repo":"example/demo",
+  "tag":"v1","artifacts":{"linux-x86_64":{"archive":"demo.tar.gz",
+  "binary":"demo"}}}}' "$invalid_manifest" >"${tmp_dir}/invalid-tree.json"
+if AGENT_TOOL_VERSIONS="${tmp_dir}/invalid-tree.json" \
+  "$AGENT_TOOLS" plan >/dev/null 2>&1; then
+  fail "manifest accepted a tree binary outside an archive directory"
+fi
 
 manifest="${tmp_dir}/tool-versions.json"
 stub_dir="${tmp_dir}/stubs"
@@ -250,7 +258,7 @@ cat >"$manifest" <<'JSON'
 {"tools":[
  {"name":"Hermes Agent","command":"hermes","installer":"hermes-native","channel":"latest","update":["hermes","update"]},
  {"name":"Herdr","command":"herdr","installer":"herdr-native","channel":"latest","update":["herdr","update"]},
- {"name":"Treehouse","command":"treehouse","installer":"treehouse-native","channel":"latest","update":["treehouse","update"]},
+ {"name":"Treehouse","command":"treehouse","installer":"treehouse-native","channel":"latest"},
  {"name":"no-mistakes","command":"no-mistakes","installer":"no-mistakes-native","channel":"latest","update":["no-mistakes","update"]},
  {"name":"Cursor CLI","command":"agent","installer":"cursor-native","channel":"latest","update":["agent","update"]},
  {"name":"Grok Build","command":"grok","installer":"grok-native","channel":"latest","update":["grok","update"]}
@@ -283,6 +291,7 @@ INSTALLER
         exit 0 ;;
     *treehouse/releases/latest*)
         [ "${NATIVE_DOWNLOAD_FAIL:-false}" = false ] || exit 22
+        echo treehouse-check >> "$NATIVE_LOG"
         echo 'https://github.com/kunchenguid/treehouse/releases/tag/v1.2.3'
         exit 0 ;;
     *treehouse/releases/download/*)
@@ -311,6 +320,11 @@ mkdir -p "$HOME/.local/bin"
 cat > "$HOME/.local/bin/$name" <<'CLI'
 #!/bin/bash
 if [ "$1" = --version ]; then echo 1.2.3; exit; fi
+if [ "$1" = update ] && [ "$(basename "$0")" = herdr ] &&
+    [ "${HERDR_ENV:-}" = 1 ]; then
+    echo 'update failed: run `herdr update` outside herdr after detaching from the session' >&2
+    exit 1
+fi
 if [ "$1" = update ]; then echo "update $(basename "$0")" >> "$NATIVE_LOG"; exit; fi
 [ "$*" = 'integration install claude' ] || exit 1
 mkdir -p "$CLAUDE_CONFIG_DIR/hooks"
@@ -343,10 +357,25 @@ for name in hermes herdr treehouse no-mistakes cursor-agent grok; do
   [ "$(grep -Fxc "$name" "$native_log")" -eq 1 ] || fail "native install missing: $name"
 done
 : >"$native_log"
-"$AGENT_TOOLS" update
-for name in hermes herdr treehouse no-mistakes agent grok; do
+env -u HERDR_ENV "$AGENT_TOOLS" update
+for name in hermes herdr no-mistakes agent grok; do
   grep -Fx "update $name" "$native_log" >/dev/null || fail "native update missing: $name"
 done
+# Herdr refuses to update from inside its own panes; sync must continue.
+: >"$native_log"
+HERDR_ENV=1 "$AGENT_TOOLS" update >"$tmp_dir/herdr-pane.log" 2>&1 || {
+  cat "$tmp_dir/herdr-pane.log" >&2
+  fail "update failed inside a Herdr pane"
+}
+grep -F '[SKIP] Herdr: run `herdr update` outside Herdr after detaching' \
+  "$tmp_dir/herdr-pane.log" >/dev/null || fail "Herdr skip was not reported"
+! grep -Fx 'update herdr' "$native_log" >/dev/null ||
+  fail "Herdr update ran inside a Herdr pane"
+grep -Fx 'update hermes' "$native_log" >/dev/null ||
+  fail "Herdr skip stopped other native updates"
+grep -Fx treehouse-check "$native_log" >/dev/null || fail "Treehouse update was not checked"
+! grep -Fx treehouse "$native_log" >/dev/null || fail "current Treehouse was downloaded"
+! grep -Fx 'update treehouse' "$native_log" >/dev/null || fail "Treehouse used its API updater"
 [ "$(agent --version)" = 2026.09.28-test ] || fail "Grok replaced Cursor's agent"
 [ ! -L "$HOME/.grok/bin/agent" ] || fail "Grok's agent symlink was not removed"
 [ "$(grok --version)" = 1.2.3 ] || fail "Grok CLI missing from PATH"

@@ -27,10 +27,13 @@ Preconditions: working host Node/npm; no live update needed for verification.
   path installs a real fixture npm CLI from a local tarball, reads its version,
   checks that inventory bytes did not change, and verifies repair after
   independently changing the installed package. Native tools use only their
-  declared self-update commands.
+  declared self-update commands. Treehouse uses the managed public release
+  redirect and skips a current binary. Inside a Herdr pane, the Herdr update
+  is skipped with an instruction and other updates continue.
 - **Core install plan.** Run `bash scripts/smoke-tool-plan.sh`. It exercises
   package managers, explicit Darwin/Linux artifacts, installed-tool skips,
-  and failure before network access for an undeclared architecture.
+  sudo-less fallback warnings, archive-tree installs and replacement, and
+  failure before network access for an undeclared architecture.
 - **Node upgrade.** Run `bash scripts/smoke-node.sh`. It drives bootstrap
   with an isolated nvm provider, changes the upstream version, reads the
   selected Node and default alias, and verifies the previous runtime survives

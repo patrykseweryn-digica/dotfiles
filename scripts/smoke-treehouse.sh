@@ -3,10 +3,14 @@ set -eu
 repo="$(cd "$(dirname "$0")/.." && pwd)"
 task_dir="$(mktemp -d)"
 trap 'rm -rf "$task_dir"' EXIT
-mkdir -p "$task_dir/stubs" "$task_dir/package"
-printf '#!/bin/sh\necho "treehouse v2.3.0"\n' > "$task_dir/package/treehouse"
-chmod +x "$task_dir/package/treehouse"
-tar czf "$task_dir/release.tar.gz" -C "$task_dir/package" treehouse
+mkdir -p "$task_dir/stubs" "$task_dir/package-2.3.0" "$task_dir/package-2.4.0"
+for version in 2.3.0 2.4.0; do
+    printf '#!/bin/sh\necho "treehouse v%s"\n' "$version" > \
+        "$task_dir/package-$version/treehouse"
+    chmod +x "$task_dir/package-$version/treehouse"
+    tar czf "$task_dir/release-$version.tar.gz" \
+        -C "$task_dir/package-$version" treehouse
+done
 cat > "$task_dir/stubs/uname" <<'STUB'
 #!/bin/sh
 if [ "$1" = -s ]; then echo "$TEST_OS"; else echo "$TEST_ARCH"; fi
@@ -17,17 +21,23 @@ set -eu
 printf '%s\n' "$*" >> "$TREEHOUSE_LOG"
 case "$*" in
     *api.github.com*) echo 'API rate limit exceeded' >&2; exit 22 ;;
-    *releases/latest*) echo 'https://github.com/kunchenguid/treehouse/releases/tag/v2.3.0' ;;
-    *releases/download/v2.3.0/treehouse-v2.3.0-*.tar.gz*)
+    *releases/latest*)
+        echo "https://github.com/kunchenguid/treehouse/releases/tag/v${LATEST_TREEHOUSE:-2.3.0}" ;;
+    *releases/download/v*/treehouse-v*-*.tar.gz*)
         [ "${FAIL_DOWNLOAD:-false}" = false ] || { echo 'download interrupted' >&2; exit 22; }
+        for arg in "$@"; do
+            case "$arg" in *releases/download/v*) url="$arg" ;; esac
+        done
+        version="${url#*releases/download/v}"
+        version="${version%%/*}"
         while [ "$1" != -o ]; do shift; done
-        cp "$TREEHOUSE_ARCHIVE" "$2" ;;
+        cp "$TREEHOUSE_ARCHIVE_DIR/release-$version.tar.gz" "$2" ;;
     *) echo "unexpected URL: $*" >&2; exit 1 ;;
 esac
 STUB
 chmod +x "$task_dir/stubs/"*
 export PATH="$task_dir/stubs:$PATH"
-export TREEHOUSE_ARCHIVE="$task_dir/release.tar.gz" TREEHOUSE_LOG="$task_dir/calls"
+export TREEHOUSE_ARCHIVE_DIR="$task_dir" TREEHOUSE_LOG="$task_dir/calls"
 export DOTFILES_DIR="$repo"
 # shellcheck source=bootstrap.d/05-tools.sh
 source "$repo/bootstrap.d/05-tools.sh"
@@ -39,12 +49,19 @@ for TEST_OS in Linux Darwin; do
         install_treehouse > "$task_dir/output" 2>&1 || { cat "$task_dir/output"; exit 1; }
         [ "$("$BIN_DIR/treehouse" --version)" = 'treehouse v2.3.0' ]
         cp "$BIN_DIR/treehouse" "$task_dir/before"
-        if FAIL_DOWNLOAD=true install_treehouse > "$task_dir/output" 2>&1; then
+        : >"$TREEHOUSE_LOG"
+        FAIL_DOWNLOAD=true install_treehouse > "$task_dir/output" 2>&1 || {
+            cat "$task_dir/output"; exit 1;
+        }
+        ! rg -q 'releases/download' "$TREEHOUSE_LOG"
+        if LATEST_TREEHOUSE=2.4.0 FAIL_DOWNLOAD=true \
+            install_treehouse > "$task_dir/output" 2>&1; then
             echo 'Failed download passed' >&2; exit 1
         fi
         rg -q 'Treehouse' "$task_dir/output"
         cmp "$task_dir/before" "$BIN_DIR/treehouse"
-        install_treehouse
+        LATEST_TREEHOUSE=2.4.0 install_treehouse
+        [ "$("$BIN_DIR/treehouse" --version)" = 'treehouse v2.4.0' ]
     done
 done
 TEST_ARCH=riscv64

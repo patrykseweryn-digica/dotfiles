@@ -229,6 +229,11 @@ JSON
 cat > "${stub_dir}/codex" <<'STUB'
 #!/bin/bash
 printf '%s\n' "$*" >> "$CODEX_PLUGIN_LOG"
+if [[ "$*" == plugin\ marketplace\ upgrade* ]] &&
+    [ "${FAIL_CODEX_UPGRADE:-false}" = true ]; then
+    mkdir -p "$CODEX_HOME/.tmp/marketplaces/.staging/marketplace-upgrade-new"
+    exit 1
+fi
 STUB
 cat > "${stub_dir}/claude" <<'STUB'
 #!/bin/bash
@@ -237,6 +242,10 @@ STUB
 chmod +x "${stub_dir}/codex" "${stub_dir}/claude"
 mkdir -p "${tmp_dir}/home"
 : > "$plugin_log"
+jq '.codexMarketplaceSparsePaths = {
+    official: [".claude-plugin", "plugin"]
+}' "$manifest" > "$manifest.next"
+mv "$manifest.next" "$manifest"
 HOME="${tmp_dir}/home" PATH="${stub_dir}:$PATH" \
     CODEX_PLUGIN_LOG="$plugin_log" \
     "$DOTFILES_DIR/sync-agents.sh" --quiet push-plugins \
@@ -245,7 +254,7 @@ HOME="${tmp_dir}/home" PATH="${stub_dir}:$PATH" \
     fail "Codex marketplace plugin push failed"
 }
 for command in \
-    "plugin marketplace add https://example.test/official.git" \
+    "plugin marketplace add https://example.test/official.git --sparse .claude-plugin --sparse plugin" \
     "plugin add keep@official"; do
     grep -Fx "$command" "$plugin_log" >/dev/null ||
         fail "Codex marketplace plugin push omitted: $command"
@@ -254,6 +263,31 @@ done
 if grep -q 'remove' "$plugin_log"; then
     fail "Codex push removed additional user plugins or marketplaces"
 fi
+
+: > "$plugin_log"
+HOME="${tmp_dir}/home" CODEX_HOME="${tmp_dir}/home/.codex" \
+    CODEX_PLUGIN_LOG="$plugin_log" \
+    "$DOTFILES_DIR/sync-agents.sh" --quiet plugins-update \
+    > "$sync_log" 2>&1 || {
+    cat "$sync_log" >&2
+    fail "Codex sparse marketplace update failed"
+}
+grep -Fx 'plugin marketplace upgrade official --config marketplaces.official.sparse_paths=[".claude-plugin","plugin"]' \
+    "$plugin_log" >/dev/null ||
+    fail "Codex marketplace update omitted sparse paths"
+
+staging="${tmp_dir}/home/.codex/.tmp/marketplaces/.staging"
+mkdir -p "$staging/marketplace-upgrade-old"
+if HOME="${tmp_dir}/home" CODEX_HOME="${tmp_dir}/home/.codex" \
+    CODEX_PLUGIN_LOG="$plugin_log" FAIL_CODEX_UPGRADE=true \
+    "$DOTFILES_DIR/sync-agents.sh" --quiet plugins-update \
+    > "$sync_log" 2>&1; then
+    fail "Codex marketplace update accepted a clone failure"
+fi
+[ -d "$staging/marketplace-upgrade-old" ] ||
+    fail "Codex marketplace cleanup removed old staging"
+[ ! -e "$staging/marketplace-upgrade-new" ] ||
+    fail "Codex marketplace cleanup kept failed staging"
 
 # Provider ownership must survive imports, aliases, and disabled plugins.
 reject_provider() {

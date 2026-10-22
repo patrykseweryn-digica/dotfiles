@@ -38,6 +38,10 @@ SKILL_LOCK_REPO="${SKILL_LOCK_REPO:-${DOTFILES_DIR}/.agents/skill-lock.json}"
 SKILL_LOCK_LIVE="${SKILL_LOCK_LIVE:-${HOME}/.agents/.skill-lock.json}"
 SKILL_SOURCE_REFS="${SKILL_SOURCE_REFS:-${HOME}/.agents/.skill-source-refs.json}"
 SKILLS_CLI="${SKILLS_CLI:-skills}"
+# The skills CLI owns these lock fields; the repository owns all others.
+SKILL_LOCK_RUNTIME_FIELDS='def runtime_fields:
+    {skillFolderHash, installedAt, updatedAt, pluginName}
+    | with_entries(select(.value != null));'
 EXPORT_GIT_DIR="${EXPORT_GIT_DIR:-${DOTFILES_DIR}}"
 AGENT_TOOLS="${AGENT_TOOLS:-${DOTFILES_DIR}/scripts/agent-tools.sh}"
 TOOL_INVENTORY="${TOOL_INVENTORY:-${DOTFILES_DIR}/.agents/tool-versions.json}"
@@ -1255,11 +1259,25 @@ validate_plugin_manifest() {
     jq -e '
         ([.plugins[].claude] | map(select(. != null))) as $claude |
         ([.plugins[].codex] | map(select(. != null))) as $codex |
+        (.codexMarketplaces // {}) as $codex_marketplaces |
         (.marketplaces | type) == "object" and
-        ((.codexMarketplaces // {}) | type) == "object" and
-        all((.codexMarketplaces // {}) | to_entries[];
+        ($codex_marketplaces | type) == "object" and
+        all($codex_marketplaces | to_entries[];
             (.key | type) == "string" and (.key | length) > 0 and
             (.value | type) == "string" and (.value | length) > 0
+        ) and
+        ((.codexMarketplaceSparsePaths // {}) | type) == "object" and
+        all((.codexMarketplaceSparsePaths // {}) | to_entries[];
+            .key as $name |
+            ($name | test("^[A-Za-z0-9_-]+$")) and
+            ($codex_marketplaces | has($name)) and
+            (.value | type) == "array" and (.value | length) > 0 and
+            (.value | length) == (.value | unique | length) and
+            all(.value[];
+                type == "string" and length > 0 and
+                (startswith("/") | not) and
+                (split("/") | index("..") == null)
+            )
         ) and
         ((.codexPlugins // []) | type) == "array" and
         all((.codexPlugins // [])[];
@@ -1597,6 +1615,30 @@ cmd_codex_plugins_export() {
     cmd_codex_remote_plugins_export
 }
 
+run_codex_marketplace_upgrade() {
+    local staging before after result=0 path
+    staging="${CODEX_HOME}/.tmp/marketplaces/.staging"
+    before="$(mktemp)"
+    after="$(mktemp)"
+    if [ -d "$staging" ]; then
+        find "$staging" -mindepth 1 -maxdepth 1 -type d \
+            -name 'marketplace-upgrade-*' -print | sort >"$before"
+    fi
+
+    codex "$@" || result=$?
+    if [ "$result" -ne 0 ] && [ -d "$staging" ]; then
+        find "$staging" -mindepth 1 -maxdepth 1 -type d \
+            -name 'marketplace-upgrade-*' -print | sort >"$after"
+        while IFS= read -r path; do
+            [ -n "$path" ] || continue
+            rm -rf -- "$path" ||
+                echo "[WARN] Could not remove failed marketplace staging: $path" >&2
+        done < <(comm -13 "$before" "$after")
+    fi
+    rm -f "$before" "$after"
+    return "$result"
+}
+
 cmd_codex_marketplace_plugins_push() {
     validate_plugin_manifest "$CODEX_PLUGIN_MANIFEST" || return 1
     command -v codex >/dev/null 2>&1 || {
@@ -1605,7 +1647,8 @@ cmd_codex_marketplace_plugins_push() {
     }
 
     local live_plugins live_marketplaces wanted_plugins wanted_marketplaces
-    local plugin marketplace source failed=false
+    local plugin marketplace source sparse_path failed=false
+    local -a add_args
     live_plugins="$(mktemp)"
     live_marketplaces="$(mktemp)"
     wanted_plugins="$(mktemp)"
@@ -1635,7 +1678,14 @@ cmd_codex_marketplace_plugins_push() {
             continue
         fi
         log_info "Adding Codex marketplace: $marketplace"
-        codex plugin marketplace add "$source" || {
+        add_args=(plugin marketplace add "$source")
+        while IFS= read -r sparse_path; do
+            [ -n "$sparse_path" ] || continue
+            add_args+=(--sparse "$sparse_path")
+        done < <(jq -r --arg name "$marketplace" \
+            '.codexMarketplaceSparsePaths[$name] // [] | .[]' \
+            "$CODEX_PLUGIN_MANIFEST")
+        codex "${add_args[@]}" || {
             echo "[ERROR] Failed to prepare Codex marketplace: $marketplace ($source)" >&2
             failed=true
         }
@@ -1680,11 +1730,23 @@ cmd_codex_plugins_update() {
     read_codex_plugin_state >/dev/null || return 1
     read_codex_marketplace_state >/dev/null || return 1
 
-    local marketplace failed=false
+    local marketplace sparse_paths failed=false
+    local -a upgrade_args
     while IFS= read -r marketplace; do
         [ -n "$marketplace" ] || continue
         log_info "Updating Codex plugin marketplace: $marketplace"
-        codex plugin marketplace upgrade "$marketplace" || failed=true
+        sparse_paths="$(jq -c --arg name "$marketplace" \
+            '.codexMarketplaceSparsePaths[$name] // []' \
+            "$CODEX_PLUGIN_MANIFEST")" || {
+            failed=true
+            continue
+        }
+        upgrade_args=(plugin marketplace upgrade "$marketplace")
+        if [ "$sparse_paths" != '[]' ]; then
+            upgrade_args+=(--config \
+                "marketplaces.${marketplace}.sparse_paths=${sparse_paths}")
+        fi
+        run_codex_marketplace_upgrade "${upgrade_args[@]}" || failed=true
     done < <(jq -r '.codexMarketplaces // {} | keys[]' \
         "$CODEX_PLUGIN_MANIFEST")
 
@@ -2028,13 +2090,13 @@ ensure_live_skill_lock() {
     local tmp
     tmp=$(mktemp)
     if [ -f "$SKILL_LOCK_LIVE" ]; then
-        jq -s '
+        jq -s "$SKILL_LOCK_RUNTIME_FIELDS"'
           .[0] as $live | .[1] as $repo |
           {
             dismissed: $repo.dismissed,
             skills: ($repo.skills | with_entries(
               .key as $k |
-              .value = (($live.skills[$k] // {}) * .value)
+              .value = (($live.skills[$k] // {} | runtime_fields) * .value)
             ))
           } + ($live | del(.skills, .dismissed))
         ' "$SKILL_LOCK_LIVE" "$SKILL_LOCK_REPO" >"$tmp" || {
@@ -2063,11 +2125,42 @@ cleanup_staged_skills() {
     STAGED_SKILL_LOCK=""
 }
 
+set_staged_skill_runtime_name() {
+    local skill_file="$1"
+    local runtime_name="$2"
+    local tmp="${skill_file}.tmp"
+
+    if ! awk -v runtime_name="$runtime_name" '
+        NR == 1 {
+            if ($0 != "---") exit 1
+            in_frontmatter = 1
+        }
+        in_frontmatter && NR > 1 && $0 == "---" {
+            if (name_count != 1) exit 1
+            in_frontmatter = 0
+        }
+        in_frontmatter && /^name:[[:space:]]*/ {
+            name_count++
+            print "name: " runtime_name
+            next
+        }
+        { print }
+        END {
+            if (in_frontmatter || name_count != 1) exit 1
+        }
+    ' "$skill_file" >"$tmp"; then
+        rm -f "$tmp"
+        echo "[ERROR] Invalid skill frontmatter: $skill_file" >&2
+        return 1
+    fi
+    mv "$tmp" "$skill_file"
+}
+
 merge_staged_skill_lock() {
     local staged_lock="$1"
     local target_lock="$2"
 
-    jq -e -S --slurpfile staged "$staged_lock" '
+    jq -e -S --slurpfile staged "$staged_lock" "$SKILL_LOCK_RUNTIME_FIELDS"'
         ($staged[0].skills // {}) as $live
         | {
             dismissed: (.dismissed // {}),
@@ -2083,7 +2176,7 @@ merge_staged_skill_lock() {
                         ($live[$key] //
                          $live[$install_name] //
                          $live[$path_name] //
-                         {}) * $repo
+                         {} | runtime_fields) * $repo
                     )
                 )
                 | from_entries
@@ -2119,6 +2212,7 @@ stage_locked_skills() {
     }
 
     local groups group names name source source_url install_source install_name
+    local runtime_name skill_file
     local failed=false
     groups=$(jq -c '
         def install_source:
@@ -2144,7 +2238,8 @@ stage_locked_skills() {
                 source: .value.source,
                 sourceUrl: (.value.sourceUrl // ""),
                 installSource: (.value | install_source),
-                installName: (.value.installName // .key)
+                installName: (.value.installName // .key),
+                runtimeName: (.value.runtimeName // "")
             }
         ]
         | group_by([.installSource, .sourceUrl])[]
@@ -2185,13 +2280,19 @@ stage_locked_skills() {
             failed=true
             break
         fi
-        while IFS= read -r name; do
-            if [ ! -r "${STAGED_SKILLS_HOME}/.agents/skills/${name}/SKILL.md" ]; then
+        while IFS=$'\t' read -r name runtime_name; do
+            skill_file="${STAGED_SKILLS_HOME}/.agents/skills/${name}/SKILL.md"
+            if [ ! -r "$skill_file" ]; then
                 echo "[ERROR] Staged skill missing expected file: $name/SKILL.md" >&2
                 failed=true
                 break
             fi
-        done < <(jq -r '.[].name' <<<"$group")
+            if [ -n "$runtime_name" ] &&
+                ! set_staged_skill_runtime_name "$skill_file" "$runtime_name"; then
+                failed=true
+                break
+            fi
+        done < <(jq -r '.[] | [.name, .runtimeName] | @tsv' <<<"$group")
         [ "$failed" = false ] || break
     done <<<"$groups"
 
@@ -2275,22 +2376,23 @@ prepare_skill_runtime_candidates() {
 prepare_staged_live_lock() {
     local target_lock="$1"
     if [ -f "$SKILL_LOCK_LIVE" ]; then
-        jq -e -S -s '
+        jq -e -S -s "$SKILL_LOCK_RUNTIME_FIELDS"'
             .[0] as $old | .[1] as $staged |
             $staged
             | .skills |= with_entries(
                 .key as $key |
                 ($old.skills[$key] // null) as $previous |
+                ($previous // {} | runtime_fields) as $runtime |
                 .value = (
                     if $previous != null and
                        $previous.skillFolderHash == .value.skillFolderHash
                     then
-                        $previous * (
+                        $runtime * (
                             .value |
                             del(.installedAt, .updatedAt, .pluginName)
                         )
                     else
-                        ($previous // {}) * .value
+                        $runtime * .value
                     end
                 )
             )

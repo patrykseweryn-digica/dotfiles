@@ -29,7 +29,7 @@ for arg in "$@"; do
 done
 for skill in "${skills[@]}"; do
     case "$skill" in
-    'Poteto Mode')
+    'poteto-mode')
         folder=poteto-mode
         ;;
     'control-cli')
@@ -99,7 +99,7 @@ env -u CODEX_HOME -u OPENCODE_CONFIG_DIR -u PI_CODING_AGENT_DIR \
     "$repo/sync-agents.sh" skills-preflight >"$task_dir/preflight-output" 2>&1
 test ! -e "$preflight_home/.agents"
 rg -qx \
-    'add -g cursor/plugins --skill control-cli Poteto Mode --agent codex -y --full-depth' \
+    'add -g cursor/plugins --skill control-cli poteto-mode --agent codex -y --full-depth' \
     "$task_dir/preflight-calls"
 
 multi_home="$task_dir/multi failure home"
@@ -124,7 +124,7 @@ if env -u CODEX_HOME -u OPENCODE_CONFIG_DIR -u PI_CODING_AGENT_DIR \
 fi
 rg -q 'No matching skills found for: Missing Skill' "$task_dir/multi-output"
 rg -q -- \
-    '--skill control-cli Poteto Mode Missing Skill --agent codex -y --full-depth' \
+    '--skill control-cli poteto-mode Missing Skill --agent codex -y --full-depth' \
     "$task_dir/multi-calls"
 rg -q '^preserve me$' "$multi_home/.agents/skills/preserve/SKILL.md"
 test ! -e "$multi_home/.agents/.skill-lock.json"
@@ -243,6 +243,7 @@ for state in empty partial complete broken alias no_url apply_failure rollback_f
         run_sync || { cat "$task_dir/output" >&2; exit 1; }
         for root in .agents/skills .claude/skills .config/opencode/skills .pi/agent/skills; do
             test -r "$task_home/$root/poteto-mode/SKILL.md"
+            rg -q '^name: Poteto Mode$' "$task_home/$root/poteto-mode/SKILL.md"
             rg -q '^version: current$' "$task_home/$root/poteto-mode/SKILL.md"
         done
         set -- "$task_home"/.dotfiles-backup/skill-sync.*
@@ -259,6 +260,16 @@ for state in empty partial complete broken alias no_url apply_failure rollback_f
         mv "$live_lock.next" "$live_lock"
         run_sync || { cat "$task_dir/output" >&2; exit 1; }
         jq -e '.skills["poteto-mode"].pluginName == "pstack"' "$live_lock" >/dev/null
+        # A source field removed from the repository must leave the live lock.
+        jq '.skills["poteto-mode"].ref = "main"' "$live_lock" > "$live_lock.next"
+        mv "$live_lock.next" "$live_lock"
+        run_sync || { cat "$task_dir/output" >&2; exit 1; }
+        jq -e '.skills["poteto-mode"] |
+            (has("ref") | not) and .pluginName == "pstack"' \
+            "$live_lock" >/dev/null || {
+            echo 'Stale skill source field survived sync' >&2
+            exit 1
+        }
     fi
 done
 
@@ -280,6 +291,7 @@ run_update() {
         >"$task_dir/update-output" 2>&1
 }
 run_update
+rg -q '^name: Poteto Mode$' "$update_home/.agents/skills/poteto-mode/SKILL.md"
 rg -q '^version: current$' "$update_home/.agents/skills/poteto-mode/SKILL.md"
 [ "$(wc -l <"$update_calls" | tr -d ' ')" = 1 ]
 run_update

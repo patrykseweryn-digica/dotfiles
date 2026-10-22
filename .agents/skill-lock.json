@@ -346,7 +346,8 @@
       "sourceUrl": "https://github.com/emilkowalski/skills.git"
     },
     "poteto-mode": {
-      "installName": "Poteto Mode",
+      "installName": "poteto-mode",
+      "runtimeName": "Poteto Mode",
       "skillPath": "pstack/skills/poteto-mode/SKILL.md",
       "source": "cursor/plugins",
       "sourceType": "github",
