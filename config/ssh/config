@@ -15,6 +15,13 @@ Host mypi-public
     IdentityFile ~/.ssh/id_ed25519
     IdentitiesOnly yes
 
+Host dell-xps
+    HostName 192.168.18.3
+    User pseweryn
+    Port 22
+    IdentityFile ~/.ssh/id_ed25519
+    IdentitiesOnly yes
+
 # Portfolio Website
 Host portfolio
     HostName 64.176.67.42
