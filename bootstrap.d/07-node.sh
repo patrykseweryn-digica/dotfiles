@@ -12,6 +12,23 @@ required_node_version() {
     printf '%s\n' "$version"
 }
 
+run_nvm() {
+    local restore_nounset=false status
+    case "$-" in
+    *u*)
+        restore_nounset=true
+        set +u
+        ;;
+    esac
+    if nvm "$@"; then
+        status=0
+    else
+        status=$?
+    fi
+    [ "$restore_nounset" = false ] || set -u
+    return "$status"
+}
+
 select_latest_stable_node() {
     awk '
         $1 ~ /^v[0-9]+\.[0-9]+\.[0-9]+$/ {
@@ -43,7 +60,7 @@ latest_installed_stable_node() {
 }
 
 latest_remote_stable_node() {
-    nvm ls-remote --no-colors | select_latest_stable_node
+    run_nvm ls-remote --no-colors | select_latest_stable_node
 }
 
 remove_nvm_node_paths() {
@@ -95,7 +112,7 @@ activate_node() {
     . "${NVM_DIR}/nvm.sh" --no-use || return 1
     installed=$(latest_installed_stable_node) || return 1
     remove_nvm_node_paths
-    nvm use --silent "$installed" || return 1
+    run_nvm use --silent "$installed" || return 1
     check_node
 }
 
@@ -130,7 +147,7 @@ install_nvm() {
         }
         echo "[INFO] Installing Node.js $target..."
         # Never import globals or the user's nvm default-packages file.
-        if ! nvm install --skip-default-packages "$target"; then
+        if ! run_nvm install --skip-default-packages "$target"; then
             echo "[ERROR] Failed to install latest Node.js; previous Node retained" >&2
             return 1
         fi
@@ -138,9 +155,9 @@ install_nvm() {
         echo "[INFO] Node.js $installed is already installed"
     fi
     remove_nvm_node_paths
-    nvm use --silent "$target" || return 1
+    run_nvm use --silent "$target" || return 1
     check_node || return 1
-    nvm alias default "$target"
+    run_nvm alias default "$target"
 }
 
 if [ "${BASH_SOURCE[0]}" = "$0" ]; then

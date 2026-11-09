@@ -12,6 +12,12 @@ mkdir -p "$scratch/stubs"
 # A controlled provider at the nvm boundary; no network or host Node needed.
 cat >"$scratch/nvm.sh" <<'STUB'
 nvm() {
+    case "$-" in
+    *u*)
+        echo "[ERROR] NVM called with nounset enabled" >&2
+        return 91
+        ;;
+    esac
     case "$1" in
     ls-remote)
         printf '        v22.21.0\n'
@@ -126,7 +132,7 @@ for scenario in fresh older failure; do
             fi
             grep -F 'previous Node retained' "$scratch/failure.log" >/dev/null
             [ "$(node --version)" = v22.21.0 ]
-            [ "$(nvm version default)" = v22.21.0 ]
+            [ "$(run_nvm version default)" = v22.21.0 ]
         else
             before_path="$PATH"
             (install_nvm)
@@ -147,7 +153,7 @@ for scenario in fresh older failure; do
             # Explicit update resolves and installs the changed upstream release.
             NODE_TEST_LATEST=99.1.0 install_nvm true
             NODE_TEST_LATEST=99.1.0 check_node
-            [ "$(nvm version default)" = v99.1.0 ]
+            [ "$(run_nvm version default)" = v99.1.0 ]
             if [ "$scenario" = older ]; then
                 case ":$PATH:" in
                 *":$NVM_DIR/versions/node/v22.21.0/bin:"*)
@@ -158,6 +164,13 @@ for scenario in fresh older failure; do
                 [ "$("$NVM_DIR/versions/node/v22.21.0/bin/node" --version)" = v22.21.0 ]
             fi
         fi
+        case "$-" in
+        *u*) ;;
+        *)
+            echo "[ERROR] Node bootstrap left nounset disabled" >&2
+            exit 1
+            ;;
+        esac
         echo "[INFO] Node $scenario passed"
     )
 done
