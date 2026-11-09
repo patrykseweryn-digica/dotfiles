@@ -2,7 +2,7 @@ Host *
     AddKeysToAgent yes
 
 Host mypi
-    HostName 192.168.18.42
+    HostName 192.168.100.23
     User pseweryn
     Port 22
     IdentityFile ~/.ssh/id_ed25519
