@@ -15,29 +15,11 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/getagentseal/founder-playbook.git"
     },
-    "agent-evaluation": {
-      "skillPath": "agent-evaluation/SKILL.md",
-      "source": "mlflow/skills",
-      "sourceType": "github",
-      "sourceUrl": "https://github.com/mlflow/skills.git"
-    },
     "agent-transcript": {
       "skillPath": "skills/agent-transcript/SKILL.md",
       "source": "openclaw/agent-skills",
       "sourceType": "github",
       "sourceUrl": "https://github.com/openclaw/agent-skills.git"
-    },
-    "analyzing-mlflow-session": {
-      "skillPath": "analyze-mlflow-chat-session/SKILL.md",
-      "source": "mlflow/skills",
-      "sourceType": "github",
-      "sourceUrl": "https://github.com/mlflow/skills.git"
-    },
-    "analyzing-mlflow-trace": {
-      "skillPath": "analyze-mlflow-trace/SKILL.md",
-      "source": "mlflow/skills",
-      "sourceType": "github",
-      "sourceUrl": "https://github.com/mlflow/skills.git"
     },
     "apple-design": {
       "skillPath": "skills/apple-design/SKILL.md",
@@ -273,12 +255,6 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/dmmulroy/anti-slop.git"
     },
-    "instrumenting-with-mlflow-tracing": {
-      "skillPath": "instrumenting-with-mlflow-tracing/SKILL.md",
-      "source": "mlflow/skills",
-      "sourceType": "github",
-      "sourceUrl": "https://github.com/mlflow/skills.git"
-    },
     "lean-startup": {
       "skillPath": "lean-startup/SKILL.md",
       "source": "getagentseal/founder-playbook",
@@ -309,8 +285,44 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/cursor/plugins.git"
     },
+    "mlflow-docs": {
+      "skillPath": "mlflow-docs/SKILL.md",
+      "source": "mlflow/skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/mlflow/skills.git"
+    },
+    "mlflow-evaluation": {
+      "skillPath": "mlflow-evaluation/SKILL.md",
+      "source": "mlflow/skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/mlflow/skills.git"
+    },
     "mlflow-onboarding": {
       "skillPath": "mlflow-onboarding/SKILL.md",
+      "source": "mlflow/skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/mlflow/skills.git"
+    },
+    "mlflow-trace-analysis": {
+      "skillPath": "mlflow-trace-analysis/SKILL.md",
+      "source": "mlflow/skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/mlflow/skills.git"
+    },
+    "mlflow-trace-instrumentation": {
+      "skillPath": "mlflow-trace-instrumentation/SKILL.md",
+      "source": "mlflow/skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/mlflow/skills.git"
+    },
+    "mlflow-trace-metrics": {
+      "skillPath": "mlflow-trace-metrics/SKILL.md",
+      "source": "mlflow/skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/mlflow/skills.git"
+    },
+    "mlflow-trace-retrieval": {
+      "skillPath": "mlflow-trace-retrieval/SKILL.md",
       "source": "mlflow/skills",
       "sourceType": "github",
       "sourceUrl": "https://github.com/mlflow/skills.git"
@@ -359,35 +371,17 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/mattpocock/skills.git"
     },
-    "querying-mlflow-metrics": {
-      "skillPath": "querying-mlflow-metrics/SKILL.md",
-      "source": "mlflow/skills",
-      "sourceType": "github",
-      "sourceUrl": "https://github.com/mlflow/skills.git"
-    },
     "research": {
       "skillPath": "skills/engineering/research/SKILL.md",
       "source": "mattpocock/skills",
       "sourceType": "github",
       "sourceUrl": "https://github.com/mattpocock/skills.git"
     },
-    "retrieving-mlflow-traces": {
-      "skillPath": "retrieving-mlflow-traces/SKILL.md",
-      "source": "mlflow/skills",
-      "sourceType": "github",
-      "sourceUrl": "https://github.com/mlflow/skills.git"
-    },
     "review-and-ship": {
       "skillPath": "cursor-team-kit/skills/review-and-ship/SKILL.md",
       "source": "cursor/plugins",
       "sourceType": "github",
       "sourceUrl": "https://github.com/cursor/plugins.git"
-    },
-    "searching-mlflow-docs": {
-      "skillPath": "searching-mlflow-docs/SKILL.md",
-      "source": "mlflow/skills",
-      "sourceType": "github",
-      "sourceUrl": "https://github.com/mlflow/skills.git"
     },
     "session-viewer": {
       "skillPath": "skills/session-viewer/SKILL.md",
