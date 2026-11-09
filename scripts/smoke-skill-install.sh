@@ -241,6 +241,9 @@ for state in empty partial complete broken alias no_url apply_failure rollback_f
     backup_count=""
     for run in 1 2; do
         run_sync || { cat "$task_dir/output" >&2; exit 1; }
+        if rg -q '^diff: .*No such file or directory' "$task_dir/output"; then
+            fail "skill comparison exposed a missing-path warning"
+        fi
         for root in .agents/skills .claude/skills .config/opencode/skills .pi/agent/skills; do
             test -r "$task_home/$root/poteto-mode/SKILL.md"
             rg -q '^name: Poteto Mode$' "$task_home/$root/poteto-mode/SKILL.md"

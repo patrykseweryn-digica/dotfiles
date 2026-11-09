@@ -280,6 +280,26 @@ cmp "${tmp_dir}/real-before" "${tmp_dir}/real-after" ||
     fail "real state plan changed HOME or checkout"
 [ ! -s "$network_log" ] || fail "real state plan attempted network access"
 
+cat >"$MCP_SERVERS" <<'JSON'
+{"shared":{"type":"http","url":"https://repo.test/mcp"}}
+JSON
+cat >"$CODEX_MCP_STATE_FILE" <<'JSON'
+[{"enabled":true,"name":"shared","transport":{
+  "type":"http","url":"https://codex-old.test/mcp"}}]
+JSON
+cp "$CLAUDE_USER_CONFIG" "${tmp_dir}/claude-user.before-mcp-drift"
+jq '.mcpServers.shared = {
+      type: "http", url: "https://claude-old.test/mcp"
+    }' "$CLAUDE_USER_CONFIG" >"${tmp_dir}/claude-managed-drift.json"
+mv "${tmp_dir}/claude-managed-drift.json" "$CLAUDE_USER_CONFIG"
+real_plan
+grep -E '^UPDATE[[:space:]]+mcp[[:space:]]' \
+    "${tmp_dir}/real-plan" >/dev/null ||
+    fail "managed MCP drift is not UPDATE"
+printf '{}\n' >"$MCP_SERVERS"
+printf '[]\n' >"$CODEX_MCP_STATE_FILE"
+mv "${tmp_dir}/claude-user.before-mcp-drift" "$CLAUDE_USER_CONFIG"
+
 cat >"$CODEX_MCP_STATE_FILE" <<'JSON'
 [{"enabled":true,"name":"codex-local","transport":{
   "type":"stdio","command":"/Users/local/bin/server","args":[]}}]

@@ -102,7 +102,8 @@ cat >"$manifest" <<'JSON'
       "command": "claude",
       "package": "@example/claude",
       "channel": "latest",
-      "installer": "claude-native"
+      "installer": "claude-native",
+      "update": ["claude", "install", "latest"]
     },
     {
       "name": "OpenCode",
@@ -125,6 +126,10 @@ JSON
 for command_name in pi codex claude opencode skills; do
   cat >"${stub_dir}/${command_name}" <<'STUB'
 #!/bin/bash
+if [ "$(basename "$0")" = claude ] && [ "$*" = "install latest" ]; then
+    printf '%s\n' 'claude install latest' >>"$NATIVE_LOG"
+    exit 0
+fi
 if [ "${1:-}" = --version ] && [ -n "${VERSION_MARKER:-}" ]; then
     : >"$VERSION_MARKER"
 fi
@@ -221,8 +226,8 @@ for package in @example/codex opencode-ai skills; do
   grep -Fx "install -g ${package}@latest" "$npm_log" >/dev/null ||
     fail "latest npm version not installed: $package"
 done
-grep -Fx '2.0.0' "$native_log" >/dev/null ||
-  fail "resolved latest Claude version not installed by update"
+grep -Fx 'claude install latest' "$native_log" >/dev/null ||
+  fail "Claude native updater was not used"
 
 export TEST_AGENT_PI_VERSION=2.0.0 TEST_AGENT_CODEX_VERSION=2.0.0 TEST_AGENT_CLAUDE_VERSION=2.0.0
 export TEST_AGENT_OPENCODE_VERSION=2.0.0 TEST_AGENT_SKILLS_VERSION=2.0.0

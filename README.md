@@ -31,9 +31,10 @@ credentials, OAuth state, unsupported transports, and local paths stay local.
 
 `just sync` requires a clean checkout. It runs `git pull --ff-only`, applies
 repository settings and membership, then refreshes managed tools, remote
-skills, and plugins. Categories with portable local additions are blocked and
-point to `just export`; independent categories can continue. The final result
-is `PASS`, `EXPORT`, or `FAIL`. Sync never exports, commits, or pushes.
+skills, and plugins. MCP keeps portable local additions while reconciling
+managed definitions, then points to `just export`. Other categories with
+portable local additions remain blocked. The final result is `PASS`, `EXPORT`,
+or `FAIL`. Sync never exports, commits, or pushes.
 Remote skills remain unpinned and follow current upstream.
 Doctor ignores Codex's active model and reasoning selection; repository values
 remain install defaults.
@@ -81,7 +82,8 @@ reports `[SKIP] Herdr` and continues; run `herdr update` after detaching.
 Native latest installers do not expose one common version source.
 
 Pi, Codex, OpenCode, and the skill manager use global npm packages. Claude
-Code uses Anthropic's native installer with the resolved latest version.
+Code uses `claude install latest` for updates and Anthropic's native installer
+for a missing command.
 Configuration application never resolves channels or updates tool versions.
 
 To add an npm CLI, add one entry to the manifest:
@@ -140,7 +142,8 @@ just sync     # pull and apply safe local and upstream changes
 
 `just sync` prints the plan, applies settings, MCP, managed links, and the
 Herdr hook, then refreshes inventory tools, Node, skills, and plugins.
-Categories with local `EXPORT` additions stay untouched. Independent failures
+MCP reconciles managed definitions without removing local additions. Other
+categories with local `EXPORT` additions stay untouched. Independent failures
 do not stop the remaining categories; the final summary reports all results.
 
 Cursor CLI, Grok Build, Hermes Agent, Herdr, Treehouse and no-mistakes use

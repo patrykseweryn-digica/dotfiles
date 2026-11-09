@@ -7,7 +7,8 @@ Install or apply dotfiles while preserving runtime credentials and sessions.
 - `setup` creates links and invokes agent adapters in a disposable HOME.
 - `sync` applies repository config and detects drift on a second read.
 - `update` plans local state, preserves export-required additions, applies
-  independent settings/MCP/link/hook categories, and checks the final state.
+  managed MCP state plus independent settings/link/hook categories, and checks
+  the final state without removing export-required MCP additions.
 - `export` prepares settings, MCP, skills, plugins, and recognized tools in one
   transaction.
 - `portable-shell` starts Zsh on simulated macOS/Linux layouts.

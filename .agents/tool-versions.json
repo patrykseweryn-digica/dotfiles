@@ -485,7 +485,12 @@
       "command": "claude",
       "installer": "claude-native",
       "name": "Claude Code",
-      "package": "@anthropic-ai/claude-code"
+      "package": "@anthropic-ai/claude-code",
+      "update": [
+        "claude",
+        "install",
+        "latest"
+      ]
     },
     {
       "channel": "latest",

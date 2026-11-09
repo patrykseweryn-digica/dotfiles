@@ -87,7 +87,11 @@ cat >"$pi_template" <<'JSON'
   "theme": "repo-theme"
 }
 JSON
-printf '{}\n' >"$repo_mcp"
+cat >"$repo_mcp" <<'JSON'
+{
+  "shared": {"type": "http", "url": "https://repo.test/mcp"}
+}
+JSON
 printf 'clean\n' >"${checkout}/marker"
 printf '%s\n' '---' 'name: existing-custom' '---' \
     >"${custom_skills}/existing-custom/SKILL.md"
@@ -456,10 +460,16 @@ find "$home_dir" -type f -exec cksum {} \; | sort >"${tmp_dir}/live.after"
 cmp "${tmp_dir}/live.before" "${tmp_dir}/live.after" ||
     fail "cancelled export changed live state"
 
-# Conflicting runtime MCP definitions stop the whole transaction.
-jq '.mcpServers.shared.url = "https://conflict.test/mcp"' "$claude_user" \
+# Conflicting unmanaged MCP definitions stop the whole transaction.
+jq '.mcpServers["runtime-conflict"] = {
+      type: "http", url: "https://claude-conflict.test/mcp"
+    }' "$claude_user" \
     >"${tmp_dir}/claude-conflict.json"
 mv "${tmp_dir}/claude-conflict.json" "$claude_user"
+jq '.mcpServers["runtime-conflict"] = {
+      url: "https://pi-conflict.test/mcp"
+    }' "$pi_mcp" >"${tmp_dir}/pi-conflict.json"
+mv "${tmp_dir}/pi-conflict.json" "$pi_mcp"
 if run_export y "${tmp_dir}/conflict.log"; then
     fail "export accepted conflicting MCP definitions"
 fi
@@ -467,9 +477,12 @@ grep -F 'Conflicting MCP definitions' "${tmp_dir}/conflict.log" >/dev/null ||
     fail "MCP conflict was not reported"
 [ -z "$(git -C "$checkout" status --porcelain --untracked-files=all)" ] ||
     fail "MCP conflict changed checkout"
-jq '.mcpServers.shared.url = "https://shared.test/mcp"' "$claude_user" \
+jq 'del(.mcpServers["runtime-conflict"])' "$claude_user" \
     >"${tmp_dir}/claude-restored.json"
 mv "${tmp_dir}/claude-restored.json" "$claude_user"
+jq 'del(.mcpServers["runtime-conflict"])' "$pi_mcp" \
+    >"${tmp_dir}/pi-conflict-restored.json"
+mv "${tmp_dir}/pi-conflict-restored.json" "$pi_mcp"
 
 # Unmanaged local MCP paths stay local and do not block the export plan.
 jq --arg command "$HOME/bin/pi-server" \
@@ -618,7 +631,8 @@ jq -e '
     } and
     .["codex-portable"] == {
       type: "stdio", command: "codex-server", args: ["--stdio"]
-    }
+    } and
+    .shared == {type: "http", url: "https://repo.test/mcp"}
 ' "$repo_mcp" >/dev/null ||
     fail "MCP export mishandled portable or local-only state"
 git -C "$checkout" diff --cached --quiet || fail "export staged changes"

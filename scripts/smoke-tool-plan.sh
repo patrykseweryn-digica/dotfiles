@@ -805,6 +805,52 @@ STUB
     rm -rf "$tmp_dir"
 }
 
+smoke_arm64_update_uses_platform_artifact() {
+    local tmp_dir manifest bin_dir stub_dir log_file
+    tmp_dir="$(mktemp -d)"
+    manifest="${tmp_dir}/tools.json"
+    bin_dir="${tmp_dir}/bin"
+    stub_dir="${tmp_dir}/stubs"
+    log_file="${tmp_dir}/actions.log"
+    mkdir -p "$bin_dir" "$stub_dir"
+    : >"$log_file"
+    cat >"$manifest" <<'JSON'
+{"platforms":["linux-arm64","linux-x86_64"],"tools":[{
+  "scope":"core","name":"delta","commands":["delta"],
+  "versionPolicy":"latest","packages":{"pacman":"git-delta"},
+  "github":{"repo":"dandavison/delta","artifacts":{
+    "linux-arm64":{"archive":"delta-{tag}-aarch64-unknown-linux-gnu.tar.gz",
+      "binary":"delta"},
+    "linux-x86_64":{"archive":"delta-{tag}-x86_64-unknown-linux-gnu.tar.gz",
+      "binary":"delta"}}}}]}
+JSON
+    printf '#!/bin/sh\nexit 126\n' >"${bin_dir}/delta"
+    printf '#!/bin/sh\n' >"${stub_dir}/apt-get"
+    chmod +x "${bin_dir}/delta" "${stub_dir}/apt-get"
+
+    (
+        TOOL_INVENTORY="$manifest"
+        OS=Linux
+        ARCH=aarch64
+        HAS_SUDO=true
+        PATH="${bin_dir}:${stub_dir}:/usr/bin:/bin"
+        export TOOL_INVENTORY OS ARCH HAS_SUDO PATH SMOKE_LOG="$log_file"
+        # shellcheck source=/dev/null
+        source "${DOTFILES_DIR}/bootstrap.d/00-utils.sh"
+        # shellcheck source=/dev/null
+        source "${DOTFILES_DIR}/bootstrap.d/05-tools.sh"
+        github_latest_tag() { echo 0.18.2; }
+        install_github_binary() { echo "github $*" >>"$SMOKE_LOG"; }
+
+        update_declared_latest_core_tools >/dev/null || true
+    )
+
+    assert_log_contains "$log_file" \
+        "github dandavison/delta 0.18.2 delta-{tag}-aarch64-unknown-linux-gnu.tar.gz delta delta"
+    assert_log_not_contains "$log_file" "apt-get install"
+    rm -rf "$tmp_dir"
+}
+
 smoke_latest_workflow_tools() {
     local tmp_dir
     tmp_dir="$(mktemp -d)"
@@ -906,5 +952,6 @@ smoke_unsupported_artifact_stops_before_network
 smoke_direct_binary_install
 smoke_tree_install
 smoke_latest_core_updates
+smoke_arm64_update_uses_platform_artifact
 
 echo "[INFO] tool plan smoke test passed"

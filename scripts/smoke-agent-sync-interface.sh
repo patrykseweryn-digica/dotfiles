@@ -244,7 +244,18 @@ cat > "$claude_settings" <<'JSON'
   "permissions": {"allow": ["Read", "mcp__legacy__*"]}
 }
 JSON
-echo '{"keep":true}' > "$opencode_config"
+cat >"$opencode_config" <<'JSON'
+{
+  "keep": true,
+  "mcp": {
+    "extra": {
+      "type": "remote",
+      "url": "https://extra.test/mcp",
+      "enabled": true
+    }
+  }
+}
+JSON
 cat > "$pi_mcp" <<'JSON'
 {
   "keep": true,
@@ -277,8 +288,14 @@ jq -e '
   .permissions.allow == ["Read", "mcp__local__*", "mcp__remote__*"]
 ' "$claude_settings" >/dev/null || \
     fail "push-mcp did not reconcile Claude MCP permissions"
-jq -e '.keep and (.mcp | keys) == ["local", "remote"]' \
+jq -e '
+  .keep and
+  (.mcp | keys) == ["extra", "local", "remote"] and
+  .mcp.extra.url == "https://extra.test/mcp"
+' \
     "$opencode_config" >/dev/null || fail "push-mcp omitted OpenCode MCP config"
+jq 'del(.mcp.extra)' "$opencode_config" >"${tmp_dir}/opencode-managed.json"
+mv "${tmp_dir}/opencode-managed.json" "$opencode_config"
 jq -e '
   .keep and
   (.mcpServers | keys) == ["local", "remote"] and

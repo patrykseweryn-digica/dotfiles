@@ -94,6 +94,15 @@ while IFS=$'\t' read -r status category action message; do
         unchanged=$((unchanged + 1))
         ;;
     EXPORT:export)
+        if [ "$category" = mcp ]; then
+            echo "[APPLY] mcp managed state"
+            if apply_category "$category"; then
+                applied=$((applied + 1))
+            else
+                echo "[ERROR] Failed to update ${category}" >&2
+                failed=$((failed + 1))
+            fi
+        fi
         echo "[BLOCKED] ${category}: export local additions first"
         blocked=$((blocked + 1))
         ;;

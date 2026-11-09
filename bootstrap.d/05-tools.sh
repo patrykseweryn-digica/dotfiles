@@ -270,7 +270,7 @@ text_version() {
 update_declared_latest_core_tools() {
     local rows name commands apt dnf pacman brew repo archive binary
     local installed_name post_install adapter command_name output current
-    local latest tag
+    local latest tag package_manager package_name
     local failed=false
 
     rows="$(latest_core_tool_rows)" || return 1
@@ -316,14 +316,22 @@ update_declared_latest_core_tools() {
             uv tool upgrade "$name" || failed=true
             ;;
         package | github-tree)
+            package_name=""
+            if [ "${HAS_SUDO:-false}" = true ]; then
+                package_manager="$(detect_package_manager 2>/dev/null || true)"
+                case "$package_manager" in
+                apt-get) package_name="$(empty_if_dash "$apt")" ;;
+                dnf) package_name="$(empty_if_dash "$dnf")" ;;
+                pacman) package_name="$(empty_if_dash "$pacman")" ;;
+                esac
+            fi
             if command -v brew >/dev/null 2>&1 && [ "$brew" != - ]; then
                 if brew list --formula "$brew" >/dev/null 2>&1; then
                     brew upgrade "$brew" || failed=true
                 else
                     brew install "$brew" || failed=true
                 fi
-            elif [ "${HAS_SUDO:-false}" = true ] &&
-                [ "${apt}${dnf}${pacman}" != --- ]; then
+            elif [ -n "$package_name" ]; then
                 update_package_manager_package "$name" \
                     "$(empty_if_dash "$apt")" "$(empty_if_dash "$dnf")" \
                     "$(empty_if_dash "$pacman")" || failed=true

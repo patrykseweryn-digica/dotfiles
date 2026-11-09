@@ -706,7 +706,8 @@ filter_portable_mcp_rows() {
 
 build_mcp_candidate() {
     local candidate="$1"
-    local rows filtered runtimes conflicts
+    local preserve_managed="${2:-false}"
+    local rows filtered runtimes conflicts merged
     rows="$(mktemp)"
     runtimes="$(available_mcp_runtimes)"
     [ -n "$runtimes" ] || {
@@ -725,15 +726,28 @@ build_mcp_candidate() {
     }
     mv "$filtered" "$rows"
 
-    conflicts=$(jq -s '
-        sort_by(.name, .runtime)
-        | group_by(.name)
-        | map(select((map(.server | tojson) | unique | length) > 1))
-        | map({
-            name: .[0].name,
-            definitions: map({runtime, server})
-        })
-    ' "$rows")
+    if [ "$preserve_managed" = true ]; then
+        conflicts=$(jq -s --slurpfile wanted "$MCP_SERVERS" '
+            map(.name as $name | select(($wanted[0] | has($name)) | not))
+            | sort_by(.name, .runtime)
+            | group_by(.name)
+            | map(select((map(.server | tojson) | unique | length) > 1))
+            | map({
+                name: .[0].name,
+                definitions: map({runtime, server})
+            })
+        ' "$rows")
+    else
+        conflicts=$(jq -s '
+            sort_by(.name, .runtime)
+            | group_by(.name)
+            | map(select((map(.server | tojson) | unique | length) > 1))
+            | map({
+                name: .[0].name,
+                definitions: map({runtime, server})
+            })
+        ' "$rows")
+    fi
     if [ "$(jq 'length' <<<"$conflicts")" -gt 0 ]; then
         echo "[ERROR] Conflicting MCP definitions; repository unchanged: $(
             jq -r 'map(.name) | unique | .[:20] | join(", ")' \
@@ -744,6 +758,19 @@ build_mcp_candidate() {
     fi
 
     mcp_rows_to_inventory "$rows" >"$candidate"
+    if [ "$preserve_managed" = true ]; then
+        merged="$(mktemp)"
+        jq -S --slurpfile wanted "$MCP_SERVERS" '
+            with_entries(
+                .key as $key | select(($wanted[0] | has($key)) | not)
+            ) as $local
+            | $wanted[0] + $local
+        ' "$candidate" >"$merged" || {
+            rm -f "$rows" "$candidate" "$merged"
+            return 1
+        }
+        mv "$merged" "$candidate"
+    fi
     rm -f "$rows"
 }
 
@@ -1105,7 +1132,7 @@ Pi settings|$PI_SETTINGS_TEMPLATE|${root}/pi-settings.json|pi|$PI_SETTINGS_FILE
 EOF
 
     candidate="${root}/mcp-servers.json"
-    build_mcp_candidate "$candidate" || { rm -rf "$root"; return 1; }
+    build_mcp_candidate "$candidate" true || { rm -rf "$root"; return 1; }
     validate_mcp_candidate "$candidate" || { rm -rf "$root"; return 1; }
     if ! cmp -s "$MCP_SERVERS" "$candidate"; then
         EXPORT_TARGETS+=("$MCP_SERVERS")
@@ -1841,7 +1868,7 @@ render_opencode_config() {
             ) | add // {};
 
         .instructions = (((.instructions // []) | if type == "array" then . else [.] end) + ["AGENTS.md"] | unique) |
-        .mcp = opencode_mcp
+        .mcp = ((.mcp // {}) + opencode_mcp)
     ' "$source_file" >"$target_file"
 }
 
@@ -2467,7 +2494,8 @@ staged_skills_match_live() {
 
     for index in "${!targets[@]}"; do
         [ -d "${targets[$index]}" ] || return 1
-        diff -qr "${candidates[$index]}" "${targets[$index]}" >/dev/null ||
+        diff -qr "${candidates[$index]}" "${targets[$index]}" \
+            >/dev/null 2>&1 ||
             return 1
     done
     [ -f "$SKILL_LOCK_LIVE" ] &&
@@ -3782,7 +3810,7 @@ emit_category_plan() {
 }
 
 cmd_mcp_plan() {
-    local rows filtered wanted candidate conflicts actual runtime config
+    local rows filtered wanted candidate conflicts actual runtime config merged
     local status=PASS
     rows="$(mktemp)"
     wanted="$(mktemp)"
@@ -3820,7 +3848,8 @@ EOF
     fi
     mv "$filtered" "$rows"
 
-    conflicts=$(jq -s '
+    conflicts=$(jq -s --slurpfile wanted "$wanted" '
+        map(.name as $name | select(($wanted[0] | has($name)) | not)) |
         sort_by(.name, .runtime) | group_by(.name) |
         map(select((map(.server | tojson) | unique | length) > 1)) |
         length
@@ -3832,12 +3861,20 @@ EOF
     fi
 
     mcp_rows_to_inventory "$rows" >"$candidate"
-    if jq -e --slurpfile wanted "$wanted" '
-        to_entries | any(.[]; $wanted[0][.key] != .value)
-    ' "$candidate" >/dev/null; then
+    merged="$(mktemp)"
+    jq -S --slurpfile wanted "$wanted" '
+        with_entries(
+            .key as $key | select(($wanted[0] | has($key)) | not)
+        ) as $local
+        | $wanted[0] + $local
+    ' "$candidate" >"$merged" || {
+        rm -f "$rows" "$wanted" "$candidate" "$merged"
+        emit_category_plan FAIL mcp MCP
+        return 0
+    }
+    mv "$merged" "$candidate"
+    if ! cmp -s "$wanted" "$candidate"; then
         status=EXPORT
-    elif ! cmp -s "$wanted" "$candidate"; then
-        status=UPDATE
     fi
 
     for runtime in codex claude opencode pi; do

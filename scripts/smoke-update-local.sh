@@ -230,7 +230,7 @@ for marker in settings links hooks; do
     [ -f "${state_dir}/${marker}" ] ||
         fail "independent category was not applied: $marker"
 done
-[ ! -f "${state_dir}/mcp" ] || fail "EXPORT category was changed"
+[ -f "${state_dir}/mcp" ] || fail "managed MCP state was not reconciled"
 grep -Fx 'settings-install codex' "$action_log" >/dev/null ||
     fail "settings adapter was not used"
 for action in latest-core-tools 'agent-tools update' pi-packages-update; do
@@ -244,6 +244,8 @@ for action in skills-update push-plugins plugins-update; do
 done
 grep -Fx '[BLOCKED] mcp: export local additions first' \
     "${tmp_dir}/update.log" >/dev/null || fail "EXPORT was not reported"
+grep -Fx '[APPLY] mcp managed state' "${tmp_dir}/update.log" >/dev/null ||
+    fail "managed MCP apply was not reported"
 grep -Fx '[BLOCKED] skills upstream refresh: export local additions first' \
     "${tmp_dir}/update.log" >/dev/null || fail "skill EXPORT was not reported"
 grep -Fx '[BLOCKED] plugins upstream refresh: export local additions first' \
@@ -268,8 +270,9 @@ rm "${state_dir}/export" "${state_dir}/export-skills" \
 : >"$mutation_log"
 run_sync || fail "compatible sync failed"
 [ -f "${state_dir}/mcp" ] || fail "MCP adapter was not applied"
-grep -Fx 'push-mcp' "$action_log" >/dev/null ||
-    fail "MCP adapter was not used"
+if grep -Fx 'push-mcp' "$action_log" >/dev/null; then
+    fail "compatible sync repeated the MCP apply"
+fi
 grep -Fx '[RESULT] PASS' "${tmp_dir}/update.log" >/dev/null ||
     fail "compatible sync omitted its result"
 for category in node tools; do
