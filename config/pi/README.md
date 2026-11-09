@@ -1,6 +1,6 @@
 # Pi configuration
 
-`settings.json` owns preferences and the tested extension versions/commits.
+`settings.json` owns preferences and current-upstream extension sources.
 `models.json` owns only the three Codex context-window overrides; sync merges
 these into local overrides without deleting other models, fields or auth.
 Themes and local extensions are linked individually. Herdr's extension,
@@ -14,7 +14,7 @@ credentials, sessions, caches and Fast Mode state remain unmanaged.
 ```
 
 `pi-check` compares JSON values, not formatting or key order. It also checks
-installed package versions/commits, model overrides and theme/extension files.
+package presence, model overrides and theme/extension files.
 Changing a linked theme or extension changes its source in dotfiles.
 
 ## Interface
@@ -43,10 +43,9 @@ RPC, JSON and print do not start it or emit title updates.
 
 ## Server compaction
 
-The package remains at the exact requested upstream commit, unchanged.
-Its declared Pi range is `>=0.80.9 <0.81.0`, while deployment targets latest.
-The narrow declared range is not proof of runtime incompatibility; repeat
-the live check after Pi upgrades rather than downgrading Pi.
+Sync updates the package from current upstream. Its declared Pi range was
+historically narrow. A failed live check is compatibility evidence; do not
+downgrade Pi without that evidence.
 
 Compaction runs two requests: native OpenAI compaction and a portable text
 summary. Context is sent to the provider; opaque artifacts are stored in
@@ -56,7 +55,7 @@ compaction usage is stored in details and is not fully included in ordinary
 session totals. Expect extra usage; never commit artifacts or credentials.
 
 Emergency bypass: `PI_OPENAI_SERVER_COMPACTION_ENABLED=0 pi`, or run with
-`--no-extensions` to bypass extensions entirely. Neither changes the pins.
+`--no-extensions` to bypass extensions entirely.
 
 ## MCP audit: retain both adapters
 

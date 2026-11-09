@@ -2,7 +2,7 @@
   "chrome-devtools": {
     "args": [
       "-y",
-      "chrome-devtools-mcp@1.5.0",
+      "chrome-devtools-mcp@latest",
       "--browserUrl",
       "http://127.0.0.1:9222"
     ],
@@ -19,10 +19,8 @@
   },
   "garmin": {
     "args": [
-      "--python",
-      "3.12",
       "--from",
-      "git+https://github.com/Taxuspt/garmin_mcp@2974244bfda1595b00836b3f942f579ec2d6f7d6",
+      "git+https://github.com/Taxuspt/garmin_mcp",
       "garmin-mcp"
     ],
     "command": "uvx",
@@ -46,7 +44,7 @@
   "playwright": {
     "args": [
       "-y",
-      "@playwright/mcp@0.0.77"
+      "@playwright/mcp@latest"
     ],
     "command": "npx",
     "type": "stdio"
@@ -54,15 +52,13 @@
   "sequential-thinking": {
     "args": [
       "-y",
-      "@modelcontextprotocol/server-sequential-thinking@2026.7.4"
+      "@modelcontextprotocol/server-sequential-thinking@latest"
     ],
     "command": "npx",
     "type": "stdio"
   },
   "telegram": {
     "args": [
-      "--python",
-      "3.12",
       "--from",
       "git+https://github.com/chigwell/telegram-mcp",
       "telegram-mcp"

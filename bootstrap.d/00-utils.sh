@@ -56,6 +56,36 @@ install_package_manager_package() {
     esac
 }
 
+update_package_manager_package() {
+    local tool_name="$1"
+    local apt_package="$2"
+    local dnf_package="$3"
+    local pacman_package="$4"
+    local package_manager package_name
+
+    package_manager="$(detect_package_manager)" || {
+        echo "[WARN] Could not update ${tool_name}: no supported package manager"
+        return 1
+    }
+    case "$package_manager" in
+        apt-get)
+            package_name="$apt_package"
+            [ -n "$package_name" ] || return 1
+            sudo apt-get install -y "$package_name"
+            ;;
+        dnf)
+            package_name="$dnf_package"
+            [ -n "$package_name" ] || return 1
+            sudo dnf upgrade -y "$package_name"
+            ;;
+        pacman)
+            package_name="$pacman_package"
+            [ -n "$package_name" ] || return 1
+            sudo pacman -S --noconfirm "$package_name"
+            ;;
+    esac
+}
+
 # Expand a release asset pattern with {tag} and/or {tag_no_v} placeholders.
 #   {tag}      = full tag, e.g. "v0.59.0"
 #   {tag_no_v} = tag without leading 'v', e.g. "0.59.0"

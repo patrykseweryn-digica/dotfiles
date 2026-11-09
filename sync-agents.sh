@@ -909,6 +909,12 @@ build_json_settings_candidate() {
     fi
 
     jq -S --arg runtime "$runtime" --slurpfile managed "$template" '
+        def unpin_pi_package:
+            if startswith("npm:") then
+                sub("@[^@/]+$"; "")
+            elif startswith("git:") and test("/[^@/]+@[^/]+$") then
+                sub("@[^@/]+$"; "")
+            else . end;
         def import_managed($live; $wanted):
             reduce ($wanted | keys_unsorted[]) as $key ($wanted;
                 if ($live | has($key)) then
@@ -927,6 +933,8 @@ build_json_settings_candidate() {
                 map(select(
                     (startswith("mcp__") and endswith("__*")) | not
                 )))
+         elif $runtime == "pi" then
+            .packages = ((.packages // []) | map(unpin_pi_package))
          else . end) as $live |
         import_managed($live; $managed[0])
     ' "$live" >"$target"
@@ -1218,9 +1226,9 @@ cmd_codex_check() {
     log_info "Codex config in sync"
 }
 
-check_marketplace_provider() {
-    local runtime="$1" show_repair="${2:-false}" foreign marketplace
-    foreign=$(jq -ser --arg runtime "$runtime" '
+foreign_marketplaces() {
+    local runtime="$1"
+    jq -sr --arg runtime "$runtime" '
         if length != 1 then error("Expected one marketplace inventory")
         else .[0] end |
         [.[] |
@@ -1234,8 +1242,13 @@ check_marketplace_provider() {
                ($source | test("(^|github[.]com[:/])openai/"))) then
             "codex"
          else $runtime end) as $owner |
-        select($owner != $runtime) | .name] | unique | join("\n")
-    ') || return 1
+        select($owner != $runtime) | .name] | unique | .[]
+    '
+}
+
+check_marketplace_provider() {
+    local runtime="$1" show_repair="${2:-false}" foreign marketplace
+    foreign="$(foreign_marketplaces "$runtime")" || return 1
     [ -n "$foreign" ] || return 0
     echo "[ERROR] Provider-specific marketplaces do not belong in $runtime:" >&2
     printf '%s\n' "$foreign" >&2
@@ -1469,13 +1482,47 @@ codex_marketplace_plugin_state_available() {
         command -v codex >/dev/null 2>&1
 }
 
+raw_codex_plugin_state() {
+    if [ -n "${CODEX_PLUGIN_LIST_FILE:-}" ]; then
+        cat "$CODEX_PLUGIN_LIST_FILE"
+    else
+        codex plugin list --json
+    fi
+}
+
+raw_codex_marketplace_state() {
+    if [ -n "${CODEX_MARKETPLACE_LIST_FILE:-}" ]; then
+        cat "$CODEX_MARKETPLACE_LIST_FILE"
+    else
+        codex plugin marketplace list --json
+    fi
+}
+
+repair_codex_marketplace_providers() {
+    local plugins marketplaces foreign marketplace failed=false
+    plugins="$(raw_codex_plugin_state)" || return 1
+    marketplaces="$(raw_codex_marketplace_state)" || return 1
+    foreign="$(jq -n --argjson plugins "$plugins" \
+        --argjson marketplaces "$marketplaces" '[
+            $plugins.installed[]? | {
+                name: (.marketplaceName // (.pluginId | split("@")[-1])),
+                source: (.marketplaceSource.source // "")
+            },
+            $marketplaces.marketplaces[]? | {
+                name, source: (.marketplaceSource.source // "")
+            }
+        ] | unique_by([.name, .source])' | foreign_marketplaces codex)" || return 1
+    while IFS= read -r marketplace; do
+        [ -n "$marketplace" ] || continue
+        log_info "Removing provider-specific Codex marketplace: $marketplace"
+        codex plugin marketplace remove "$marketplace" || failed=true
+    done <<<"$foreign"
+    [ "$failed" = false ]
+}
+
 read_codex_plugin_state() {
     local state
-    if [ -n "${CODEX_PLUGIN_LIST_FILE:-}" ]; then
-        state=$(cat "$CODEX_PLUGIN_LIST_FILE") || return 1
-    else
-        state=$(codex plugin list --json) || return 1
-    fi
+    state="$(raw_codex_plugin_state)" || return 1
     printf '%s\n' "$state" | jq '[.installed[]? |
         select(.installed == true) |
         {name: (.marketplaceName // (.pluginId | split("@")[-1])),
@@ -1486,11 +1533,7 @@ read_codex_plugin_state() {
 
 read_codex_marketplace_state() {
     local state
-    if [ -n "${CODEX_MARKETPLACE_LIST_FILE:-}" ]; then
-        state=$(cat "$CODEX_MARKETPLACE_LIST_FILE") || return 1
-    else
-        state=$(codex plugin marketplace list --json) || return 1
-    fi
+    state="$(raw_codex_marketplace_state)" || return 1
     printf '%s\n' "$state" | jq '[.marketplaces[]? |
         {name, source: (.marketplaceSource.source // "")}
     ]' | check_marketplace_provider codex true || return 1
@@ -1645,6 +1688,7 @@ cmd_codex_marketplace_plugins_push() {
         echo "[ERROR] codex CLI not found; cannot reconcile plugins" >&2
         return 1
     }
+    repair_codex_marketplace_providers || return 1
 
     local live_plugins live_marketplaces wanted_plugins wanted_marketplaces
     local plugin marketplace source sparse_path failed=false
@@ -1726,6 +1770,8 @@ cmd_codex_plugins_update() {
         echo "[ERROR] codex CLI not found; cannot update plugin marketplaces" >&2
         return 1
     }
+
+    repair_codex_marketplace_providers || return 1
 
     read_codex_plugin_state >/dev/null || return 1
     read_codex_marketplace_state >/dev/null || return 1
@@ -2624,6 +2670,27 @@ check_claude_plugin_providers() {
     fi
 }
 
+repair_claude_plugin_providers() {
+    local installed_json="${HOME}/.claude/plugins/installed_plugins.json"
+    local known_mp="${HOME}/.claude/plugins/known_marketplaces.json"
+    local foreign marketplace failed=false
+    foreign="$(jq -n \
+        --slurpfile installed <(cat "$installed_json" 2>/dev/null || echo '{}') \
+        --slurpfile known <(cat "$known_mp" 2>/dev/null || echo '{}') '[
+            ((($installed[0].plugins // {}) | keys[]) as $plugin |
+                {name: ($plugin | split("@")[-1])}),
+            ((($known[0] // {}) | to_entries[]) |
+                {name: .key,
+                 source: (.value.source.repo // .value.source.url // "")})
+        ]' | foreign_marketplaces claude)" || return 1
+    while IFS= read -r marketplace; do
+        [ -n "$marketplace" ] || continue
+        log_info "Removing provider-specific Claude marketplace: $marketplace"
+        CLAUDECODE='' claude plugin marketplace remove "$marketplace" || failed=true
+    done <<<"$foreign"
+    [ "$failed" = false ]
+}
+
 cmd_plugin_provider_preflight() {
     validate_plugin_manifest "$PLUGIN_MANIFEST" || return 1
     check_claude_plugin_providers || return 1
@@ -2757,6 +2824,7 @@ cmd_claude_plugins_update() {
         return 1
     }
 
+    repair_claude_plugin_providers || return 1
     check_claude_plugin_providers || return 1
 
     local marketplace failed=false
@@ -3058,6 +3126,69 @@ cmd_plugins_update() {
     [ "$failed" = false ]
 }
 
+verify_removed_upstream_skills() {
+    local missing="$1" root missing_file groups group source_url ref checkout
+    local inventory skill_file name install_name still_available=""
+    root="$(mktemp -d)" || return 1
+    missing_file="${root}/missing"
+    printf '%s\n' "$missing" >"$missing_file"
+    groups="$(jq -c --rawfile missing "$missing_file" '
+        ($missing | split("\n") | map(select(length > 0))) as $missing |
+        [.skills | to_entries[] | select(.key as $key |
+            $missing | index($key)) | {
+                name: .key,
+                installName: (.value.installName // .key),
+                sourceUrl: .value.sourceUrl,
+                ref: (.value.ref // "HEAD")
+            }] | group_by([.sourceUrl, .ref])[]
+    ' "$SKILL_LOCK_REPO")" || { rm -rf "$root"; return 1; }
+    local index=0
+    while IFS= read -r group; do
+        [ -n "$group" ] || continue
+        source_url="$(jq -r '.[0].sourceUrl' <<<"$group")"
+        ref="$(jq -r '.[0].ref' <<<"$group")"
+        checkout="${root}/source-${index}"
+        index=$((index + 1))
+        if [ "$ref" = HEAD ]; then
+            git clone --quiet --depth 1 "$source_url" "$checkout"
+        else
+            git clone --quiet --depth 1 --branch "$ref" \
+                "$source_url" "$checkout"
+        fi || {
+            rm -rf "$root"
+            echo "[ERROR] Could not inspect upstream skills: $source_url $ref" >&2
+            return 1
+        }
+        inventory="${checkout}.names"
+        while IFS= read -r skill_file; do
+            awk '
+                NR == 1 && $0 == "---" { frontmatter = 1; next }
+                frontmatter && $0 == "---" { exit }
+                frontmatter && /^name:[[:space:]]*/ {
+                    sub(/^name:[[:space:]]*/, "")
+                    gsub(/^["'\'' ]+|["'\'' ]+$/, "")
+                    print
+                    exit
+                }
+            ' "$skill_file"
+        done < <(find "$checkout" -type f -name SKILL.md -print) |
+            sort -u >"$inventory"
+        while IFS=$'\t' read -r name install_name; do
+            if grep -qxF "$install_name" "$inventory"; then
+                still_available="${still_available}${still_available:+$'\n'}${name}"
+            else
+                log_info "Accepting upstream-removed or renamed skill: $name"
+            fi
+        done < <(jq -r '.[] | [.name, .installName] | @tsv' <<<"$group")
+    done <<<"$groups"
+    rm -rf "$root"
+    if [ -n "$still_available" ]; then
+        echo "[ERROR] Removed or renamed managed skills still available upstream:" >&2
+        printf '%s\n' "$still_available" | sed 's/^/  - /' >&2
+        return 1
+    fi
+}
+
 validate_skill_export_continuity() {
     local candidate_lock="$1" candidate_custom="$2"
     local repo_names candidate_names missing changed
@@ -3069,9 +3200,7 @@ validate_skill_export_continuity() {
     jq -r '.skills | keys[]' "$SKILL_LOCK_REPO" | sort -u >"$repo_names"
     jq -r '.skills | keys[]' "$candidate_lock" | sort -u >"$candidate_names"
     missing="$(comm -23 "$repo_names" "$candidate_names")"
-    if [ -n "$missing" ]; then
-        echo "[ERROR] Removed or renamed managed skills:" >&2
-        printf '%s\n' "$missing" | sed 's/^/  - /' >&2
+    if [ -n "$missing" ] && ! verify_removed_upstream_skills "$missing"; then
         rm -f "$repo_names" "$candidate_names" \
             "$repo_custom" "$candidate_custom_names"
         return 1
@@ -3079,10 +3208,14 @@ validate_skill_export_continuity() {
 
     changed="$(jq -r --slurpfile live "$candidate_lock" '
         .skills | to_entries[] |
-        select($live[0].skills[.key] != .value) | .key
+        select($live[0].skills[.key] != null) |
+        select(
+            (.value | {source, sourceType, sourceUrl}) !=
+            ($live[0].skills[.key] | {source, sourceType, sourceUrl})
+        ) | .key
     ' "$SKILL_LOCK_REPO")"
     if [ -n "$changed" ]; then
-        echo "[ERROR] Existing managed skill metadata changed:" >&2
+        echo "[ERROR] Existing managed skill source changed:" >&2
         printf '%s\n' "$changed" | sed 's/^/  - /' >&2
         rm -f "$repo_names" "$candidate_names" \
             "$repo_custom" "$candidate_custom_names"
@@ -3334,6 +3467,7 @@ cmd_claude_plugins_push() {
         log_info "Claude CLI not installed; skipping plugin push"
         return 0
     }
+    repair_claude_plugin_providers || return 1
 
     local plugins_json="${HOME}/.claude/plugins/installed_plugins.json"
     if [ -L "$plugins_json" ] && [ ! -e "$plugins_json" ]; then
@@ -3457,27 +3591,46 @@ pi_package_installed() {
     case "$source" in
     npm:*)
         spec="${source#npm:}"
-        package="${spec%@*}"
-        version="${spec##*@}"
-        jq -e --arg version "$version" \
-            '.version == $version' \
-            "${PI_AGENT_DIR}/npm/node_modules/${package}/package.json" \
-            >/dev/null 2>&1
+        case "$spec" in
+        @*/*@*) package="${spec%@*}"; version="${spec##*@}" ;;
+        @*/*) package="$spec"; version="" ;;
+        *@*) package="${spec%@*}"; version="${spec##*@}" ;;
+        *) package="$spec"; version="" ;;
+        esac
+        if [ -n "$version" ]; then
+            jq -e --arg version "$version" '.version == $version' \
+                "${PI_AGENT_DIR}/npm/node_modules/${package}/package.json" \
+                >/dev/null 2>&1
+        else
+            [ -f "${PI_AGENT_DIR}/npm/node_modules/${package}/package.json" ]
+        fi
         ;;
     git:*)
         spec="${source#git:}"
-        repo="${spec%@*}"
-        ref="${spec##*@}"
+        case "$spec" in
+        *@*) repo="${spec%@*}"; ref="${spec##*@}" ;;
+        *) repo="$spec"; ref="" ;;
+        esac
         host="${repo%%/*}"
         path="${repo#*/}"
         target="${PI_AGENT_DIR}/git/${host}/${path}"
         [ -d "${target}/.git" ] &&
-            [ "$(git -C "$target" rev-parse HEAD 2>/dev/null)" = "$ref" ]
+            { [ -z "$ref" ] ||
+                [ "$(git -C "$target" rev-parse HEAD 2>/dev/null)" = "$ref" ]; }
         ;;
     *)
         return 1
         ;;
     esac
+}
+
+cmd_pi_packages_update() {
+    command -v pi >/dev/null 2>&1 || {
+        echo "[ERROR] Pi CLI not found; cannot update packages" >&2
+        return 1
+    }
+    restore_pi_packages || return 1
+    pi update --extensions
 }
 
 restore_pi_packages() {
@@ -3990,6 +4143,9 @@ opencode-check)
 pi-install)
     cmd_pi_install
     ;;
+pi-packages-update)
+    cmd_pi_packages_update
+    ;;
 pi-check)
     cmd_pi_check
     ;;
@@ -4048,6 +4204,7 @@ claude-settings-check)
     echo "  opencode-install Link AGENTS.md, skills, and generate OpenCode MCP config"
     echo "  opencode-check   Exit 1 if OpenCode config is out of sync"
     echo "  pi-install       Link instructions, restore settings and packages"
+    echo "  pi-packages-update Update installed Pi packages"
     echo "  pi-check         Exit 1 if Pi settings or packages drift"
     echo "  claude-install   Link AGENTS.md, generate Claude settings, install plugins and skills"
     echo "  skills-update    Update global skills shared by Codex, Claude, Pi, and OpenCode"

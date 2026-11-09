@@ -53,12 +53,11 @@ run_cli_tool_plan() {
     local pacman_package="$5"
     local brew_package="$6"
     local github_repo="$7"
-    local github_tag="$8"
-    local github_archive="$9"
-    local github_binary="${10}"
-    local github_installed_name="${11:-}"
-    local post_install="${12:-}"
-    local adapter="${13:-package}"
+    local github_archive="$8"
+    local github_binary="$9"
+    local github_installed_name="${10:-}"
+    local post_install="${11:-}"
+    local adapter="${12:-package}"
     local package_installed=false
     local post_installed=false
 
@@ -96,17 +95,14 @@ run_cli_tool_plan() {
                 echo "[ERROR] ${tool_name}: no GitHub artifact for $(tool_platform)" >&2
                 return 1
             fi
-            if [ "$adapter" = github-tree ]; then
-                install_github_tree "$github_repo" "$github_tag" \
-                    "$github_archive" "$github_binary" \
-                    "${github_installed_name:-${github_binary##*/}}" || return 1
-            elif [ -n "$github_installed_name" ]; then
-                install_github_binary "$github_repo" "$github_tag" \
-                    "$github_archive" "$github_binary" "$github_installed_name" || return 1
-            else
-                install_github_binary "$github_repo" "$github_tag" \
-                    "$github_archive" "$github_binary" || return 1
-            fi
+            local github_tag
+            github_tag="$(github_latest_tag "$github_repo")" || {
+                echo "[ERROR] ${tool_name}: latest release unavailable" >&2
+                return 1
+            }
+            install_github_tool "$adapter" "$github_repo" "$github_tag" \
+                "$github_archive" "$github_binary" \
+                "${github_installed_name:-${github_binary##*/}}" || return 1
             ;;
         *)
             echo "[ERROR] ${tool_name}: unknown adapter ${adapter}" >&2
@@ -171,7 +167,7 @@ core_tool_rows() {
         [.name, (.commands | join(" ")), (.packages.apt // "-"),
          (.packages.dnf // "-"), (.packages.pacman // "-"),
          (.packages.brew // "-"), (.github.repo // "-"),
-         (.github.tag // "-"), ($artifact.archive // "-"),
+         ($artifact.archive // "-"),
          ($artifact.binary // "-"), ($artifact.installedName // "-"),
          (.postInstall // "-"), (.adapter // "package")] | @tsv
     ' "$TOOL_INVENTORY"
@@ -186,7 +182,12 @@ latest_core_tool_rows() {
         .tools[] |
         select(.scope == "core" and .versionPolicy == "latest") |
         select(((.platforms // $defaults) | index($platform)) != null) |
-        [.name, (.commands | join(" ")), (.github.repo // "-"),
+        (.github.artifacts[$platform] // {}) as $artifact |
+        [.name, (.commands | join(" ")), (.packages.apt // "-"),
+         (.packages.dnf // "-"), (.packages.pacman // "-"),
+         (.packages.brew // "-"), (.github.repo // "-"),
+         ($artifact.archive // "-"), ($artifact.binary // "-"),
+         ($artifact.installedName // "-"), (.postInstall // "-"),
          (.adapter // "package")] | @tsv
     ' "$TOOL_INVENTORY"
 }
@@ -219,17 +220,17 @@ install_uv_tool() {
 install_declared_core_tools() {
     local failed=false
     local rows
-    local name commands apt dnf pacman brew repo tag archive binary
+    local name commands apt dnf pacman brew repo archive binary
     local installed_name post_install adapter
 
     rows="$(core_tool_rows)" || return 1
-    while IFS=$'\t' read -r name commands apt dnf pacman brew repo tag \
+    while IFS=$'\t' read -r name commands apt dnf pacman brew repo \
         archive binary installed_name post_install adapter; do
         run_cli_tool_plan "$name" "$commands" \
             "$(empty_if_dash "$apt")" "$(empty_if_dash "$dnf")" \
             "$(empty_if_dash "$pacman")" "$(empty_if_dash "$brew")" \
-            "$(empty_if_dash "$repo")" "$(empty_if_dash "$tag")" \
-            "$(empty_if_dash "$archive")" "$(empty_if_dash "$binary")" \
+            "$(empty_if_dash "$repo")" "$(empty_if_dash "$archive")" \
+            "$(empty_if_dash "$binary")" \
             "$(empty_if_dash "$installed_name")" \
             "$(empty_if_dash "$post_install")" "$adapter" || failed=true
     done <<<"$rows"
@@ -237,21 +238,44 @@ install_declared_core_tools() {
     [ "$failed" = false ]
 }
 
-github_latest_version() {
-    local repo="$1" release tag
+github_latest_tag() {
+    local repo="$1" release
     release="$(curl -fsSL -o /dev/null -w '%{url_effective}' \
         "https://github.com/${repo}/releases/latest")" || return 1
-    tag="${release##*/}"
+    [ "${release##*/}" != latest ] || return 1
+    printf '%s\n' "${release##*/}"
+}
+
+github_latest_version() {
+    local tag
+    tag="$(github_latest_tag "$1")" || return 1
     [[ "$tag" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+$ ]] || return 1
     printf '%s\n' "${tag#v}"
 }
 
+install_github_tool() {
+    local adapter="$1" repo="$2" tag="$3" archive="$4" binary="$5"
+    local name="${6:-${binary##*/}}"
+    if [ "$adapter" = github-tree ]; then
+        install_github_tree "$repo" "$tag" "$archive" "$binary" "$name"
+    else
+        install_github_binary "$repo" "$tag" "$archive" "$binary" "$name"
+    fi
+}
+
+text_version() {
+    grep -Eo '[0-9]+\.[0-9]+\.[0-9]+' | head -1
+}
+
 update_declared_latest_core_tools() {
-    local rows name commands repo adapter command_name output current latest
+    local rows name commands apt dnf pacman brew repo archive binary
+    local installed_name post_install adapter command_name output current
+    local latest tag
     local failed=false
 
     rows="$(latest_core_tool_rows)" || return 1
-    while IFS=$'\t' read -r name commands repo adapter; do
+    while IFS=$'\t' read -r name commands apt dnf pacman brew repo archive \
+        binary installed_name post_install adapter; do
         [ -n "$name" ] || continue
         command_name="${commands%% *}"
         if ! command -v "$command_name" >/dev/null 2>&1; then
@@ -290,6 +314,46 @@ update_declared_latest_core_tools() {
             ;;
         uv)
             uv tool upgrade "$name" || failed=true
+            ;;
+        package | github-tree)
+            if command -v brew >/dev/null 2>&1 && [ "$brew" != - ]; then
+                if brew list --formula "$brew" >/dev/null 2>&1; then
+                    brew upgrade "$brew" || failed=true
+                else
+                    brew install "$brew" || failed=true
+                fi
+            elif [ "${HAS_SUDO:-false}" = true ] &&
+                [ "${apt}${dnf}${pacman}" != --- ]; then
+                update_package_manager_package "$name" \
+                    "$(empty_if_dash "$apt")" "$(empty_if_dash "$dnf")" \
+                    "$(empty_if_dash "$pacman")" || failed=true
+            elif [ "$repo" != - ] && [ "$archive" != - ] &&
+                [ "$binary" != - ]; then
+                tag="$(github_latest_tag "$repo")" || {
+                    echo "[ERROR] ${name}: latest release unavailable" >&2
+                    failed=true
+                    continue
+                }
+                latest="$(printf '%s\n' "$tag" | text_version)"
+                output="$("$command_name" --version 2>/dev/null || true)"
+                current="$(printf '%s\n' "$output" | text_version)"
+                if [ -n "$current" ] && [ "$current" = "$latest" ]; then
+                    echo "[INFO] ${name} ${current} already current"
+                    continue
+                fi
+                install_github_tool "$adapter" "$repo" "$tag" "$archive" \
+                    "$binary" "$(empty_if_dash "$installed_name")" || {
+                    failed=true
+                    continue
+                }
+            else
+                echo "[ERROR] ${name}: no latest update source" >&2
+                failed=true
+                continue
+            fi
+            if [ "$post_install" != - ]; then
+                "$post_install" || failed=true
+            fi
             ;;
         *)
             echo "[ERROR] ${name}: no latest update adapter" >&2

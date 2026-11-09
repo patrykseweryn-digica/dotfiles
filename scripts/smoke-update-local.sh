@@ -142,6 +142,9 @@ push-plugins)
 plugins-update)
     [ -f "$HOME/.state/plugins" ]
     ;;
+pi-packages-update)
+    printf '%s\n' pi-packages-update >>"$ACTION_LOG"
+    ;;
 *) exit 1 ;;
 esac
 STUB
@@ -230,7 +233,7 @@ done
 [ ! -f "${state_dir}/mcp" ] || fail "EXPORT category was changed"
 grep -Fx 'settings-install codex' "$action_log" >/dev/null ||
     fail "settings adapter was not used"
-for action in latest-core-tools 'agent-tools update'; do
+for action in latest-core-tools 'agent-tools update' pi-packages-update; do
     grep -Fx "$action" "$action_log" >/dev/null ||
         fail "independent upstream phase was not attempted: $action"
 done
@@ -281,7 +284,7 @@ git -C "$sync_repo" diff --no-ext-diff HEAD >"${tmp_dir}/repo.before"
 : >"$mutation_log"
 run_sync || fail "idempotent sync failed"
 [ ! -s "$mutation_log" ] || fail "second sync repeated mutations"
-for action in latest-core-tools 'agent-tools update' skills-update \
+for action in latest-core-tools 'agent-tools update' pi-packages-update skills-update \
     plugins-update; do
     grep -Fx "$action" "$action_log" >/dev/null ||
         fail "second sync omitted upstream query: $action"

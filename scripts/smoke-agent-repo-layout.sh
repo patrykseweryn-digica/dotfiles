@@ -62,7 +62,9 @@ jq -e '
 jq -e '
     (.packages | type) == "array" and
     (.packages | length) > 0 and
-    all(.packages[]; contains("@")) and
+    all(.packages[];
+        test("^(npm:|git:)") and
+        (test("@[0-9a-f]{7,}$|@[0-9]") | not)) and
     (keys - [
         "defaultModel",
         "defaultProvider",
@@ -83,6 +85,16 @@ jq -e '
 
 [ -L config/claude/mcp-servers.json ] || fail "Claude MCP adapter must be a symlink"
 [ "$(readlink config/claude/mcp-servers.json)" = "../../.agents/mcp-servers.json" ] || fail "Claude MCP adapter points at wrong target"
+jq -e '
+    all(to_entries[];
+        if .value.command == "npx" then
+            any(.value.args[]; endswith("@latest"))
+        elif .value.command == "uvx" then
+            (.value.args | index("--python") == null) and
+            all(.value.args[]; test("@[0-9a-f]{7,}$") | not)
+        else true end)
+' .agents/mcp-servers.json >/dev/null ||
+    fail "MCP commands must resolve current package releases"
 
 [ -L config/claude/skill-lock.json ] || fail "Claude skill lock adapter must be a symlink"
 [ "$(readlink config/claude/skill-lock.json)" = "../../.agents/skill-lock.json" ] || fail "Claude skill lock adapter points at wrong target"

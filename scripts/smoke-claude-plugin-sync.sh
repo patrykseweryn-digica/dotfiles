@@ -191,6 +191,18 @@ cat > "${stub_dir}/claude" <<'STUB'
 #!/bin/bash
 set -eu
 printf 'claude\t%s\t%s\n' "$PWD" "$*" >> "$PLUGIN_UPDATE_LOG"
+if [[ "$*" == plugin\ marketplace\ remove\ * ]]; then
+    marketplace="${*: -1}"
+    installed="$HOME/.claude/plugins/installed_plugins.json"
+    known="$HOME/.claude/plugins/known_marketplaces.json"
+    jq --arg marketplace "$marketplace" '
+        .plugins |= with_entries(select(
+            (.key | split("@")[-1]) != $marketplace
+        ))
+    ' "$installed" >"$installed.next" && mv "$installed.next" "$installed"
+    jq --arg marketplace "$marketplace" 'del(.[$marketplace])' \
+        "$known" >"$known.next" && mv "$known.next" "$known"
+fi
 STUB
 
 chmod +x "${stub_dir}/codex" "${stub_dir}/claude"
@@ -256,14 +268,15 @@ cp "$tmp_dir/provider-plugins.json" "${home_dir}/.claude/plugins/installed_plugi
 jq '.renamed = {source: {source: "git", url: "https://github.com/openai/plugins.git"}}' \
     "$tmp_dir/provider-marketplaces.json" > "${home_dir}/.claude/plugins/known_marketplaces.json"
 : > "$update_log"
-if "$DOTFILES_DIR/sync-agents.sh" --quiet plugins-update > "$sync_log" 2>&1; then
-    fail "Claude updated a renamed Codex marketplace"
-fi
-grep -F 'Provider-specific marketplaces' "$sync_log" >/dev/null ||
-    fail "Claude update omitted the provider ownership error"
-if grep -F $'claude\t' "$update_log" >/dev/null; then
-    fail "Claude updated plugins before checking provider ownership"
-fi
+"$DOTFILES_DIR/sync-agents.sh" --quiet plugins-update > "$sync_log" 2>&1 || {
+    cat "$sync_log" >&2
+    fail "Claude did not repair a renamed Codex marketplace"
+}
+grep -F $'\tplugin marketplace remove renamed' "$update_log" >/dev/null ||
+    fail "Claude update omitted automatic provider repair"
+jq -e 'has("renamed") | not' \
+    "${home_dir}/.claude/plugins/known_marketplaces.json" >/dev/null ||
+    fail "Claude update retained the foreign marketplace"
 cp "$tmp_dir/provider-marketplaces.json" "${home_dir}/.claude/plugins/known_marketplaces.json"
 
 echo "[INFO] Claude plugin sync smoke test passed"

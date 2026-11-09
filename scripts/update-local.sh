@@ -128,6 +128,7 @@ refresh_phase "Node and agent tools" "$AGENT_TOOLS" update
 if ! activate_node >/dev/null; then
     echo "[WARN] Could not activate the latest installed Node" >&2
 fi
+refresh_phase "Pi packages" "$SYNC_AGENTS" pi-packages-update
 
 skills_status="$(plan_status skills)"
 if [ "$skills_status" = EXPORT ]; then

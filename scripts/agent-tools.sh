@@ -16,7 +16,6 @@ validate_manifest() {
         def nonempty: type == "string" and length > 0;
         def github_source($tool; $platform):
             (($tool.github.repo // "") | nonempty) and
-            (($tool.github.tag // "") | nonempty) and
             (($tool.github.artifacts[$platform].archive // "") | nonempty) and
             (($tool.github.artifacts[$platform].binary // "") | nonempty);
         def artifact_adapter($tool):
@@ -67,7 +66,6 @@ validate_manifest() {
                 $tool.scope == "core" and
                 ($tool.commands | type == "array" and length > 0) and
                 ($tool.versionPolicy == "latest" or
-                    $tool.versionPolicy == "pinned" or
                     $tool.versionPolicy == "system") and
                 (($tool.packages // {}) | type == "object") and
                 (($tool.github // {}) | type == "object") and

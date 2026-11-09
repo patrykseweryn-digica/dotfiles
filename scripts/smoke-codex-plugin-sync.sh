@@ -229,6 +229,19 @@ JSON
 cat > "${stub_dir}/codex" <<'STUB'
 #!/bin/bash
 printf '%s\n' "$*" >> "$CODEX_PLUGIN_LOG"
+if [[ "$*" == plugin\ marketplace\ remove\ * ]]; then
+    marketplace="${*: -1}"
+    jq --arg marketplace "$marketplace" '
+        .installed |= map(select(
+            (.marketplaceName // (.pluginId | split("@")[-1])) != $marketplace
+        ))
+    ' "$CODEX_PLUGIN_LIST_FILE" >"$CODEX_PLUGIN_LIST_FILE.next" &&
+        mv "$CODEX_PLUGIN_LIST_FILE.next" "$CODEX_PLUGIN_LIST_FILE"
+    jq --arg marketplace "$marketplace" '
+        .marketplaces |= map(select(.name != $marketplace))
+    ' "$CODEX_MARKETPLACE_LIST_FILE" >"$CODEX_MARKETPLACE_LIST_FILE.next" &&
+        mv "$CODEX_MARKETPLACE_LIST_FILE.next" "$CODEX_MARKETPLACE_LIST_FILE"
+fi
 if [[ "$*" == plugin\ marketplace\ upgrade* ]] &&
     [ "${FAIL_CODEX_UPGRADE:-false}" = true ]; then
     mkdir -p "$CODEX_HOME/.tmp/marketplaces/.staging/marketplace-upgrade-new"
@@ -313,16 +326,39 @@ reject_provider() {
     [ ! -s "$plugin_log" ] || fail "$command mutated foreign provider state"
 }
 
+repair_provider() {
+    local command="$1" marketplace="$2"
+    cp "$manifest" "$tmp_dir/provider-before.json"
+    : > "$plugin_log"
+    HOME="$tmp_dir/home" CODEX_PLUGIN_LOG="$plugin_log" \
+        "$DOTFILES_DIR/sync-agents.sh" --quiet "$command" \
+        > "$sync_log" 2>&1 || {
+        cat "$sync_log" >&2
+        fail "$command did not repair a foreign provider marketplace"
+    }
+    grep -Fx "plugin marketplace remove $marketplace" "$plugin_log" \
+        >/dev/null || fail "$command omitted automatic provider repair"
+    cmp -s "$manifest" "$tmp_dir/provider-before.json" ||
+        fail "$command changed the provider manifest during repair"
+}
+
 cp "$manifest" "$tmp_dir/provider-manifest.json"
 cp "$plugin_list" "$tmp_dir/provider-plugins.json"
 cp "$marketplace_list" "$tmp_dir/provider-marketplaces.json"
 for marketplace in claude-plugins-official anthropic-agent-skills; do
-    jq --arg marketplace "$marketplace" '.installed += [{
-        pluginId: ("foreign@" + $marketplace), installed: true, enabled: false,
-        marketplaceSource: {sourceType: "local"}}]' \
-        "$tmp_dir/provider-plugins.json" > "$plugin_list"
-    for command in codex-plugins-check codex-plugins-export push-plugins plugins-update; do
+    for command in codex-plugins-check codex-plugins-export; do
+        jq --arg marketplace "$marketplace" '.installed += [{
+            pluginId: ("foreign@" + $marketplace), installed: true,
+            enabled: false, marketplaceSource: {sourceType: "local"}}]' \
+            "$tmp_dir/provider-plugins.json" > "$plugin_list"
         reject_provider "$command" "$marketplace" true
+    done
+    for command in push-plugins plugins-update; do
+        jq --arg marketplace "$marketplace" '.installed += [{
+            pluginId: ("foreign@" + $marketplace), installed: true,
+            enabled: false, marketplaceSource: {sourceType: "local"}}]' \
+            "$tmp_dir/provider-plugins.json" > "$plugin_list"
+        repair_provider "$command" "$marketplace"
     done
 done
 

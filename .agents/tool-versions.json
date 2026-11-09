@@ -21,8 +21,7 @@
             "binary": "fzf"
           }
         },
-        "repo": "junegunn/fzf",
-        "tag": "v0.67.0"
+        "repo": "junegunn/fzf"
       },
       "name": "fzf",
       "packages": {
@@ -32,7 +31,7 @@
         "pacman": "fzf"
       },
       "scope": "core",
-      "versionPolicy": "pinned"
+      "versionPolicy": "latest"
     },
     {
       "commands": [
@@ -49,8 +48,7 @@
             "binary": "bat"
           }
         },
-        "repo": "sharkdp/bat",
-        "tag": "v0.26.1"
+        "repo": "sharkdp/bat"
       },
       "name": "bat",
       "packages": {
@@ -61,7 +59,7 @@
       },
       "postInstall": "link_bat_alias",
       "scope": "core",
-      "versionPolicy": "pinned"
+      "versionPolicy": "latest"
     },
     {
       "commands": [
@@ -78,8 +76,7 @@
             "binary": "rg"
           }
         },
-        "repo": "BurntSushi/ripgrep",
-        "tag": "15.1.0"
+        "repo": "BurntSushi/ripgrep"
       },
       "name": "ripgrep",
       "packages": {
@@ -89,7 +86,7 @@
         "pacman": "ripgrep"
       },
       "scope": "core",
-      "versionPolicy": "pinned"
+      "versionPolicy": "latest"
     },
     {
       "commands": [
@@ -106,8 +103,7 @@
             "binary": "fd"
           }
         },
-        "repo": "sharkdp/fd",
-        "tag": "v10.2.0"
+        "repo": "sharkdp/fd"
       },
       "name": "fd",
       "packages": {
@@ -118,7 +114,7 @@
       },
       "postInstall": "link_fd_alias",
       "scope": "core",
-      "versionPolicy": "pinned"
+      "versionPolicy": "latest"
     },
     {
       "commands": [
@@ -137,8 +133,7 @@
             "installedName": "jq"
           }
         },
-        "repo": "jqlang/jq",
-        "tag": "jq-1.7.1"
+        "repo": "jqlang/jq"
       },
       "name": "jq",
       "packages": {
@@ -148,7 +143,7 @@
         "pacman": "jq"
       },
       "scope": "core",
-      "versionPolicy": "pinned"
+      "versionPolicy": "latest"
     },
     {
       "commands": [
@@ -182,8 +177,7 @@
             "installedName": "nvim"
           }
         },
-        "repo": "neovim/neovim",
-        "tag": "v0.12.6"
+        "repo": "neovim/neovim"
       },
       "name": "neovim",
       "packages": {
@@ -193,7 +187,7 @@
         "pacman": "neovim"
       },
       "scope": "core",
-      "versionPolicy": "pinned"
+      "versionPolicy": "latest"
     },
     {
       "commands": [
@@ -227,8 +221,7 @@
             "installedName": "shfmt"
           }
         },
-        "repo": "mvdan/sh",
-        "tag": "v3.14.1"
+        "repo": "mvdan/sh"
       },
       "name": "shfmt",
       "packages": {
@@ -238,7 +231,7 @@
         "pacman": "shfmt"
       },
       "scope": "core",
-      "versionPolicy": "pinned"
+      "versionPolicy": "latest"
     },
     {
       "commands": [
@@ -263,8 +256,7 @@
             "binary": "just"
           }
         },
-        "repo": "casey/just",
-        "tag": "1.56.0"
+        "repo": "casey/just"
       },
       "name": "just",
       "packages": {
@@ -274,7 +266,7 @@
         "pacman": "just"
       },
       "scope": "core",
-      "versionPolicy": "pinned"
+      "versionPolicy": "latest"
     },
     {
       "commands": [
@@ -303,8 +295,7 @@
             "installedName": "hadolint"
           }
         },
-        "repo": "hadolint/hadolint",
-        "tag": "v2.15.1"
+        "repo": "hadolint/hadolint"
       },
       "name": "hadolint",
       "packages": {
@@ -313,7 +304,7 @@
         "pacman": "hadolint"
       },
       "scope": "core",
-      "versionPolicy": "pinned"
+      "versionPolicy": "latest"
     },
     {
       "commands": [
@@ -326,8 +317,7 @@
             "binary": "eza"
           }
         },
-        "repo": "eza-community/eza",
-        "tag": "v0.20.14"
+        "repo": "eza-community/eza"
       },
       "name": "eza",
       "packages": {
@@ -337,7 +327,7 @@
         "pacman": "eza"
       },
       "scope": "core",
-      "versionPolicy": "pinned"
+      "versionPolicy": "latest"
     },
     {
       "commands": [
@@ -358,8 +348,7 @@
             "binary": "delta"
           }
         },
-        "repo": "dandavison/delta",
-        "tag": "0.18.2"
+        "repo": "dandavison/delta"
       },
       "name": "delta",
       "packages": {
@@ -367,7 +356,7 @@
         "pacman": "git-delta"
       },
       "scope": "core",
-      "versionPolicy": "pinned"
+      "versionPolicy": "latest"
     },
     {
       "adapter": "zoxide-native",
@@ -401,8 +390,7 @@
             "installedName": "tldr"
           }
         },
-        "repo": "tealdeer-rs/tealdeer",
-        "tag": "v1.8.1"
+        "repo": "tealdeer-rs/tealdeer"
       },
       "name": "tealdeer",
       "packages": {
@@ -413,7 +401,7 @@
       },
       "postInstall": "update_tldr_cache",
       "scope": "core",
-      "versionPolicy": "pinned"
+      "versionPolicy": "latest"
     },
     {
       "commands": [
@@ -434,8 +422,7 @@
             "binary": "lazygit"
           }
         },
-        "repo": "jesseduffield/lazygit",
-        "tag": "v0.59.0"
+        "repo": "jesseduffield/lazygit"
       },
       "name": "lazygit",
       "packages": {
@@ -443,7 +430,7 @@
         "pacman": "lazygit"
       },
       "scope": "core",
-      "versionPolicy": "pinned"
+      "versionPolicy": "latest"
     },
     {
       "commands": [

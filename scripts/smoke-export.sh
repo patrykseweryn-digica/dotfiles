@@ -5,6 +5,7 @@ DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SYNC="${DOTFILES_DIR}/sync-agents.sh"
 JUST_BIN="$(command -v just)"
 UV_BIN="$(command -v uv)"
+REAL_GIT="$(command -v git)"
 UV_CACHE_REAL="${UV_CACHE_DIR:-$("$UV_BIN" cache dir)}"
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE
 
@@ -347,7 +348,25 @@ for skill in "${skills[@]}"; do
         >"$HOME/.agents/skills/$skill/SKILL.md"
 done
 STUB
-chmod +x "${stub_dir}/codex" "${stub_dir}/cp" "${stub_dir}/skills"
+cat >"${stub_dir}/git" <<'STUB'
+#!/bin/bash
+set -eu
+if [ "$1" = clone ]; then
+    checkout="${*: -1}"
+    mkdir -p "$checkout/moved/new-managed"
+    printf '%s\n' '---' 'name: new-managed' '---' \
+        >"$checkout/moved/new-managed/SKILL.md"
+    if [ "${SKILL_UPSTREAM_REMOVED:-false}" != true ]; then
+        mkdir -p "$checkout/moved/managed-skill"
+        printf '%s\n' '---' 'name: managed-skill' '---' \
+            >"$checkout/moved/managed-skill/SKILL.md"
+    fi
+    exit 0
+fi
+exec "$REAL_GIT" "$@"
+STUB
+chmod +x "${stub_dir}/codex" "${stub_dir}/cp" "${stub_dir}/skills" \
+    "${stub_dir}/git"
 
 git -C "$checkout" init -q
 git -C "$checkout" config user.name smoke
@@ -358,6 +377,7 @@ initial_head="$(git -C "$checkout" rev-parse HEAD)"
 
 export HOME="$home_dir"
 export UV_CACHE_DIR="$UV_CACHE_REAL"
+export REAL_GIT
 export PATH="${stub_dir}:$PATH"
 export SYNC_AGENTS="$SYNC"
 export EXPORT_GIT_DIR="$checkout"
@@ -482,6 +502,23 @@ mv "${tmp_dir}/managed-skill.saved" \
 [ -z "$(git -C "$checkout" status --porcelain --untracked-files=all)" ] ||
     fail "removed skill check changed checkout"
 
+# Export accepts a removal only when the name is absent from current upstream.
+mv "${home_dir}/.agents/skills/managed-skill" \
+    "${tmp_dir}/managed-skill.saved"
+export SKILL_UPSTREAM_REMOVED=true
+if run_export n "${tmp_dir}/upstream-removed-skill.log"; then
+    fail "cancelled upstream skill export succeeded"
+fi
+unset SKILL_UPSTREAM_REMOVED
+grep -F 'Accepting upstream-removed or renamed skill: managed-skill' \
+    "${tmp_dir}/upstream-removed-skill.log" >/dev/null ||
+    fail "verified upstream skill removal was not accepted"
+grep -F '[PLAN] Skill inventory:' \
+    "${tmp_dir}/upstream-removed-skill.log" >/dev/null ||
+    fail "verified upstream skill removal omitted the export plan"
+mv "${tmp_dir}/managed-skill.saved" \
+    "${home_dir}/.agents/skills/managed-skill"
+
 # Plugin provider ownership is checked before the transaction can write.
 cp "$claude_plugins" "${tmp_dir}/claude-plugins.saved"
 jq '.plugins["foreign@openai-bundled"] = [{"scope":"user"}]' \
@@ -534,7 +571,7 @@ jq -e '
     . as $settings |
     $settings.theme == "live-theme" and
     $settings.terminal.trueColor == true and
-    $settings.packages == ["npm:example@2"] and
+    $settings.packages == ["npm:example"] and
     (["apiKeys", "authToken", "deviceId", "trackingId"] |
         all(. as $key | $settings | has($key) | not))
 ' "$pi_template" >/dev/null || fail "Pi allowlist export failed"

@@ -206,7 +206,7 @@ STUB
 }
 
 smoke_pi_drift_check() {
-    local tmp_dir home_dir pi_dir template git_dir sha
+    local tmp_dir home_dir pi_dir template git_dir
 
     tmp_dir="$(mktemp -d)"
     home_dir="${tmp_dir}/home"
@@ -223,14 +223,12 @@ smoke_pi_drift_check() {
             -c user.name=Test \
             -c user.email=test@example.com \
             commit -qm fixture
-        git -C "$git_dir" rev-parse HEAD >"${tmp_dir}/sha"
     )
-    sha="$(cat "${tmp_dir}/sha")"
 
-    jq -n --arg sha "$sha" '{
+    jq -n '{
         packages: [
-            "git:example.test/example/package@\($sha)",
-            "npm:example-package@1.2.3"
+            "git:example.test/example/package",
+            "npm:example-package"
         ]
     }' >"$template"
     jq -c '. + {
@@ -282,6 +280,33 @@ smoke_pi_drift_check() {
         fail "Pi install exposed an installation-local template value"
     fi
 
+    rm -rf "$tmp_dir"
+}
+
+smoke_pi_package_update() {
+    local tmp_dir home_dir template bin_dir log_file
+    tmp_dir="$(mktemp -d)"
+    home_dir="${tmp_dir}/home"
+    template="${tmp_dir}/settings.json"
+    bin_dir="${tmp_dir}/bin"
+    log_file="${tmp_dir}/pi.log"
+    mkdir -p "$home_dir" "$bin_dir"
+    printf '{"packages":["npm:example-package"]}\n' >"$template"
+    cat >"${bin_dir}/pi" <<'STUB'
+#!/bin/sh
+printf '%s\n' "$*" >>"$PI_TEST_LOG"
+STUB
+    chmod +x "${bin_dir}/pi"
+
+    HOME="$home_dir" PATH="${bin_dir}:/usr/bin:/bin" \
+        PI_CODING_AGENT_DIR="${home_dir}/.pi/agent" \
+        PI_SETTINGS_TEMPLATE="$template" PI_TEST_LOG="$log_file" \
+        "$DOTFILES_DIR/sync-agents.sh" --quiet pi-packages-update
+
+    grep -Fx 'install npm:example-package' "$log_file" >/dev/null ||
+        fail "Pi update did not restore a missing package"
+    grep -Fx 'update --extensions' "$log_file" >/dev/null ||
+        fail "Pi update did not refresh extensions"
     rm -rf "$tmp_dir"
 }
 
@@ -631,6 +656,7 @@ smoke_source_has_no_home_side_effect
 smoke_run_steps_preserve_errexit
 smoke_tmux_plugins_install_after_setup_dotfiles
 smoke_pi_drift_check
+smoke_pi_package_update
 run_case "Linux" ".config/Code/User" ".config/ghostty/config"
 run_case "Darwin" "Library/Application Support/Code/User" "Library/Application Support/com.mitchellh.ghostty/config.ghostty"
 

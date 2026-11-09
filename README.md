@@ -22,8 +22,10 @@ enter the repository only through `export`.
 `just export` requires a clean checkout and builds one plan for allowlisted
 settings, normalized MCP, skills, plugin membership, and recognized tools.
 It validates every managed skill against current upstream and enforces plugin
-provider ownership before one confirmation. Removed or renamed skills stop the
-operation. Export never stages, commits, pushes, or changes runtime files; an
+provider ownership before one confirmation. A removed skill stops export while
+its name remains in the current upstream source. A verified upstream removal
+allows the reviewed inventory change. Export never stages, commits, pushes, or
+changes runtime files; an
 apply failure rolls the checkout back. Environment values, HTTP headers,
 credentials, OAuth state, unsupported transports, and local paths stay local.
 
@@ -37,10 +39,11 @@ Doctor ignores Codex's active model and reasoning selection; repository values
 remain install defaults.
 
 Anthropic marketplaces belong only in Claude Code; OpenAI marketplaces belong
-only in Codex. Plugin checks, exports, installs, and updates reject
-cross-provider marketplaces, including aliases pointing at the provider's
-GitHub repositories. Codex uses OpenAI plugins and third-party plugins with an
-upstream native `.codex-plugin/plugin.json`;
+only in Codex. Checks and exports reject cross-provider marketplaces without
+changing them. Sync removes cross-provider marketplaces before reconciliation.
+The rule includes aliases pointing at the provider's GitHub repositories.
+Codex uses OpenAI plugins and third-party plugins with an upstream native
+`.codex-plugin/plugin.json`;
 do not import Claude-only packages through Codex's compatibility conversion.
 Keep each runtime's membership explicit in `.agents/plugin-manifest.json`.
 
@@ -50,17 +53,19 @@ for the audit, theme, title lifecycle, compaction and live-test results.
 
 ## Developer tool versions
 
-`.nvmrc` uses `node`, nvm's latest stable Node alias. Setup installs it before
-developer CLIs and activates it for their installation. Existing Node versions
-are retained. Doctor compares the active runtime with the newest locally
-installed Node; it does not check upstream Node releases.
+`.nvmrc` uses `node` as the latest Node policy. Setup excludes prereleases,
+installs the newest stable release before developer CLIs, and activates it for
+their installation. Existing Node versions are retained. Doctor compares the
+active runtime with the newest locally installed stable Node; it does not check
+upstream Node releases.
 
 `.agents/tool-versions.json` is the single inventory for core and developer
-CLIs. Core entries declare commands, package-manager names, version policy,
-platforms, and explicit GitHub artifacts. Install provisions missing tools
-without checking the network for tools already present. Unsupported direct
-download platforms fail before network access. Without sudo, install skips
-system packages, warns, and uses declared GitHub artifacts. Set
+CLIs. Managed entries follow current stable releases without stored version
+numbers. Core entries declare commands, package-manager names, platforms, and
+GitHub artifact patterns. Install provisions missing tools without checking the
+network for tools already present. Unsupported direct download platforms fail
+before network access. Without sudo, install skips system packages, warns, and
+uses the current declared GitHub release. Set
 `adapter: "github-tree"` when a binary needs files from its archive. Install
 then keeps the archive in `~/.local/opt/<command>` and links the binary into
 `~/.local/bin`. Developer entries use
@@ -101,7 +106,8 @@ manager inventories. Unknown or manual executables are reported by command
 name for explicit description; paths and package-manager state are not saved.
 
 `config/pi/settings.json` owns Pi's stable provider, model, thinking level, and
-pinned package list. Install keeps `auth.json`, sessions, `trust.json`, and
+package list. Package sources omit versions and commits. Sync runs Pi's native
+extension update. Install keeps `auth.json`, sessions, `trust.json`, and
 the `deviceId`, `trackingId`, `apiKeys`, and changelog settings local. Fast
 Mode remains off by default; its existing local preference is untouched. No
 runtime state or credentials are imported.
@@ -109,8 +115,8 @@ Apply only Pi with `./sync-agents.sh pi-install`; check semantic JSON and
 installed package versions with `./sync-agents.sh pi-check`.
 Before repository checks, run `npm --prefix config/pi ci --ignore-scripts`
 to install Pi's development-only typechecking and lint tools.
-Pi extensions, development dependency locks and check-tool revisions remain
-separate from the CLI inventory; this command does not update them.
+Development dependency locks and check-tool revisions remain separate from the
+CLI inventory.
 Global preferences in `.agents/AGENTS.md` are linked to
 `~/.pi/agent/AGENTS.md`. Repository-only instructions live in root `AGENTS.md`,
 with `CLAUDE.md` linking to it for Claude. Shared skills are linked into

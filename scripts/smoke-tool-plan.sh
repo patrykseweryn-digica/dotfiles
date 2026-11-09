@@ -34,6 +34,25 @@ assert_log_not_contains() {
     fi
 }
 
+fixture_latest_tag() {
+    case "$1" in
+        junegunn/fzf) echo v0.67.0 ;;
+        sharkdp/bat) echo v0.26.1 ;;
+        BurntSushi/ripgrep) echo 15.1.0 ;;
+        sharkdp/fd) echo v10.2.0 ;;
+        jqlang/jq) echo jq-1.7.1 ;;
+        neovim/neovim) echo v0.12.6 ;;
+        mvdan/sh) echo v3.14.1 ;;
+        casey/just) echo 1.56.0 ;;
+        hadolint/hadolint) echo v2.15.1 ;;
+        eza-community/eza) echo v0.20.14 ;;
+        dandavison/delta) echo 0.18.2 ;;
+        tealdeer-rs/tealdeer) echo v1.8.1 ;;
+        jesseduffield/lazygit) echo v0.59.0 ;;
+        *) return 1 ;;
+    esac
+}
+
 write_package_manager_stubs() {
     local stub_dir="$1"
 
@@ -179,6 +198,7 @@ smoke_package_manager_plan() {
         source "${DOTFILES_DIR}/bootstrap.d/00-utils.sh"
         # shellcheck source=/dev/null
         source "${DOTFILES_DIR}/bootstrap.d/05-tools.sh"
+        github_latest_tag() { fixture_latest_tag "$1"; }
 
         check_installed() {
             local found
@@ -257,6 +277,7 @@ smoke_linuxbrew_without_sudo_plan() {
         source "${DOTFILES_DIR}/bootstrap.d/00-utils.sh"
         # shellcheck source=/dev/null
         source "${DOTFILES_DIR}/bootstrap.d/05-tools.sh"
+        github_latest_tag() { fixture_latest_tag "$1"; }
 
         check_installed() {
             local found
@@ -326,6 +347,7 @@ smoke_remaining_tool_plan() {
         source "${DOTFILES_DIR}/bootstrap.d/00-utils.sh"
         # shellcheck source=/dev/null
         source "${DOTFILES_DIR}/bootstrap.d/05-tools.sh"
+        github_latest_tag() { fixture_latest_tag "$1"; }
 
         check_installed() {
             local found
@@ -465,6 +487,7 @@ smoke_github_fallback_plan() {
         source "${DOTFILES_DIR}/bootstrap.d/00-utils.sh"
         # shellcheck source=/dev/null
         source "${DOTFILES_DIR}/bootstrap.d/05-tools.sh"
+        github_latest_tag() { fixture_latest_tag "$1"; }
 
         check_installed() {
             return 1
@@ -540,7 +563,9 @@ smoke_macos_github_patterns() {
             .package == "@bitwarden/cli" and .installer == "npm" and
             .channel == "latest") and
         (.tools[] | select(.name == "zoxide") |
-            .github.repo == "ajeetdsouza/zoxide")
+            .github.repo == "ajeetdsouza/zoxide") and
+        all(.tools[] | select(.scope == "core" and .github.repo != null);
+            .versionPolicy == "latest" and (.github | has("tag") | not))
     ' "${DOTFILES_DIR}/.agents/tool-versions.json" >/dev/null ||
         fail "inventory platform artifacts are incomplete"
 }
@@ -703,18 +728,32 @@ smoke_latest_core_updates() {
    "versionPolicy":"latest","adapter":"zoxide-native",
    "github":{"repo":"example/zoxide"}},
   {"scope":"core","name":"pre-commit","commands":["pre-commit"],
-   "versionPolicy":"latest","adapter":"uv"}
+   "versionPolicy":"latest","adapter":"uv"},
+  {"scope":"core","name":"demo","commands":["demo"],
+   "versionPolicy":"latest","github":{"repo":"example/demo",
+   "artifacts":{"linux-x86_64":{"archive":"demo-{tag}.tar.gz",
+   "binary":"demo"}}}},
+  {"scope":"core","name":"brew-demo","commands":["brew-demo"],
+   "versionPolicy":"latest","packages":{"brew":"demo-brew"}}
 ]}
 JSON
     jq '.tools |= map(select(.name == "zoxide")) |
         del(.tools[0].github)' "$manifest" >"$invalid_manifest"
     printf '#!/bin/sh\necho "zoxide 1.0.0"\n' >"${bin_dir}/zoxide"
     printf '#!/bin/sh\n' >"${bin_dir}/pre-commit"
+    printf '#!/bin/sh\necho "demo 1.0.0"\n' >"${bin_dir}/demo"
+    printf '#!/bin/sh\n' >"${bin_dir}/brew-demo"
+    cat >"${bin_dir}/brew" <<'STUB'
+#!/bin/sh
+echo "brew $*" >>"$SMOKE_LOG"
+STUB
     cat >"${bin_dir}/uv" <<'STUB'
 #!/bin/sh
 echo "uv $*" >>"$SMOKE_LOG"
 STUB
-    chmod +x "${bin_dir}/zoxide" "${bin_dir}/pre-commit" "${bin_dir}/uv"
+    chmod +x "${bin_dir}/zoxide" "${bin_dir}/pre-commit" \
+        "${bin_dir}/demo" "${bin_dir}/uv"
+    chmod +x "${bin_dir}/brew-demo" "${bin_dir}/brew"
 
     (
         TOOL_INVENTORY="$manifest"
@@ -732,13 +771,19 @@ STUB
                 printf 'https://github.com/example/zoxide/releases/tag/v%s\n' \
                     "${LATEST_ZOXIDE:-1.0.0}"
                 ;;
+            *example/demo/releases/latest*)
+                printf 'https://github.com/example/demo/releases/tag/v%s\n' \
+                    "${LATEST_DEMO:-1.0.0}"
+                ;;
             *) return 1 ;;
             esac
         }
         install_zoxide_native() { echo zoxide-install >>"$SMOKE_LOG"; }
+        install_github_binary() { echo "github $*" >>"$SMOKE_LOG"; }
 
         update_declared_latest_core_tools >/dev/null
-        LATEST_ZOXIDE=1.1.0 update_declared_latest_core_tools >/dev/null
+        LATEST_ZOXIDE=1.1.0 LATEST_DEMO=1.1.0 \
+            update_declared_latest_core_tools >/dev/null
         if TOOL_INVENTORY="$invalid_manifest" \
             update_declared_latest_core_tools >/dev/null 2>&1; then
             fail "latest zoxide accepted a missing GitHub repository"
@@ -753,6 +798,10 @@ STUB
         fail "current zoxide was downloaded unnecessarily"
     [ "$(grep -Fxc 'uv tool upgrade pre-commit' "$log_file")" -eq 2 ] ||
         fail "latest uv tool was not queried on each update"
+    [ "$(grep -Fc 'github example/demo v1.1.0' "$log_file")" -eq 1 ] ||
+        fail "latest GitHub artifact was not installed exactly once"
+    [ "$(grep -Fxc 'brew upgrade demo-brew' "$log_file")" -eq 2 ] ||
+        fail "latest package-manager tool was not updated"
     rm -rf "$tmp_dir"
 }
 

@@ -15,7 +15,10 @@ fail() {
 }
 
 jq -e 'all(.tools[] | select((.scope // "agent") == "agent");
-  .channel == "latest" and (has("version") | not))' \
+  .channel == "latest" and (has("version") | not)) and
+  all(.tools[] | select(.scope == "core");
+    (.versionPolicy == "latest" or .versionPolicy == "system") and
+    ((.github // {}) | has("tag") | not))' \
   "$DOTFILES_DIR/.agents/tool-versions.json" >/dev/null ||
   fail "repository tools must follow latest without version pins"
 
@@ -41,6 +44,13 @@ if AGENT_TOOL_VERSIONS="${tmp_dir}/invalid-tree.json" \
   "$AGENT_TOOLS" plan >/dev/null 2>&1; then
   fail "manifest accepted a tree binary outside an archive directory"
 fi
+jq '.tools[0].versionPolicy = "pinned" |
+  .tools[0].packages.apt = "demo"' "$invalid_manifest" \
+  >"${tmp_dir}/pinned-core.json"
+if AGENT_TOOL_VERSIONS="${tmp_dir}/pinned-core.json" \
+  "$AGENT_TOOLS" plan >/dev/null 2>&1; then
+  fail "manifest accepted a pinned core tool"
+fi
 
 manifest="${tmp_dir}/tool-versions.json"
 stub_dir="${tmp_dir}/stubs"
@@ -57,6 +67,10 @@ ln -s "$REAL_NODE_BIN/node" "$node_bin/node"
 cat >"$HOME/.nvm/nvm.sh" <<'STUB'
 nvm() {
     case "$1" in
+    ls-remote)
+        printf '        v%s\n' "$EXPECTED_NODE"
+        printf '        v100.0.0-alpha.0.0.0\n'
+        ;;
     version) printf 'v%s\n' "$EXPECTED_NODE" ;;
     use) export PATH="$NVM_DIR/versions/node/v$EXPECTED_NODE/bin:$PATH" ;;
     install|alias) return 0 ;;

@@ -10,7 +10,7 @@ developer releases without editing that inventory.
 - `plan` checks every platform-applicable inventory entry offline.
 - `install` skips available commands and uses only declared package names,
   adapters, or platform artifacts.
-- `update` updates Node and tools while preserving manifest contents.
+- `update` resolves current stable releases without stored version numbers.
 - `failure` retains previous Node and stops when downloads fail.
 
 ## How to get to it (user POV)

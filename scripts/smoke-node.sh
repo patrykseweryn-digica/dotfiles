@@ -13,6 +13,11 @@ mkdir -p "$scratch/stubs"
 cat >"$scratch/nvm.sh" <<'STUB'
 nvm() {
     case "$1" in
+    ls-remote)
+        printf '        v22.21.0\n'
+        printf '        v%s\n' "$NODE_TEST_LATEST"
+        printf '        v100.0.0-alpha.0.0.0\n'
+        ;;
     version)
         local version="$2" candidate
         [ "$version" != default ] || version=$(cat "$NVM_DIR/alias/default")
@@ -24,6 +29,7 @@ nvm() {
                 version="${version%/bin/node}"
             done
         fi
+        version="${version#v}"
         [ -n "$version" ] || { echo N/A; return 3; }
         if [ -x "$NVM_DIR/versions/node/v$version/bin/node" ]; then
             echo "v$version"
@@ -36,8 +42,7 @@ nvm() {
         echo "$*" >> "$NODE_TEST_LOG"
         [ "$2" = --skip-default-packages ] || return 90
         [ "${NODE_TEST_INSTALL_FAIL:-false}" = false ] || return 22
-        local version="$3"
-        [ "$version" != node ] || version="$NODE_TEST_LATEST"
+        local version="${3#v}"
         mkdir -p "$NVM_DIR/versions/node/v$version/bin"
         printf '#!/bin/sh\necho v%s\n' "$version" > "$NVM_DIR/versions/node/v$version/bin/node"
         chmod +x "$NVM_DIR/versions/node/v$version/bin/node"
@@ -54,6 +59,7 @@ nvm() {
                 version="${version%/bin/node}"
             done
         fi
+        version="${version#v}"
         [ -x "$NVM_DIR/versions/node/v$version/bin/node" ] || return 3
         export PATH="$NVM_DIR/versions/node/v$version/bin:$PATH"
         ;;
@@ -93,9 +99,14 @@ for scenario in fresh older failure; do
         printf 'do-not-import\n' >"$NVM_DIR/default-packages"
         if [ "$scenario" != fresh ]; then
             cp "$NODE_TEST_NVM" "$NVM_DIR/nvm.sh"
-            mkdir -p "$NVM_DIR/versions/node/v22.21.0/bin" "$NVM_DIR/alias"
+            mkdir -p "$NVM_DIR/versions/node/v22.21.0/bin" \
+                "$NVM_DIR/versions/node/v100.0.0-alpha.0.0.0/bin" \
+                "$NVM_DIR/alias"
             printf '#!/bin/sh\necho v22.21.0\n' >"$NVM_DIR/versions/node/v22.21.0/bin/node"
+            printf '#!/bin/sh\necho v100.0.0-alpha.0.0.0\n' \
+                >"$NVM_DIR/versions/node/v100.0.0-alpha.0.0.0/bin/node"
             chmod +x "$NVM_DIR/versions/node/v22.21.0/bin/node"
+            chmod +x "$NVM_DIR/versions/node/v100.0.0-alpha.0.0.0/bin/node"
             echo 22.21.0 >"$NVM_DIR/alias/default"
             export PATH="$NVM_DIR/versions/node/v22.21.0/bin:$PATH"
         fi
@@ -136,7 +147,14 @@ for scenario in fresh older failure; do
             # Explicit update resolves and installs the changed upstream release.
             NODE_TEST_LATEST=99.1.0 install_nvm true
             NODE_TEST_LATEST=99.1.0 check_node
+            [ "$(nvm version default)" = v99.1.0 ]
             if [ "$scenario" = older ]; then
+                case ":$PATH:" in
+                *":$NVM_DIR/versions/node/v22.21.0/bin:"*)
+                    echo "[ERROR] Previous Node remained on PATH" >&2
+                    exit 1
+                    ;;
+                esac
                 [ "$("$NVM_DIR/versions/node/v22.21.0/bin/node" --version)" = v22.21.0 ]
             fi
         fi

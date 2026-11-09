@@ -33,6 +33,9 @@ assert.deepEqual(settings.extensions, ["-builtin:mcp"]);
 for (const key of ["quietStartup", "hideThinkingBlock", "collapseChangelog"]) {
   assert.equal(settings[key], true);
 }
+for (const source of settings.packages) {
+  assert.doesNotMatch(source, /@[0-9a-f]{7,}$|@\d/);
+}
 
 const temp = mkdtempSync(join(tmpdir(), "pi-config-test-"));
 try {
