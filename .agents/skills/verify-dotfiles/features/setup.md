@@ -4,7 +4,7 @@ Install or apply dotfiles while preserving runtime credentials and sessions.
 
 ## Sub-features
 
-- `setup` creates links and invokes agent adapters in a disposable HOME.
+- `setup` creates links and invokes agent adapters.
 - `sync` applies repository config and detects drift on a second read.
 - `update` plans local state, preserves export-required additions, applies
   managed MCP state plus independent settings/link/hook categories, and checks
@@ -17,6 +17,7 @@ Install or apply dotfiles while preserving runtime credentials and sessions.
 
 - `just install` for full setup.
 - `just sync` for a fast-forward pull and controlled local/upstream updates.
+  The checkout must be clean.
 - `just export` for one confirmed portable export into a clean checkout.
 
 ## Driving it with Bash smoke scripts
@@ -24,9 +25,9 @@ Install or apply dotfiles while preserving runtime credentials and sessions.
 Preconditions: dependencies from SKILL.md; run from the checkout root.
 
 - **Install and repeat.** Run `bash scripts/smoke-install-dotfiles.sh` and
-  `bash scripts/smoke-plugin-install.sh`. They drive the public install recipe
-  with an isolated HOME through fresh, partial, converged, failed and repeated
-  states on the platform matrix. External installers are stubbed.
+  `bash scripts/smoke-plugin-install.sh`. They drive install helpers with an
+  isolated HOME through fresh, partial, converged, failed and repeated states
+  on the platform matrix. External installers are stubbed.
 - **Plan and update.** Run `bash scripts/smoke-update-local.sh`. It drives
   public `just sync` in an isolated HOME and checkout, checks a blocked export
   alongside successful independent categories and upstream refreshes, then
