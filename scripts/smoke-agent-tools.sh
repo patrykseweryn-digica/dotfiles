@@ -3,7 +3,9 @@ set -eu
 
 DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 AGENT_TOOLS="${DOTFILES_DIR}/scripts/agent-tools.sh"
-REAL_NPM="$(command -v npm)"
+REAL_JQ="$(command -v jq)"
+# shellcheck source=bootstrap.d/07-node.sh
+source "$DOTFILES_DIR/bootstrap.d/07-node.sh"
 expected_node="$(node --version)"
 expected_node="${expected_node#v}"
 REAL_NODE_BIN="$(dirname "$(command -v node)")"
@@ -54,6 +56,7 @@ fi
 manifest="${tmp_dir}/tool-versions.json"
 stub_dir="${tmp_dir}/stubs"
 npm_log="${tmp_dir}/npm.log"
+mise_log="${tmp_dir}/mise.log"
 native_log="${tmp_dir}/native.log"
 mkdir -p "$stub_dir" "${tmp_dir}/home"
 export HOME="${tmp_dir}/home"
@@ -67,13 +70,41 @@ ln -s "$REAL_NODE_BIN/node" "$node_bin/node"
 printf '%s\n' "$expected_node" >"$mise_root/current-node"
 cat >"$HOME/.local/bin/mise" <<'STUB'
 #!/bin/bash
+set -eu
 root="$HOME/.local/share/mise"
 version=$(cat "$root/current-node")
 case "$1" in
-which) printf '%s/installs/node/%s/bin/node\n' "$root" "$version" ;;
-install) exit 0 ;;
+which)
+    if [ "$2" = node ]; then
+        printf '%s/installs/node/%s/bin/node\n' "$root" "$version"
+    else
+        binary="$root/npm-tools/bin/$2"
+        [ -x "$binary" ]
+        printf '%s\n' "$binary"
+    fi
+    ;;
+install | upgrade)
+    if [ "$1" = install ] && [ "$2" = node ]; then
+        exit 0
+    fi
+    [ "${REGISTRY_FAIL:-false}" = false ] || exit 22
+    spec="${!#}"
+    package="${spec#npm:}"
+    command_name=$(
+        "$REAL_JQ" -r --arg package "$package" \
+            '.tools[] | select(.package == $package) | .command' \
+            "$AGENT_TOOL_VERSIONS"
+    )
+    [ -n "$command_name" ] && [ "$command_name" != null ]
+    mkdir -p "$root/npm-tools/bin"
+    printf '#!/bin/sh\necho %s\n' "${LATEST_VERSION:-1.2.3}" \
+        >"$root/npm-tools/bin/$command_name"
+    chmod +x "$root/npm-tools/bin/$command_name"
+    printf '%s\n' "$*" >>"$MISE_LOG"
+    ;;
 activate)
-    printf 'export PATH="%s/installs/node/%s/bin:$PATH"\n' "$root" "$version"
+    printf 'export PATH="%s/npm-tools/bin:%s/installs/node/%s/bin:$PATH"\n' \
+        "$root" "$root" "$version"
     ;;
 *) exit 1 ;;
 esac
@@ -87,7 +118,6 @@ cat >"$manifest" <<'JSON'
       "name": "Pi",
       "command": "pi",
       "package": "@example/pi",
-      "ignore_scripts": true,
       "channel": "latest",
       "installer": "npm"
     },
@@ -110,6 +140,7 @@ cat >"$manifest" <<'JSON'
       "name": "OpenCode",
       "command": "opencode",
       "package": "opencode-ai",
+      "allow_builds": ["opencode-ai"],
       "channel": "latest",
       "installer": "npm"
     },
@@ -123,6 +154,19 @@ cat >"$manifest" <<'JSON'
   ]
 }
 JSON
+
+jq '.tools[0].trust_policy_excludes = ["@example/pi"]' "$manifest" \
+  >"${tmp_dir}/broad-trust-exception.json"
+if AGENT_TOOL_VERSIONS="${tmp_dir}/broad-trust-exception.json" \
+  "$AGENT_TOOLS" plan >/dev/null 2>&1; then
+  fail "manifest accepted a trust exception without an exact version"
+fi
+jq '.tools[0].allow_builds = []' "$manifest" \
+  >"${tmp_dir}/empty-build-allowlist.json"
+if AGENT_TOOL_VERSIONS="${tmp_dir}/empty-build-allowlist.json" \
+  "$AGENT_TOOLS" plan >/dev/null 2>&1; then
+  fail "manifest accepted an empty build allowlist"
+fi
 
 for command_name in pi codex claude opencode skills; do
   cat >"${stub_dir}/${command_name}" <<'STUB'
@@ -162,7 +206,9 @@ chmod +x "${stub_dir}"/*
 
 export AGENT_TOOL_VERSIONS="$manifest"
 export NPM_LOG="$npm_log"
+export MISE_LOG="$mise_log"
 export NATIVE_LOG="$native_log"
+export REAL_JQ
 export VERSION_MARKER="${tmp_dir}/version-called"
 export PATH="${stub_dir}:/usr/bin:/bin"
 
@@ -213,19 +259,30 @@ TEST_AGENT_OPENCODE_VERSION=1.0.0
 TEST_AGENT_SKILLS_VERSION=1.0.0
 export TEST_AGENT_PI_VERSION TEST_AGENT_CODEX_VERSION TEST_AGENT_CLAUDE_VERSION TEST_AGENT_OPENCODE_VERSION TEST_AGENT_SKILLS_VERSION
 : >"$npm_log"
+: >"$mise_log"
 : >"$native_log"
 "$AGENT_TOOLS" install
-[ ! -s "$npm_log" ] || fail "install queried or replaced available npm tools"
+[ ! -s "$npm_log" ] || fail "mise migration used global npm install"
+[ "$(grep -c '^install npm:' "$mise_log")" -eq 4 ] ||
+  fail "install did not migrate every npm tool to mise"
 [ ! -s "$native_log" ] || fail "install replaced available native tools"
+mise_config="$HOME/.config/mise/conf.d/20-agent-tools.toml"
+grep -Fx '"npm:@example/pi" = "latest"' "$mise_config" >/dev/null ||
+  fail "Pi mise declaration is not latest"
+for package in @example/codex skills; do
+  grep -Fx "\"npm:${package}\" = \"latest\"" "$mise_config" \
+    >/dev/null || fail "npm mise declaration is not latest: $package"
+done
+grep -F '"npm:opencode-ai" = { version = "latest", allow_builds = ["opencode-ai"] }' \
+  "$mise_config" >/dev/null || fail "OpenCode build allowlist is missing"
 
 cp "$manifest" "$manifest.before"
+: >"$mise_log"
 LATEST_VERSION=2.0.0 "$AGENT_TOOLS" update
 cmp "$manifest" "$manifest.before" || fail "update changed the tool inventory"
-grep -Fx 'install -g --ignore-scripts @example/pi@latest' "$npm_log" >/dev/null ||
-  fail "Pi did not install latest"
-for package in @example/codex opencode-ai skills; do
-  grep -Fx "install -g ${package}@latest" "$npm_log" >/dev/null ||
-    fail "latest npm version not installed: $package"
+for package in @example/pi @example/codex opencode-ai skills; do
+  grep -Fx "upgrade --global --no-prune npm:${package}" "$mise_log" \
+    >/dev/null || fail "latest npm tool was not upgraded: $package"
 done
 grep -Fx 'claude install latest' "$native_log" >/dev/null ||
   fail "Claude native updater was not used"
@@ -233,14 +290,16 @@ grep -Fx 'claude install latest' "$native_log" >/dev/null ||
 export TEST_AGENT_PI_VERSION=2.0.0 TEST_AGENT_CODEX_VERSION=2.0.0 TEST_AGENT_CLAUDE_VERSION=2.0.0
 export TEST_AGENT_OPENCODE_VERSION=2.0.0 TEST_AGENT_SKILLS_VERSION=2.0.0
 : >"$npm_log"
+: >"$mise_log"
 : >"$native_log"
 LATEST_VERSION=2.0.0 "$AGENT_TOOLS" install
 [ ! -s "$npm_log" ] || fail "current tools reinstalled"
+[ ! -s "$mise_log" ] || fail "current mise tools reinstalled"
 [ ! -s "$native_log" ] || fail "current native tools reinstalled"
 LATEST_VERSION=3.0.0 "$AGENT_TOOLS" install
 [ ! -s "$npm_log" ] || fail "install checked upstream for available tools"
 LATEST_VERSION=3.0.0 "$AGENT_TOOLS" update
-[ "$(wc -l < "$npm_log" | tr -d ' ')" -eq 4 ] ||
+[ "$(wc -l < "$mise_log" | tr -d ' ')" -eq 4 ] ||
   fail "explicit update did not update every npm tool"
 for action in report update; do
   if REGISTRY_FAIL=true "$AGENT_TOOLS" "$action" >/dev/null 2>&1; then
@@ -262,6 +321,7 @@ fi
 # Missing runtime prevents package installs; reports do not activate mise.
 mv "$HOME/.local/bin/mise" "$HOME/.local/bin/mise.saved"
 : >"$npm_log"
+: >"$mise_log"
 cp "$manifest" "$manifest.before"
 for action in install update; do
   if "$AGENT_TOOLS" "$action" >"${tmp_dir}/node-error.log" 2>&1; then
@@ -269,9 +329,38 @@ for action in install update; do
   fi
 done
 [ ! -s "$npm_log" ] || fail "npm ran without required Node"
+[ ! -s "$mise_log" ] || fail "mise tools ran without required Node"
 cmp "$manifest" "$manifest.before" || fail "runtime failure changed inventory"
 LATEST_VERSION=2.0.0 "$AGENT_TOOLS" check >/dev/null
 mv "$HOME/.local/bin/mise.saved" "$HOME/.local/bin/mise"
+
+# Every npm CLI remains runnable after switching between two LTS runtimes.
+npm_manifest="${tmp_dir}/all-npm-tools.json"
+jq '{tools: [.tools[] | select(.installer == "npm")]}' \
+  "$DOTFILES_DIR/.agents/tool-versions.json" >"$npm_manifest"
+previous_manifest="$AGENT_TOOL_VERSIONS"
+export AGENT_TOOL_VERSIONS="$npm_manifest"
+"$AGENT_TOOLS" install
+grep -F 'trust_policy_excludes = ["@bitwarden/cli@2026.10.1"]' \
+  "$HOME/.config/mise/conf.d/20-agent-tools.toml" >/dev/null ||
+  fail "Bitwarden trust exception was not exact"
+switched_node="$HOME/.local/share/mise/installs/node/24.11.1/bin/node"
+mkdir -p "$(dirname "$switched_node")"
+printf '#!/bin/sh\necho v24.11.1\n' >"$switched_node"
+chmod +x "$switched_node"
+printf '24.11.1\n' >"$HOME/.local/share/mise/current-node"
+activate_node >/dev/null
+while IFS= read -r command_name; do
+  "$command_name" --version >/dev/null ||
+    fail "npm CLI failed after Node switch: $command_name"
+done < <(jq -r '.tools[].command' "$npm_manifest")
+if grep -F '/installs/node/' "$HOME/.config/mise/conf.d/20-agent-tools.toml";
+then
+  fail "mise npm config contains a versioned Node path"
+fi
+printf '%s\n' "$expected_node" >"$HOME/.local/share/mise/current-node"
+activate_node >/dev/null
+export AGENT_TOOL_VERSIONS="$previous_manifest"
 
 # Native declarations dispatch through the existing installers.
 cat >"$manifest" <<'JSON'
@@ -402,43 +491,8 @@ if NATIVE_DOWNLOAD_FAIL=true "$AGENT_TOOLS" install >/dev/null 2>&1; then
 fi
 [ ! -s "$native_log" ] || fail "partial native installer ran"
 
-# A new npm declaration must work through the real npm installer and CLI.
-# Only registry resolution/package transport are replaced by local tarballs.
-fixture_dir="${tmp_dir}/fixture"
-mkdir -p "$fixture_dir/package" "$fixture_dir/bin" "${tmp_dir}/prefix"
-cat >"$fixture_dir/package/cli.js" <<'JS'
-#!/usr/bin/env node
-console.log(require('./package.json').version);
-JS
-chmod +x "$fixture_dir/package/cli.js"
-for version in 1.2.3 2.0.0; do
-  printf '{"name":"dotfiles-fixture","version":"%s","bin":{"dotfiles-fixture":"cli.js"}}\n' \
-    "$version" >"$fixture_dir/package/package.json"
-  tar -czf "$fixture_dir/$version.tgz" -C "$fixture_dir" package
-done
-cat >"$fixture_dir/bin/npm" <<'STUB'
-#!/bin/bash
-set -eu
-if [ "$1" = view ]; then
-  [ "${REGISTRY_FAIL:-false}" = false ] || exit 1
-  printf '%s\n' "${LATEST_VERSION:-1.2.3}"
-elif [ "$1" = install ]; then
-  [ "$(node --version)" = "v$EXPECTED_NODE" ] || exit 90
-  printf '%s\n' "$*" >> "$NPM_LOG"
-  spec="${!#}"
-  version="${spec##*@}"
-  [ "$version" != latest ] || version="${LATEST_VERSION:-1.2.3}"
-  exec "$REAL_NPM" install -g --offline --no-audit --no-fund \
-    "$FIXTURE_DIR/$version.tgz"
-else
-  exec "$REAL_NPM" "$@"
-fi
-STUB
-chmod +x "$fixture_dir/bin/npm"
-export FIXTURE_DIR="$fixture_dir" REAL_NPM
-export npm_config_prefix="${tmp_dir}/prefix"
-export npm_config_cache="${tmp_dir}/npm-cache"
-export PATH="${tmp_dir}/prefix/bin:${fixture_dir}/bin:${REAL_NODE_BIN}:/usr/bin:/bin"
+# A new npm declaration must install and update through mise.
+export PATH="$HOME/.local/share/mise/npm-tools/bin:${stub_dir}:${REAL_NODE_BIN}:/usr/bin:/bin"
 cat >"$manifest" <<'JSON'
 {"tools":[{"name":"Fixture","command":"dotfiles-fixture",
  "package":"dotfiles-fixture","installer":"npm","channel":"latest"
@@ -447,9 +501,9 @@ JSON
 if "$AGENT_TOOLS" check >"${tmp_dir}/missing.log"; then
   fail "new npm declaration was not missing before installation"
 fi
-REGISTRY_FAIL=true "$AGENT_TOOLS" install
+"$AGENT_TOOLS" install
 "$AGENT_TOOLS" check
-[ "$(dotfiles-fixture --version)" = 1.2.3 ] || fail "real npm did not install latest"
+[ "$(dotfiles-fixture --version)" = 1.2.3 ] || fail "mise did not install latest"
 : >"$npm_log"
 "$AGENT_TOOLS" install
 [ ! -s "$npm_log" ] || fail "current npm package reinstalled"
@@ -457,9 +511,11 @@ cp "$manifest" "$manifest.before"
 LATEST_VERSION=2.0.0 "$AGENT_TOOLS" update
 [ "$(dotfiles-fixture --version)" = 2.0.0 ] || fail "explicit update omitted new declaration"
 LATEST_VERSION=2.0.0 "$AGENT_TOOLS" check
-cmp "$manifest" "$manifest.before" || fail "real update changed inventory"
+cmp "$manifest" "$manifest.before" || fail "mise update changed inventory"
 # A locally available latest-channel tool stays healthy until update resolves upstream.
-"$REAL_NPM" install -g --offline --no-audit --no-fund "$fixture_dir/1.2.3.tgz"
+printf '#!/bin/sh\necho 1.2.3\n' \
+  >"$HOME/.local/share/mise/npm-tools/bin/dotfiles-fixture"
+chmod +x "$HOME/.local/share/mise/npm-tools/bin/dotfiles-fixture"
 REGISTRY_FAIL=true "$AGENT_TOOLS" check >"${tmp_dir}/fixture-offline.log" ||
   fail "offline check rejected an available latest-channel fixture"
 LATEST_VERSION=2.0.0 "$AGENT_TOOLS" install

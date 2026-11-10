@@ -493,12 +493,14 @@
       "command": "bw",
       "installer": "npm",
       "name": "Bitwarden CLI",
-      "package": "@bitwarden/cli"
+      "package": "@bitwarden/cli",
+      "trust_policy_excludes": [
+        "@bitwarden/cli@2026.10.1"
+      ]
     },
     {
       "channel": "latest",
       "command": "pi",
-      "ignore_scripts": true,
       "installer": "npm",
       "name": "Pi",
       "package": "@earendil-works/pi-coding-agent"
@@ -525,6 +527,9 @@
     {
       "channel": "latest",
       "command": "opencode",
+      "allow_builds": [
+        "opencode-ai"
+      ],
       "installer": "npm",
       "name": "OpenCode",
       "package": "opencode-ai"

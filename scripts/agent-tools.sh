@@ -5,6 +5,7 @@ DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 default_versions_file="${DOTFILES_DIR}/.agents/tool-versions.json"
 VERSIONS_FILE="${AGENT_TOOL_VERSIONS:-$default_versions_file}"
 CLAUDE_INSTALL_URL="${CLAUDE_INSTALL_URL:-https://claude.ai/install.sh}"
+MISE_AGENT_TOOLS_FILE="${MISE_AGENT_TOOLS_FILE:-${HOME}/.config/mise/conf.d/20-agent-tools.toml}"
 
 validate_manifest() {
     jq -e '
@@ -42,8 +43,21 @@ validate_manifest() {
             if (.scope // "agent") == "agent" then
                 .channel == "latest" and
                 (has("version") | not) and
-                (if has("ignore_scripts") then
-                    (.ignore_scripts | type) == "boolean" and .installer == "npm"
+                (if has("allow_builds") then
+                    .installer == "npm" and
+                    (.allow_builds | type) == "array" and
+                    (.allow_builds | length) > 0 and
+                    all(.allow_builds[];
+                        type == "string" and
+                        test("^(@[a-z0-9._-]+/)?[a-z0-9][a-z0-9._-]*$"))
+                 else true end) and
+                (if has("trust_policy_excludes") then
+                    .installer == "npm" and
+                    (.trust_policy_excludes | type) == "array" and
+                    (.trust_policy_excludes | length) > 0 and
+                    all(.trust_policy_excludes[];
+                        type == "string" and
+                        test("^(@[a-z0-9._-]+/)?[a-z0-9][a-z0-9._-]*@[0-9]+\\.[0-9]+\\.[0-9]+$"))
                  else true end) and
                 (if has("update") then
                     (.update | type == "array" and length > 1 and
@@ -97,9 +111,54 @@ validate_manifest() {
 tool_rows() {
     jq -r '.tools[] | select((.scope // "agent") == "agent") | [
         .name, .command, (.package // .command),
-        .channel, .installer, (.ignore_scripts // false),
-        ((.update // []) | join(" "))
+        .channel, .installer, ((.update // []) | join(" "))
     ] | @tsv' "$VERSIONS_FILE"
+}
+
+write_mise_agent_tools_config() {
+    local candidate
+    mkdir -p "$(dirname "$MISE_AGENT_TOOLS_FILE")"
+    candidate=$(mktemp "${MISE_AGENT_TOOLS_FILE}.XXXXXX") || return 1
+    jq -r '
+        (["[tools]"] + [
+            .tools[] | select(.installer == "npm") |
+            (. as $tool |
+                ([
+                    if (($tool.allow_builds // []) | length) > 0 then
+                        "allow_builds = [" +
+                        (($tool.allow_builds | map(@json)) | join(", ")) +
+                        "]"
+                    else empty end,
+                    if (($tool.trust_policy_excludes // []) | length) > 0 then
+                        "trust_policy_excludes = [" +
+                        (($tool.trust_policy_excludes | map(@json)) | join(", ")) +
+                        "]"
+                    else empty end
+                ]) as $options |
+                (("npm:" + $tool.package | @json) + " = " +
+                    if ($options | length) == 0 then
+                        ($tool.channel | @json)
+                    else
+                        "{ version = " + ($tool.channel | @json) + ", " +
+                        ($options | join(", ")) + " }"
+                    end))
+        ])[]
+    ' "$VERSIONS_FILE" >"$candidate" || {
+        rm -f "$candidate"
+        return 1
+    }
+    if [ -f "$MISE_AGENT_TOOLS_FILE" ] &&
+        cmp -s "$candidate" "$MISE_AGENT_TOOLS_FILE"; then
+        rm -f "$candidate"
+    else
+        mv "$candidate" "$MISE_AGENT_TOOLS_FILE"
+    fi
+}
+
+run_global_mise() {
+    local binary
+    binary=$(mise_bin)
+    env -u MISE_NODE_VERSION "$binary" "$@"
 }
 
 platform_key() {
@@ -296,7 +355,7 @@ resolve_latest() {
 report_versions() {
     local strict="$1" only_outdated="${2:-false}" failed=false
     local displayed=false native_unchecked=false
-    local name command_name package expected installer ignore_scripts update_command
+    local name command_name package expected installer update_command
     local current status
 
     if [ "$only_outdated" != true ]; then
@@ -304,8 +363,7 @@ report_versions() {
             "Tool" "Installed" "Expected" "Status"
     fi
     while IFS=$'\t' read -r \
-        name command_name package expected installer ignore_scripts \
-        update_command; do
+        name command_name package expected installer update_command; do
         if [ "$expected" = latest ] && { [ "$installer" = npm ] || [ "$installer" = claude-native ]; }; then
             expected=$(resolve_latest "$package") || return 1
         fi
@@ -402,16 +460,39 @@ check_tools() {
 
 install_declared_tools() {
     local refresh="${1:-false}"
-    local failed=false script
+    local failed=false managed_by_mise script
     local -a update_args
-    local name command_name package expected installer ignore_scripts
-    local update_command current install_spec
+    local name command_name package expected installer
+    local update_command current
 
     while IFS=$'\t' read -r \
-        name command_name package expected installer ignore_scripts \
-        update_command; do
-        install_spec="${package}@${expected}"
+        name command_name package expected installer update_command; do
         current="$(installed_version "$command_name" || true)"
+        if [ "$installer" = npm ]; then
+            managed_by_mise=false
+            if run_global_mise which "$command_name" >/dev/null 2>&1; then
+                managed_by_mise=true
+            fi
+            if [ "$refresh" != true ] && [ -n "$current" ] &&
+                [ "$managed_by_mise" = true ]; then
+                echo "[INFO] $name $current already installed"
+                continue
+            fi
+            if [ "$refresh" = true ]; then
+                echo "[INFO] Updating $name..."
+                run_global_mise upgrade --global --no-prune \
+                    "npm:${package}" || failed=true
+            else
+                echo "[INFO] Installing $name latest..."
+                if [ "$managed_by_mise" = true ]; then
+                    run_global_mise install --force \
+                        "npm:${package}" || failed=true
+                else
+                    run_global_mise install "npm:${package}" || failed=true
+                fi
+            fi
+            continue
+        fi
         if [ "$refresh" != true ] && [ -n "$current" ]; then
             echo "[INFO] $name $current already installed"
             continue
@@ -428,9 +509,7 @@ install_declared_tools() {
             "${update_args[@]}" || failed=true
             continue
         fi
-        if [ "$expected" = latest ] &&
-            { [ "$installer" = claude-native ] ||
-              { [ "$installer" = npm ] && [ "$refresh" = true ]; }; }; then
+        if [ "$expected" = latest ] && [ "$installer" = claude-native ]; then
             expected=$(resolve_latest "$package") || {
                 failed=true
                 continue
@@ -443,13 +522,6 @@ install_declared_tools() {
 
         echo "[INFO] Installing $name $expected..."
         case "$installer" in
-        npm)
-            if [ "$ignore_scripts" = true ]; then
-                npm install -g --ignore-scripts "$install_spec" || failed=true
-            else
-                npm install -g "$install_spec" || failed=true
-            fi
-            ;;
         claude-native)
             script=$(curl -fsSL "$CLAUDE_INSTALL_URL") || {
                 failed=true
@@ -504,6 +576,7 @@ install | update)
         echo "[ERROR] Required Node unavailable; run install.sh before installing tools" >&2
         exit 1
     }
+    write_mise_agent_tools_config || exit 1
     install_declared_tools "$refresh"
     ;;
 *)

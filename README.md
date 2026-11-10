@@ -70,8 +70,9 @@ uses the current declared GitHub release. Set
 then keeps the archive in `~/.local/opt/<command>` and links the binary into
 `~/.local/bin`. Developer entries use
 `channel: "latest"`; update resolves current releases without rewriting the
-inventory. Reports resolve npm `latest` and fail explicitly when the registry
-is unavailable.
+inventory. npm CLI entries become independent mise tools, so Node upgrades do
+not hide them. Reports resolve npm `latest` and fail explicitly when the
+registry is unavailable.
 Native latest installers resolve their own releases; local checks verify
 installed availability, not whether a newer release exists.
 Herdr refuses to update from inside its own panes. In a Herdr pane, sync
@@ -80,9 +81,9 @@ reports `[SKIP] Herdr` and continues; run `herdr update` after detaching.
 `just sync` resolves known online versions and performs managed updates.
 Native latest installers do not expose one common version source.
 
-Pi, Codex, OpenCode, and the skill manager use global npm packages. Claude
-Code uses `claude install latest` for updates and Anthropic's native installer
-for a missing command.
+Each npm CLI uses the mise npm backend. Claude Code uses
+`claude install latest` for updates and Anthropic's native installer for a
+missing command.
 Configuration application never resolves channels or updates tool versions.
 
 To add an npm CLI, add one entry to the manifest:

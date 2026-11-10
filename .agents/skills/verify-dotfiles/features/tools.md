@@ -23,13 +23,12 @@ developer releases without editing that inventory.
 Preconditions: working host Node/npm; no live update needed for verification.
 
 - **Install, update and read back.** Run `bash scripts/smoke-agent-tools.sh`.
-  Install skips available tools without a registry query. The internal update
-  path installs a real fixture npm CLI from a local tarball, reads its version,
-  checks that inventory bytes did not change, and verifies repair after
-  independently changing the installed package. Native tools use only their
-  declared self-update commands. Treehouse uses the managed public release
-  redirect and skips a current binary. Inside a Herdr pane, the Herdr update
-  is skipped with an instruction and other updates continue.
+  Install migrates npm CLI entries to independent mise tools. The test changes
+  the selected LTS runtime and starts every npm CLI without reinstalling it.
+  Update keeps `latest` without changing inventory bytes. Native tools use only
+  their declared self-update commands. Treehouse uses the managed public
+  release redirect and skips a current binary. Inside a Herdr pane, the Herdr
+  update is skipped with an instruction and other updates continue.
 - **Core install plan.** Run `bash scripts/smoke-tool-plan.sh`. It exercises
   package managers, explicit Darwin/Linux artifacts, installed-tool skips,
   sudo-less fallback warnings, archive-tree installs and replacement, and
