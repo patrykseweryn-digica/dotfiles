@@ -16,42 +16,12 @@ fail() {
 }
 
 jq -e 'all(.tools[] | select((.scope // "agent") == "agent");
-  .channel == "latest" and (has("version") | not)) and
-  all(.tools[] | select(.scope == "core");
-    (.versionPolicy == "latest" or .versionPolicy == "system") and
-    ((.github // {}) | has("tag") | not))' \
+  .channel == "latest" and (has("version") | not))' \
   "$DOTFILES_DIR/.agents/tool-versions.json" >/dev/null ||
-  fail "repository tools must follow latest without version pins"
+  fail "agent tools must follow latest without version pins"
 
 tmp_dir="$(mktemp -d)"
 trap 'rm -rf "$tmp_dir"' EXIT
-
-invalid_manifest="${tmp_dir}/invalid-tool-versions.json"
-cat >"$invalid_manifest" <<'JSON'
-{"platforms":["linux-x86_64"],"tools":[{
-  "scope":"core","name":"uninstallable","commands":["uninstallable"],
-  "versionPolicy":"system","packages":{"brew":"uninstallable"}
-}]}
-JSON
-if AGENT_TOOL_VERSIONS="$invalid_manifest" \
-  "$AGENT_TOOLS" plan >/dev/null 2>&1; then
-  fail "manifest accepted a platform without an install source"
-fi
-jq '.tools[0].packages.apt = "demo" |
-  .tools[0] += {"adapter":"github-tree","github":{"repo":"example/demo",
-  "tag":"v1","artifacts":{"linux-x86_64":{"archive":"demo.tar.gz",
-  "binary":"demo"}}}}' "$invalid_manifest" >"${tmp_dir}/invalid-tree.json"
-if AGENT_TOOL_VERSIONS="${tmp_dir}/invalid-tree.json" \
-  "$AGENT_TOOLS" plan >/dev/null 2>&1; then
-  fail "manifest accepted a tree binary outside an archive directory"
-fi
-jq '.tools[0].versionPolicy = "pinned" |
-  .tools[0].packages.apt = "demo"' "$invalid_manifest" \
-  >"${tmp_dir}/pinned-core.json"
-if AGENT_TOOL_VERSIONS="${tmp_dir}/pinned-core.json" \
-  "$AGENT_TOOLS" plan >/dev/null 2>&1; then
-  fail "manifest accepted a pinned core tool"
-fi
 
 manifest="${tmp_dir}/tool-versions.json"
 stub_dir="${tmp_dir}/stubs"
@@ -71,6 +41,9 @@ printf '%s\n' "$expected_node" >"$mise_root/current-node"
 cat >"$HOME/.local/bin/mise" <<'STUB'
 #!/bin/bash
 set -eu
+if [ "$1" = --cd ]; then
+    shift 2
+fi
 root="$HOME/.local/share/mise"
 version=$(cat "$root/current-node")
 case "$1" in

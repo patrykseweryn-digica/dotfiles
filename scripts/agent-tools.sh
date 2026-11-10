@@ -14,23 +14,6 @@ validate_manifest() {
         def valid_platforms:
             type == "array" and length > 0 and
             all(.[]; test("^(darwin|linux)-(arm64|x86_64)$"));
-        def nonempty: type == "string" and length > 0;
-        def github_source($tool; $platform):
-            (($tool.github.repo // "") | nonempty) and
-            (($tool.github.artifacts[$platform].archive // "") | nonempty) and
-            (($tool.github.artifacts[$platform].binary // "") | nonempty);
-        def artifact_adapter($tool):
-            ($tool.adapter // "package") as $adapter |
-            $adapter == "package" or $adapter == "github-tree";
-        def install_source($tool; $platform):
-            if artifact_adapter($tool) | not then true
-            elif ($platform | startswith("darwin-")) then
-                (($tool.packages.brew // "") | nonempty) or
-                github_source($tool; $platform)
-            else
-                (($tool.packages.apt // "") | nonempty) or
-                github_source($tool; $platform)
-            end;
         ((.platforms // ["darwin-arm64", "darwin-x86_64",
             "linux-arm64", "linux-x86_64"]) | valid_platforms) and
         (.tools | type) == "array" and (.tools | length) > 0 and
@@ -76,24 +59,14 @@ validate_manifest() {
                      .installer == "no-mistakes-native")
                  end)
             else
-                . as $tool |
-                $tool.scope == "core" and
-                ($tool.commands | type == "array" and length > 0) and
-                ($tool.versionPolicy == "latest" or
-                    $tool.versionPolicy == "system") and
-                (($tool.packages // {}) | type == "object") and
-                (($tool.github // {}) | type == "object") and
-                (artifact_adapter($tool) or
-                    $tool.adapter == "zoxide-native" or
-                    $tool.adapter == "uv") and
-                (if $tool.adapter == "github-tree" then
-                    all(($tool.github.artifacts // {})[];
-                        (.binary // "") | test("^[^/]+/."))
-                 else true end) and
-                all(($tool.platforms // [
-                    "darwin-arm64", "darwin-x86_64",
-                    "linux-arm64", "linux-x86_64"
-                ])[]; install_source($tool; .))
+                (.commands | type == "array" and length > 0) and
+                if .scope == "core" then
+                    .versionPolicy == "latest"
+                elif .scope == "system" then
+                    .versionPolicy == "system" and
+                    (.packages | type == "object" and length > 0)
+                else false
+                end
             end
         ) and
         (([.tools[] | command_name] | length) ==
@@ -153,12 +126,6 @@ write_mise_agent_tools_config() {
     else
         mv "$candidate" "$MISE_AGENT_TOOLS_FILE"
     fi
-}
-
-run_global_mise() {
-    local binary
-    binary=$(mise_bin)
-    env -u MISE_NODE_VERSION "$binary" "$@"
 }
 
 platform_key() {

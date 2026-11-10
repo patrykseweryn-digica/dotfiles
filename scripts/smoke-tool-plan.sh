@@ -1,968 +1,111 @@
 #!/bin/bash
-# shellcheck disable=SC2030,SC2031,SC2329
 set -eu
 
 DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-JQ_BIN="$(command -v jq)"
+CORE_TOOLS="$DOTFILES_DIR/scripts/core-tools.sh"
+INVENTORY="$DOTFILES_DIR/.agents/tool-versions.json"
 
 fail() {
     echo "[ERROR] $*" >&2
     exit 1
 }
 
-assert_log_contains() {
-    local log_file="$1"
-    local expected="$2"
+jq -e '
+    all(.tools[] | select(.scope == "core");
+        .versionPolicy == "latest" and
+        (has("github") | not) and
+        (has("packages") | not) and
+        (has("adapter") | not)) and
+    ([.tools[] | select(.scope == "system") | .name] == ["xclip"])
+' "$INVENTORY" >/dev/null ||
+    fail "core inventory is not fully provisioned by mise"
 
-    if ! grep -F "$expected" "$log_file" >/dev/null 2>&1; then
-        echo "[ERROR] Missing expected log line: $expected" >&2
-        echo "[ERROR] Actual log:" >&2
-        cat "$log_file" >&2
-        exit 1
-    fi
-}
+expected_brew=$(printf '%s\n' gh gnupg pnpm shellcheck)
+actual_brew=$(sed -n 's/^brew "\([^"]*\)"$/\1/p' "$DOTFILES_DIR/Brewfile")
+[ "$actual_brew" = "$expected_brew" ] ||
+    fail "Brewfile repeats a managed tool"
 
-assert_log_not_contains() {
-    local log_file="$1"
-    local unexpected="$2"
+tmp_dir="$(mktemp -d)"
+trap 'rm -rf "$tmp_dir"' EXIT
+home_dir="$tmp_dir/home"
+mkdir -p "$home_dir/.local/bin"
+mise_log="$tmp_dir/mise.log"
 
-    if grep -F "$unexpected" "$log_file" >/dev/null 2>&1; then
-        echo "[ERROR] Unexpected log line: $unexpected" >&2
-        echo "[ERROR] Actual log:" >&2
-        cat "$log_file" >&2
-        exit 1
-    fi
-}
-
-fixture_latest_tag() {
-    case "$1" in
-        junegunn/fzf) echo v0.67.0 ;;
-        sharkdp/bat) echo v0.26.1 ;;
-        BurntSushi/ripgrep) echo 15.1.0 ;;
-        sharkdp/fd) echo v10.2.0 ;;
-        jqlang/jq) echo jq-1.7.1 ;;
-        neovim/neovim) echo v0.12.6 ;;
-        mvdan/sh) echo v3.14.1 ;;
-        casey/just) echo 1.56.0 ;;
-        hadolint/hadolint) echo v2.15.1 ;;
-        eza-community/eza) echo v0.20.14 ;;
-        dandavison/delta) echo 0.18.2 ;;
-        tealdeer-rs/tealdeer) echo v1.8.1 ;;
-        jesseduffield/lazygit) echo v0.59.0 ;;
-        *) return 1 ;;
+cat >"$home_dir/.local/bin/mise" <<'STUB'
+#!/bin/bash
+set -eu
+printf '%s\n' "$*" >>"$MISE_LOG"
+action=""
+for argument in "$@"; do
+    case "$argument" in
+    install | upgrade | which | exec) action="$argument"; break ;;
     esac
-}
-
-write_package_manager_stubs() {
-    local stub_dir="$1"
-
-    cat >"${stub_dir}/sudo" <<'STUB'
-#!/bin/sh
-"$@"
+done
+case "$action" in
+install | upgrade | exec) exit 0 ;;
+which)
+    command_name="${!#}"
+    printf '%s/bin/%s\n' "$HOME" "$command_name"
+    ;;
+*) exit 2 ;;
+esac
 STUB
+chmod +x "$home_dir/.local/bin/mise"
 
-    cat >"${stub_dir}/apt-get" <<'STUB'
-#!/bin/sh
-echo "apt-get $*" >> "$SMOKE_LOG"
+export HOME="$home_dir"
+export MISE_BIN="$home_dir/.local/bin/mise"
+export MISE_LOG="$mise_log"
+export PATH="/usr/bin:/bin"
+tool_list=$(jq -r '.tools[] | select(.scope == "core") | .name' \
+    "$INVENTORY" | paste -sd ' ' -)
+tool_count=$(jq '[.tools[] | select(.scope == "core")] | length' "$INVENTORY")
 
-if [ "$1" = "install" ]; then
-    shift
-    for package_name in "$@"; do
-        case "$package_name" in
-            bat)
-                printf '#!/bin/sh\n' > "${SMOKE_BIN}/batcat"
-                chmod +x "${SMOKE_BIN}/batcat"
-                ;;
-            fd-find)
-                printf '#!/bin/sh\n' > "${SMOKE_BIN}/fdfind"
-                chmod +x "${SMOKE_BIN}/fdfind"
-                ;;
-            git-lfs)
-                printf '#!/bin/sh\n' > "${SMOKE_BIN}/git-lfs"
-                chmod +x "${SMOKE_BIN}/git-lfs"
-                printf '#!/bin/sh\n[ "$1" = lfs ]\n' > "${SMOKE_BIN}/git"
-                chmod +x "${SMOKE_BIN}/git"
-                ;;
-            eza)
-                printf '#!/bin/sh\n' > "${SMOKE_BIN}/eza"
-                chmod +x "${SMOKE_BIN}/eza"
-                ;;
-            tealdeer)
-                printf '#!/bin/sh\necho "tldr $*" >> "$SMOKE_LOG"\n' > "${SMOKE_BIN}/tldr"
-                chmod +x "${SMOKE_BIN}/tldr"
-                ;;
-            xclip)
-                printf '#!/bin/sh\n' > "${SMOKE_BIN}/xclip"
-                chmod +x "${SMOKE_BIN}/xclip"
-                ;;
-            fzf|jq|tmux|shfmt|just)
-                printf '#!/bin/sh\n' > "${SMOKE_BIN}/${package_name}"
-                chmod +x "${SMOKE_BIN}/${package_name}"
-                ;;
-            ripgrep)
-                printf '#!/bin/sh\n' > "${SMOKE_BIN}/rg"
-                chmod +x "${SMOKE_BIN}/rg"
-                ;;
-            neovim)
-                printf '#!/bin/sh\n' > "${SMOKE_BIN}/nvim"
-                chmod +x "${SMOKE_BIN}/nvim"
-                ;;
-        esac
-    done
+for target in Darwin:arm64 Linux:x86_64 Linux:arm64; do
+    os="${target%%:*}"
+    arch="${target#*:}"
+    config="$tmp_dir/core-${os}-${arch}.toml"
+    : >"$mise_log"
+
+    CORE_TOOLS_OS="$os" CORE_TOOLS_ARCH="$arch" \
+        MISE_CORE_TOOLS_FILE="$config" "$CORE_TOOLS" plan \
+        >"$tmp_dir/plan"
+    [ "$(wc -l <"$tmp_dir/plan" | tr -d ' ')" -eq "$tool_count" ] ||
+        fail "public plan omitted tools for $target"
+    awk -F '\t' '$3 != "mise" { exit 1 }' "$tmp_dir/plan" ||
+        fail "public plan used a non-mise core provider for $target"
+
+    CORE_TOOLS_OS="$os" CORE_TOOLS_ARCH="$arch" \
+        MISE_CORE_TOOLS_FILE="$config" "$CORE_TOOLS" install
+    grep -F -- "--cd $HOME install $tool_list" "$mise_log" >/dev/null ||
+        fail "install did not use the common mise path for $target"
+    [ "$(grep -c ' = "latest"$' "$config")" -eq "$tool_count" ] ||
+        fail "generated mise config omitted tools for $target"
+    grep -F '[tools]' "$config" >/dev/null ||
+        fail "generated mise config has no tools table"
+
+    : >"$mise_log"
+    CORE_TOOLS_OS="$os" CORE_TOOLS_ARCH="$arch" \
+        MISE_CORE_TOOLS_FILE="$config" "$CORE_TOOLS" update
+    grep -F -- "--cd $HOME upgrade --global --no-prune $tool_list" \
+        "$mise_log" >/dev/null ||
+        fail "update did not use the common mise path for $target"
+done
+
+invalid="$tmp_dir/invalid.json"
+jq '.tools[0].github = {"repo":"example/demo"}' "$INVENTORY" >"$invalid"
+if TOOL_INVENTORY="$invalid" CORE_TOOLS_OS=Darwin CORE_TOOLS_ARCH=arm64 \
+    "$CORE_TOOLS" plan >/dev/null 2>&1; then
+    fail "core inventory accepted a custom GitHub source"
 fi
-STUB
 
-    chmod +x "${stub_dir}/sudo" "${stub_dir}/apt-get"
-}
-
-write_linuxbrew_stubs() {
-    local stub_dir="$1"
-
-    cat >"${stub_dir}/apt-get" <<'STUB'
-#!/bin/sh
-echo "apt-get $*" >> "$SMOKE_LOG"
-exit 1
-STUB
-
-    cat >"${stub_dir}/brew" <<'STUB'
-#!/bin/sh
-echo "brew $*" >> "$SMOKE_LOG"
-
-if [ "$1" = "install" ]; then
-    shift
-    for package_name in "$@"; do
-        case "$package_name" in
-            bat)
-                printf '#!/bin/sh\n' > "${SMOKE_BIN}/bat"
-                chmod +x "${SMOKE_BIN}/bat"
-                ;;
-            fd)
-                printf '#!/bin/sh\n' > "${SMOKE_BIN}/fd"
-                chmod +x "${SMOKE_BIN}/fd"
-                ;;
-            git-lfs)
-                printf '#!/bin/sh\n' > "${SMOKE_BIN}/git-lfs"
-                chmod +x "${SMOKE_BIN}/git-lfs"
-                ;;
-            eza)
-                printf '#!/bin/sh\n' > "${SMOKE_BIN}/eza"
-                chmod +x "${SMOKE_BIN}/eza"
-                ;;
-            git-delta)
-                printf '#!/bin/sh\n' > "${SMOKE_BIN}/delta"
-                chmod +x "${SMOKE_BIN}/delta"
-                ;;
-            tealdeer)
-                printf '#!/bin/sh\necho "tldr $*" >> "$SMOKE_LOG"\n' > "${SMOKE_BIN}/tldr"
-                chmod +x "${SMOKE_BIN}/tldr"
-                ;;
-            lazygit)
-                printf '#!/bin/sh\n' > "${SMOKE_BIN}/lazygit"
-                chmod +x "${SMOKE_BIN}/lazygit"
-                ;;
-            xclip)
-                printf '#!/bin/sh\n' > "${SMOKE_BIN}/xclip"
-                chmod +x "${SMOKE_BIN}/xclip"
-                ;;
-        esac
-    done
+if CORE_TOOLS_OS=Plan9 CORE_TOOLS_ARCH=arm64 \
+    "$CORE_TOOLS" plan >/dev/null 2>&1; then
+    fail "core plan accepted an unsupported platform"
 fi
-STUB
 
-    cat >"${stub_dir}/sudo" <<'STUB'
-#!/bin/sh
-echo "sudo $*" >> "$SMOKE_LOG"
-exit 1
-STUB
-
-    chmod +x "${stub_dir}/apt-get" "${stub_dir}/brew" "${stub_dir}/sudo"
-}
-
-smoke_package_manager_plan() {
-    local tmp_dir
-    local stub_dir
-    local bin_dir
-    local log_file
-
-    tmp_dir="$(mktemp -d)"
-    stub_dir="${tmp_dir}/stubs"
-    bin_dir="${tmp_dir}/bin"
-    log_file="${tmp_dir}/actions.log"
-
-    mkdir -p "$stub_dir" "$bin_dir"
-    : >"$log_file"
-    write_package_manager_stubs "$stub_dir"
-
-    (
-        # shellcheck source=/dev/null
-        source "${DOTFILES_DIR}/bootstrap.d/00-utils.sh"
-        # shellcheck source=/dev/null
-        source "${DOTFILES_DIR}/bootstrap.d/05-tools.sh"
-        github_latest_tag() { fixture_latest_tag "$1"; }
-
-        check_installed() {
-            local found
-
-            found="$(command -v "$1" 2>/dev/null || true)"
-            case "$found" in
-            "${BIN_DIR}"/* | "${stub_dir}"/*) return 0 ;;
-            *) return 1 ;;
-            esac
-        }
-
-        install_github_binary() {
-            local name="${5:-$4}"
-            echo "github $*" >>"$log_file"
-            printf '#!/bin/sh\n' >"${BIN_DIR}/${name}"
-            chmod +x "${BIN_DIR}/${name}"
-        }
-        install_github_tree() { echo "github-tree $*" >>"$log_file"; }
-        install_zoxide_native() {
-            printf '#!/bin/sh\n' >"${BIN_DIR}/zoxide"
-            chmod +x "${BIN_DIR}/zoxide"
-        }
-        install_uv_tool() {
-            printf '#!/bin/sh\n' >"${BIN_DIR}/$1"
-            chmod +x "${BIN_DIR}/$1"
-        }
-
-        export SMOKE_LOG="$log_file"
-        export SMOKE_BIN="$bin_dir"
-        # shellcheck disable=SC2034
-        HAS_SUDO=true
-        OS=Linux
-        ARCH=x86_64
-        BIN_DIR="$bin_dir"
-        PATH="${bin_dir}:${stub_dir}:/usr/bin:/bin"
-
-        install_declared_core_tools >/dev/null
-    )
-
-    assert_log_contains "$log_file" "apt-get install -y fzf"
-    assert_log_contains "$log_file" "apt-get install -y bat"
-    assert_log_contains "$log_file" "apt-get install -y ripgrep"
-    assert_log_contains "$log_file" "apt-get install -y fd-find"
-    assert_log_contains "$log_file" "apt-get install -y jq"
-    assert_log_contains "$log_file" "apt-get install -y tmux"
-    assert_log_contains "$log_file" "apt-get install -y neovim"
-    assert_log_contains "$log_file" "apt-get install -y git-lfs"
-    assert_log_contains "$log_file" "apt-get install -y shfmt"
-    assert_log_contains "$log_file" "apt-get install -y just"
-    assert_log_contains "$log_file" \
-        "github hadolint/hadolint v2.15.1 hadolint-linux-x86_64 hadolint-linux-x86_64 hadolint"
-    assert_log_not_contains "$log_file" "bitwarden-cli"
-    [ -L "${bin_dir}/bat" ] || fail "bat alias symlink was not created"
-    [ -L "${bin_dir}/fd" ] || fail "fd alias symlink was not created"
-
-    rm -rf "$tmp_dir"
-}
-
-smoke_linuxbrew_without_sudo_plan() {
-    local tmp_dir
-    local stub_dir
-    local bin_dir
-    local log_file
-
-    tmp_dir="$(mktemp -d)"
-    stub_dir="${tmp_dir}/stubs"
-    bin_dir="${tmp_dir}/bin"
-    log_file="${tmp_dir}/actions.log"
-
-    mkdir -p "$stub_dir" "$bin_dir"
-    : >"$log_file"
-    write_linuxbrew_stubs "$stub_dir"
-
-    (
-        # shellcheck source=/dev/null
-        source "${DOTFILES_DIR}/bootstrap.d/00-utils.sh"
-        # shellcheck source=/dev/null
-        source "${DOTFILES_DIR}/bootstrap.d/05-tools.sh"
-        github_latest_tag() { fixture_latest_tag "$1"; }
-
-        check_installed() {
-            local found
-
-            found="$(command -v "$1" 2>/dev/null || true)"
-            case "$found" in
-            "${BIN_DIR}"/* | "${stub_dir}"/*) return 0 ;;
-            *) return 1 ;;
-            esac
-        }
-
-        install_github_binary() { return 1; }
-        install_github_tree() { return 1; }
-        install_zoxide_native() { return 1; }
-        install_uv_tool() { return 1; }
-
-        export SMOKE_LOG="$log_file"
-        export SMOKE_BIN="$bin_dir"
-        # shellcheck disable=SC2034
-        HAS_SUDO=false
-        OS=Linux
-        ARCH=x86_64
-        BIN_DIR="$bin_dir"
-        PATH="${bin_dir}:${stub_dir}:/usr/bin:/bin"
-
-        install_declared_core_tools >/dev/null || true
-    )
-
-    assert_log_contains "$log_file" "brew install fzf"
-    assert_log_contains "$log_file" "brew install bat"
-    assert_log_contains "$log_file" "brew install ripgrep"
-    assert_log_contains "$log_file" "brew install fd"
-    assert_log_contains "$log_file" "brew install jq"
-    assert_log_contains "$log_file" "brew install tmux"
-    assert_log_contains "$log_file" "brew install neovim"
-    assert_log_contains "$log_file" "brew install git-lfs"
-    assert_log_contains "$log_file" "brew install shfmt"
-    assert_log_contains "$log_file" "brew install just"
-    assert_log_contains "$log_file" "brew install hadolint"
-    assert_log_not_contains "$log_file" "bitwarden-cli"
-    if grep -F "sudo " "$log_file" >/dev/null 2>&1 || grep -F "apt-get " "$log_file" >/dev/null 2>&1; then
-        echo "[ERROR] Linuxbrew plan should not fall back to sudo or apt-get when HAS_SUDO=false" >&2
-        cat "$log_file" >&2
-        exit 1
-    fi
-
-    rm -rf "$tmp_dir"
-}
-
-smoke_remaining_tool_plan() {
-    local tmp_dir
-    local stub_dir
-    local bin_dir
-    local log_file
-
-    tmp_dir="$(mktemp -d)"
-    stub_dir="${tmp_dir}/stubs"
-    bin_dir="${tmp_dir}/bin"
-    log_file="${tmp_dir}/actions.log"
-
-    mkdir -p "$stub_dir" "$bin_dir"
-    : >"$log_file"
-    write_package_manager_stubs "$stub_dir"
-
-    (
-        # shellcheck source=/dev/null
-        source "${DOTFILES_DIR}/bootstrap.d/00-utils.sh"
-        # shellcheck source=/dev/null
-        source "${DOTFILES_DIR}/bootstrap.d/05-tools.sh"
-        github_latest_tag() { fixture_latest_tag "$1"; }
-
-        check_installed() {
-            local found
-
-            found="$(command -v "$1" 2>/dev/null || true)"
-            case "$found" in
-            "${BIN_DIR}"/* | "${stub_dir}"/*) return 0 ;;
-            *) return 1 ;;
-            esac
-        }
-
-        install_github_binary() {
-            echo "github $*" >>"$log_file"
-        }
-        install_github_tree() { echo "github-tree $*" >>"$log_file"; }
-        install_zoxide_native() { return 1; }
-        install_uv_tool() { return 1; }
-
-        export SMOKE_LOG="$log_file"
-        export SMOKE_BIN="$bin_dir"
-        # shellcheck disable=SC2034
-        HAS_SUDO=true
-        OS=Linux
-        ARCH=x86_64
-        # shellcheck disable=SC2034
-        IS_LINUX=true
-        # shellcheck disable=SC2034
-        IS_MACOS=false
-        BIN_DIR="$bin_dir"
-        PATH="${bin_dir}:${stub_dir}:/usr/bin:/bin"
-
-        install_declared_core_tools >/dev/null || true
-    )
-
-    assert_log_contains "$log_file" "apt-get install -y eza"
-    assert_log_contains "$log_file" "apt-get install -y tealdeer"
-    assert_log_contains "$log_file" "apt-get install -y xclip"
-    assert_log_contains "$log_file" "github dandavison/delta 0.18.2 delta-{tag}-x86_64-unknown-linux-gnu.tar.gz delta"
-    assert_log_contains "$log_file" "github jesseduffield/lazygit v0.59.0 lazygit_{tag_no_v}_linux_x86_64.tar.gz lazygit"
-    assert_log_contains "$log_file" "tldr --update"
-
-    rm -rf "$tmp_dir"
-}
-
-smoke_installed_tools_are_skipped() {
-    local tmp_dir
-    local stub_dir
-    local bin_dir
-    local log_file
-    local installed_tool
-
-    tmp_dir="$(mktemp -d)"
-    stub_dir="${tmp_dir}/stubs"
-    bin_dir="${tmp_dir}/bin"
-    log_file="${tmp_dir}/actions.log"
-
-    mkdir -p "$stub_dir" "$bin_dir"
-    : >"$log_file"
-
-    for installed_tool in fzf bat rg fd jq tmux nvim git-lfs shfmt just \
-        hadolint bw eza delta zoxide tldr lazygit xclip pre-commit; do
-        printf '#!/bin/sh\n' >"${bin_dir}/${installed_tool}"
-        chmod +x "${bin_dir}/${installed_tool}"
-    done
-
-    cat >"${stub_dir}/brew" <<'STUB'
-#!/bin/sh
-echo "brew $*" >> "$SMOKE_LOG"
-STUB
-
-    cat >"${stub_dir}/apt-get" <<'STUB'
-#!/bin/sh
-echo "apt-get $*" >> "$SMOKE_LOG"
-STUB
-
-    chmod +x "${stub_dir}/brew" "${stub_dir}/apt-get"
-
-    (
-        # shellcheck source=/dev/null
-        source "${DOTFILES_DIR}/bootstrap.d/00-utils.sh"
-        # shellcheck source=/dev/null
-        source "${DOTFILES_DIR}/bootstrap.d/05-tools.sh"
-
-        check_installed() {
-            local found
-
-            found="$(command -v "$1" 2>/dev/null || true)"
-            case "$found" in
-            "${BIN_DIR}"/* | "${stub_dir}"/*) return 0 ;;
-            *) return 1 ;;
-            esac
-        }
-
-        install_github_binary() {
-            echo "github $*" >>"$log_file"
-        }
-        install_github_tree() { echo "github-tree $*" >>"$log_file"; }
-
-        export SMOKE_LOG="$log_file"
-        # shellcheck disable=SC2034
-        HAS_SUDO=true
-        OS=Linux
-        ARCH=x86_64
-        # shellcheck disable=SC2034
-        IS_LINUX=true
-        # shellcheck disable=SC2034
-        IS_MACOS=false
-        BIN_DIR="$bin_dir"
-        PATH="${bin_dir}:${stub_dir}:/usr/bin:/bin"
-
-        install_declared_core_tools >/dev/null
-    )
-
-    assert_log_not_contains "$log_file" "brew install"
-    assert_log_not_contains "$log_file" "apt-get install"
-    assert_log_not_contains "$log_file" "github "
-    assert_log_not_contains "$log_file" "github-tree "
-    assert_log_not_contains "$log_file" "tldr --update"
-
-    rm -rf "$tmp_dir"
-}
-
-smoke_github_fallback_plan() {
-    local tmp_dir
-    local bin_dir
-    local log_file
-    local arch="${1:-x86_64}"
-
-    tmp_dir="$(mktemp -d)"
-    bin_dir="${tmp_dir}/bin"
-    log_file="${tmp_dir}/actions.log"
-
-    mkdir -p "$bin_dir"
-    : >"$log_file"
-
-    (
-        # shellcheck source=/dev/null
-        source "${DOTFILES_DIR}/bootstrap.d/00-utils.sh"
-        # shellcheck source=/dev/null
-        source "${DOTFILES_DIR}/bootstrap.d/05-tools.sh"
-        github_latest_tag() { fixture_latest_tag "$1"; }
-
-        check_installed() {
-            return 1
-        }
-
-        install_github_binary() {
-            echo "github $*" >>"$log_file"
-        }
-        install_github_tree() {
-            echo "github-tree $*" >>"$log_file"
-        }
-        install_zoxide_native() { return 1; }
-        install_uv_tool() { return 1; }
-
-        # shellcheck disable=SC2034
-        HAS_SUDO=false
-        OS=Linux
-        ARCH="$arch"
-        # shellcheck disable=SC2034
-        IS_LINUX=true
-        BIN_DIR="$bin_dir"
-        PATH="${bin_dir}:/usr/bin:/bin"
-
-        install_declared_core_tools >/dev/null 2>"${tmp_dir}/errors.log" ||
-            true
-    )
-
-    assert_log_contains "${tmp_dir}/errors.log" \
-        "[WARN] tmux: sudo unavailable; skipping system package"
-    assert_log_contains "${tmp_dir}/errors.log" \
-        "[ERROR] tmux: no supported install source"
-
-    if [ "$arch" = arm64 ]; then
-        assert_log_contains "$log_file" "github junegunn/fzf v0.67.0 fzf-{tag_no_v}-linux_arm64.tar.gz fzf"
-        assert_log_contains "$log_file" "github sharkdp/bat v0.26.1 bat-{tag}-aarch64-unknown-linux-gnu.tar.gz bat"
-        assert_log_contains "$log_file" "github BurntSushi/ripgrep 15.1.0 ripgrep-{tag}-aarch64-unknown-linux-musl.tar.gz rg"
-        assert_log_contains "$log_file" "github sharkdp/fd v10.2.0 fd-{tag}-aarch64-unknown-linux-gnu.tar.gz fd"
-        assert_log_contains "$log_file" "github jqlang/jq jq-1.7.1 jq-linux-arm64 jq-linux-arm64 jq"
-        assert_log_contains "$log_file" "github eza-community/eza v0.20.14 eza_aarch64-unknown-linux-gnu.tar.gz eza"
-        assert_log_contains "$log_file" "github tealdeer-rs/tealdeer v1.8.1 tealdeer-linux-aarch64-musl tealdeer-linux-aarch64-musl tldr"
-        rm -rf "$tmp_dir"
-        return
-    fi
-
-    assert_log_contains "$log_file" \
-        "github mvdan/sh v3.14.1 shfmt_{tag}_linux_amd64 shfmt_{tag}_linux_amd64 shfmt"
-    assert_log_contains "$log_file" \
-        "github-tree neovim/neovim v0.12.6 nvim-linux-x86_64.tar.gz nvim-linux-x86_64/bin/nvim nvim"
-    assert_log_contains "$log_file" "github junegunn/fzf v0.67.0 fzf-{tag_no_v}-linux_amd64.tar.gz fzf"
-    assert_log_contains "$log_file" "github sharkdp/bat v0.26.1 bat-{tag}-x86_64-unknown-linux-gnu.tar.gz bat"
-    assert_log_contains "$log_file" "github BurntSushi/ripgrep 15.1.0 ripgrep-{tag}-x86_64-unknown-linux-musl.tar.gz rg"
-    assert_log_contains "$log_file" "github sharkdp/fd v10.2.0 fd-{tag}-x86_64-unknown-linux-gnu.tar.gz fd"
-    assert_log_contains "$log_file" "github jqlang/jq jq-1.7.1 jq-linux-amd64 jq-linux-amd64 jq"
-    assert_log_contains "$log_file" "github casey/just 1.56.0 just-{tag}-x86_64-unknown-linux-musl.tar.gz just"
-    assert_log_contains "$log_file" \
-        "github hadolint/hadolint v2.15.1 hadolint-linux-x86_64 hadolint-linux-x86_64 hadolint"
-    assert_log_contains "$log_file" "github eza-community/eza v0.20.14 eza_x86_64-unknown-linux-gnu.tar.gz eza"
-    assert_log_contains "$log_file" "github dandavison/delta 0.18.2 delta-{tag}-x86_64-unknown-linux-gnu.tar.gz delta"
-    assert_log_contains "$log_file" "github tealdeer-rs/tealdeer v1.8.1 tealdeer-linux-x86_64-musl tealdeer-linux-x86_64-musl tldr"
-    assert_log_contains "$log_file" "github jesseduffield/lazygit v0.59.0 lazygit_{tag_no_v}_linux_x86_64.tar.gz lazygit"
-
-    rm -rf "$tmp_dir"
-}
-
-smoke_macos_github_patterns() {
-    "$JQ_BIN" -e '
-        .platforms as $platforms |
-        ($platforms | sort) == ([
-            "darwin-arm64", "darwin-x86_64",
-            "linux-arm64", "linux-x86_64"
-        ] | sort) and
-        ([.tools[] | select(.scope == "core") | .name] | length) > 0 and
-        (.tools[] | select(.name == "fzf") |
-            .github.artifacts."darwin-arm64".archive ==
-                "fzf-{tag_no_v}-darwin_arm64.tar.gz") and
-        (.tools[] | select(.name == "just") |
-            (.github.artifacts | keys | sort) == ($platforms | sort)) and
-        (.tools[] | select(.name == "hadolint") |
-            (.github.artifacts | keys | sort) == ($platforms | sort)) and
-        (.tools[] | select(.name == "neovim") | .adapter == "github-tree" and
-            (.github.artifacts | keys) == ["linux-arm64", "linux-x86_64"]) and
-        (.tools[] | select(.name == "shfmt") |
-            (.github.artifacts | keys) == ["linux-arm64", "linux-x86_64"]) and
-        (.tools[] | select(.command == "bw") |
-            .package == "@bitwarden/cli" and .installer == "npm" and
-            .channel == "latest") and
-        (.tools[] | select(.name == "zoxide") |
-            .github.repo == "ajeetdsouza/zoxide") and
-        all(.tools[] | select(.scope == "core" and .github.repo != null);
-            .versionPolicy == "latest" and (.github | has("tag") | not))
-    ' "${DOTFILES_DIR}/.agents/tool-versions.json" >/dev/null ||
-        fail "inventory platform artifacts are incomplete"
-}
-
-smoke_unsupported_artifact_stops_before_network() {
-    local tmp_dir manifest log_file
-    tmp_dir="$(mktemp -d)"
-    manifest="${tmp_dir}/tools.json"
-    log_file="${tmp_dir}/network.log"
-    : >"$log_file"
-    cat >"$manifest" <<'JSON'
-{"platforms":["linux-arm64"],"tools":[{
-  "scope":"core","name":"demo","commands":["demo"],
-  "versionPolicy":"pinned","github":{"repo":"example/demo","tag":"v1",
-  "artifacts":{}}
-}]}
-JSON
-
-    if (
-        TOOL_INVENTORY="$manifest"
-        OS=Linux
-        ARCH=arm64
-        # shellcheck disable=SC2034
-        HAS_SUDO=false
-        BIN_DIR="${tmp_dir}/bin"
-        mkdir -p "$BIN_DIR"
-        source "${DOTFILES_DIR}/bootstrap.d/00-utils.sh"
-        source "${DOTFILES_DIR}/bootstrap.d/05-tools.sh"
-        check_installed() { return 1; }
-        install_github_binary() { echo network >>"$log_file"; }
-        install_github_tree() { echo network >>"$log_file"; }
-        install_declared_core_tools >/dev/null 2>&1
-    ); then
-        fail "unsupported artifact was accepted"
-    fi
-    [ ! -s "$log_file" ] || fail "unsupported artifact reached the network"
-    rm -rf "$tmp_dir"
-}
-
-smoke_direct_binary_install() {
-    local tmp_dir
-    local bin_dir
-
-    tmp_dir="$(mktemp -d)"
-    bin_dir="${tmp_dir}/bin"
-    mkdir -p "$bin_dir"
-
-    (
-        # shellcheck source=/dev/null
-        source "${DOTFILES_DIR}/bootstrap.d/00-utils.sh"
-
-        curl() {
-            local output_path=""
-
-            while [ "$#" -gt 0 ]; do
-                case "$1" in
-                -o)
-                    shift
-                    output_path="$1"
-                    ;;
-                esac
-                shift
-            done
-
-            [ -n "$output_path" ] || return 1
-            printf '#!/bin/sh\n' >"$output_path"
-        }
-
-        # shellcheck disable=SC2034
-        BIN_DIR="$bin_dir"
-
-        install_github_binary "jqlang/jq" "jq-1.7.1" "jq-linux-amd64" "jq-linux-amd64" "jq" >/dev/null
-        install_github_binary "mvdan/sh" "v3.14.1" "shfmt_{tag}_linux_amd64" \
-            "shfmt_{tag}_linux_amd64" "shfmt" >/dev/null
-    )
-
-    [ -x "${bin_dir}/jq" ] || fail "direct GitHub binary asset was not installed"
-    [ -x "${bin_dir}/shfmt" ] ||
-        fail "versioned GitHub binary asset was not installed"
-
-    rm -rf "$tmp_dir"
-}
-
-smoke_tree_install() {
-    local tmp_dir bin_dir opt_dir fixture
-
-    tmp_dir="$(mktemp -d)"
-    bin_dir="${tmp_dir}/bin"
-    opt_dir="${tmp_dir}/opt"
-    fixture="${tmp_dir}/fixture"
-    mkdir -p "$bin_dir" "${fixture}/demo-linux/bin" \
-        "${fixture}/demo-linux/share/demo"
-    printf '#!/bin/sh\necho demo\n' >"${fixture}/demo-linux/bin/demo"
-    chmod +x "${fixture}/demo-linux/bin/demo"
-    echo first >"${fixture}/demo-linux/share/demo/runtime.txt"
-    tar -czf "${tmp_dir}/first.tar.gz" -C "$fixture" demo-linux
-    echo second >"${fixture}/demo-linux/share/demo/runtime.txt"
-    tar -czf "${tmp_dir}/second.tar.gz" -C "$fixture" demo-linux
-    rm "${fixture}/demo-linux/bin/demo"
-    tar -czf "${tmp_dir}/broken.tar.gz" -C "$fixture" demo-linux
-
-    (
-        # shellcheck source=/dev/null
-        source "${DOTFILES_DIR}/bootstrap.d/00-utils.sh"
-
-        curl() {
-            local output_path=""
-
-            while [ "$#" -gt 0 ]; do
-                case "$1" in
-                -o)
-                    shift
-                    output_path="$1"
-                    ;;
-                esac
-                shift
-            done
-            cp "${SMOKE_ARCHIVES}/${SMOKE_FIXTURE}.tar.gz" "$output_path"
-        }
-
-        SMOKE_ARCHIVES="$tmp_dir"
-        # shellcheck disable=SC2034
-        BIN_DIR="$bin_dir"
-        # shellcheck disable=SC2034
-        OPT_DIR="$opt_dir"
-        for SMOKE_FIXTURE in first second; do
-            install_github_tree "example/demo" "v1" "demo-{tag}.tar.gz" \
-                "demo-linux/bin/demo" "demo" >/dev/null
-        done
-        SMOKE_FIXTURE=broken
-        if install_github_tree "example/demo" "v1" "demo-{tag}.tar.gz" \
-            "demo-linux/bin/demo" "demo" >/dev/null 2>&1; then
-            fail "archive without its executable was accepted"
-        fi
-    )
-
-    [ "$("${bin_dir}/demo")" = demo ] || fail "tree executable is not runnable"
-    [ "$(readlink "${bin_dir}/demo")" = "${opt_dir}/demo/bin/demo" ] ||
-        fail "tree executable link points outside its tree"
-    [ "$(cat "${opt_dir}/demo/share/demo/runtime.txt")" = second ] ||
-        fail "tree reinstall did not replace runtime files"
-    [ ! -e "${opt_dir}/demo/demo-linux" ] ||
-        fail "tree reinstall nested the archive root"
-
-    rm -rf "$tmp_dir"
-}
-
-smoke_latest_core_updates() {
-    local tmp_dir manifest invalid_manifest bin_dir log_file
-    tmp_dir="$(mktemp -d)"
-    manifest="${tmp_dir}/tools.json"
-    invalid_manifest="${tmp_dir}/invalid-tools.json"
-    bin_dir="${tmp_dir}/bin"
-    log_file="${tmp_dir}/actions.log"
-    mkdir -p "$bin_dir"
-    : >"$log_file"
-    cat >"$manifest" <<'JSON'
-{"platforms":["linux-x86_64"],"tools":[
-  {"scope":"core","name":"zoxide","commands":["zoxide"],
-   "versionPolicy":"latest","adapter":"zoxide-native",
-   "github":{"repo":"example/zoxide"}},
-  {"scope":"core","name":"pre-commit","commands":["pre-commit"],
-   "versionPolicy":"latest","adapter":"uv"},
-  {"scope":"core","name":"demo","commands":["demo"],
-   "versionPolicy":"latest","github":{"repo":"example/demo",
-   "artifacts":{"linux-x86_64":{"archive":"demo-{tag}.tar.gz",
-   "binary":"demo"}}}},
-  {"scope":"core","name":"brew-demo","commands":["brew-demo"],
-   "versionPolicy":"latest","packages":{"brew":"demo-brew"}}
-]}
-JSON
-    jq '.tools |= map(select(.name == "zoxide")) |
-        del(.tools[0].github)' "$manifest" >"$invalid_manifest"
-    printf '#!/bin/sh\necho "zoxide 1.0.0"\n' >"${bin_dir}/zoxide"
-    printf '#!/bin/sh\n' >"${bin_dir}/pre-commit"
-    printf '#!/bin/sh\necho "demo 1.0.0"\n' >"${bin_dir}/demo"
-    printf '#!/bin/sh\n' >"${bin_dir}/brew-demo"
-    cat >"${bin_dir}/brew" <<'STUB'
-#!/bin/sh
-echo "brew $*" >>"$SMOKE_LOG"
-STUB
-    cat >"${bin_dir}/uv" <<'STUB'
-#!/bin/sh
-echo "uv $*" >>"$SMOKE_LOG"
-STUB
-    chmod +x "${bin_dir}/zoxide" "${bin_dir}/pre-commit" \
-        "${bin_dir}/demo" "${bin_dir}/uv"
-    chmod +x "${bin_dir}/brew-demo" "${bin_dir}/brew"
-
-    (
-        TOOL_INVENTORY="$manifest"
-        OS=Linux
-        ARCH=x86_64
-        PATH="${bin_dir}:/usr/bin:/bin"
-        export TOOL_INVENTORY OS ARCH PATH SMOKE_LOG="$log_file"
-        # shellcheck source=/dev/null
-        source "${DOTFILES_DIR}/bootstrap.d/05-tools.sh"
-        curl() {
-            echo "curl $*" >>"$SMOKE_LOG"
-            case "$*" in
-            *api.github.com*) return 22 ;;
-            *example/zoxide/releases/latest*)
-                printf 'https://github.com/example/zoxide/releases/tag/v%s\n' \
-                    "${LATEST_ZOXIDE:-1.0.0}"
-                ;;
-            *example/demo/releases/latest*)
-                printf 'https://github.com/example/demo/releases/tag/v%s\n' \
-                    "${LATEST_DEMO:-1.0.0}"
-                ;;
-            *) return 1 ;;
-            esac
-        }
-        install_zoxide_native() { echo zoxide-install >>"$SMOKE_LOG"; }
-        install_github_binary() { echo "github $*" >>"$SMOKE_LOG"; }
-
-        update_declared_latest_core_tools >/dev/null
-        LATEST_ZOXIDE=1.1.0 LATEST_DEMO=1.1.0 \
-            update_declared_latest_core_tools >/dev/null
-        if TOOL_INVENTORY="$invalid_manifest" \
-            update_declared_latest_core_tools >/dev/null 2>&1; then
-            fail "latest zoxide accepted a missing GitHub repository"
-        fi
-    )
-
-    [ "$(grep -Fc 'example/zoxide/releases/latest' "$log_file")" -eq 2 ] ||
-        fail "latest zoxide was not queried on each update"
-    ! grep -F 'api.github.com' "$log_file" >/dev/null ||
-        fail "latest zoxide used the rate-limited GitHub API"
-    [ "$(grep -Fxc zoxide-install "$log_file")" -eq 1 ] ||
-        fail "current zoxide was downloaded unnecessarily"
-    [ "$(grep -Fxc 'uv tool upgrade pre-commit' "$log_file")" -eq 2 ] ||
-        fail "latest uv tool was not queried on each update"
-    [ "$(grep -Fc 'github example/demo v1.1.0' "$log_file")" -eq 1 ] ||
-        fail "latest GitHub artifact was not installed exactly once"
-    [ "$(grep -Fxc 'brew upgrade demo-brew' "$log_file")" -eq 2 ] ||
-        fail "latest package-manager tool was not updated"
-    rm -rf "$tmp_dir"
-}
-
-smoke_arm64_update_uses_platform_artifact() {
-    local tmp_dir manifest bin_dir stub_dir log_file
-    tmp_dir="$(mktemp -d)"
-    manifest="${tmp_dir}/tools.json"
-    bin_dir="${tmp_dir}/bin"
-    stub_dir="${tmp_dir}/stubs"
-    log_file="${tmp_dir}/actions.log"
-    mkdir -p "$bin_dir" "$stub_dir"
-    : >"$log_file"
-    cat >"$manifest" <<'JSON'
-{"platforms":["linux-arm64","linux-x86_64"],"tools":[{
-  "scope":"core","name":"delta","commands":["delta"],
-  "versionPolicy":"latest","packages":{"pacman":"git-delta"},
-  "github":{"repo":"dandavison/delta","artifacts":{
-    "linux-arm64":{"archive":"delta-{tag}-aarch64-unknown-linux-gnu.tar.gz",
-      "binary":"delta"},
-    "linux-x86_64":{"archive":"delta-{tag}-x86_64-unknown-linux-gnu.tar.gz",
-      "binary":"delta"}}}}]}
-JSON
-    printf '#!/bin/sh\nexit 126\n' >"${bin_dir}/delta"
-    printf '#!/bin/sh\n' >"${stub_dir}/apt-get"
-    chmod +x "${bin_dir}/delta" "${stub_dir}/apt-get"
-
-    (
-        TOOL_INVENTORY="$manifest"
-        OS=Linux
-        ARCH=aarch64
-        HAS_SUDO=true
-        PATH="${bin_dir}:${stub_dir}:/usr/bin:/bin"
-        export TOOL_INVENTORY OS ARCH HAS_SUDO PATH SMOKE_LOG="$log_file"
-        # shellcheck source=/dev/null
-        source "${DOTFILES_DIR}/bootstrap.d/00-utils.sh"
-        # shellcheck source=/dev/null
-        source "${DOTFILES_DIR}/bootstrap.d/05-tools.sh"
-        github_latest_tag() { echo 0.18.2; }
-        install_github_binary() { echo "github $*" >>"$SMOKE_LOG"; }
-
-        update_declared_latest_core_tools >/dev/null || true
-    )
-
-    assert_log_contains "$log_file" \
-        "github dandavison/delta 0.18.2 delta-{tag}-aarch64-unknown-linux-gnu.tar.gz delta delta"
-    assert_log_not_contains "$log_file" "apt-get install"
-    rm -rf "$tmp_dir"
-}
-
-smoke_latest_workflow_tools() {
-    local tmp_dir
-    tmp_dir="$(mktemp -d)"
-
-    (
-        # shellcheck source=/dev/null
-        source "${DOTFILES_DIR}/bootstrap.d/05-tools.sh"
-        export HOME="${tmp_dir}/home"
-        mkdir -p "$HOME"
-        BIN_DIR="${tmp_dir}/local bin"
-        export SMOKE_LOG="${tmp_dir}/actions.log"
-
-        curl() {
-            echo "curl $*" >>"$SMOKE_LOG"
-            if [ "$2" = https://hermes-agent.nousresearch.com/install.sh ]; then
-                cat >"$4" <<'INSTALLER'
-printf 'hermes %s\n' "$*" >> "$SMOKE_LOG"
-INSTALLER
-                return
-            fi
-            cat <<'INSTALLER'
-printf 'install %s\n' "${HERDR_INSTALL_DIR:-${NO_MISTAKES_LINK_DIR:-}}" >> "$SMOKE_LOG"
-if [ -n "${HERDR_INSTALL_DIR:-}" ]; then
-    mkdir -p "$HERDR_INSTALL_DIR"
-    cat > "$HERDR_INSTALL_DIR/herdr" <<'HERDR'
-#!/bin/sh
-[ "$*" = "integration install claude" ] || exit 1
-mkdir -p "$CLAUDE_CONFIG_DIR/hooks"
-printf '#!/bin/sh\n' > "$CLAUDE_CONFIG_DIR/hooks/herdr-agent-state.sh"
-jq --arg command "bash '$CLAUDE_CONFIG_DIR/hooks/herdr-agent-state.sh' session" '
-    .hooks.SessionStart += [{
-        matcher: "^(startup|resume|clear|compact|fork)$",
-        hooks: [{type: "command", command: $command, timeout: 10}]
-    }]
-' "$CLAUDE_CONFIG_DIR/settings.json" > "$CLAUDE_CONFIG_DIR/settings.json.next"
-mv "$CLAUDE_CONFIG_DIR/settings.json.next" "$CLAUDE_CONFIG_DIR/settings.json"
-HERDR
-    chmod +x "$HERDR_INSTALL_DIR/herdr"
+if grep -REn 'install_github_(binary|tree)|download_release_asset' \
+    "$DOTFILES_DIR/bootstrap.d" "$CORE_TOOLS" >/dev/null; then
+    fail "legacy GitHub release downloader remains"
 fi
-INSTALLER
-        }
 
-        mkdir -p "$HOME/.claude"
-        printf '%s\n' '{"hooks":{"SessionStart":[{"matcher":"*","hooks":[{"type":"command","command":"bash \"$HOME/.claude/hooks/herdr-agent-state.sh\" session"}]}]}}' > "$HOME/.claude/settings.json"
-
-        install_hermes
-        install_herdr
-        install_no_mistakes
-        assert_log_contains "$SMOKE_LOG" "curl -fsSL https://hermes-agent.nousresearch.com/install.sh -o"
-        assert_log_contains "$SMOKE_LOG" "hermes --skip-setup --skip-computer-use"
-        assert_log_contains "$SMOKE_LOG" "curl -fsSL https://herdr.dev/install.sh"
-        assert_log_contains "$SMOKE_LOG" "curl -fsSL https://raw.githubusercontent.com/kunchenguid/no-mistakes/main/docs/install.sh"
-        [ "$(grep -Fxc "install $BIN_DIR" "$SMOKE_LOG")" -eq 2 ] || fail "native install paths differ"
-        [ -f "$HOME/.claude/hooks/herdr-agent-state.sh" ] || fail "Herdr hook missing"
-        jq -e '.hooks.SessionStart[0].hooks[0].command ==
-            "bash \"$HOME/.claude/hooks/herdr-agent-state.sh\" session"' \
-            "$HOME/.claude/settings.json" >/dev/null || fail "Herdr hook not portable"
-        [ "$(jq '[.hooks.SessionStart[] | select(.hooks | any(.command? // "" |
-            contains("herdr-agent-state.sh")))] | length' \
-            "$HOME/.claude/settings.json")" -eq 1 ] || fail "Herdr hook duplicated"
-
-        curl() {
-            if [ "$2" = https://hermes-agent.nousresearch.com/install.sh ]; then
-                cat >"$4" <<'INSTALLER'
-exit 5
-INSTALLER
-            fi
-        }
-        if install_hermes; then
-            fail "install_hermes ignored installer script failure"
-        fi
-
-        : >"$SMOKE_LOG"
-        curl() {
-            # Even a partially downloaded script must not execute.
-            printf '%s\n' 'echo unexpected >> "$SMOKE_LOG"'
-            return 22
-        }
-        if install_hermes || install_herdr || install_no_mistakes; then
-            fail "native installer ignored download failure"
-        fi
-        [ ! -s "$SMOKE_LOG" ] || fail "partial installer executed"
-    )
-
-    rm -rf "$tmp_dir"
-}
-
-smoke_latest_workflow_tools
-smoke_package_manager_plan
-smoke_linuxbrew_without_sudo_plan
-smoke_remaining_tool_plan
-smoke_installed_tools_are_skipped
-smoke_github_fallback_plan
-smoke_github_fallback_plan arm64
-smoke_macos_github_patterns
-smoke_unsupported_artifact_stops_before_network
-smoke_direct_binary_install
-smoke_tree_install
-smoke_latest_core_updates
-smoke_arm64_update_uses_platform_artifact
-
-echo "[INFO] tool plan smoke test passed"
+echo "[OK] core tool provisioning smoke test passed"

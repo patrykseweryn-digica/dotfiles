@@ -59,16 +59,12 @@ that release before developer CLIs. Sync refreshes only the LTS line. New Zsh
 sessions activate the configured runtime. Doctor compares the active runtime
 with mise's installed policy selection without using the network.
 
-`.agents/tool-versions.json` is the single inventory for core and developer
-CLIs. Managed entries follow current stable releases without stored version
-numbers. Core entries declare commands, package-manager names, platforms, and
-GitHub artifact patterns. Install provisions missing tools without checking the
-network for tools already present. Unsupported direct download platforms fail
-before network access. Without sudo, install skips system packages, warns, and
-uses the current declared GitHub release. Set
-`adapter: "github-tree"` when a binary needs files from its archive. Install
-then keeps the archive in `~/.local/opt/<command>` and links the binary into
-`~/.local/bin`. Developer entries use
+`.agents/tool-versions.json` is the single inventory for core, system, and
+developer CLIs. Managed entries follow stable releases without stored version
+numbers. Mise installs and updates every portable core tool through
+`scripts/core-tools.sh`. System-only entries retain package-manager names.
+The generated `~/.config/mise/conf.d/10-core-tools.toml` keeps core tools
+independent from system package versions. Developer entries use
 `channel: "latest"`; update resolves current releases without rewriting the
 inventory. npm CLI entries become independent mise tools, so Node upgrades do
 not hide them. Reports resolve npm `latest` and fail explicitly when the

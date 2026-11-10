@@ -7,6 +7,7 @@ STATE_PLAN="${STATE_PLAN:-${DOTFILES_DIR}/scripts/state-plan.sh}"
 SYNC_AGENTS="${SYNC_AGENTS:-${DOTFILES_DIR}/sync-agents.sh}"
 INSTALL_SCRIPT="${INSTALL_SCRIPT:-${DOTFILES_DIR}/install.sh}"
 AGENT_TOOLS="${AGENT_TOOLS:-${DOTFILES_DIR}/scripts/agent-tools.sh}"
+CORE_TOOLS="${CORE_TOOLS:-${DOTFILES_DIR}/scripts/core-tools.sh}"
 
 # shellcheck source=/dev/null
 source "$INSTALL_SCRIPT"
@@ -69,10 +70,6 @@ refresh_phase() {
     fi
 }
 
-refresh_core_tools() {
-    ensure_install_dirs && install_declared_core_tools
-}
-
 if ! "$STATE_PLAN" all >"$plan_file"; then
     echo "[ERROR] Could not build local update plan" >&2
     exit 1
@@ -129,8 +126,7 @@ while IFS=$'\t' read -r status category action message; do
     esac
 done <"$plan_file"
 
-refresh_phase "missing inventory tools" refresh_core_tools
-refresh_phase "latest core tools" update_declared_latest_core_tools
+refresh_phase "core tools" "$CORE_TOOLS" update
 refresh_phase "Node and agent tools" "$AGENT_TOOLS" update
 # The refresh activates Node only in its own process. Later phases and the
 # final check must use the same runtime and its global CLIs.

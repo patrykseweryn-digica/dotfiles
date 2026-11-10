@@ -8,8 +8,7 @@ developer releases without editing that inventory.
 - `outdated` shows only tools with version drift or a missing command.
 - `report` shows all installed and expected CLI versions for diagnostics.
 - `plan` checks every platform-applicable inventory entry offline.
-- `install` skips available commands and uses only declared package names,
-  adapters, or platform artifacts.
+- `install` provisions portable core tools through mise.
 - `update` resolves current stable releases without stored version numbers.
 - `failure` retains previous Node and stops when downloads fail.
 
@@ -30,9 +29,8 @@ Preconditions: working host Node/npm; no live update needed for verification.
   release redirect and skips a current binary. Inside a Herdr pane, the Herdr
   update is skipped with an instruction and other updates continue.
 - **Core install plan.** Run `bash scripts/smoke-tool-plan.sh`. It exercises
-  package managers, explicit Darwin/Linux artifacts, installed-tool skips,
-  sudo-less fallback warnings, archive-tree installs and replacement, and
-  failure before network access for an undeclared architecture.
+  the public core-tools interface. The test covers macOS arm64, Linux x86_64,
+  Linux arm64, install, update, generated config, and system-tool separation.
 - **Node upgrade.** Run `bash scripts/smoke-node.sh`. It drives bootstrap
   with an isolated mise provider, changes the resolved LTS version, reads the
   selected Node, and verifies the previous runtime survives download/install

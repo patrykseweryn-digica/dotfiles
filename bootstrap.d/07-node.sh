@@ -26,6 +26,12 @@ run_mise() {
         MISE_GLOBAL_CONFIG_FILE="$NODE_POLICY_FILE" "$binary" "$@"
 }
 
+run_global_mise() {
+    local binary
+    binary=$(mise_bin)
+    env -u MISE_NODE_VERSION "$binary" --cd "$HOME" "$@"
+}
+
 run_mise_offline() {
     local binary
     binary=$(mise_bin)

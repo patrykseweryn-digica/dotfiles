@@ -40,54 +40,36 @@ smoke_public_menu() {
 }
 
 smoke_jq_bootstrap() {
-    local tmp_dir mode
+    local tmp_dir
     tmp_dir="$(mktemp -d)"
+    (
+        export HOME="${tmp_dir}/home"
+        mkdir -p "$HOME"
+        : >"${tmp_dir}/mise.log"
 
-    for mode in sudo no-sudo; do
-        (
-            export HOME="${tmp_dir}/${mode}/home"
-            mkdir -p "$HOME"
-            : >"${tmp_dir}/${mode}.log"
-
-            # shellcheck source=/dev/null
-            source "${DOTFILES_DIR}/install.sh"
-            mkdir -p "$BIN_DIR"
-            export PATH="$BIN_DIR"
-            export OS=Linux
-            export ARCH=arm64
-            github_latest_tag() { printf 'jq-1.8.2\n'; }
-            install_github_binary() {
-                printf 'github %s\n' "$*" >>"${tmp_dir}/${mode}.log"
+        # shellcheck source=/dev/null
+        source "${DOTFILES_DIR}/install.sh"
+        mkdir -p "$BIN_DIR"
+        export PATH="$BIN_DIR"
+        install_mise() { printf 'install-mise\n' >>"${tmp_dir}/mise.log"; }
+        run_global_mise() {
+            printf '%s\n' "$*" >>"${tmp_dir}/mise.log"
+            if [ "$1" = install ]; then
                 printf '#!/bin/sh\necho jq-1.8.2\n' >"${BIN_DIR}/jq"
                 /bin/chmod +x "${BIN_DIR}/jq"
-            }
-            apt-get() {
-                printf 'apt-get %s\n' "$*" >>"${tmp_dir}/${mode}.log"
-                if [ "$1" = install ]; then
-                    printf '#!/bin/sh\necho jq-1.8.2\n' >"${BIN_DIR}/jq"
-                    /bin/chmod +x "${BIN_DIR}/jq"
-                fi
-            }
-            sudo() { "$@"; }
-
-            if [ "$mode" = sudo ]; then
-                export HAS_SUDO=true
             else
-                export HAS_SUDO=false
+                printf '%s\n' "${BIN_DIR}/jq"
             fi
-            ensure_jq >/dev/null
-            jq --version >/dev/null
-        )
-    done
+        }
+        ensure_jq >/dev/null
+        jq --version >/dev/null
+    )
 
-    grep -Fx 'apt-get update' "${tmp_dir}/sudo.log" >/dev/null ||
-        fail "jq bootstrap skipped apt metadata refresh"
-    grep -Fx 'apt-get install -y jq' "${tmp_dir}/sudo.log" >/dev/null ||
-        fail "jq bootstrap skipped sudo package installation"
-    grep -Fx \
-        'github jqlang/jq jq-1.8.2 jq-linux-arm64 jq-linux-arm64 jq' \
-        "${tmp_dir}/no-sudo.log" >/dev/null ||
-        fail "jq bootstrap skipped the Linux arm64 release"
+    grep -Fx 'install jq@latest' "${tmp_dir}/mise.log" >/dev/null ||
+        fail "jq bootstrap did not use mise"
+    if grep -E 'apt-get|github' "${tmp_dir}/mise.log" >/dev/null; then
+        fail "jq bootstrap used a legacy provider"
+    fi
 
     rm -rf "$tmp_dir"
 }

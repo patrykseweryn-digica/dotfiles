@@ -152,15 +152,6 @@ STUB
 cat >"${tmp_dir}/install.sh" <<'STUB'
 #!/bin/bash
 ensure_install_dirs() { mkdir -p "$HOME/.local/bin"; }
-install_declared_core_tools() {
-    if [ ! -f "$HOME/.state/core-tools" ]; then
-        touch "$HOME/.state/core-tools"
-        echo core-tools >>"$MUTATION_LOG"
-    fi
-}
-update_declared_latest_core_tools() {
-    printf '%s\n' latest-core-tools >>"$ACTION_LOG"
-}
 update_managed_links() {
     printf '%s\n' links >>"$ACTION_LOG"
     touch "$HOME/.state/links"
@@ -174,6 +165,16 @@ configure_herdr_hook() {
 STUB
 printf 'source %q\n' "${DOTFILES_DIR}/bootstrap.d/07-node.sh" \
     >>"${tmp_dir}/install.sh"
+cat >"${tmp_dir}/core-tools.sh" <<'STUB'
+#!/bin/bash
+set -eu
+printf 'core-tools %s\n' "$*" >>"$ACTION_LOG"
+[ "$1" = update ]
+if [ ! -f "$HOME/.state/core-tools" ]; then
+    touch "$HOME/.state/core-tools"
+    echo core-tools >>"$MUTATION_LOG"
+fi
+STUB
 # The tool refresh installs a newer Node and an npm CLI in a child process.
 cat >"${tmp_dir}/agent-tools.sh" <<'STUB'
 #!/bin/bash
@@ -193,7 +194,7 @@ if [ ! -f "$HOME/.state/agent-tools" ]; then
 fi
 STUB
 chmod +x "${tmp_dir}/state-plan.sh" "${tmp_dir}/sync-agents.sh" \
-    "${tmp_dir}/agent-tools.sh"
+    "${tmp_dir}/agent-tools.sh" "${tmp_dir}/core-tools.sh"
 touch "${state_dir}/export" "${state_dir}/export-skills" \
     "${state_dir}/export-plugins"
 
@@ -206,6 +207,7 @@ run_sync() {
         STATE_PLAN="${tmp_dir}/state-plan.sh" \
         SYNC_AGENTS="${tmp_dir}/sync-agents.sh" \
         AGENT_TOOLS="${tmp_dir}/agent-tools.sh" \
+        CORE_TOOLS="${tmp_dir}/core-tools.sh" \
         INSTALL_SCRIPT="${tmp_dir}/install.sh" \
         "$JUST_BIN" --justfile "$JUSTFILE" sync \
         >"${tmp_dir}/update.log" 2>&1
@@ -234,7 +236,7 @@ done
 [ -f "${state_dir}/mcp" ] || fail "managed MCP state was not reconciled"
 grep -Fx 'settings-install codex' "$action_log" >/dev/null ||
     fail "settings adapter was not used"
-for action in latest-core-tools 'agent-tools update' pi-packages-update; do
+for action in 'core-tools update' 'agent-tools update' pi-packages-update; do
     grep -Fx "$action" "$action_log" >/dev/null ||
         fail "independent upstream phase was not attempted: $action"
 done
@@ -290,7 +292,7 @@ git -C "$sync_repo" diff --no-ext-diff HEAD >"${tmp_dir}/repo.before"
 : >"$mutation_log"
 run_sync || fail "idempotent sync failed"
 [ ! -s "$mutation_log" ] || fail "second sync repeated mutations"
-for action in latest-core-tools 'agent-tools update' pi-packages-update skills-update \
+for action in 'core-tools update' 'agent-tools update' pi-packages-update skills-update \
     plugins-update; do
     grep -Fx "$action" "$action_log" >/dev/null ||
         fail "second sync omitted upstream query: $action"
