@@ -868,9 +868,6 @@ smoke_latest_workflow_tools() {
             if [ "$2" = https://hermes-agent.nousresearch.com/install.sh ]; then
                 cat >"$4" <<'INSTALLER'
 printf 'hermes %s\n' "$*" >> "$SMOKE_LOG"
-mkdir -p "$HOME/.hermes/bin"
-printf '#!/bin/sh\n' > "$HOME/.hermes/bin/browser-use"
-chmod +x "$HOME/.hermes/bin/browser-use"
 INSTALLER
                 return
             fi
@@ -883,12 +880,21 @@ if [ -n "${HERDR_INSTALL_DIR:-}" ]; then
 [ "$*" = "integration install claude" ] || exit 1
 mkdir -p "$CLAUDE_CONFIG_DIR/hooks"
 printf '#!/bin/sh\n' > "$CLAUDE_CONFIG_DIR/hooks/herdr-agent-state.sh"
-printf '%s\n' '{"hooks":{"SessionStart":[{"hooks":[{"type":"command","command":"bash herdr-agent-state.sh session"}]}]}}' > "$CLAUDE_CONFIG_DIR/settings.json"
+jq --arg command "bash '$CLAUDE_CONFIG_DIR/hooks/herdr-agent-state.sh' session" '
+    .hooks.SessionStart += [{
+        matcher: "^(startup|resume|clear|compact|fork)$",
+        hooks: [{type: "command", command: $command, timeout: 10}]
+    }]
+' "$CLAUDE_CONFIG_DIR/settings.json" > "$CLAUDE_CONFIG_DIR/settings.json.next"
+mv "$CLAUDE_CONFIG_DIR/settings.json.next" "$CLAUDE_CONFIG_DIR/settings.json"
 HERDR
     chmod +x "$HERDR_INSTALL_DIR/herdr"
 fi
 INSTALLER
         }
+
+        mkdir -p "$HOME/.claude"
+        printf '%s\n' '{"hooks":{"SessionStart":[{"matcher":"*","hooks":[{"type":"command","command":"bash \"$HOME/.claude/hooks/herdr-agent-state.sh\" session"}]}]}}' > "$HOME/.claude/settings.json"
 
         install_hermes
         install_herdr
@@ -902,18 +908,9 @@ INSTALLER
         jq -e '.hooks.SessionStart[0].hooks[0].command ==
             "bash \"$HOME/.claude/hooks/herdr-agent-state.sh\" session"' \
             "$HOME/.claude/settings.json" >/dev/null || fail "Herdr hook not portable"
-
-        rm -rf "$HOME/.hermes"
-        curl() {
-            if [ "$2" = https://hermes-agent.nousresearch.com/install.sh ]; then
-                cat >"$4" <<'INSTALLER'
-true
-INSTALLER
-            fi
-        }
-        if install_hermes; then
-            fail "install_hermes accepted missing Browser Use CLI"
-        fi
+        [ "$(jq '[.hooks.SessionStart[] | select(.hooks | any(.command? // "" |
+            contains("herdr-agent-state.sh")))] | length' \
+            "$HOME/.claude/settings.json")" -eq 1 ] || fail "Herdr hook duplicated"
 
         curl() {
             if [ "$2" = https://hermes-agent.nousresearch.com/install.sh ]; then

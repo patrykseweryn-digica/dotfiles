@@ -396,7 +396,7 @@ install_tmux_plugins() {
 }
 
 install_hermes() {
-    local installer status browser_use
+    local installer status
 
     installer="$(mktemp)" || return 1
     if ! curl -fsSL https://hermes-agent.nousresearch.com/install.sh -o "$installer"; then
@@ -408,12 +408,6 @@ install_hermes() {
     rm -f "$installer"
     if [ "$status" -ne 0 ]; then
         return "$status"
-    fi
-
-    browser_use="${HERMES_HOME:-$HOME/.hermes}/bin/browser-use"
-    if [ ! -x "$browser_use" ]; then
-        echo "[ERROR] Hermes Browser Use CLI not installed: $browser_use" >&2
-        return 1
     fi
 }
 
@@ -474,10 +468,18 @@ configure_herdr_hook() {
             select(.type == "command" and
                 (.command | contains("herdr-agent-state.sh")))).command =
             "bash \"$HOME/.claude/hooks/herdr-agent-state.sh\" session" |
-        .hooks.SessionStart |= reduce .[] as $entry ([];
-            if ($entry.hooks | any(.command? // "" |
-                    contains("herdr-agent-state.sh"))) and index($entry) != null
-            then . else . + [$entry] end)
+        .hooks.SessionStart |= (
+            reduce .[] as $entry ({items: [], seen_herdr: false};
+                ($entry.hooks | any(.command? // "" |
+                    contains("herdr-agent-state.sh"))) as $is_herdr |
+                if $is_herdr and .seen_herdr then
+                    .
+                else
+                    .items += [$entry] |
+                    if $is_herdr then .seen_herdr = true else . end
+                end
+            ) | .items
+        )
     ' "$settings" >"$tmp"; then
         mv "$tmp" "$settings"
     else

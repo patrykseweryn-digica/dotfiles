@@ -1389,8 +1389,7 @@ render_codex_remote_plugins() {
 }
 
 codex_remote_plugin_state_available() {
-    [ -d "$CODEX_REMOTE_PLUGIN_CACHE" ] ||
-        command -v codex >/dev/null 2>&1
+    [ -d "$CODEX_REMOTE_PLUGIN_CACHE" ]
 }
 
 claude_plugin_state_available() {
@@ -1500,13 +1499,17 @@ cmd_codex_remote_plugins_export() {
         return 0
     fi
 
-    mv "$tmp" "$CODEX_PLUGIN_MANIFEST"
+    if ! mv "$tmp" "$CODEX_PLUGIN_MANIFEST"; then
+        rm -f "$tmp"
+        return 1
+    fi
     log_info "Updated Codex remote plugin manifest from live state"
 }
 
 codex_marketplace_plugin_state_available() {
-    [ -n "${CODEX_PLUGIN_LIST_FILE:-}" ] ||
-        command -v codex >/dev/null 2>&1
+    { [ -n "${CODEX_PLUGIN_LIST_FILE:-}" ] &&
+        [ -n "${CODEX_MARKETPLACE_LIST_FILE:-}" ]; } ||
+        [ -d "${CODEX_HOME}/.tmp/marketplaces" ]
 }
 
 raw_codex_plugin_state() {
@@ -1661,6 +1664,9 @@ cmd_codex_marketplace_plugins_export() {
         --slurpfile marketplaces "$marketplaces" '
         .codexPlugins = $plugins[0]
         | .codexMarketplaces = $marketplaces[0]
+        | .codexMarketplaceSparsePaths =
+            ((.codexMarketplaceSparsePaths // {}) |
+                with_entries(select($marketplaces[0][.key] != null)))
     ' "$CODEX_PLUGIN_MANIFEST" >"$tmp"
     rm -f "$plugins" "$marketplaces"
 
@@ -1668,7 +1674,10 @@ cmd_codex_marketplace_plugins_export() {
         rm -f "$tmp"
         log_info "Codex marketplace plugin manifest already in sync"
     else
-        mv "$tmp" "$CODEX_PLUGIN_MANIFEST"
+        if ! mv "$tmp" "$CODEX_PLUGIN_MANIFEST"; then
+            rm -f "$tmp"
+            return 1
+        fi
         log_info "Updated Codex marketplace plugin manifest from live state"
     fi
 }
@@ -1798,7 +1807,7 @@ cmd_codex_plugins_update() {
         return 1
     }
 
-    repair_codex_marketplace_providers || return 1
+    cmd_codex_marketplace_plugins_push || return 1
 
     read_codex_plugin_state >/dev/null || return 1
     read_codex_marketplace_state >/dev/null || return 1
@@ -2824,7 +2833,10 @@ cmd_claude_plugins_export() {
         return 1
     fi
 
-    mv "$tmp" "$CLAUDE_MANIFEST"
+    if ! mv "$tmp" "$CLAUDE_MANIFEST"; then
+        rm -f "$tmp"
+        return 1
+    fi
     log_info "Updated manifest from installed Claude plugins/marketplaces"
 }
 

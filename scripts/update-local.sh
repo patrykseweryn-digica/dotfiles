@@ -153,8 +153,8 @@ else
     if [ "$plugins_status" = UPDATE ] || [ "$plugins_status" = FAIL ]; then
         refresh_phase "plugin membership" "$SYNC_AGENTS" push-plugins
     fi
-    refresh_phase "plugin versions" "$SYNC_AGENTS" plugins-update
 fi
+refresh_phase "plugin versions" "$SYNC_AGENTS" plugins-update
 
 if ! "$STATE_PLAN" all >"$final_file"; then
     echo "[ERROR] Could not run final local check" >&2

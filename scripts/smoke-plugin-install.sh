@@ -21,6 +21,7 @@ case "$*" in
 'plugin list --json') cat "$state/plugins.json" ;;
 'plugin marketplace list --json') cat "$state/marketplaces.json" ;;
 'plugin marketplace add https://example.test/official.git')
+    mkdir -p "$state/.tmp/marketplaces"
     jq '.marketplaces += [{name:"official",marketplaceSource:{sourceType:"git",
         source:"https://example.test/official.git"}}]' "$state/marketplaces.json" > "$state/next"
     mv "$state/next" "$state/marketplaces.json" ;;

@@ -118,11 +118,21 @@ fi
 
 cat > "${stub_dir}/codex" <<'STUB'
 #!/bin/bash
-exit 0
+exit 97
 STUB
 chmod +x "${stub_dir}/codex"
 export PATH="${stub_dir}:/usr/bin:/bin"
 export CODEX_REMOTE_PLUGIN_CACHE="${tmp_dir}/missing-cache"
+cp "$manifest" "${tmp_dir}/fresh-codex-before.json"
+HOME="${tmp_dir}/fresh-home" CODEX_HOME="${tmp_dir}/fresh-home/.codex" \
+    CODEX_PLUGIN_LIST_FILE='' CODEX_MARKETPLACE_LIST_FILE='' \
+    "$DOTFILES_DIR/sync-agents.sh" --quiet codex-plugins-export \
+    > "$sync_log" 2>&1 || {
+    cat "$sync_log" >&2
+    fail "Fresh Codex plugin export failed"
+}
+cmp -s "$manifest" "${tmp_dir}/fresh-codex-before.json" ||
+    fail "Fresh Codex erased repository plugin state"
 if "$DOTFILES_DIR/sync-agents.sh" --quiet codex-plugins-check \
     > "$sync_log" 2>&1; then
     fail "Codex plugin check passed without remote plugin state"
@@ -163,6 +173,14 @@ cat > "$marketplace_list" <<'JSON'
   ]
 }
 JSON
+jq '.codexMarketplaces = {
+    official: "https://example.test/official.git",
+    removed: "https://example.test/removed.git"
+} | .codexMarketplaceSparsePaths = {
+    official: [".claude-plugin"],
+    removed: ["obsolete"]
+}' "$manifest" > "$manifest.next"
+mv "$manifest.next" "$manifest"
 "$DOTFILES_DIR/sync-agents.sh" --quiet codex-plugins-export \
     > "$sync_log" 2>&1 || {
     cat "$sync_log" >&2
@@ -172,7 +190,8 @@ jq -e '
     .codexPlugins == ["keep@official"] and
     .codexMarketplaces == {
       official: "https://example.test/official.git"
-    }
+    } and
+    .codexMarketplaceSparsePaths == {official: [".claude-plugin"]}
 ' "$manifest" >/dev/null ||
     fail "Codex marketplace plugin export wrote wrong state"
 

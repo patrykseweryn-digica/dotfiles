@@ -140,7 +140,7 @@ push-plugins)
     echo plugin-membership >>"$MUTATION_LOG"
     ;;
 plugins-update)
-    [ -f "$HOME/.state/plugins" ]
+    :
     ;;
 pi-packages-update)
     printf '%s\n' pi-packages-update >>"$ACTION_LOG"
@@ -237,11 +237,13 @@ for action in latest-core-tools 'agent-tools update' pi-packages-update; do
     grep -Fx "$action" "$action_log" >/dev/null ||
         fail "independent upstream phase was not attempted: $action"
 done
-for action in skills-update push-plugins plugins-update; do
+for action in skills-update push-plugins; do
     if grep -Fx "$action" "$action_log" >/dev/null; then
         fail "EXPORT category was mutated: $action"
     fi
 done
+grep -Fx plugins-update "$action_log" >/dev/null ||
+    fail "plugin updates were skipped while membership export was blocked"
 grep -Fx '[BLOCKED] mcp: export local additions first' \
     "${tmp_dir}/update.log" >/dev/null || fail "EXPORT was not reported"
 grep -Fx '[APPLY] mcp managed state' "${tmp_dir}/update.log" >/dev/null ||
