@@ -74,6 +74,13 @@ grep -F 'Complete OAuth when prompted' "$sync_log" \
 grep -F 'Run again: just sync' "$sync_log" \
     >/dev/null || fail "Codex plugin check omitted the verification command"
 
+DOTFILES_SKIP_CODEX_REMOTE_PLUGINS=true \
+    "$DOTFILES_DIR/sync-agents.sh" --quiet codex-plugins-check \
+    > "$sync_log" 2>&1 || {
+    cat "$sync_log" >&2
+    fail "Accountless Codex plugin check did not skip remote plugins"
+}
+
 "$DOTFILES_DIR/sync-agents.sh" --quiet codex-plugins-export \
     > "$sync_log" 2>&1 || {
     cat "$sync_log" >&2

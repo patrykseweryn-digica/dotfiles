@@ -132,6 +132,13 @@ if command -v uv >/dev/null 2>&1; then
 fi
 
 # mise
+case ":${MISE_TRUSTED_CONFIG_PATHS:-}:" in
+  *":$HOME/.config/mise/conf.d:"*) ;;
+  *)
+    export MISE_TRUSTED_CONFIG_PATHS="$HOME/.config/mise/conf.d\
+${MISE_TRUSTED_CONFIG_PATHS:+:$MISE_TRUSTED_CONFIG_PATHS}"
+    ;;
+esac
 if [[ -x "$HOME/.local/bin/mise" ]]; then
   eval "$("$HOME/.local/bin/mise" activate zsh)"
 fi

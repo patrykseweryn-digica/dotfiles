@@ -58,6 +58,7 @@
       "commands": [
         "nvim"
       ],
+      "mise": "aqua:neovim/neovim",
       "name": "neovim",
       "scope": "core",
       "versionPolicy": "latest"

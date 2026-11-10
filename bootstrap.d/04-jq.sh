@@ -1,6 +1,7 @@
 #!/bin/bash
 
 ensure_jq() {
+    prepare_global_mise_config || return 1
     if command -v jq >/dev/null 2>&1; then
         JQ_BIN="$(command -v jq)"
         export JQ_BIN
@@ -11,7 +12,7 @@ ensure_jq() {
 
     install_mise || return 1
     echo "[INFO] Installing jq through mise before manifest validation..."
-    run_global_mise install jq@latest || return 1
+    run_global_mise use --global jq@latest || return 1
     JQ_BIN="$(run_global_mise exec jq@latest -- sh -c 'command -v jq')" || {
         echo "[ERROR] mise installed jq without an available command" >&2
         return 1

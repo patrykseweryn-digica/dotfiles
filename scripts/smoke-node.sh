@@ -16,11 +16,11 @@ mkdir -p "$scratch/stubs"
 cat >"$scratch/mise" <<'STUB'
 #!/bin/bash
 set -eu
-[ "${MISE_GLOBAL_CONFIG_FILE:-}" = "$EXPECTED_POLICY_FILE" ] || exit 89
 root="$HOME/.local/share/mise"
 current="$root/current-node"
 case "$1" in
 which)
+    [ "${MISE_GLOBAL_CONFIG_FILE:-}" = "$EXPECTED_POLICY_FILE" ] || exit 89
     [ "$2" = node ]
     printf 'which offline=%s\n' "${MISE_OFFLINE:-0}" >>"$NODE_TEST_LOG"
     version=$(cat "$current")
@@ -29,6 +29,7 @@ which)
     printf '%s\n' "$binary"
     ;;
 install)
+    [ "${MISE_GLOBAL_CONFIG_FILE:-}" = "$EXPECTED_POLICY_FILE" ] || exit 89
     [ "$2" = node ]
     printf 'install node policy=lts target=%s\n' "$NODE_TEST_LTS" \
         >>"$NODE_TEST_LOG"
@@ -39,7 +40,21 @@ install)
     chmod +x "$binary"
     printf '%s\n' "$NODE_TEST_LTS" >"$current"
     ;;
+config)
+    [ -z "${MISE_GLOBAL_CONFIG_FILE+x}" ] || exit 91
+    [ "$2" = set ]
+    [ "$3" = --global ]
+    [ "$4" = tools.node ]
+    mkdir -p "$HOME/.config/mise"
+    printf '[tools]\nnode = "%s"\n' "$5" \
+        >"$HOME/.config/mise/config.toml"
+    ;;
 activate)
+    [ -z "${MISE_GLOBAL_CONFIG_FILE+x}" ] || exit 92
+    case ":${MISE_TRUSTED_CONFIG_PATHS:-}:" in
+    *":$HOME/.config/mise/conf.d:"*) ;;
+    *) exit 93 ;;
+    esac
     [ "$2" = bash ]
     [ "$3" = --shims ]
     version=$(cat "$current")
@@ -102,6 +117,7 @@ install_fixture_node() {
     [ "$PATH" = "$before_path" ]
     activate_node
     [ "$(node --version)" = v26.13.0 ]
+    grep -Fx 'node = "lts"' "$HOME/.config/mise/config.toml" >/dev/null
     NODE_TEST_DOWNLOAD_FAIL=true check_node >/dev/null
     grep -F 'which offline=1' "$NODE_TEST_LOG" >/dev/null
     NODE_TEST_LTS=26.14.0 install_node
@@ -118,6 +134,7 @@ install_fixture_node() {
     check_node >/dev/null
     NODE_TEST_LTS=26.13.0 install_node
     [ "$(node --version)" = v24.11.1 ]
+    grep -Fx 'node = "lts"' "$HOME/.config/mise/config.toml" >/dev/null
     NODE_TEST_LTS=26.13.0 install_node true
     [ "$(node --version)" = v26.13.0 ]
     [ -x "$HOME/.local/share/mise/installs/node/24.11.1/bin/node" ]
@@ -145,6 +162,28 @@ install_fixture_node() {
         fail "Node bootstrap ignored a failed mise download"
     fi
     [ ! -e "$HOME/.local/bin/mise" ]
+)
+
+(
+    export HOME="$scratch/managed-link"
+    install_fixture_node 26.13.0
+    mkdir -p "$HOME/.config/mise"
+    ln -s "$NODE_POLICY_FILE" "$HOME/.config/mise/config.toml"
+    install_node
+    [ ! -L "$HOME/.config/mise/config.toml" ]
+    grep -Fx 'node = "lts"' "$HOME/.config/mise/config.toml" >/dev/null
+)
+
+(
+    export HOME="$scratch/unmanaged-link"
+    install_fixture_node 26.13.0
+    mkdir -p "$HOME/.config/mise"
+    printf '[tools]\npython = "latest"\n' >"$HOME/foreign.toml"
+    ln -s "$HOME/foreign.toml" "$HOME/.config/mise/config.toml"
+    if install_node >/dev/null 2>&1; then
+        fail "Node bootstrap replaced an unmanaged mise config"
+    fi
+    [ -L "$HOME/.config/mise/config.toml" ]
 )
 
 invalid_policy="$scratch/invalid.toml"

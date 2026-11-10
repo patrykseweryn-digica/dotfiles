@@ -41,6 +41,10 @@ printf '%s\n' "$expected_node" >"$mise_root/current-node"
 cat >"$HOME/.local/bin/mise" <<'STUB'
 #!/bin/bash
 set -eu
+case ":${MISE_TRUSTED_CONFIG_PATHS:-}:" in
+*":$HOME/.config/mise/conf.d:"*) ;;
+*) exit 21 ;;
+esac
 if [ "$1" = --cd ]; then
     shift 2
 fi
@@ -74,6 +78,14 @@ install | upgrade)
         >"$root/npm-tools/bin/$command_name"
     chmod +x "$root/npm-tools/bin/$command_name"
     printf '%s\n' "$*" >>"$MISE_LOG"
+    ;;
+config)
+    [ "$2" = set ]
+    [ "$3" = --global ]
+    [ "$4" = tools.node ]
+    mkdir -p "$HOME/.config/mise"
+    printf '[tools]\nnode = "%s"\n' "$5" \
+        >"$HOME/.config/mise/config.toml"
     ;;
 activate)
     printf 'export PATH="%s/npm-tools/bin:%s/installs/node/%s/bin:$PATH"\n' \

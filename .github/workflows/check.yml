@@ -12,6 +12,30 @@ permissions:
   contents: read
 
 jobs:
+  clean-install:
+    name: Clean install (${{ matrix.architecture }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - architecture: amd64
+            runner: ubuntu-24.04
+          - architecture: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Run clean Ubuntu install, sync, and doctor
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: >-
+          docker build --progress=plain
+          --secret id=github_token,env=GITHUB_TOKEN
+          --file .github/ci/clean-install.Dockerfile .
+
   check:
     strategy:
       fail-fast: false

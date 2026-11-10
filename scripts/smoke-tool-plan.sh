@@ -34,6 +34,10 @@ mise_log="$tmp_dir/mise.log"
 cat >"$home_dir/.local/bin/mise" <<'STUB'
 #!/bin/bash
 set -eu
+case ":${MISE_TRUSTED_CONFIG_PATHS:-}:" in
+*":$HOME/.config/mise/conf.d:"*) ;;
+*) exit 3 ;;
+esac
 printf '%s\n' "$*" >>"$MISE_LOG"
 action=""
 for argument in "$@"; do
@@ -56,7 +60,7 @@ export HOME="$home_dir"
 export MISE_BIN="$home_dir/.local/bin/mise"
 export MISE_LOG="$mise_log"
 export PATH="/usr/bin:/bin"
-tool_list=$(jq -r '.tools[] | select(.scope == "core") | .name' \
+tool_list=$(jq -r '.tools[] | select(.scope == "core") | (.mise // .name)' \
     "$INVENTORY" | paste -sd ' ' -)
 tool_count=$(jq '[.tools[] | select(.scope == "core")] | length' "$INVENTORY")
 
@@ -94,6 +98,8 @@ for target in Darwin:arm64 Linux:x86_64 Linux:arm64; do
         fail "generated mise config omitted tools for $target"
     grep -F '[tools]' "$config" >/dev/null ||
         fail "generated mise config has no tools table"
+    grep -F '"aqua:neovim/neovim" = "latest"' "$config" >/dev/null ||
+        fail "generated mise config omitted the declared backend"
 
     : >"$mise_log"
     CORE_TOOLS_OS="$os" CORE_TOOLS_ARCH="$arch" \

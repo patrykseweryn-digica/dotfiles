@@ -6,6 +6,8 @@ default_versions_file="${DOTFILES_DIR}/.agents/tool-versions.json"
 VERSIONS_FILE="${AGENT_TOOL_VERSIONS:-$default_versions_file}"
 CLAUDE_INSTALL_URL="${CLAUDE_INSTALL_URL:-https://claude.ai/install.sh}"
 MISE_AGENT_TOOLS_FILE="${MISE_AGENT_TOOLS_FILE:-${HOME}/.config/mise/conf.d/20-agent-tools.toml}"
+export MISE_TRUSTED_CONFIG_PATHS="${HOME}/.config/mise/conf.d\
+${MISE_TRUSTED_CONFIG_PATHS:+:${MISE_TRUSTED_CONFIG_PATHS}}"
 
 validate_manifest() {
     jq -e '

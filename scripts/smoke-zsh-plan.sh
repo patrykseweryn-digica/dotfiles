@@ -29,9 +29,10 @@ stub_dir="${tmp_dir}/stubs"
 bin_dir="${tmp_dir}/bin"
 opt_dir="${tmp_dir}/opt"
 home_dir="${tmp_dir}/home"
+fallback_home="${tmp_dir}/fallback-home"
 log_file="${tmp_dir}/actions.log"
 
-mkdir -p "$stub_dir" "$bin_dir" "$opt_dir" "$home_dir"
+mkdir -p "$stub_dir" "$bin_dir" "$opt_dir" "$home_dir" "$fallback_home"
 : > "$log_file"
 
 cat > "${stub_dir}/brew" <<'STUB'
@@ -98,10 +99,19 @@ chmod +x "${stub_dir}/brew" "${stub_dir}/sudo" "${stub_dir}/curl" "${stub_dir}/m
     PATH="${bin_dir}:${stub_dir}:/usr/bin:/bin"
 
     install_zsh >/dev/null
+
+    chsh() { return 1; }
+    HOME="$fallback_home"
+    install_zsh >/dev/null
 )
 
 assert_log_contains "$log_file" "brew install zsh"
 assert_log_contains "$log_file" "chsh -s ${bin_dir}/zsh"
+grep -F -- '--with-tcsetpgrp' "${DOTFILES_DIR}/bootstrap.d/02-zsh.sh" \
+    >/dev/null || fail "zsh source build does not support non-interactive setup"
+grep -F 'Auto-start zsh for SSH sessions (dotfiles)' \
+    "${fallback_home}/.profile" >/dev/null ||
+    fail "failed chsh did not install the shell fallback"
 
 if grep -E '^(sudo|curl|make) ' "$log_file" >/dev/null 2>&1; then
     echo "[ERROR] zsh Homebrew plan should not use sudo/source fallback" >&2

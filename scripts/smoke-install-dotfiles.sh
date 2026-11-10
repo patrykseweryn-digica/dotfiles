@@ -54,7 +54,7 @@ smoke_jq_bootstrap() {
         install_mise() { printf 'install-mise\n' >>"${tmp_dir}/mise.log"; }
         run_global_mise() {
             printf '%s\n' "$*" >>"${tmp_dir}/mise.log"
-            if [ "$1" = install ]; then
+            if [ "$1" = use ]; then
                 printf '#!/bin/sh\necho jq-1.8.2\n' >"${BIN_DIR}/jq"
                 /bin/chmod +x "${BIN_DIR}/jq"
             else
@@ -65,7 +65,7 @@ smoke_jq_bootstrap() {
         jq --version >/dev/null
     )
 
-    grep -Fx 'install jq@latest' "${tmp_dir}/mise.log" >/dev/null ||
+    grep -Fx 'use --global jq@latest' "${tmp_dir}/mise.log" >/dev/null ||
         fail "jq bootstrap did not use mise"
     if grep -E 'apt-get|github' "${tmp_dir}/mise.log" >/dev/null; then
         fail "jq bootstrap used a legacy provider"

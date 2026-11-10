@@ -69,12 +69,38 @@ check_node() {
     fi
 }
 
+prepare_global_mise_config() {
+    local config target
+
+    config="${HOME}/.config/mise/config.toml"
+    if [ -L "$config" ]; then
+        target=$(readlink "$config")
+        if [ "$target" != "$NODE_POLICY_FILE" ]; then
+            echo "[ERROR] Refusing to replace unmanaged mise config: $config" >&2
+            return 1
+        fi
+        rm "$config"
+    fi
+}
+
+record_global_node_policy() {
+    local binary policy
+
+    policy=$(required_node_policy) || return 1
+    prepare_global_mise_config || return 1
+    binary=$(mise_bin)
+    env -u MISE_NODE_VERSION -u MISE_GLOBAL_CONFIG_FILE \
+        "$binary" config set --global tools.node "$policy" >/dev/null
+}
+
 activate_node() {
     local activation binary
     required_node_policy >/dev/null || return 1
     binary=$(mise_bin)
     [ -x "$binary" ] || return 1
-    export MISE_GLOBAL_CONFIG_FILE="$NODE_POLICY_FILE"
+    export MISE_TRUSTED_CONFIG_PATHS="${HOME}/.config/mise/conf.d\
+${MISE_TRUSTED_CONFIG_PATHS:+:${MISE_TRUSTED_CONFIG_PATHS}}"
+    unset MISE_GLOBAL_CONFIG_FILE
     unset MISE_NODE_VERSION
     activation=$("$binary" activate bash --shims) || return 1
     eval "$activation" || return 1
@@ -120,6 +146,7 @@ install_node() {
     else
         echo "[INFO] Node LTS is already installed"
     fi
+    record_global_node_policy || return 1
     activate_node
 }
 

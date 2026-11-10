@@ -53,7 +53,10 @@ fi
 
 if ! HOME="$home_dir" ZDOTDIR="$zshenv" DOTFILES_ENV_FILE="$env_file" \
     MISE_TEST_LOG="$mise_log" zsh -df -c \
-    "source '${DOTFILES_DIR}/.zshrc'; test \"\$(node --version)\" = v26.13.0" \
+    "source '${DOTFILES_DIR}/.zshrc'; \
+    test \"\$(node --version)\" = v26.13.0; \
+    test \"\$MISE_TRUSTED_CONFIG_PATHS\" = \
+    \"\$HOME/.config/mise/conf.d\"" \
     2>"$stderr_log"; then
     cat "$stderr_log" >&2
     fail ".zshrc failed in isolated HOME"

@@ -32,7 +32,8 @@ install_zsh_from_source() {
     tar -xf "zsh-${zsh_version}.tar.xz"
     cd "zsh-${zsh_version}" || return 1
 
-    ./configure --prefix="${OPT_DIR}/zsh"
+    # The configure probe fails when CI has no controlling terminal.
+    ./configure --prefix="${OPT_DIR}/zsh" --with-tcsetpgrp
     make
     make install
 
@@ -50,8 +51,12 @@ set_default_shell() {
     fi
 
     echo "[INFO] Changing default shell to zsh (you may be prompted for your password)..."
-    chsh -s "$(which zsh)"
-    echo "[INFO] Default shell changed to zsh"
+    if chsh -s "$(which zsh)"; then
+        echo "[INFO] Default shell changed to zsh"
+        return 0
+    fi
+    echo "[WARN] Could not change the default shell"
+    return 1
 }
 
 add_ssh_auto_zsh_snippet() {

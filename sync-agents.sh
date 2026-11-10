@@ -1398,6 +1398,10 @@ claude_plugin_state_available() {
 
 cmd_codex_remote_plugins_check() {
     validate_plugin_manifest "$CODEX_PLUGIN_MANIFEST" || return 1
+    if [ "${DOTFILES_SKIP_CODEX_REMOTE_PLUGINS:-false}" = true ]; then
+        log_info "Skipping Codex remote plugins: accountless environment"
+        return 0
+    fi
 
     local live wanted missing
     live="$(mktemp)"
@@ -2294,6 +2298,7 @@ stage_locked_skills() {
     }
 
     local groups group names name source source_url install_source install_name
+    local skills_cli resolved_skills_cli
     local runtime_name skill_file
     local failed=false
     groups=$(jq -c '
@@ -2332,11 +2337,21 @@ stage_locked_skills() {
     }
 
     if [ -n "$groups" ]; then
-        command -v "$SKILLS_CLI" >/dev/null 2>&1 || {
+        skills_cli=$(command -v "$SKILLS_CLI") || {
             cleanup_staged_skills
             echo "[ERROR] Skills CLI not found: $SKILLS_CLI" >&2
             return 1
         }
+        case "$skills_cli" in
+        "${HOME}/.local/share/mise/shims/"*)
+            resolved_skills_cli=$(mise which "$SKILLS_CLI" 2>/dev/null) || {
+                cleanup_staged_skills
+                echo "[ERROR] Skills CLI shim has no active tool: $SKILLS_CLI" >&2
+                return 1
+            }
+            skills_cli="$resolved_skills_cli"
+            ;;
+        esac
     fi
 
     while IFS= read -r group; do
@@ -2357,7 +2372,7 @@ stage_locked_skills() {
         command_args+=(--agent codex -y --full-depth)
         if ! HOME="$STAGED_SKILLS_HOME" \
             SKILL_LOCK_LIVE="$STAGED_SKILL_LOCK" \
-            "$SKILLS_CLI" "${command_args[@]}" </dev/null; then
+            "$skills_cli" "${command_args[@]}" </dev/null; then
             echo "[ERROR] Failed to stage current skills: $names (from $source)" >&2
             failed=true
             break

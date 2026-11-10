@@ -83,18 +83,31 @@ if [ "${1:-}" = ls-remote ]; then
 fi
 exec "$REAL_GIT" "$@"
 STUB
+cat > "$task_dir/bin/mise" <<'STUB'
+#!/bin/bash
+set -eu
+[ "${1:-}" = which ] && [ "${2:-}" = skills ] || exit 1
+printf '%s\n' "$REAL_SKILLS"
+STUB
 chmod +x "$task_dir/bin/skills" "$task_dir/bin/cp" \
-    "$task_dir/bin/mv" "$task_dir/bin/git"
+    "$task_dir/bin/mv" "$task_dir/bin/git" "$task_dir/bin/mise"
 export REAL_GIT="$real_git"
 
 preflight_home="$task_dir/preflight home"
-mkdir -p "$preflight_home"
+mkdir -p "$preflight_home/.local/share/mise/shims"
+cat > "$preflight_home/.local/share/mise/shims/skills" <<'STUB'
+#!/bin/bash
+echo 'mise shim ran after HOME changed' >&2
+exit 97
+STUB
+chmod +x "$preflight_home/.local/share/mise/shims/skills"
 env -u CODEX_HOME -u OPENCODE_CONFIG_DIR -u PI_CODING_AGENT_DIR \
     -u PI_SKILLS_DIR HOME="$preflight_home" \
     SKILL_LOCK_LIVE="$preflight_home/.agents/.skill-lock.json" \
     SKILL_LOCK_REPO="$task_dir/lock.json" \
     SHARED_SKILLS_CUSTOM_DIR="$task_dir/custom" \
-    PATH="$task_dir/bin:$PATH" SKILLS_CLI="$task_dir/bin/skills" \
+    PATH="$preflight_home/.local/share/mise/shims:$task_dir/bin:$PATH" \
+    SKILLS_CLI=skills REAL_SKILLS="$task_dir/bin/skills" \
     SKILL_TEST_LOG="$task_dir/preflight-calls" \
     "$repo/sync-agents.sh" skills-preflight >"$task_dir/preflight-output" 2>&1
 test ! -e "$preflight_home/.agents"

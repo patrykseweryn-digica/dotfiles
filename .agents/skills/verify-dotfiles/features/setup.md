@@ -47,6 +47,9 @@ Preconditions: dependencies from SKILL.md; run from the checkout root.
   exercised without importing or replacing live user preferences.
 - **Start shell.** Run `bash scripts/smoke-zshrc-startup.sh`. Require clean
   startup, correct platform paths and Cursor/Grok command precedence.
+- **Clean Linux install.** Build `.github/ci/clean-install.Dockerfile` on the
+  native amd64 and arm64 CI runners. The image runs `install`, two `sync`
+  commands, and `doctor` as a user without sudo or SSH state.
 - **Proof.** Capture stdout/stderr and exit codes; each script must exit zero.
 
 ## Gotchas
@@ -57,3 +60,5 @@ Preconditions: dependencies from SKILL.md; run from the checkout root.
   upstream CI preflight and a live `./sync-agents.sh skills-preflight` use real
   networks; report which boundary was exercised.
 - Darwin/Linux uname fixtures do not replace actual Linux CI execution.
+- A local Docker build proves only the host architecture unless emulation is
+  requested explicitly.

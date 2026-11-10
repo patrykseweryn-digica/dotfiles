@@ -5,6 +5,8 @@ DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TOOL_INVENTORY="${TOOL_INVENTORY:-${DOTFILES_DIR}/.agents/tool-versions.json}"
 MISE_BIN="${MISE_BIN:-${HOME}/.local/bin/mise}"
 MISE_CORE_TOOLS_FILE="${MISE_CORE_TOOLS_FILE:-${HOME}/.config/mise/conf.d/10-core-tools.toml}"
+export MISE_TRUSTED_CONFIG_PATHS="${HOME}/.config/mise/conf.d\
+${MISE_TRUSTED_CONFIG_PATHS:+:${MISE_TRUSTED_CONFIG_PATHS}}"
 
 jq_run() {
     if [ -x "${JQ_BIN:-}" ]; then
@@ -61,6 +63,7 @@ validate_inventory() {
             ((.platforms // ["darwin-arm64", "darwin-x86_64",
                 "linux-arm64", "linux-x86_64"]) | valid_platforms) and
             .versionPolicy == "latest" and
+            ((.mise // .name) | nonempty and test("^[^[:space:]]+$")) and
             (has("github") | not) and (has("packages") | not) and
             (has("adapter") | not)
         ) and
@@ -100,14 +103,14 @@ system_tool_rows() {
     ' "$TOOL_INVENTORY"
 }
 
-mise_tool_names() {
+mise_tool_rows() {
     local platform="$1"
     jq_run -r --arg platform "$platform" '
         .tools[] | select(.scope == "core" and
             .versionPolicy == "latest") |
         select(((.platforms // ["darwin-arm64", "darwin-x86_64",
             "linux-arm64", "linux-x86_64"]) | index($platform)) != null) |
-        .name
+        [.name, (.mise // .name), .commands[0]] | @tsv
     ' "$TOOL_INVENTORY"
 }
 
@@ -121,7 +124,7 @@ write_mise_config() {
                 .versionPolicy == "latest") |
             select(((.platforms // ["darwin-arm64", "darwin-x86_64",
                 "linux-arm64", "linux-x86_64"]) | index($platform)) != null) |
-            ((.name | @json) + " = \"latest\"")
+            (((.mise // .name) | @json) + " = \"latest\"")
         ])[]
     ' "$TOOL_INVENTORY" >"$candidate" || {
         rm -f "$candidate"
@@ -136,12 +139,12 @@ write_mise_config() {
 }
 
 run_mise_tools() {
-    local action="$1" platform="$2" name
+    local action="$1" platform="$2" name source command_name
     local -a tools=()
 
-    while IFS= read -r name; do
-        [ -n "$name" ] && tools+=("$name")
-    done < <(mise_tool_names "$platform")
+    while IFS=$'\t' read -r name source command_name; do
+        [ -n "$source" ] && tools+=("$source")
+    done < <(mise_tool_rows "$platform")
     [ "${#tools[@]}" -gt 0 ] || return 0
     write_mise_config "$platform" || return 1
     case "$action" in
@@ -236,12 +239,9 @@ run_system_tools() {
 }
 
 show_plan() {
-    local platform="$1" name command_name status
+    local platform="$1" name source command_name status
     local commands apt dnf pacman brew requires
-    while IFS= read -r name; do
-        command_name="$(jq_run -r --arg name "$name" \
-            '.tools[] | select(.scope == "core" and .name == $name) | .commands[0]' \
-            "$TOOL_INVENTORY")"
+    while IFS=$'\t' read -r name source command_name; do
         status=INSTALL
         if env -u MISE_NODE_VERSION "$MISE_BIN" --cd "$HOME" \
             which "$command_name" >/dev/null 2>&1; then
@@ -252,7 +252,7 @@ show_plan() {
         else
             printf 'FAIL\ttools\tupdate\t%s is missing from mise\n' "$name"
         fi
-    done < <(mise_tool_names "$platform")
+    done < <(mise_tool_rows "$platform")
     while IFS=$'\t' read -r name commands apt dnf pacman brew requires; do
         [ -n "$name" ] || continue
         if tool_available "$commands"; then
@@ -267,18 +267,15 @@ show_plan() {
 }
 
 check_tools() {
-    local platform="$1" failed=false name command_name
+    local platform="$1" failed=false name source command_name
     local commands apt dnf pacman brew requires
-    while IFS= read -r name; do
-        command_name="$(jq_run -r --arg name "$name" \
-            '.tools[] | select(.scope == "core" and .name == $name) | .commands[0]' \
-            "$TOOL_INVENTORY")"
+    while IFS=$'\t' read -r name source command_name; do
         if ! env -u MISE_NODE_VERSION "$MISE_BIN" --cd "$HOME" \
             which "$command_name" >/dev/null 2>&1; then
             echo "[ERROR] $name is unavailable through mise" >&2
             failed=true
         fi
-    done < <(mise_tool_names "$platform")
+    done < <(mise_tool_rows "$platform")
     while IFS=$'\t' read -r name commands apt dnf pacman brew requires; do
         [ -n "$name" ] || continue
         if tool_available "$commands"; then

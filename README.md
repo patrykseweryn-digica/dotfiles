@@ -55,10 +55,11 @@ for the audit, theme, title lifecycle, compaction and live-test results.
 
 ## Developer tool versions
 
-`config/mise/config.toml` keeps Node on the current LTS line. Setup installs
-that release before developer CLIs. Sync refreshes only the LTS line. New Zsh
-sessions activate the configured runtime. Doctor compares the active runtime
-with mise's installed policy selection without using the network.
+`config/mise/config.toml` keeps Node on the current LTS line. Setup records
+that policy in mise's generated global config before developer CLIs. Sync
+refreshes only the LTS line. New Zsh sessions activate the configured runtime.
+Doctor compares the active runtime with mise's installed policy selection
+without using the network.
 
 `.agents/tool-versions.json` is the single inventory for core, system, and
 developer CLIs. Managed entries follow stable releases without stored version
@@ -133,8 +134,10 @@ causes `just doctor` to fail and print the corresponding install command.
 
 ## Installation and synchronization
 
-A clean machine needs Bash, `curl`, Git, CA certificates, `tar`, and `unzip`.
-Linux installation without sudo also needs a C compiler and `make` for Zsh.
+A clean machine needs Bash, `curl`, Git, CA certificates, `tar`, `unzip`, and
+`rsync`.
+Linux installation without sudo also needs a C compiler, `make`, XZ, and
+ncurses headers for Zsh.
 The installer bootstraps `jq`; `jq` is not a prerequisite.
 Run `./install.sh` when `just` is not installed yet.
 
@@ -183,7 +186,11 @@ isolated-HOME install/sync smoke tests and `just check`, then compares the
 read-only live `just doctor` result with the baseline. Doctor prints bounded
 diagnostics rather than raw config diffs, which may contain credentials.
 Evidence stays under ignored `.agent-runs/verify-dotfiles/`.
-The existing CI runs repository checks on macOS and Linux. A separate job
+CI runs repository checks on macOS and Linux. Native amd64 and arm64 jobs also
+run `install`, two `sync` commands, and `doctor` in a clean Ubuntu image as a
+user without sudo. Accountless CI skips only remote Codex plugins because
+their installation requires OAuth. CI mounts a read-only GitHub token only
+during `sync`; Docker does not copy the token into the image. A separate job
 resolves every current upstream skill on pushes, pull requests, and daily.
 A local macOS run alone proves only macOS execution and the simulated Linux
 cases.
