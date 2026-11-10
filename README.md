@@ -135,6 +135,11 @@ causes `just doctor` to fail and print the corresponding install command.
 
 ## Installation and synchronization
 
+A clean machine needs Bash, `curl`, Git, CA certificates, `tar`, and `unzip`.
+Linux installation without sudo also needs a C compiler and `make` for Zsh.
+The installer bootstraps `jq`; `jq` is not a prerequisite.
+Run `./install.sh` when `just` is not installed yet.
+
 ```bash
 just install  # converge missing tools and local config
 just sync     # pull and apply safe local and upstream changes

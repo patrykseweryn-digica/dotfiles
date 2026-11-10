@@ -331,6 +331,11 @@ main() {
     RUN_STEP_RESULTS=()
 
     # Install tools. Required steps abort; optional failures are summarized.
+    run_required_step "jq" ensure_jq
+    if [ "$LAST_RUN_STEP_STATUS" -ne 0 ]; then
+        print_step_summary
+        return "$LAST_RUN_STEP_STATUS"
+    fi
     run_optional_step "uv" install_uv
     if [[ ":$PATH:" != *":${HOME}/.cargo/bin:"* ]]; then
         export PATH="${HOME}/.cargo/bin:${PATH}"

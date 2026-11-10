@@ -39,6 +39,59 @@ smoke_public_menu() {
     rm -f "$actual" "$expected"
 }
 
+smoke_jq_bootstrap() {
+    local tmp_dir mode
+    tmp_dir="$(mktemp -d)"
+
+    for mode in sudo no-sudo; do
+        (
+            export HOME="${tmp_dir}/${mode}/home"
+            mkdir -p "$HOME"
+            : >"${tmp_dir}/${mode}.log"
+
+            # shellcheck source=/dev/null
+            source "${DOTFILES_DIR}/install.sh"
+            mkdir -p "$BIN_DIR"
+            export PATH="$BIN_DIR"
+            export OS=Linux
+            export ARCH=arm64
+            github_latest_tag() { printf 'jq-1.8.2\n'; }
+            install_github_binary() {
+                printf 'github %s\n' "$*" >>"${tmp_dir}/${mode}.log"
+                printf '#!/bin/sh\necho jq-1.8.2\n' >"${BIN_DIR}/jq"
+                /bin/chmod +x "${BIN_DIR}/jq"
+            }
+            apt-get() {
+                printf 'apt-get %s\n' "$*" >>"${tmp_dir}/${mode}.log"
+                if [ "$1" = install ]; then
+                    printf '#!/bin/sh\necho jq-1.8.2\n' >"${BIN_DIR}/jq"
+                    /bin/chmod +x "${BIN_DIR}/jq"
+                fi
+            }
+            sudo() { "$@"; }
+
+            if [ "$mode" = sudo ]; then
+                export HAS_SUDO=true
+            else
+                export HAS_SUDO=false
+            fi
+            ensure_jq >/dev/null
+            jq --version >/dev/null
+        )
+    done
+
+    grep -Fx 'apt-get update' "${tmp_dir}/sudo.log" >/dev/null ||
+        fail "jq bootstrap skipped apt metadata refresh"
+    grep -Fx 'apt-get install -y jq' "${tmp_dir}/sudo.log" >/dev/null ||
+        fail "jq bootstrap skipped sudo package installation"
+    grep -Fx \
+        'github jqlang/jq jq-1.8.2 jq-linux-arm64 jq-linux-arm64 jq' \
+        "${tmp_dir}/no-sudo.log" >/dev/null ||
+        fail "jq bootstrap skipped the Linux arm64 release"
+
+    rm -rf "$tmp_dir"
+}
+
 smoke_source_has_no_home_side_effect() {
     local tmp_dir
     local home_dir
@@ -590,6 +643,7 @@ STUB
 
     for outcome in success failure; do
         rm -f "${task_dir}/installed"
+        rm -f "${task_dir}/jq-ready"
         (
             export HOME="${task_dir}/home"
             export TOOLS_INSTALLED="${task_dir}/installed"
@@ -603,7 +657,8 @@ STUB
             install_zsh() { :; }
             install_oh_my_zsh() { :; }
             install_pipx() { :; }
-            install_tools() { :; }
+            ensure_jq() { touch "${task_dir}/jq-ready"; }
+            install_tools() { [ -f "${task_dir}/jq-ready" ]; }
             install_fonts() { :; }
             install_terminal_colors() { :; }
             install_macos_apps() { :; }
@@ -660,6 +715,7 @@ smoke_no_mistakes_config() {
 
 smoke_no_mistakes_config
 smoke_public_menu
+smoke_jq_bootstrap
 smoke_node_activation_before_tools
 smoke_source_has_no_home_side_effect
 smoke_run_steps_preserve_errexit
