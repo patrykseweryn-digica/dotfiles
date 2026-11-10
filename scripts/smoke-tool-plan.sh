@@ -474,6 +474,7 @@ smoke_github_fallback_plan() {
     local tmp_dir
     local bin_dir
     local log_file
+    local arch="${1:-x86_64}"
 
     tmp_dir="$(mktemp -d)"
     bin_dir="${tmp_dir}/bin"
@@ -505,7 +506,7 @@ smoke_github_fallback_plan() {
         # shellcheck disable=SC2034
         HAS_SUDO=false
         OS=Linux
-        ARCH=x86_64
+        ARCH="$arch"
         # shellcheck disable=SC2034
         IS_LINUX=true
         BIN_DIR="$bin_dir"
@@ -515,15 +516,27 @@ smoke_github_fallback_plan() {
             true
     )
 
-    assert_log_contains "$log_file" \
-        "github mvdan/sh v3.14.1 shfmt_{tag}_linux_amd64 shfmt_{tag}_linux_amd64 shfmt"
-    assert_log_contains "$log_file" \
-        "github-tree neovim/neovim v0.12.6 nvim-linux-x86_64.tar.gz nvim-linux-x86_64/bin/nvim nvim"
     assert_log_contains "${tmp_dir}/errors.log" \
         "[WARN] tmux: sudo unavailable; skipping system package"
     assert_log_contains "${tmp_dir}/errors.log" \
         "[ERROR] tmux: no supported install source"
 
+    if [ "$arch" = arm64 ]; then
+        assert_log_contains "$log_file" "github junegunn/fzf v0.67.0 fzf-{tag_no_v}-linux_arm64.tar.gz fzf"
+        assert_log_contains "$log_file" "github sharkdp/bat v0.26.1 bat-{tag}-aarch64-unknown-linux-gnu.tar.gz bat"
+        assert_log_contains "$log_file" "github BurntSushi/ripgrep 15.1.0 ripgrep-{tag}-aarch64-unknown-linux-musl.tar.gz rg"
+        assert_log_contains "$log_file" "github sharkdp/fd v10.2.0 fd-{tag}-aarch64-unknown-linux-gnu.tar.gz fd"
+        assert_log_contains "$log_file" "github jqlang/jq jq-1.7.1 jq-linux-arm64 jq-linux-arm64 jq"
+        assert_log_contains "$log_file" "github eza-community/eza v0.20.14 eza_aarch64-unknown-linux-gnu.tar.gz eza"
+        assert_log_contains "$log_file" "github tealdeer-rs/tealdeer v1.8.1 tealdeer-linux-aarch64-musl tealdeer-linux-aarch64-musl tldr"
+        rm -rf "$tmp_dir"
+        return
+    fi
+
+    assert_log_contains "$log_file" \
+        "github mvdan/sh v3.14.1 shfmt_{tag}_linux_amd64 shfmt_{tag}_linux_amd64 shfmt"
+    assert_log_contains "$log_file" \
+        "github-tree neovim/neovim v0.12.6 nvim-linux-x86_64.tar.gz nvim-linux-x86_64/bin/nvim nvim"
     assert_log_contains "$log_file" "github junegunn/fzf v0.67.0 fzf-{tag_no_v}-linux_amd64.tar.gz fzf"
     assert_log_contains "$log_file" "github sharkdp/bat v0.26.1 bat-{tag}-x86_64-unknown-linux-gnu.tar.gz bat"
     assert_log_contains "$log_file" "github BurntSushi/ripgrep 15.1.0 ripgrep-{tag}-x86_64-unknown-linux-musl.tar.gz rg"
@@ -944,6 +957,7 @@ smoke_linuxbrew_without_sudo_plan
 smoke_remaining_tool_plan
 smoke_installed_tools_are_skipped
 smoke_github_fallback_plan
+smoke_github_fallback_plan arm64
 smoke_macos_github_patterns
 smoke_unsupported_artifact_stops_before_network
 smoke_direct_binary_install

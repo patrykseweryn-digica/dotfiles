@@ -16,6 +16,10 @@
             "archive": "fzf-{tag_no_v}-darwin_arm64.tar.gz",
             "binary": "fzf"
           },
+          "linux-arm64": {
+            "archive": "fzf-{tag_no_v}-linux_arm64.tar.gz",
+            "binary": "fzf"
+          },
           "linux-x86_64": {
             "archive": "fzf-{tag_no_v}-linux_amd64.tar.gz",
             "binary": "fzf"
@@ -41,6 +45,10 @@
         "artifacts": {
           "darwin-arm64": {
             "archive": "bat-{tag}-aarch64-apple-darwin.tar.gz",
+            "binary": "bat"
+          },
+          "linux-arm64": {
+            "archive": "bat-{tag}-aarch64-unknown-linux-gnu.tar.gz",
             "binary": "bat"
           },
           "linux-x86_64": {
@@ -71,6 +79,10 @@
             "archive": "ripgrep-{tag}-aarch64-apple-darwin.tar.gz",
             "binary": "rg"
           },
+          "linux-arm64": {
+            "archive": "ripgrep-{tag}-aarch64-unknown-linux-musl.tar.gz",
+            "binary": "rg"
+          },
           "linux-x86_64": {
             "archive": "ripgrep-{tag}-x86_64-unknown-linux-musl.tar.gz",
             "binary": "rg"
@@ -96,6 +108,10 @@
         "artifacts": {
           "darwin-arm64": {
             "archive": "fd-{tag}-aarch64-apple-darwin.tar.gz",
+            "binary": "fd"
+          },
+          "linux-arm64": {
+            "archive": "fd-{tag}-aarch64-unknown-linux-gnu.tar.gz",
             "binary": "fd"
           },
           "linux-x86_64": {
@@ -125,6 +141,11 @@
           "darwin-arm64": {
             "archive": "jq-macos-arm64",
             "binary": "jq-macos-arm64",
+            "installedName": "jq"
+          },
+          "linux-arm64": {
+            "archive": "jq-linux-arm64",
+            "binary": "jq-linux-arm64",
             "installedName": "jq"
           },
           "linux-x86_64": {
@@ -312,6 +333,10 @@
       ],
       "github": {
         "artifacts": {
+          "linux-arm64": {
+            "archive": "eza_aarch64-unknown-linux-gnu.tar.gz",
+            "binary": "eza"
+          },
           "linux-x86_64": {
             "archive": "eza_x86_64-unknown-linux-gnu.tar.gz",
             "binary": "eza"
@@ -382,6 +407,11 @@
           "darwin-arm64": {
             "archive": "tealdeer-macos-aarch64",
             "binary": "tealdeer-macos-aarch64",
+            "installedName": "tldr"
+          },
+          "linux-arm64": {
+            "archive": "tealdeer-linux-aarch64-musl",
+            "binary": "tealdeer-linux-aarch64-musl",
             "installedName": "tldr"
           },
           "linux-x86_64": {
