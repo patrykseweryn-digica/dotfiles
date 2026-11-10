@@ -300,10 +300,24 @@ main() {
         return 1
         ;;
     esac
-    [ -x "$MISE_BIN" ] || {
-        echo "[ERROR] mise is unavailable: $MISE_BIN" >&2
-        return 1
-    }
+    if [ ! -x "$MISE_BIN" ]; then
+        # A machine provisioned before mise must still plan and converge.
+        case "$action" in
+        plan)
+            printf 'FAIL\ttools\tupdate\tmise is missing\n'
+            return 0
+            ;;
+        install | update)
+            # shellcheck source=bootstrap.d/07-node.sh
+            source "$DOTFILES_DIR/bootstrap.d/07-node.sh"
+            MISE_BIN="$MISE_BIN" install_mise || return 1
+            ;;
+        *)
+            echo "[ERROR] mise is unavailable: $MISE_BIN" >&2
+            return 1
+            ;;
+        esac
+    fi
     platform="$(tool_platform)" || {
         echo "[ERROR] Unsupported platform" >&2
         return 1

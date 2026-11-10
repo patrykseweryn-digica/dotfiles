@@ -185,4 +185,35 @@ if grep -REn 'install_github_(binary|tree)|download_release_asset' \
     fail "legacy GitHub release downloader remains"
 fi
 
+# A machine provisioned before mise must still get a plan and a bootstrap.
+absent_mise="$tmp_dir/absent/bin/mise"
+MISE_BIN="$absent_mise" CORE_TOOLS_OS=Linux CORE_TOOLS_ARCH=arm64 \
+    "$CORE_TOOLS" plan >"$tmp_dir/plan-without-mise" ||
+    fail "plan failed on a machine without mise"
+[ "$(cat "$tmp_dir/plan-without-mise")" = \
+    $'FAIL\ttools\tupdate\tmise is missing' ] ||
+    fail "plan without mise did not request an update"
+
+stub_bin="$tmp_dir/stub-bin"
+mkdir -p "$stub_bin"
+cat >"$stub_bin/curl" <<'STUB'
+#!/bin/bash
+output=""
+while [ "$#" -gt 0 ]; do
+    if [ "$1" = -o ]; then output="$2"; fi
+    shift
+done
+printf '%s\n' 'cp "$MISE_STUB" "$MISE_INSTALL_PATH"' >"$output"
+STUB
+chmod +x "$stub_bin/curl"
+: >"$mise_log"
+MISE_STUB="$home_dir/.local/bin/mise" MISE_BIN="$absent_mise" \
+    PATH="$stub_bin:$PATH" CORE_TOOLS_OS=Linux CORE_TOOLS_ARCH=arm64 \
+    CORE_TOOLS_HAS_SUDO=false \
+    MISE_CORE_TOOLS_FILE="$tmp_dir/core-bootstrap.toml" \
+    "$CORE_TOOLS" update || fail "update failed on a machine without mise"
+[ -x "$absent_mise" ] || fail "update did not bootstrap mise"
+grep -F -- "upgrade --global --no-prune $tool_list" "$mise_log" >/dev/null ||
+    fail "update did not continue after the mise bootstrap"
+
 echo "[OK] core tool provisioning smoke test passed"
