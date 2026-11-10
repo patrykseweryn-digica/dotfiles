@@ -55,16 +55,17 @@ ln -s "$UV_BIN" "${stub_dir}/uv"
 cp "${DOTFILES_DIR}/config/claude/settings.json" "$CLAUDE_TEMPLATE_FILE"
 cp "${DOTFILES_DIR}/config/codex/settings.toml" "$CODEX_SETTINGS_TEMPLATE"
 cp "${DOTFILES_DIR}/.agents/skill-lock.json" "$SKILL_LOCK_LIVE"
-ln -s "${DOTFILES_DIR}/config/codex/AGENTS.md" \
-    "${home_dir}/.codex/AGENTS.md"
-ln -s "${DOTFILES_DIR}/config/claude/CLAUDE.md" \
-    "${home_dir}/.claude/CLAUDE.md"
-ln -s "${DOTFILES_DIR}/config/claude/settings.local.json" \
-    "${home_dir}/.claude/settings.local.json"
-ln -s "${DOTFILES_DIR}/config/opencode/AGENTS.md" \
-    "${home_dir}/.config/opencode/AGENTS.md"
-ln -s "${DOTFILES_DIR}/config/pi/AGENTS.md" \
-    "${home_dir}/.pi/agent/AGENTS.md"
+
+repair_managed_links() {
+    (
+        export HOME="$home_dir"
+        # shellcheck source=/dev/null
+        source "${DOTFILES_DIR}/install.sh"
+        update_managed_links >/dev/null
+    )
+}
+
+repair_managed_links
 
 cat >"${stub_dir}/sync-agents" <<'STUB'
 #!/bin/bash
@@ -173,6 +174,14 @@ cmp "${tmp_dir}/before" "${tmp_dir}/after" ||
 [ ! -s "$network_log" ] || fail "doctor attempted network access"
 grep -Fx -- '--quiet state-plan' "$check_log" >/dev/null ||
     fail "doctor skipped the shared state plan"
+
+rm "${home_dir}/.zshrc"
+if run_doctor; then fail "doctor passed with a missing managed link"; fi
+grep -F '[FAIL] links:' "${tmp_dir}/doctor.log" >/dev/null ||
+    fail "doctor omitted the missing managed link"
+repair_managed_links
+run_doctor || fail "doctor rejected a repaired managed link"
+[ -L "${home_dir}/.zshrc" ] || fail "sync adapter did not restore .zshrc"
 
 PLAN_SCENARIO=update
 run_doctor || fail "doctor rejected UPDATE"

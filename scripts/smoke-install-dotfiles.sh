@@ -321,6 +321,7 @@ run_case() {
     local env_file
     local npx_log
     local pi_log
+    local zsh_backup
 
     tmp_dir="$(mktemp -d)"
     home_dir="${tmp_dir}/home"
@@ -331,6 +332,7 @@ run_case() {
     pi_log="${tmp_dir}/pi.log"
 
     mkdir -p "$home_dir" "$stub_dir"
+    printf 'local zsh drift\n' >"${home_dir}/.zshrc"
     ln -s "$JQ_BIN" "${stub_dir}/jq"
     ln -s "$UV_BIN" "${stub_dir}/uv"
     : >"$npx_log"
@@ -515,6 +517,13 @@ YAML
     )
 
     [ -L "${home_dir}/.zshrc" ] || fail "$os_name: missing .zshrc symlink"
+    zsh_backup="$(find "${home_dir}/.dotfiles-backup" -type f \
+        -name .zshrc -print -quit)"
+    [ -n "$zsh_backup" ] || fail "$os_name: missing .zshrc backup"
+    grep -Fx 'local zsh drift' "$zsh_backup" >/dev/null ||
+        fail "$os_name: .zshrc backup lost drift"
+    grep -F "[WARN] ${home_dir}/.zshrc differs from dotfiles source" \
+        "$sync_log" >/dev/null || fail "$os_name: missing drift warning"
     [ ! -e "$env_file" ] || fail "$os_name: setup_dotfiles should not create env file when sourced"
     [ -L "${home_dir}/${expected_code_dir}/settings.json" ] || fail "$os_name: missing VS Code settings symlink"
     [ -L "${home_dir}/${expected_ghostty_config}" ] || fail "$os_name: missing Ghostty config symlink"

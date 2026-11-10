@@ -31,6 +31,9 @@ DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENV_TEMPLATE="${DOTFILES_DIR}/.env.example"
 ENV_FILE="${DOTFILES_ENV_FILE:-${DOTFILES_DIR}/.env}"
 
+# shellcheck source=scripts/managed-links.sh
+source "${DOTFILES_DIR}/scripts/managed-links.sh"
+
 ensure_install_dirs() {
     mkdir -p "${BIN_DIR}" "${OPT_DIR}"
 
@@ -167,34 +170,6 @@ deploy_plain_absent_target() {
     fi
 }
 
-deploy_target() {
-    local target_type="$1"
-    local source_path="$2"
-    local target_path="$3"
-
-    case "$target_type" in
-    symlink)
-        deploy_symlink_target "$source_path" "$target_path"
-        ;;
-    plain-absent)
-        deploy_plain_absent_target "$target_path"
-        ;;
-    *)
-        echo "[ERROR] Unknown managed target type: $target_type" >&2
-        return 1
-        ;;
-    esac
-}
-
-deploy_targets() {
-    local target_type source_path target_path
-
-    while IFS='|' read -r target_type source_path target_path; do
-        [ -n "$target_type" ] || continue
-        deploy_target "$target_type" "$source_path" "$target_path"
-    done
-}
-
 RUN_STEP_RESULTS=()
 LAST_RUN_STEP_STATUS=0
 
@@ -280,14 +255,13 @@ setup_repo_git() {
 }
 
 update_managed_links() {
+    local rows source_path target_path
+
     ensure_install_dirs
-    deploy_targets <<EOF
-symlink|$DOTFILES_DIR/config/codex/AGENTS.md|$HOME/.codex/AGENTS.md
-symlink|$DOTFILES_DIR/config/claude/CLAUDE.md|$HOME/.claude/CLAUDE.md
-symlink|$DOTFILES_DIR/config/claude/settings.local.json|$HOME/.claude/settings.local.json
-symlink|$DOTFILES_DIR/config/opencode/AGENTS.md|$HOME/.config/opencode/AGENTS.md
-symlink|$DOTFILES_DIR/config/pi/AGENTS.md|$HOME/.pi/agent/AGENTS.md
-EOF
+    rows="$(managed_link_rows)" || return 1
+    while IFS='|' read -r source_path target_path; do
+        deploy_symlink_target "$source_path" "$target_path"
+    done <<<"$rows"
 }
 
 # Setup and link configuration files
@@ -301,36 +275,8 @@ setup_dotfiles() {
     uv run --no-project --script "$DOTFILES_DIR/scripts/no-mistakes-config.py"
     uv run --no-project --script "$DOTFILES_DIR/scripts/herdr-config.py"
     mkdir -p "${HOME}/.claude/plugins" "${HOME}/.claude/output-styles" "${HOME}/.claude/skills" "${HOME}/.agents/skills" "${HOME}/.codex" "${HOME}/.summarize"
-    if [ "$IS_MACOS" = true ]; then
-        VSCODE_USER_DIR="${HOME}/Library/Application Support/Code/User"
-        GHOSTTY_CONFIG_TARGET="${HOME}/Library/Application Support/com.mitchellh.ghostty/config.ghostty"
-    else
-        VSCODE_USER_DIR="${HOME}/.config/Code/User"
-        GHOSTTY_CONFIG_TARGET="${HOME}/.config/ghostty/config"
-    fi
-
-    deploy_targets <<EOF
-symlink|$DOTFILES_DIR/config/git|$HOME/.config/git
-symlink|$DOTFILES_DIR/pythonrc.py|$HOME/.pythonrc.py
-symlink|$DOTFILES_DIR/.zshrc|$HOME/.zshrc
-symlink|$DOTFILES_DIR/.p10k.zsh|$HOME/.p10k.zsh
-symlink|$DOTFILES_DIR/.tmux.conf|$HOME/.tmux.conf
-symlink|$DOTFILES_DIR/.vimrc|$HOME/.vimrc
-symlink|$DOTFILES_DIR/.aliases|$HOME/.aliases
-symlink|$DOTFILES_DIR/config/Code/settings.json|$VSCODE_USER_DIR/settings.json
-symlink|$DOTFILES_DIR/config/Code/keybindings.json|$VSCODE_USER_DIR/keybindings.json
-symlink|$DOTFILES_DIR/config/ghostty/config.ghostty|$GHOSTTY_CONFIG_TARGET
-symlink|$DOTFILES_DIR/config/nvim|$HOME/.config/nvim
-symlink|$DOTFILES_DIR/config/ruff|$HOME/.config/ruff
-symlink|$DOTFILES_DIR/config/gh/config.yml|$HOME/.config/gh/config.yml
-symlink|$DOTFILES_DIR/config/summarize/config.json|$HOME/.summarize/config.json
-symlink|$DOTFILES_DIR/config/claude/CLAUDE.md|$HOME/.claude/CLAUDE.md
-symlink|$DOTFILES_DIR/config/claude/statusline-command.sh|$HOME/.claude/statusline-command.sh
-plain-absent||$HOME/.claude/settings.json
-symlink|$DOTFILES_DIR/config/claude/settings.local.json|$HOME/.claude/settings.local.json
-symlink|$DOTFILES_DIR/config/claude/output-styles|$HOME/.claude/output-styles
-symlink|$DOTFILES_DIR/config/claude/agents|$HOME/.claude/agents
-EOF
+    update_managed_links
+    deploy_plain_absent_target "$HOME/.claude/settings.json"
 
     # Link bin scripts
     for script in "$DOTFILES_DIR/bin"/*; do

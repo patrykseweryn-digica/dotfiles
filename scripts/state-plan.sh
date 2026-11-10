@@ -7,6 +7,9 @@ AGENT_TOOLS="${AGENT_TOOLS:-${DOTFILES_DIR}/scripts/agent-tools.sh}"
 SYNC_AGENTS="${SYNC_AGENTS:-${DOTFILES_DIR}/sync-agents.sh}"
 NODE_CHECK="${NODE_CHECK:-${DOTFILES_DIR}/bootstrap.d/07-node.sh}"
 
+# shellcheck source=managed-links.sh
+source "${DOTFILES_DIR}/scripts/managed-links.sh"
+
 validate_plan() {
     local status category action message extra failed=false
 
@@ -53,20 +56,14 @@ plan_tools() {
 }
 
 plan_links() {
-    local source target root link broken=false
+    local rows source target root link broken=false
 
+    rows="$(managed_link_rows)" || return 1
     while IFS='|' read -r source target; do
-        [ -n "$source" ] || continue
         if [ ! -L "$target" ] || [ "$(readlink "$target")" != "$source" ]; then
             broken=true
         fi
-    done <<EOF
-${DOTFILES_DIR}/config/codex/AGENTS.md|${HOME}/.codex/AGENTS.md
-${DOTFILES_DIR}/config/claude/CLAUDE.md|${HOME}/.claude/CLAUDE.md
-${DOTFILES_DIR}/config/claude/settings.local.json|${HOME}/.claude/settings.local.json
-${DOTFILES_DIR}/config/opencode/AGENTS.md|${HOME}/.config/opencode/AGENTS.md
-${DOTFILES_DIR}/config/pi/AGENTS.md|${HOME}/.pi/agent/AGENTS.md
-EOF
+    done <<<"$rows"
 
     for root in \
         "${HOME}/.agents/skills" \

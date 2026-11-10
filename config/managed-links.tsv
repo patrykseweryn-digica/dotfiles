@@ -1,0 +1,26 @@
+# platform|source|target
+all|config/git|.config/git
+all|pythonrc.py|.pythonrc.py
+all|.zshrc|.zshrc
+all|.p10k.zsh|.p10k.zsh
+all|.tmux.conf|.tmux.conf
+all|.vimrc|.vimrc
+all|.aliases|.aliases
+darwin|config/Code/settings.json|Library/Application Support/Code/User/settings.json
+darwin|config/Code/keybindings.json|Library/Application Support/Code/User/keybindings.json
+linux|config/Code/settings.json|.config/Code/User/settings.json
+linux|config/Code/keybindings.json|.config/Code/User/keybindings.json
+darwin|config/ghostty/config.ghostty|Library/Application Support/com.mitchellh.ghostty/config.ghostty
+linux|config/ghostty/config.ghostty|.config/ghostty/config
+all|config/nvim|.config/nvim
+all|config/ruff|.config/ruff
+all|config/gh/config.yml|.config/gh/config.yml
+all|config/summarize/config.json|.summarize/config.json
+all|config/codex/AGENTS.md|.codex/AGENTS.md
+all|config/claude/CLAUDE.md|.claude/CLAUDE.md
+all|config/claude/statusline-command.sh|.claude/statusline-command.sh
+all|config/claude/settings.local.json|.claude/settings.local.json
+all|config/claude/output-styles|.claude/output-styles
+all|config/claude/agents|.claude/agents
+all|config/opencode/AGENTS.md|.config/opencode/AGENTS.md
+all|config/pi/AGENTS.md|.pi/agent/AGENTS.md
