@@ -152,7 +152,7 @@ MCP reconciles managed definitions without removing local additions. Other
 categories with local `EXPORT` additions stay untouched. Independent failures
 do not stop the remaining categories; the final summary reports all results.
 
-Cursor CLI, Grok Build, Hermes Agent, Herdr, Treehouse and no-mistakes use
+Cursor CLI, Grok Build, Herdr, Treehouse and no-mistakes use
 official latest-release installers selected by the tool manifest.
 Native commands use `~/.local/bin`;
 no-mistakes keeps its binary in `~/.no-mistakes/bin` and restarts its daemon.
@@ -163,10 +163,7 @@ agent overrides remain local. Configuration-only setup does not touch the
 daemon. The merge uses `uv` with the pinned round-trip YAML parser in
 `scripts/no-mistakes-config.py` (the CLI has no config-set command).
 
-Hermes installation skips the interactive setup wizard and the optional
-Computer Use driver, but installs the Browser Use CLI (Playwright/Chromium
-browser tools); installation fails if the Browser Use CLI is not executable
-afterward. Herdr installation also installs its Claude hook
+Herdr installation also installs its Claude hook
 through the built-in integration command. The hook resolves its script
 relative to `$HOME`.
 Cursor's public command is `agent` in `~/.local/bin`.

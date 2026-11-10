@@ -350,7 +350,6 @@ export AGENT_TOOL_VERSIONS="$previous_manifest"
 # Native declarations dispatch through the existing installers.
 cat >"$manifest" <<'JSON'
 {"tools":[
- {"name":"Hermes Agent","command":"hermes","installer":"hermes-native","channel":"latest","update":["hermes","update"]},
  {"name":"Herdr","command":"herdr","installer":"herdr-native","channel":"latest","update":["herdr","update"]},
  {"name":"Treehouse","command":"treehouse","installer":"treehouse-native","channel":"latest"},
  {"name":"no-mistakes","command":"no-mistakes","installer":"no-mistakes-native","channel":"latest","update":["no-mistakes","update"]},
@@ -406,8 +405,7 @@ for arg in "$@"; do
 done
 installer=$(cat <<'INSTALLER'
 #!/bin/bash
-if [ "${1:-}" = --skip-setup ]; then name=hermes
-elif [ -n "${HERDR_INSTALL_DIR:-}" ]; then name=herdr
+if [ -n "${HERDR_INSTALL_DIR:-}" ]; then name=herdr
 elif [ -n "${NO_MISTAKES_LINK_DIR:-}" ]; then name=no-mistakes
 else name=treehouse; fi
 mkdir -p "$HOME/.local/bin"
@@ -440,14 +438,14 @@ export PATH="$HOME/.local/bin:$PATH"
 : >"$native_log"
 "$AGENT_TOOLS" install
 "$AGENT_TOOLS" check >"$tmp_dir/native-report.log"
-[ "$(grep -c '^PASS[[:space:]]' "$tmp_dir/native-report.log")" -eq 6 ] ||
+[ "$(grep -c '^PASS[[:space:]]' "$tmp_dir/native-report.log")" -eq 5 ] ||
   fail "native tool plan omitted an available tool"
-for name in hermes herdr treehouse no-mistakes cursor-agent grok; do
+for name in herdr treehouse no-mistakes cursor-agent grok; do
   [ "$(grep -Fxc "$name" "$native_log")" -eq 1 ] || fail "native install missing: $name"
 done
 : >"$native_log"
 env -u HERDR_ENV "$AGENT_TOOLS" update
-for name in hermes herdr no-mistakes agent grok; do
+for name in herdr no-mistakes agent grok; do
   grep -Fx "update $name" "$native_log" >/dev/null || fail "native update missing: $name"
 done
 # Herdr refuses to update from inside its own panes; sync must continue.
@@ -460,7 +458,7 @@ grep -F '[SKIP] Herdr: run `herdr update` outside Herdr after detaching' \
   "$tmp_dir/herdr-pane.log" >/dev/null || fail "Herdr skip was not reported"
 ! grep -Fx 'update herdr' "$native_log" >/dev/null ||
   fail "Herdr update ran inside a Herdr pane"
-grep -Fx 'update hermes' "$native_log" >/dev/null ||
+grep -Fx 'update no-mistakes' "$native_log" >/dev/null ||
   fail "Herdr skip stopped other native updates"
 grep -Fx treehouse-check "$native_log" >/dev/null || fail "Treehouse update was not checked"
 ! grep -Fx treehouse "$native_log" >/dev/null || fail "current Treehouse was downloaded"

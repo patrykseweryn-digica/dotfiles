@@ -39,22 +39,6 @@ install_tmux_plugins() {
     fi
 }
 
-install_hermes() {
-    local installer status
-
-    installer="$(mktemp)" || return 1
-    if ! curl -fsSL https://hermes-agent.nousresearch.com/install.sh -o "$installer"; then
-        rm -f "$installer"
-        return 1
-    fi
-    bash "$installer" --skip-setup --skip-computer-use
-    status=$?
-    rm -f "$installer"
-    if [ "$status" -ne 0 ]; then
-        return "$status"
-    fi
-}
-
 install_herdr() {
     local installer
 
