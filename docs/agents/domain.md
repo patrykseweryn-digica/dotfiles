@@ -15,6 +15,8 @@ Surface conflicts with existing ADRs explicitly.
 
 - `CI runner`: Temporary machine assigned by the CI platform to execute a job.
   `queued` means no matching machine is available and the job has not started.
+- `K3s`: Lightweight Kubernetes distribution that manages containerized
+  applications across one or more Linux computers.
 - `STEPS_COMMANDS`: Codex coding mode. It shows concrete commands and
   technical tool actions.
 - `STEPS_PROSE`: Work mode. It uses general prose and hides some command
