@@ -64,17 +64,29 @@ for target in Darwin:arm64 Linux:x86_64 Linux:arm64; do
     os="${target%%:*}"
     arch="${target#*:}"
     config="$tmp_dir/core-${os}-${arch}.toml"
+    system_count=$(jq --arg platform "${os/Darwin/darwin}" \
+        --arg arch "${arch/x86_64/x86_64}" '
+        (($platform | ascii_downcase) + "-" + $arch) as $target |
+        [.tools[] | select(.scope == "system") |
+            select(.platforms | index($target))] | length
+    ' "$INVENTORY")
     : >"$mise_log"
 
     CORE_TOOLS_OS="$os" CORE_TOOLS_ARCH="$arch" \
+        CORE_TOOLS_HAS_SUDO=false \
         MISE_CORE_TOOLS_FILE="$config" "$CORE_TOOLS" plan \
         >"$tmp_dir/plan"
-    [ "$(wc -l <"$tmp_dir/plan" | tr -d ' ')" -eq "$tool_count" ] ||
+    [ "$(wc -l <"$tmp_dir/plan" | tr -d ' ')" \
+        -eq "$((tool_count + system_count))" ] ||
         fail "public plan omitted tools for $target"
-    awk -F '\t' '$3 != "mise" { exit 1 }' "$tmp_dir/plan" ||
-        fail "public plan used a non-mise core provider for $target"
+    [ "$(grep -c 'is available through mise$' "$tmp_dir/plan")" \
+        -eq "$tool_count" ] || fail "public plan omitted mise tools for $target"
+    awk -F '\t' 'NF != 4 || $2 != "tools" ||
+        ($3 != "none" && $3 != "update") { exit 1 }' \
+        "$tmp_dir/plan" || fail "public plan returned an invalid row for $target"
 
     CORE_TOOLS_OS="$os" CORE_TOOLS_ARCH="$arch" \
+        CORE_TOOLS_HAS_SUDO=false \
         MISE_CORE_TOOLS_FILE="$config" "$CORE_TOOLS" install
     grep -F -- "--cd $HOME install $tool_list" "$mise_log" >/dev/null ||
         fail "install did not use the common mise path for $target"
@@ -85,10 +97,69 @@ for target in Darwin:arm64 Linux:x86_64 Linux:arm64; do
 
     : >"$mise_log"
     CORE_TOOLS_OS="$os" CORE_TOOLS_ARCH="$arch" \
+        CORE_TOOLS_HAS_SUDO=false \
         MISE_CORE_TOOLS_FILE="$config" "$CORE_TOOLS" update
     grep -F -- "--cd $HOME upgrade --global --no-prune $tool_list" \
         "$mise_log" >/dev/null ||
         fail "update did not use the common mise path for $target"
+done
+
+assert_xclip_plan() {
+    local os="$1" arch="$2" has_sudo="$3" expected="$4"
+    CORE_TOOLS_OS="$os" CORE_TOOLS_ARCH="$arch" \
+        CORE_TOOLS_HAS_SUDO="$has_sudo" "$CORE_TOOLS" plan |
+        grep -Fx "$expected" >/dev/null ||
+        fail "unexpected xclip plan for $os/$arch sudo=$has_sudo"
+}
+
+assert_xclip_plan Linux arm64 false \
+    $'SKIP\ttools\tnone\txclip requires sudo on linux-arm64'
+assert_xclip_plan Linux x86_64 false \
+    $'SKIP\ttools\tnone\txclip requires sudo on linux-x86_64'
+assert_xclip_plan Linux arm64 true \
+    $'FAIL\ttools\tupdate\txclip is missing'
+assert_xclip_plan Linux x86_64 true \
+    $'FAIL\ttools\tupdate\txclip is missing'
+
+system_bin="$tmp_dir/system-bin"
+system_log="$tmp_dir/system.log"
+mkdir -p "$system_bin"
+cat >"$system_bin/apt-get" <<'STUB'
+#!/bin/bash
+printf 'apt-get %s\n' "$*" >>"$SYSTEM_LOG"
+printf '#!/bin/sh\n' >"$SYSTEM_BIN/xclip"
+chmod +x "$SYSTEM_BIN/xclip"
+STUB
+cat >"$system_bin/sudo" <<'STUB'
+#!/bin/bash
+printf 'sudo %s\n' "$*" >>"$SYSTEM_LOG"
+"$@"
+STUB
+chmod +x "$system_bin/apt-get" "$system_bin/sudo"
+: >"$system_log"
+PATH="$system_bin:/usr/bin:/bin" SYSTEM_BIN="$system_bin" \
+    SYSTEM_LOG="$system_log" \
+    CORE_TOOLS_OS=Linux CORE_TOOLS_ARCH=arm64 \
+    CORE_TOOLS_HAS_SUDO=true "$CORE_TOOLS" install >/dev/null
+grep -Fx 'sudo apt-get install -y xclip' "$system_log" >/dev/null ||
+    fail "sudo-aware install omitted xclip"
+PATH="$system_bin:/usr/bin:/bin" assert_xclip_plan Linux arm64 false \
+    $'PASS\ttools\tnone\txclip is available'
+
+for platform in darwin-arm64 darwin-x86_64 linux-arm64 linux-x86_64; do
+    invalid_system="$tmp_dir/invalid-${platform}.json"
+    jq --arg platform "$platform" '
+        (.tools[] | select(.name == "xclip")) |=
+            (del(.requires) | .platforms = [$platform])
+    ' "$INVENTORY" >"$invalid_system"
+    case "$platform" in
+    darwin-*) os=Darwin; arch="${platform#darwin-}" ;;
+    linux-*) os=Linux; arch="${platform#linux-}" ;;
+    esac
+    if TOOL_INVENTORY="$invalid_system" CORE_TOOLS_OS="$os" \
+        CORE_TOOLS_ARCH="$arch" "$CORE_TOOLS" plan >/dev/null 2>&1; then
+        fail "inventory accepted $platform without a no-sudo source or requirement"
+    fi
 done
 
 invalid="$tmp_dir/invalid.json"

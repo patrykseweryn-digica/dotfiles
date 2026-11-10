@@ -86,6 +86,7 @@ fi
 command -v smoke-npm-tool >/dev/null &&
     row PASS tools none "Tools match" ||
     row FAIL tools update "smoke-npm-tool is missing"
+row SKIP system-tools none "xclip requires sudo on linux-arm64"
 selected=$(cat "$HOME/.local/share/mise/current-node")
 [ "$(node --version)" = "v$selected" ] &&
     row PASS node none "Node matches" ||
@@ -280,6 +281,11 @@ if grep -Fx 'push-mcp' "$action_log" >/dev/null; then
 fi
 grep -Fx '[RESULT] PASS' "${tmp_dir}/update.log" >/dev/null ||
     fail "compatible sync omitted its result"
+for phase in PLAN FINAL; do
+    grep -Fx "[${phase}] [SKIP] system-tools: xclip requires sudo on linux-arm64" \
+        "${tmp_dir}/update.log" >/dev/null ||
+        fail "sync omitted SKIP reason from $phase"
+done
 for category in node tools; do
     grep -F "[FINAL] [PASS] ${category}:" "${tmp_dir}/update.log" >/dev/null ||
         fail "final check missed the refreshed Node: $category"

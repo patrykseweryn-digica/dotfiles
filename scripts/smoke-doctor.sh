@@ -101,6 +101,8 @@ contract)
     printf 'FAIL\ttools\tupdate\tmissing\n'
     ;;
 invalid) printf 'BROKEN\ttools\tnone\tbad status\n' ;;
+invalid-skip) printf 'SKIP\ttools\tupdate\tbad action\n' ;;
+skip) printf 'PASS\ttools\tnone\tAgent tool is available\n' ;;
 normal)
     if [ "${TOOL_DRIFT:-false}" = false ]; then
         printf 'PASS\ttools\tnone\tTool 1.2.3 is available\n'
@@ -108,6 +110,19 @@ normal)
         printf 'FAIL\ttools\tupdate\tTool is missing or not runnable\n'
     fi
     ;;
+esac
+STUB
+
+cat >"${stub_dir}/core-tools" <<'STUB'
+#!/bin/bash
+[ "$1" = plan ] || exit 1
+case "${PLAN_MODE:-normal}" in
+contract) printf 'SKIP\ttools\tnone\tsystem tool requires sudo\n' ;;
+skip)
+    printf 'SKIP\ttools\tnone\txclip requires sudo on linux-arm64\n'
+    printf 'SKIP\ttools\tnone\tdemo requires a system package\n'
+    ;;
+*) printf 'PASS\ttools\tnone\tCore tool is available\n' ;;
 esac
 STUB
 
@@ -125,6 +140,7 @@ printf '%s\n' "$DOCTOR_NODE_BIN"
 STUB
 
 chmod +x "${stub_dir}/sync-agents" "${stub_dir}/agent-tools" \
+    "${stub_dir}/core-tools" \
     "${stub_dir}/node" "${home_dir}/.local/bin/mise"
 for command_name in npm curl gh; do
     cat >"${stub_dir}/${command_name}" <<'STUB'
@@ -143,10 +159,12 @@ run_doctor() {
         PATH="${stub_dir}:/usr/bin:/bin" \
         SYNC_AGENTS="${stub_dir}/sync-agents" \
         AGENT_TOOLS="${stub_dir}/agent-tools" \
+        CORE_TOOLS="${stub_dir}/core-tools" \
         NETWORK_LOG="$network_log" \
         DOCTOR_NODE_BIN="${stub_dir}/node" \
         DOCTOR_CHECK_LOG="$check_log" \
         PLAN_SCENARIO="${PLAN_SCENARIO:-normal}" \
+        PLAN_MODE="${PLAN_MODE:-normal}" \
         NODE_TEST_VERSION="${NODE_TEST_VERSION:-}" \
         TOOL_DRIFT="${TOOL_DRIFT:-false}" \
         env -u CODEX_HOME DOTFILES_DIR="$DOTFILES_DIR" \
@@ -164,12 +182,19 @@ snapshot_state() {
 }
 
 PLAN_MODE=contract AGENT_TOOLS="${stub_dir}/agent-tools" \
+    CORE_TOOLS="${stub_dir}/core-tools" \
     "$STATE_PLAN" tools >"${tmp_dir}/contract-plan"
-[ "$(wc -l <"${tmp_dir}/contract-plan" | tr -d ' ')" -eq 4 ] ||
+[ "$(wc -l <"${tmp_dir}/contract-plan" | tr -d ' ')" -eq 5 ] ||
     fail "state plan does not support every status"
 if PLAN_MODE=invalid AGENT_TOOLS="${stub_dir}/agent-tools" \
+    CORE_TOOLS="${stub_dir}/core-tools" \
     "$STATE_PLAN" tools >/dev/null 2>&1; then
     fail "state plan accepted an invalid status"
+fi
+if PLAN_MODE=invalid-skip AGENT_TOOLS="${stub_dir}/agent-tools" \
+    CORE_TOOLS="${stub_dir}/core-tools" \
+    "$STATE_PLAN" tools >/dev/null 2>&1; then
+    fail "state plan accepted an actionable SKIP"
 fi
 
 : >"$check_log"
@@ -204,6 +229,16 @@ grep -F '[EXPORT] settings:codex:' "${tmp_dir}/doctor.log" >/dev/null ||
     fail "doctor omitted EXPORT"
 grep -F 'Run: just export' "${tmp_dir}/doctor.log" >/dev/null ||
     fail "doctor omitted export action"
+
+PLAN_MODE=skip
+run_doctor || fail "doctor rejected SKIP-only tool rows"
+for reason in \
+    'xclip requires sudo on linux-arm64' \
+    'demo requires a system package'; do
+    grep -F "[SKIP] tools: ${reason}" "${tmp_dir}/doctor.log" >/dev/null ||
+        fail "doctor omitted SKIP reason: $reason"
+done
+unset PLAN_MODE
 
 PLAN_SCENARIO=fail
 if run_doctor; then fail "doctor passed with FAIL"; fi
@@ -241,7 +276,7 @@ jq '.disableAllHooks = true' "$CLAUDE_SETTINGS_FILE" \
     >"${tmp_dir}/disabled.json"
 mv "${tmp_dir}/disabled.json" "$CLAUDE_SETTINGS_FILE"
 run_doctor || fail "doctor rejected intentionally disabled hooks"
-grep -F '[PASS] hooks: Herdr hook is intentionally inactive' \
+grep -F '[SKIP] hooks: Herdr hook is intentionally inactive' \
     "${tmp_dir}/doctor.log" >/dev/null || fail "doctor omitted inactive hook reason"
 printf '#!/bin/bash\n' >"${home_dir}/.claude/hooks/herdr-agent-state.sh"
 

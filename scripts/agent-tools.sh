@@ -153,6 +153,7 @@ plan_rows() {
             "linux-arm64", "linux-x86_64"]) as $default_platforms |
         .tools[] |
         select(((.platforms // $default_platforms) | index($platform)) != null) |
+        select((.scope // "agent") == "agent") |
         [.name, (.scope // "agent"),
          (if has("commands") then (.commands | join(" ")) else .command end)] |
         @tsv

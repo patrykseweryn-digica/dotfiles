@@ -210,6 +210,6 @@ install_no_mistakes() {
 install_tools() {
     echo "[INFO] Installing CLI tools..."
 
-    "$CORE_TOOLS" install
+    CORE_TOOLS_HAS_SUDO="$HAS_SUDO" "$CORE_TOOLS" install
     install_tpm
 }

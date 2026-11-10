@@ -1,14 +1,15 @@
 # Machine doctor
 
 Build one offline, read-only plan without installing tools or copying
-credentials. Every category reports `PASS`, `UPDATE`, `EXPORT`, or `FAIL`;
-only `FAIL` makes the command fail.
+credentials. Every category reports `PASS`, `SKIP`, `UPDATE`, `EXPORT`, or
+`FAIL`. `SKIP` records why no action applies. Only `FAIL` makes the command fail.
 
 ## Sub-features
 
 - `baseline` identifies existing drift before changes.
 - `regression` catches new missing links, config and required tools.
 - `diagnostics` bounds output and omits raw config diffs.
+- `skip` reports every constraint without failing doctor or sync.
 
 ## How to get to it (user POV)
 
@@ -20,10 +21,10 @@ Preconditions: repository dependencies; retain before/after evidence.
 
 - **Test statuses and failures.** Run `bash scripts/smoke-doctor.sh`. Its
   isolated public `just doctor` drives the shared plan through matching,
-  update, export and failure states, then checks broken links, missing tools,
-  invalid Node and disabled hooks. The real local adapters verify settings,
-  MCP, skills and plugins without network or writes. A secret sentinel in a
-  raw planner failure must not appear; diagnostics stay bounded.
+  skip, update, export and failure states. The test checks every `SKIP` reason,
+  broken links, missing tools, invalid Node, and disabled hooks. The real local
+  adapters verify settings, MCP, skills, and plugins without network or writes.
+  A secret sentinel in a raw planner failure must not appear.
 - **Live baseline and result.** Run `just doctor` before and after the
   change, with output paths from SKILL.md. Compare failed categories. For
   changed check code, run `cksum` on affected live files before and after;

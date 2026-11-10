@@ -17,6 +17,8 @@ Surface conflicts with existing ADRs explicitly.
   `queued` means no matching machine is available and the job has not started.
 - `K3s`: Lightweight Kubernetes distribution that manages containerized
   applications across one or more Linux computers.
+- `SKIP`: Plan result for an intentionally omitted action. The row states the
+  reason. `SKIP` does not fail doctor or sync.
 - `STEPS_COMMANDS`: Codex coding mode. It shows concrete commands and
   technical tool actions.
 - `STEPS_PROSE`: Work mode. It uses general prose and hides some command

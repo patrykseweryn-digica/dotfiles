@@ -90,6 +90,10 @@ while IFS=$'\t' read -r status category action message; do
     PASS:none)
         unchanged=$((unchanged + 1))
         ;;
+    SKIP:none)
+        echo "[SKIP] ${category}: ${message}"
+        skipped=$((skipped + 1))
+        ;;
     EXPORT:export)
         if [ "$category" = mcp ]; then
             echo "[APPLY] mcp managed state"
@@ -126,7 +130,8 @@ while IFS=$'\t' read -r status category action message; do
     esac
 done <"$plan_file"
 
-refresh_phase "core tools" "$CORE_TOOLS" update
+refresh_phase "core tools" env CORE_TOOLS_HAS_SUDO="${HAS_SUDO:-false}" \
+    "$CORE_TOOLS" update
 refresh_phase "Node and agent tools" "$AGENT_TOOLS" update
 # The refresh activates Node only in its own process. Later phases and the
 # final check must use the same runtime and its global CLIs.
@@ -163,7 +168,7 @@ show_plan FINAL "$final_file"
 remaining=0
 while IFS=$'\t' read -r status category action message; do
     case "$status" in
-    PASS) ;;
+    PASS | SKIP) ;;
     *) remaining=$((remaining + 1)) ;;
     esac
 done <"$final_file"

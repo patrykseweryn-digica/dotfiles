@@ -10,6 +10,7 @@ developer releases without editing that inventory.
 - `plan` checks every platform-applicable inventory entry offline.
 - `install` provisions portable core tools through mise.
 - `update` resolves current stable releases without stored version numbers.
+- `system` reports `SKIP` with a reason when sudo is unavailable.
 - `failure` retains previous Node and stops when downloads fail.
 
 ## How to get to it (user POV)

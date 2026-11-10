@@ -4,6 +4,7 @@ set -uo pipefail
 default_dotfiles_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DOTFILES_DIR="${DOTFILES_DIR:-$default_dotfiles_dir}"
 AGENT_TOOLS="${AGENT_TOOLS:-${DOTFILES_DIR}/scripts/agent-tools.sh}"
+CORE_TOOLS="${CORE_TOOLS:-${DOTFILES_DIR}/scripts/core-tools.sh}"
 SYNC_AGENTS="${SYNC_AGENTS:-${DOTFILES_DIR}/sync-agents.sh}"
 NODE_CHECK="${NODE_CHECK:-${DOTFILES_DIR}/bootstrap.d/07-node.sh}"
 
@@ -20,7 +21,7 @@ validate_plan() {
             continue
         fi
         case "$status" in
-        PASS | UPDATE | EXPORT | FAIL) ;;
+        PASS | SKIP | UPDATE | EXPORT | FAIL) ;;
         *)
             echo "[ERROR] Invalid state plan status" >&2
             failed=true
@@ -35,6 +36,11 @@ validate_plan() {
             continue
             ;;
         esac
+        if [ "$status" = SKIP ] && [ "$action" != none ]; then
+            echo "[ERROR] SKIP cannot request an action" >&2
+            failed=true
+            continue
+        fi
         if [ -z "$category" ]; then
             echo "[ERROR] Invalid state plan content" >&2
             failed=true
@@ -52,6 +58,7 @@ plan_sync() {
 }
 
 plan_tools() {
+    "$CORE_TOOLS" plan || return
     "$AGENT_TOOLS" plan
 }
 
@@ -97,7 +104,7 @@ plan_herdr_hook() {
             select(.type == "command") | .command |
             select(contains("herdr-agent-state.sh"))] | length > 0' \
             "$settings" >/dev/null; then
-        printf 'PASS\thooks\tnone\tHerdr hook is intentionally inactive\n'
+        printf 'SKIP\thooks\tnone\tHerdr hook is intentionally inactive\n'
     elif [ -f "$hook" ] && [ -r "$hook" ]; then
         printf 'PASS\thooks\tnone\tHerdr hook is available\n'
     else

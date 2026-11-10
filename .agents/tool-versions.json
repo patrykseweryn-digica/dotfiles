@@ -148,6 +148,7 @@
         "linux-arm64",
         "linux-x86_64"
       ],
+      "requires": "sudo",
       "scope": "system",
       "versionPolicy": "system"
     },

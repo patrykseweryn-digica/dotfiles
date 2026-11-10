@@ -35,6 +35,7 @@ skills, and plugins. MCP keeps portable local additions while reconciling
 managed definitions, then points to `just export`. Other categories with
 portable local additions remain blocked. The final result is `PASS`, `EXPORT`,
 or `FAIL`. Sync never exports, commits, or pushes.
+`SKIP` rows keep the final result at `PASS` and state why no action applies.
 Remote skills remain unpinned and follow current upstream.
 Doctor ignores Codex's active model and reasoning selection; repository values
 remain install defaults.
@@ -63,6 +64,7 @@ with mise's installed policy selection without using the network.
 developer CLIs. Managed entries follow stable releases without stored version
 numbers. Mise installs and updates every portable core tool through
 `scripts/core-tools.sh`. System-only entries retain package-manager names.
+Entries without a user-local source declare `requires: "sudo"`.
 The generated `~/.config/mise/conf.d/10-core-tools.toml` keeps core tools
 independent from system package versions. Developer entries use
 `channel: "latest"`; update resolves current releases without rewriting the
