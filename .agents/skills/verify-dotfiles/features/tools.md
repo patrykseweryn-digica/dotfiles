@@ -35,9 +35,9 @@ Preconditions: working host Node/npm; no live update needed for verification.
   sudo-less fallback warnings, archive-tree installs and replacement, and
   failure before network access for an undeclared architecture.
 - **Node upgrade.** Run `bash scripts/smoke-node.sh`. It drives bootstrap
-  with an isolated nvm provider, changes the upstream version, reads the
-  selected Node and default alias, and verifies the previous runtime survives
-  download/install failure. No global packages may be imported implicitly.
+  with an isolated mise provider, changes the resolved LTS version, reads the
+  selected Node, and verifies the previous runtime survives download/install
+  failure. The bootstrap must reject a non-LTS policy.
 - **Live report.** Run `./scripts/agent-tools.sh outdated`; capture the exit
   code. This queries npm metadata but does not install tools. It omits current
   tools and reports only drift or missing commands. Native latest versions

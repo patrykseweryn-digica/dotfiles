@@ -117,8 +117,15 @@ cat >"${stub_dir}/node" <<'STUB'
 printf 'v%s\n' "${NODE_TEST_VERSION:-99.0.0}"
 STUB
 
+mkdir -p "${home_dir}/.local/bin"
+cat >"${home_dir}/.local/bin/mise" <<'STUB'
+#!/bin/bash
+[ "$1" = which ] && [ "$2" = node ] || exit 1
+printf '%s\n' "$DOCTOR_NODE_BIN"
+STUB
+
 chmod +x "${stub_dir}/sync-agents" "${stub_dir}/agent-tools" \
-    "${stub_dir}/node"
+    "${stub_dir}/node" "${home_dir}/.local/bin/mise"
 for command_name in npm curl gh; do
     cat >"${stub_dir}/${command_name}" <<'STUB'
 #!/bin/bash
@@ -137,6 +144,7 @@ run_doctor() {
         SYNC_AGENTS="${stub_dir}/sync-agents" \
         AGENT_TOOLS="${stub_dir}/agent-tools" \
         NETWORK_LOG="$network_log" \
+        DOCTOR_NODE_BIN="${stub_dir}/node" \
         DOCTOR_CHECK_LOG="$check_log" \
         PLAN_SCENARIO="${PLAN_SCENARIO:-normal}" \
         NODE_TEST_VERSION="${NODE_TEST_VERSION:-}" \

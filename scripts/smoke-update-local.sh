@@ -86,34 +86,34 @@ fi
 command -v smoke-npm-tool >/dev/null &&
     row PASS tools none "Tools match" ||
     row FAIL tools update "smoke-npm-tool is missing"
-latest=""
-for candidate in "$HOME"/.nvm/versions/node/v*; do
-    latest="${candidate##*/}"
-done
-[ "$(node --version)" = "$latest" ] &&
+selected=$(cat "$HOME/.local/share/mise/current-node")
+[ "$(node --version)" = "v$selected" ] &&
     row PASS node none "Node matches" ||
-    row UPDATE node update "Active Node differs from latest installed"
+    row UPDATE node update "Active Node differs from LTS policy"
 row PASS platform none "Platform supported"
 STUB
 
 # The caller's shell starts with an older Node, as on a long-lived session.
-nvm_dir="${home_dir}/.nvm"
-mkdir -p "${nvm_dir}/versions/node/v24.0.0/bin"
-printf '#!/bin/sh\necho v24.0.0\n' >"${nvm_dir}/versions/node/v24.0.0/bin/node"
-chmod +x "${nvm_dir}/versions/node/v24.0.0/bin/node"
-cat >"${nvm_dir}/nvm.sh" <<'STUB'
-nvm() {
-    local latest="" candidate
-    for candidate in "$NVM_DIR"/versions/node/v*; do
-        latest="${candidate##*/}"
-    done
-    case "$1" in
-    version) echo "$latest" ;;
-    use) export PATH="$NVM_DIR/versions/node/$latest/bin:$PATH" ;;
-    *) return 90 ;;
-    esac
-}
+mise_root="${home_dir}/.local/share/mise"
+old_node_bin="${mise_root}/installs/node/24.0.0/bin"
+mkdir -p "$old_node_bin" "${home_dir}/.local/bin"
+printf '#!/bin/sh\necho v24.0.0\n' >"${old_node_bin}/node"
+chmod +x "${old_node_bin}/node"
+printf '24.0.0\n' >"${mise_root}/current-node"
+cat >"${home_dir}/.local/bin/mise" <<'STUB'
+#!/bin/bash
+set -eu
+root="$HOME/.local/share/mise"
+version=$(cat "$root/current-node")
+case "$1" in
+which) printf '%s/installs/node/%s/bin/node\n' "$root" "$version" ;;
+activate)
+    printf 'export PATH="%s/installs/node/%s/bin:$PATH"\n' "$root" "$version"
+    ;;
+*) exit 90 ;;
+esac
 STUB
+chmod +x "${home_dir}/.local/bin/mise"
 
 cat >"${tmp_dir}/sync-agents.sh" <<'STUB'
 #!/bin/bash
@@ -182,11 +182,12 @@ printf 'agent-tools %s\n' "$*" >>"$ACTION_LOG"
 [ "$1" = update ]
 [ "${FAIL_AGENT_UPDATE:-false}" = false ] || exit 1
 if [ ! -f "$HOME/.state/agent-tools" ]; then
-    node_bin="$HOME/.nvm/versions/node/v26.0.0/bin"
+    node_bin="$HOME/.local/share/mise/installs/node/26.0.0/bin"
     mkdir -p "$node_bin"
     printf '#!/bin/sh\necho v26.0.0\n' >"$node_bin/node"
     printf '#!/bin/sh\n' >"$node_bin/smoke-npm-tool"
     chmod +x "$node_bin/node" "$node_bin/smoke-npm-tool"
+    printf '26.0.0\n' >"$HOME/.local/share/mise/current-node"
     touch "$HOME/.state/agent-tools"
     echo agent-tools >>"$MUTATION_LOG"
 fi
@@ -198,7 +199,7 @@ touch "${state_dir}/export" "${state_dir}/export-skills" \
 
 run_sync() {
     HOME="$home_dir" ACTION_LOG="$action_log" MUTATION_LOG="$mutation_log" \
-        PATH="${nvm_dir}/versions/node/v24.0.0/bin:$PATH" \
+        PATH="${old_node_bin}:$PATH" \
         DOTFILES_DIR="$sync_repo" \
         UPDATE_SCRIPT="$UPDATE_SCRIPT" \
         FAIL_AGENT_UPDATE="${1:-false}" \

@@ -349,7 +349,7 @@ main() {
     run_optional_step "pipx" install_pipx
     run_optional_step "CLI tools" install_tools
     run_optional_step "fonts" install_fonts
-    run_required_step "NVM and Node.js" install_nvm
+    run_required_step "mise and Node.js LTS" install_node
     if [ "$LAST_RUN_STEP_STATUS" -ne 0 ]; then
         print_step_summary
         return "$LAST_RUN_STEP_STATUS"

@@ -23,8 +23,19 @@ home_dir="${tmp_dir}/home"
 zshenv="${tmp_dir}/zshenv"
 stderr_log="${tmp_dir}/stderr.log"
 env_file="${tmp_dir}/missing.env"
+mise_log="${tmp_dir}/mise.log"
 
-mkdir -p "$home_dir" "$zshenv"
+mkdir -p "$home_dir/.local/bin" "$home_dir/.local/share/mise/shims" "$zshenv"
+cat >"$home_dir/.local/bin/mise" <<'STUB'
+#!/bin/sh
+printf '%s\n' "$*" >>"${MISE_TEST_LOG:-/dev/null}"
+[ "$1" = activate ] && [ "$2" = zsh ] || exit 1
+printf 'export PATH="%s/.local/share/mise/shims:$PATH"\n' "$HOME"
+STUB
+printf '#!/bin/sh\necho v26.13.0\n' \
+    >"$home_dir/.local/share/mise/shims/node"
+chmod +x "$home_dir/.local/bin/mise" \
+    "$home_dir/.local/share/mise/shims/node"
 
 if HOME="$home_dir" DOTFILES_ENV_FILE="$env_file" bash -c "source '${DOTFILES_DIR}/.zshrc'" 2>"$stderr_log"; then
     fail ".zshrc should reject bash"
@@ -40,7 +51,10 @@ if grep -E "bad substitution|command not found|syntax error" "$stderr_log" >/dev
     fail ".zshrc leaked zsh syntax errors under bash"
 fi
 
-if ! HOME="$home_dir" ZDOTDIR="$zshenv" DOTFILES_ENV_FILE="$env_file" zsh -df -c "source '${DOTFILES_DIR}/.zshrc'" 2>"$stderr_log"; then
+if ! HOME="$home_dir" ZDOTDIR="$zshenv" DOTFILES_ENV_FILE="$env_file" \
+    MISE_TEST_LOG="$mise_log" zsh -df -c \
+    "source '${DOTFILES_DIR}/.zshrc'; test \"\$(node --version)\" = v26.13.0" \
+    2>"$stderr_log"; then
     cat "$stderr_log" >&2
     fail ".zshrc failed in isolated HOME"
 fi
@@ -49,6 +63,8 @@ if [ -s "$stderr_log" ]; then
     cat "$stderr_log" >&2
     fail ".zshrc wrote stderr in isolated HOME"
 fi
+grep -Fx 'activate zsh' "$mise_log" >/dev/null ||
+    fail ".zshrc did not activate mise"
 
 mkdir -p "$home_dir/.grok/completions/zsh"
 for platform in Darwin Linux; do

@@ -6,8 +6,7 @@ AGENT_TOOLS="${DOTFILES_DIR}/scripts/agent-tools.sh"
 REAL_NPM="$(command -v npm)"
 expected_node="$(node --version)"
 expected_node="${expected_node#v}"
-REAL_NODE_BIN="${NVM_DIR:-$HOME/.nvm}/versions/node/v$expected_node/bin"
-[ -x "$REAL_NODE_BIN/node" ] || REAL_NODE_BIN="$(dirname "$(command -v node)")"
+REAL_NODE_BIN="$(dirname "$(command -v node)")"
 
 fail() {
   echo "[ERROR] $*" >&2
@@ -59,25 +58,27 @@ native_log="${tmp_dir}/native.log"
 mkdir -p "$stub_dir" "${tmp_dir}/home"
 export HOME="${tmp_dir}/home"
 export PS1=""
-# Model only nvm activation; execute the real required Node binary.
+# Model only mise activation; execute the real required Node binary.
 export EXPECTED_NODE="$expected_node"
-node_bin="$HOME/.nvm/versions/node/v$expected_node/bin"
-mkdir -p "$node_bin"
+mise_root="$HOME/.local/share/mise"
+node_bin="$mise_root/installs/node/$expected_node/bin"
+mkdir -p "$node_bin" "$HOME/.local/bin"
 ln -s "$REAL_NODE_BIN/node" "$node_bin/node"
-cat >"$HOME/.nvm/nvm.sh" <<'STUB'
-nvm() {
-    case "$1" in
-    ls-remote)
-        printf '        v%s\n' "$EXPECTED_NODE"
-        printf '        v100.0.0-alpha.0.0.0\n'
-        ;;
-    version) printf 'v%s\n' "$EXPECTED_NODE" ;;
-    use) export PATH="$NVM_DIR/versions/node/v$EXPECTED_NODE/bin:$PATH" ;;
-    install|alias) return 0 ;;
-    *) return 1 ;;
-    esac
-}
+printf '%s\n' "$expected_node" >"$mise_root/current-node"
+cat >"$HOME/.local/bin/mise" <<'STUB'
+#!/bin/bash
+root="$HOME/.local/share/mise"
+version=$(cat "$root/current-node")
+case "$1" in
+which) printf '%s/installs/node/%s/bin/node\n' "$root" "$version" ;;
+install) exit 0 ;;
+activate)
+    printf 'export PATH="%s/installs/node/%s/bin:$PATH"\n' "$root" "$version"
+    ;;
+*) exit 1 ;;
+esac
 STUB
+chmod +x "$HOME/.local/bin/mise"
 
 cat >"$manifest" <<'JSON'
 {
@@ -258,8 +259,8 @@ if grep -En 'npm view|@latest|"\$AGENT_TOOLS" (install|update)' \
   fail "configuration push path can update agent tool versions"
 fi
 
-# Missing runtime prevents package installs; reports do not activate nvm.
-mv "$HOME/.nvm/nvm.sh" "$HOME/.nvm/nvm.saved"
+# Missing runtime prevents package installs; reports do not activate mise.
+mv "$HOME/.local/bin/mise" "$HOME/.local/bin/mise.saved"
 : >"$npm_log"
 cp "$manifest" "$manifest.before"
 for action in install update; do
@@ -270,7 +271,7 @@ done
 [ ! -s "$npm_log" ] || fail "npm ran without required Node"
 cmp "$manifest" "$manifest.before" || fail "runtime failure changed inventory"
 LATEST_VERSION=2.0.0 "$AGENT_TOOLS" check >/dev/null
-mv "$HOME/.nvm/nvm.saved" "$HOME/.nvm/nvm.sh"
+mv "$HOME/.local/bin/mise.saved" "$HOME/.local/bin/mise"
 
 # Native declarations dispatch through the existing installers.
 cat >"$manifest" <<'JSON'

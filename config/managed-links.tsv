@@ -14,6 +14,7 @@ darwin|config/ghostty/config.ghostty|Library/Application Support/com.mitchellh.g
 linux|config/ghostty/config.ghostty|.config/ghostty/config
 all|config/nvim|.config/nvim
 all|config/ruff|.config/ruff
+all|config/mise/config.toml|.config/mise/config.toml
 all|config/gh/config.yml|.config/gh/config.yml
 all|config/summarize/config.json|.summarize/config.json
 all|config/codex/AGENTS.md|.codex/AGENTS.md

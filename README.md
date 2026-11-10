@@ -54,11 +54,10 @@ for the audit, theme, title lifecycle, compaction and live-test results.
 
 ## Developer tool versions
 
-`.nvmrc` uses `node` as the latest Node policy. Setup excludes prereleases,
-installs the newest stable release before developer CLIs, and activates it for
-their installation. Existing Node versions are retained. Doctor compares the
-active runtime with the newest locally installed stable Node; it does not check
-upstream Node releases.
+`config/mise/config.toml` keeps Node on the current LTS line. Setup installs
+that release before developer CLIs. Sync refreshes only the LTS line. New Zsh
+sessions activate the configured runtime. Doctor compares the active runtime
+with mise's installed policy selection without using the network.
 
 `.agents/tool-versions.json` is the single inventory for core and developer
 CLIs. Managed entries follow current stable releases without stored version

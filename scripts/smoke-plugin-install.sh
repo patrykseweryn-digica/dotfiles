@@ -59,12 +59,13 @@ install_terminal_colors() { :; }
 install_macos_apps() { :; }
 install_tmux_plugins() { :; }
 pre-commit() { return 1; }
-install_nvm() {
-    mkdir -p "$HOME/.nvm/bin"
-    printf '#!/bin/sh\necho fixture-node\n' > "$HOME/.nvm/bin/node"
-    chmod +x "$HOME/.nvm/bin/node"
+install_node() {
+    mkdir -p "$HOME/.local/share/mise/node/bin"
+    printf '#!/bin/sh\necho fixture-node\n' \
+        > "$HOME/.local/share/mise/node/bin/node"
+    chmod +x "$HOME/.local/share/mise/node/bin/node"
 }
-activate_node() { export PATH="$HOME/.nvm/bin:$PATH"; }
+activate_node() { export PATH="$HOME/.local/share/mise/node/bin:$PATH"; }
 setup_dotfiles() { "$PLUGIN_TEST_REPO/sync-agents.sh" install; }
 DOTFILES_DIR="$PLUGIN_TEST_DIR/fixture"
 main

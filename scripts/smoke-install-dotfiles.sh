@@ -664,7 +664,7 @@ STUB
             install_macos_apps() { :; }
             install_tmux_plugins() { :; }
             pre-commit() { return 1; }
-            install_nvm() { [ "$outcome" = success ]; }
+            install_node() { [ "$outcome" = success ]; }
             activate_node() { export PATH="${task_dir}/node/bin:$PATH"; }
             main
         ) >"${task_dir}/${outcome}.log" 2>&1 && {

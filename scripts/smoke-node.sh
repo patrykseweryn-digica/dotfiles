@@ -3,185 +3,154 @@ set -eu
 
 DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "$DOTFILES_DIR/bootstrap.d/07-node.sh"
-expected=99.0.0
-export NODE_TEST_LATEST="$expected"
+
+fail() {
+    echo "[ERROR] $*" >&2
+    exit 1
+}
+
 scratch=$(mktemp -d)
 trap 'rm -rf "$scratch"' EXIT
 mkdir -p "$scratch/stubs"
 
-# A controlled provider at the nvm boundary; no network or host Node needed.
-cat >"$scratch/nvm.sh" <<'STUB'
-nvm() {
-    case "$-" in
-    *u*)
-        echo "[ERROR] NVM called with nounset enabled" >&2
-        return 91
-        ;;
-    esac
-    case "$1" in
-    ls-remote)
-        printf '        v22.21.0\n'
-        printf '        v%s\n' "$NODE_TEST_LATEST"
-        printf '        v100.0.0-alpha.0.0.0\n'
-        ;;
-    version)
-        local version="$2" candidate
-        [ "$version" != default ] || version=$(cat "$NVM_DIR/alias/default")
-        if [ "$version" = node ]; then
-            version=""
-            for candidate in "$NVM_DIR"/versions/node/v*/bin/node; do
-                [ -x "$candidate" ] || continue
-                version="${candidate#"$NVM_DIR/versions/node/v"}"
-                version="${version%/bin/node}"
-            done
-        fi
-        version="${version#v}"
-        [ -n "$version" ] || { echo N/A; return 3; }
-        if [ -x "$NVM_DIR/versions/node/v$version/bin/node" ]; then
-            echo "v$version"
-        else
-            echo N/A
-            return 3
-        fi
-        ;;
-    install)
-        echo "$*" >> "$NODE_TEST_LOG"
-        [ "$2" = --skip-default-packages ] || return 90
-        [ "${NODE_TEST_INSTALL_FAIL:-false}" = false ] || return 22
-        local version="${3#v}"
-        mkdir -p "$NVM_DIR/versions/node/v$version/bin"
-        printf '#!/bin/sh\necho v%s\n' "$version" > "$NVM_DIR/versions/node/v$version/bin/node"
-        chmod +x "$NVM_DIR/versions/node/v$version/bin/node"
-        nvm use --silent "$version"
-        ;;
-    use)
-        [ "$2" = --silent ] || return 90
-        local version="$3" candidate
-        if [ "$version" = node ]; then
-            version=""
-            for candidate in "$NVM_DIR"/versions/node/v*/bin/node; do
-                [ -x "$candidate" ] || continue
-                version="${candidate#"$NVM_DIR/versions/node/v"}"
-                version="${version%/bin/node}"
-            done
-        fi
-        version="${version#v}"
-        [ -x "$NVM_DIR/versions/node/v$version/bin/node" ] || return 3
-        export PATH="$NVM_DIR/versions/node/v$version/bin:$PATH"
-        ;;
-    alias)
-        [ "$2" = default ] || return 90
-        mkdir -p "$NVM_DIR/alias"
-        echo "$3" > "$NVM_DIR/alias/default"
-        ;;
-    *) return 90 ;;
-    esac
-}
-if [ "${1:-}" != --no-use ]; then
-    nvm use --silent "$(cat "$NVM_DIR/alias/default")"
-fi
-STUB
-cat >"$scratch/stubs/curl" <<'STUB'
-#!/bin/sh
-[ "${NODE_TEST_DOWNLOAD_FAIL:-false}" = false ] || exit 22
-case "$*" in
-    *releases/latest*) echo https://github.com/nvm-sh/nvm/releases/tag/v1.2.3; exit 0 ;;
+cat >"$scratch/mise" <<'STUB'
+#!/bin/bash
+set -eu
+[ "${MISE_GLOBAL_CONFIG_FILE:-}" = "$EXPECTED_POLICY_FILE" ] || exit 89
+root="$HOME/.local/share/mise"
+current="$root/current-node"
+case "$1" in
+which)
+    [ "$2" = node ]
+    printf 'which offline=%s\n' "${MISE_OFFLINE:-0}" >>"$NODE_TEST_LOG"
+    version=$(cat "$current")
+    binary="$root/installs/node/$version/bin/node"
+    [ -x "$binary" ]
+    printf '%s\n' "$binary"
+    ;;
+install)
+    [ "$2" = node ]
+    printf 'install node policy=lts target=%s\n' "$NODE_TEST_LTS" \
+        >>"$NODE_TEST_LOG"
+    [ "${NODE_TEST_INSTALL_FAIL:-false}" = false ] || exit 22
+    binary="$root/installs/node/$NODE_TEST_LTS/bin/node"
+    mkdir -p "$(dirname "$binary")"
+    printf '#!/bin/sh\necho v%s\n' "$NODE_TEST_LTS" >"$binary"
+    chmod +x "$binary"
+    printf '%s\n' "$NODE_TEST_LTS" >"$current"
+    ;;
+activate)
+    [ "$2" = bash ]
+    [ "$3" = --shims ]
+    version=$(cat "$current")
+    printf 'export PATH="%s/installs/node/%s/bin:$PATH"\n' \
+        "$root" "$version"
+    ;;
+*) exit 90 ;;
 esac
-printf '%s\n' 'mkdir -p "$NVM_DIR"; cp "$NODE_TEST_NVM" "$NVM_DIR/nvm.sh"'
+STUB
+chmod +x "$scratch/mise"
+
+cat >"$scratch/stubs/curl" <<'STUB'
+#!/bin/bash
+set -eu
 [ "${NODE_TEST_DOWNLOAD_FAIL:-false}" = false ] || exit 22
+output=""
+while [ "$#" -gt 0 ]; do
+    if [ "$1" = -o ]; then
+        output="$2"
+        shift 2
+    else
+        shift
+    fi
+done
+[ -n "$output" ]
+cat >"$output" <<'INSTALLER'
+#!/bin/sh
+mkdir -p "$(dirname "$MISE_INSTALL_PATH")"
+cp "$NODE_TEST_MISE" "$MISE_INSTALL_PATH"
+chmod +x "$MISE_INSTALL_PATH"
+INSTALLER
 STUB
 printf '#!/bin/sh\nexit 127\n' >"$scratch/stubs/node"
-# Any npm call by the runtime bootstrap is a failure, including imports.
-printf '#!/bin/sh\necho unexpected-npm >> "$NODE_TEST_LOG"; exit 90\n' >"$scratch/stubs/npm"
 chmod +x "$scratch/stubs/"*
-export NODE_TEST_NVM="$scratch/nvm.sh" NODE_TEST_LOG="$scratch/actions.log"
+
+export NODE_TEST_MISE="$scratch/mise"
+export NODE_TEST_LOG="$scratch/actions.log"
+export NODE_TEST_LTS=26.13.0
+export EXPECTED_POLICY_FILE="$NODE_POLICY_FILE"
 export PATH="$scratch/stubs:/usr/bin:/bin"
 : >"$NODE_TEST_LOG"
 
-for scenario in fresh older failure; do
-    (
-        export HOME="$scratch/$scenario" NVM_DIR="$scratch/$scenario/.nvm"
-        mkdir -p "$NVM_DIR"
-        printf 'do-not-import\n' >"$NVM_DIR/default-packages"
-        if [ "$scenario" != fresh ]; then
-            cp "$NODE_TEST_NVM" "$NVM_DIR/nvm.sh"
-            mkdir -p "$NVM_DIR/versions/node/v22.21.0/bin" \
-                "$NVM_DIR/versions/node/v100.0.0-alpha.0.0.0/bin" \
-                "$NVM_DIR/alias"
-            printf '#!/bin/sh\necho v22.21.0\n' >"$NVM_DIR/versions/node/v22.21.0/bin/node"
-            printf '#!/bin/sh\necho v100.0.0-alpha.0.0.0\n' \
-                >"$NVM_DIR/versions/node/v100.0.0-alpha.0.0.0/bin/node"
-            chmod +x "$NVM_DIR/versions/node/v22.21.0/bin/node"
-            chmod +x "$NVM_DIR/versions/node/v100.0.0-alpha.0.0.0/bin/node"
-            echo 22.21.0 >"$NVM_DIR/alias/default"
-            export PATH="$NVM_DIR/versions/node/v22.21.0/bin:$PATH"
-        fi
-        if [ "$scenario" = fresh ]; then
-            if bash "$DOTFILES_DIR/bootstrap.d/07-node.sh" check; then
-                echo "[ERROR] Node check accepted missing runtime" >&2
-                exit 1
-            fi
-        elif ! bash "$DOTFILES_DIR/bootstrap.d/07-node.sh" check; then
-            echo "[ERROR] Node check rejected the latest local runtime" >&2
-            exit 1
-        fi
-        if [ "$scenario" = failure ]; then
-            if NODE_TEST_INSTALL_FAIL=true install_nvm true >"$scratch/failure.log" 2>&1; then
-                echo "[ERROR] Node bootstrap ignored failed install" >&2
-                exit 1
-            fi
-            grep -F 'previous Node retained' "$scratch/failure.log" >/dev/null
-            [ "$(node --version)" = v22.21.0 ]
-            [ "$(run_nvm version default)" = v22.21.0 ]
-        else
-            before_path="$PATH"
-            (install_nvm)
-            [ "$PATH" = "$before_path" ]
-            activate_node
-            bash "$DOTFILES_DIR/bootstrap.d/07-node.sh" check
-            active_version="$expected"
-            [ "$scenario" = fresh ] || active_version=22.21.0
-            # A new shell loads the persisted default without inherited NVM PATH.
-            PATH="$scratch/stubs:/usr/bin:/bin" bash -c \
-                'source "$HOME/.nvm/nvm.sh"; test "$(node --version)" = "v$1"' -- "$active_version"
-            install_nvm
-            check_node
-            # Ordinary install remains local even when upstream changes.
-            NODE_TEST_LATEST=99.1.0 install_nvm
-            [ "$(node --version)" = "v$active_version" ]
-            NODE_TEST_LATEST=99.1.0 check_node
-            # Explicit update resolves and installs the changed upstream release.
-            NODE_TEST_LATEST=99.1.0 install_nvm true
-            NODE_TEST_LATEST=99.1.0 check_node
-            [ "$(run_nvm version default)" = v99.1.0 ]
-            if [ "$scenario" = older ]; then
-                case ":$PATH:" in
-                *":$NVM_DIR/versions/node/v22.21.0/bin:"*)
-                    echo "[ERROR] Previous Node remained on PATH" >&2
-                    exit 1
-                    ;;
-                esac
-                [ "$("$NVM_DIR/versions/node/v22.21.0/bin/node" --version)" = v22.21.0 ]
-            fi
-        fi
-        case "$-" in
-        *u*) ;;
-        *)
-            echo "[ERROR] Node bootstrap left nounset disabled" >&2
-            exit 1
-            ;;
-        esac
-        echo "[INFO] Node $scenario passed"
-    )
-done
+install_fixture_node() {
+    local version="$1" binary
+    binary="$HOME/.local/share/mise/installs/node/$version/bin/node"
+    mkdir -p "$(dirname "$binary")" "$HOME/.local/bin"
+    printf '#!/bin/sh\necho v%s\n' "$version" >"$binary"
+    chmod +x "$binary"
+    printf '%s\n' "$version" >"$HOME/.local/share/mise/current-node"
+    cp "$NODE_TEST_MISE" "$HOME/.local/bin/mise"
+}
+
+(
+    export HOME="$scratch/fresh"
+    if check_node >/dev/null 2>&1; then
+        fail "Node check accepted a missing mise runtime"
+    fi
+    before_path="$PATH"
+    (install_node)
+    [ "$PATH" = "$before_path" ]
+    activate_node
+    [ "$(node --version)" = v26.13.0 ]
+    NODE_TEST_DOWNLOAD_FAIL=true check_node >/dev/null
+    grep -F 'which offline=1' "$NODE_TEST_LOG" >/dev/null
+    NODE_TEST_LTS=26.14.0 install_node
+    [ "$(node --version)" = v26.13.0 ]
+    NODE_TEST_LTS=26.14.0 install_node true
+    [ "$(node --version)" = v26.14.0 ]
+    echo "[INFO] Node fresh passed"
+)
+
+(
+    export HOME="$scratch/older"
+    install_fixture_node 24.11.1
+    export PATH="$HOME/.local/share/mise/installs/node/24.11.1/bin:$PATH"
+    check_node >/dev/null
+    NODE_TEST_LTS=26.13.0 install_node
+    [ "$(node --version)" = v24.11.1 ]
+    NODE_TEST_LTS=26.13.0 install_node true
+    [ "$(node --version)" = v26.13.0 ]
+    [ -x "$HOME/.local/share/mise/installs/node/24.11.1/bin/node" ]
+    echo "[INFO] Node older passed"
+)
+
+(
+    export HOME="$scratch/failure"
+    install_fixture_node 24.11.1
+    export PATH="$HOME/.local/share/mise/installs/node/24.11.1/bin:$PATH"
+    if NODE_TEST_INSTALL_FAIL=true install_node true \
+        >"$scratch/failure.log" 2>&1; then
+        fail "Node bootstrap ignored a failed LTS install"
+    fi
+    grep -F 'previous Node retained' "$scratch/failure.log" >/dev/null
+    [ "$(node --version)" = v24.11.1 ]
+    [ "$(cat "$HOME/.local/share/mise/current-node")" = 24.11.1 ]
+    check_node >/dev/null
+    echo "[INFO] Node failure passed"
+)
+
 (
     export HOME="$scratch/download-failure"
-    if NODE_TEST_DOWNLOAD_FAIL=true install_nvm >/dev/null 2>&1; then
-        echo "[ERROR] Node bootstrap ignored failed NVM download" >&2
-        exit 1
+    if NODE_TEST_DOWNLOAD_FAIL=true install_node >/dev/null 2>&1; then
+        fail "Node bootstrap ignored a failed mise download"
     fi
-    [ ! -e "$HOME/.nvm/nvm.sh" ]
+    [ ! -e "$HOME/.local/bin/mise" ]
 )
-[ "$(grep -c '^install --skip-default-packages ' "$NODE_TEST_LOG")" -eq 4 ]
-if grep -F unexpected-npm "$NODE_TEST_LOG"; then exit 1; fi
-echo "[INFO] Node smoke test passed"
+
+invalid_policy="$scratch/invalid.toml"
+printf '[tools]\nnode = "latest"\n' >"$invalid_policy"
+if NODE_POLICY_FILE="$invalid_policy" required_node_policy >/dev/null 2>&1; then
+    fail "Node bootstrap accepted a non-LTS policy"
+fi
+[ "$(grep -c '^install node policy=lts ' "$NODE_TEST_LOG")" -eq 4 ]
+echo "[INFO] Node LTS smoke test passed"

@@ -498,7 +498,7 @@ install | update)
     refresh=false
     if [ "$1" = update ]; then
         refresh=true
-        install_nvm true || exit 1
+        install_node true || exit 1
     fi
     activate_node || {
         echo "[ERROR] Required Node unavailable; run install.sh before installing tools" >&2
