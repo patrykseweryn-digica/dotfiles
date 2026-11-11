@@ -2,8 +2,8 @@ FROM ubuntu:24.04 AS prepared
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends \
+RUN apt-get -o Acquire::Retries=5 -o APT::Update::Error-Mode=any update \
+    && apt-get -o Acquire::Retries=5 install -y --no-install-recommends \
         build-essential \
         ca-certificates \
         curl \
