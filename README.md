@@ -29,12 +29,11 @@ changes runtime files; an
 apply failure rolls the checkout back. Environment values, HTTP headers,
 credentials, OAuth state, unsupported transports, and local paths stay local.
 
-`just sync` requires a clean checkout. It runs `git pull --ff-only`, applies
-repository settings and membership, then refreshes managed tools, remote
-skills, and plugins. MCP keeps portable local additions while reconciling
-managed definitions, then points to `just export`. Other categories with
-portable local additions remain blocked. The final result is `PASS`, `EXPORT`,
-or `FAIL`. Sync never exports, commits, or pushes.
+`just sync` requires a clean checkout. It fetches upstream, fast-forwards,
+applies repository settings and membership, then refreshes managed tools,
+remote skills, and plugins. A local addition (`EXPORT`) stops sync before any
+environment change and points to `just export`. The final result is `PASS`,
+`EXPORT`, or `FAIL`. Sync never exports, commits, or pushes.
 `SKIP` rows keep the final result at `PASS` and state why no action applies.
 Remote skills remain unpinned and follow current upstream.
 Doctor ignores Codex's active model and reasoning selection; repository values
@@ -148,9 +147,14 @@ just sync     # pull and apply safe local and upstream changes
 
 `just sync` prints the plan, applies settings, MCP, managed links, and the
 Herdr hook, then refreshes inventory tools, Node, skills, and plugins.
-MCP reconciles managed definitions without removing local additions. Other
-categories with local `EXPORT` additions stay untouched. Independent failures
-do not stop the remaining categories; the final summary reports all results.
+A failed fetch, an unreadable plan, or an `EXPORT` row stops sync first.
+
+Every network operation has a time limit (`scripts/operation.sh`). An expired
+limit stops the operation and all its child processes. Tool output goes to
+`${XDG_STATE_HOME:-~/.local/state}/dotfiles/sync.log`, which each sync run
+replaces. A failure names the element, operation, cause, exit code, and next
+step. Independent phases continue after a failure. A dependent phase prints
+`NOT RUN` with its reason. The summary lists each problem and exits nonzero.
 
 Cursor CLI, Grok Build, Herdr, Treehouse and no-mistakes use
 official latest-release installers selected by the tool manifest.

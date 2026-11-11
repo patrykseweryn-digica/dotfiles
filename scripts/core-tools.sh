@@ -7,6 +7,8 @@ MISE_BIN="${MISE_BIN:-${HOME}/.local/bin/mise}"
 MISE_CORE_TOOLS_FILE="${MISE_CORE_TOOLS_FILE:-${HOME}/.config/mise/conf.d/10-core-tools.toml}"
 export MISE_TRUSTED_CONFIG_PATHS="${HOME}/.config/mise/conf.d\
 ${MISE_TRUSTED_CONFIG_PATHS:+:${MISE_TRUSTED_CONFIG_PATHS}}"
+# shellcheck source=scripts/operation.sh
+source "${DOTFILES_DIR}/scripts/operation.sh"
 
 jq_run() {
     if [ -x "${JQ_BIN:-}" ]; then
@@ -149,18 +151,23 @@ run_mise_tools() {
     write_mise_config "$platform" || return 1
     case "$action" in
     install)
-        env -u MISE_NODE_VERSION "$MISE_BIN" --cd "$HOME" \
+        operation_run "core tools" "install with mise" install -- \
+            env -u MISE_NODE_VERSION "$MISE_BIN" --cd "$HOME" \
             install "${tools[@]}"
         ;;
     update)
-        env -u MISE_NODE_VERSION "$MISE_BIN" --cd "$HOME" \
+        operation_run "core tools" "upgrade with mise" install -- \
+            env -u MISE_NODE_VERSION "$MISE_BIN" --cd "$HOME" \
             upgrade --global --no-prune "${tools[@]}"
         ;;
     esac
     env -u MISE_NODE_VERSION "$MISE_BIN" --cd "$HOME" \
         exec -- git lfs install --skip-repo
-    env -u MISE_NODE_VERSION "$MISE_BIN" --cd "$HOME" \
-        exec -- tldr --update 2>/dev/null || true
+    # The tldr page cache is optional; a failed refresh keeps the old pages.
+    operation_run "tldr pages" "update cache" fetch --optional -- \
+        env -u MISE_NODE_VERSION "$MISE_BIN" --cd "$HOME" \
+        exec -- tldr --update ||
+        echo "[WARN] Could not update tldr pages; see $(operation_log_path)" >&2
 }
 
 sudo_available() {
@@ -225,11 +232,13 @@ run_system_tools() {
             continue
         fi
         case "$manager" in
-        brew) brew install "$package" || failed=true ;;
-        apt-get) sudo apt-get install -y "$package" || failed=true ;;
-        dnf) sudo dnf install -y "$package" || failed=true ;;
-        pacman) sudo pacman -S --noconfirm "$package" || failed=true ;;
+        brew) set -- brew install "$package" ;;
+        apt-get) set -- sudo apt-get install -y "$package" ;;
+        dnf) set -- sudo dnf install -y "$package" ;;
+        pacman) set -- sudo pacman -S --noconfirm "$package" ;;
         esac
+        operation_run "$name" "install with $manager" install -- "$@" ||
+            failed=true
         if ! tool_available "$commands"; then
             echo "[ERROR] $name: package installed without its command" >&2
             failed=true

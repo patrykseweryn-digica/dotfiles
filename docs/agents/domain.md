@@ -17,6 +17,8 @@ Surface conflicts with existing ADRs explicitly.
   `queued` means no matching machine is available and the job has not started.
 - `K3s`: Lightweight Kubernetes distribution that manages containerized
   applications across one or more Linux computers.
+- `NOT RUN`: Sync result for a phase whose prerequisite phase failed. The row
+  states the failed prerequisite. The sync result is `FAIL`.
 - `SKIP`: Plan result for an intentionally omitted action. The row states the
   reason. `SKIP` does not fail doctor or sync.
 - `STEPS_COMMANDS`: Codex coding mode. It shows concrete commands and

@@ -8,6 +8,8 @@ CLAUDE_INSTALL_URL="${CLAUDE_INSTALL_URL:-https://claude.ai/install.sh}"
 MISE_AGENT_TOOLS_FILE="${MISE_AGENT_TOOLS_FILE:-${HOME}/.config/mise/conf.d/20-agent-tools.toml}"
 export MISE_TRUSTED_CONFIG_PATHS="${HOME}/.config/mise/conf.d\
 ${MISE_TRUSTED_CONFIG_PATHS:+:${MISE_TRUSTED_CONFIG_PATHS}}"
+# shellcheck source=scripts/operation.sh
+source "${DOTFILES_DIR}/scripts/operation.sh"
 
 validate_manifest() {
     jq -e '
@@ -310,7 +312,8 @@ installed_version() {
 
 resolve_latest() {
     local package="$1" version
-    version=$(npm view "${package}@latest" version) || {
+    version=$(operation_run "$package" "resolve latest version" query \
+        --stdout -- npm view "${package}@latest" version) || {
         echo "[ERROR] Failed to resolve ${package}@latest" >&2
         return 1
     }
@@ -449,15 +452,19 @@ install_declared_tools() {
             fi
             if [ "$refresh" = true ]; then
                 echo "[INFO] Updating $name..."
-                run_global_mise upgrade --global --no-prune \
+                operation_run "$name" "upgrade with mise" install -- \
+                    run_global_mise upgrade --global --no-prune \
                     "npm:${package}" || failed=true
             else
                 echo "[INFO] Installing $name latest..."
                 if [ "$managed_by_mise" = true ]; then
-                    run_global_mise install --force \
+                    operation_run "$name" "reinstall with mise" install -- \
+                        run_global_mise install --force \
                         "npm:${package}" || failed=true
                 else
-                    run_global_mise install "npm:${package}" || failed=true
+                    operation_run "$name" "install with mise" install -- \
+                        run_global_mise install "npm:${package}" ||
+                        failed=true
                 fi
             fi
             continue
@@ -475,7 +482,8 @@ install_declared_tools() {
             fi
             read -r -a update_args <<<"$update_command"
             echo "[INFO] Updating $name..."
-            "${update_args[@]}" || failed=true
+            operation_run "$name" "self-update" install -- \
+                "${update_args[@]}" || failed=true
             continue
         fi
         if [ "$expected" = latest ] && [ "$installer" = claude-native ]; then
@@ -492,11 +500,13 @@ install_declared_tools() {
         echo "[INFO] Installing $name $expected..."
         case "$installer" in
         claude-native)
-            script=$(curl -fsSL "$CLAUDE_INSTALL_URL") || {
+            script=$(operation_run "$name" "download installer" fetch \
+                --stdout -- curl -fsSL "$CLAUDE_INSTALL_URL") || {
                 failed=true
                 continue
             }
-            bash -c "$script" -- "$expected" || failed=true
+            operation_run "$name" "install $expected" install -- \
+                bash -c "$script" -- "$expected" || failed=true
             ;;
         cursor-native | grok-native | herdr-native | treehouse-native | no-mistakes-native)
             # Reuse the existing, small native installers.
@@ -505,12 +515,13 @@ install_declared_tools() {
             BIN_DIR="${HOME}/.local/bin"
             mkdir -p "$BIN_DIR"
             case "$installer" in
-            cursor-native) install_cursor_cli || failed=true ;;
-            grok-native) install_grok || failed=true ;;
-            herdr-native) install_herdr || failed=true ;;
-            treehouse-native) install_treehouse || failed=true ;;
-            no-mistakes-native) install_no_mistakes || failed=true ;;
+            cursor-native) set -- install_cursor_cli ;;
+            grok-native) set -- install_grok ;;
+            herdr-native) set -- install_herdr ;;
+            treehouse-native) set -- install_treehouse ;;
+            no-mistakes-native) set -- install_no_mistakes ;;
             esac
+            operation_run "$name" install install -- "$@" || failed=true
             ;;
         esac
     done < <(tool_rows)

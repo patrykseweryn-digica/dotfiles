@@ -137,6 +137,17 @@ skills-update)
     fi
     ;;
 push-plugins)
+    if [ "${HANG_PLUGIN_MEMBERSHIP:-false}" = true ]; then
+        # shellcheck source=/dev/null
+        source "$OPERATION_LIB"
+        operation_run "claude plugin smoke@market" "install plugin" install -- \
+            bash -c 'echo $$ >"$1/plugin.pid"
+                     sleep 300 &
+                     echo $! >"$1/plugin-child.pid"
+                     echo "Cloning marketplace" >&2
+                     wait' hang "$SCENARIO_DIR"
+        exit
+    fi
     touch "$HOME/.state/plugins"
     echo plugin-membership >>"$MUTATION_LOG"
     ;;
@@ -199,6 +210,27 @@ chmod +x "${tmp_dir}/state-plan.sh" "${tmp_dir}/sync-agents.sh" \
 touch "${state_dir}/export" "${state_dir}/export-skills" \
     "${state_dir}/export-plugins"
 
+export OPERATION_LIB="${DOTFILES_DIR}/scripts/operation.sh"
+export SCENARIO_DIR="$tmp_dir"
+export HANG_PLUGIN_MEMBERSHIP=false
+operation_log="${home_dir}/.local/state/dotfiles/sync.log"
+
+assert_stopped() {
+    local pid_file="$1" pid
+    [ -s "$pid_file" ] || fail "fixture did not record $pid_file"
+    pid="$(cat "$pid_file")"
+    for _ in 1 2 3 4 5 6 7 8 9 10; do
+        kill -0 "$pid" 2>/dev/null || return 0
+        sleep 0.2
+    done
+    kill -9 "$pid" 2>/dev/null || true
+    fail "process $pid survived the time limit"
+}
+
+expect_log() {
+    grep -F -- "$1" "${tmp_dir}/update.log" >/dev/null || fail "$2"
+}
+
 run_sync() {
     HOME="$home_dir" ACTION_LOG="$action_log" MUTATION_LOG="$mutation_log" \
         PATH="${old_node_bin}:$PATH" \
@@ -224,54 +256,80 @@ grep -Fx '[RESULT] FAIL' "${tmp_dir}/update.log" >/dev/null ||
     fail "dirty sync omitted its result"
 rm "${sync_repo}/dirty"
 
-if run_sync true; then
-    fail "sync accepted a failed upstream update"
+# A stalled repository fetch stops sync before any environment change.
+origin_url="$(git -C "$sync_repo" remote get-url origin)"
+stall="sh -c echo% \$\$% >${tmp_dir}/fetch.pid;% sleep% 300% &% echo% \$!% >${tmp_dir}/fetch-child.pid;% wait"
+git -C "$sync_repo" remote set-url origin "ext::${stall}"
+if GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=protocol.ext.allow \
+    GIT_CONFIG_VALUE_0=always DOTFILES_OPERATION_TIMEOUT=1 run_sync; then
+    fail "sync accepted a stalled repository fetch"
 fi
-[ -e "${sync_repo}/upstream" ] || fail "sync did not pull upstream changes"
+git -C "$sync_repo" remote set-url origin "$origin_url"
+assert_stopped "${tmp_dir}/fetch.pid"
+assert_stopped "${tmp_dir}/fetch-child.pid"
+[ ! -e "${sync_repo}/upstream" ] || fail "stalled fetch changed the checkout"
+[ ! -s "$action_log" ] || fail "stalled fetch started the update"
+expect_log '[ERROR] dotfiles repo: fetch upstream failed' \
+    "stalled fetch omitted its element and operation"
+expect_log 'cause: timed out after 1 s' "stalled fetch omitted its cause"
 grep -Fx '[RESULT] FAIL' "${tmp_dir}/update.log" >/dev/null ||
-    fail "failed sync omitted its result"
-for marker in settings links hooks; do
-    [ -f "${state_dir}/${marker}" ] ||
-        fail "independent category was not applied: $marker"
-done
-[ -f "${state_dir}/mcp" ] || fail "managed MCP state was not reconciled"
-grep -Fx 'settings-install codex' "$action_log" >/dev/null ||
-    fail "settings adapter was not used"
-for action in 'core-tools update' 'agent-tools update' pi-packages-update; do
-    grep -Fx "$action" "$action_log" >/dev/null ||
-        fail "independent upstream phase was not attempted: $action"
-done
-for action in skills-update push-plugins; do
-    if grep -Fx "$action" "$action_log" >/dev/null; then
-        fail "EXPORT category was mutated: $action"
-    fi
-done
-grep -Fx plugins-update "$action_log" >/dev/null ||
-    fail "plugin updates were skipped while membership export was blocked"
-grep -Fx '[BLOCKED] mcp: export local additions first' \
-    "${tmp_dir}/update.log" >/dev/null || fail "EXPORT was not reported"
-grep -Fx '[APPLY] mcp managed state' "${tmp_dir}/update.log" >/dev/null ||
-    fail "managed MCP apply was not reported"
-grep -Fx '[BLOCKED] skills upstream refresh: export local additions first' \
-    "${tmp_dir}/update.log" >/dev/null || fail "skill EXPORT was not reported"
-grep -Fx '[BLOCKED] plugins upstream refresh: export local additions first' \
-    "${tmp_dir}/update.log" >/dev/null || fail "plugin EXPORT was not reported"
-grep -F '[SUMMARY]' "${tmp_dir}/update.log" >/dev/null ||
-    fail "sync omitted its summary"
-grep -Fx '[FAILED] phases: Node and agent tools;' \
-    "${tmp_dir}/update.log" >/dev/null ||
-    fail "sync summary omitted the failed phase"
+    fail "stalled fetch omitted its result"
 
-: >"$action_log"
-: >"$mutation_log"
+# A local addition stops sync before any environment change.
 if run_sync; then
     fail "sync accepted an unexported local addition"
 fi
+[ -e "${sync_repo}/upstream" ] || fail "sync did not pull upstream changes"
+[ ! -s "$action_log" ] || fail "EXPORT sync started changes"
+[ ! -s "$mutation_log" ] || fail "EXPORT sync changed the environment"
+expect_log '[BLOCKED] mcp: MCP has a local addition' \
+    "EXPORT omitted the MCP addition"
+expect_log '[BLOCKED] skills: Skills have a local addition' \
+    "EXPORT omitted the skill addition"
+expect_log 'Run: just export' "EXPORT omitted the next step"
 grep -Fx '[RESULT] EXPORT' "${tmp_dir}/update.log" >/dev/null ||
     fail "sync omitted its export result"
-
 rm "${state_dir}/export" "${state_dir}/export-skills" \
     "${state_dir}/export-plugins"
+
+# A stalled operation and a failed phase do not stop independent phases.
+: >"$action_log"
+: >"$mutation_log"
+if HANG_PLUGIN_MEMBERSHIP=true DOTFILES_OPERATION_TIMEOUT=1 run_sync true; then
+    fail "sync accepted failed upstream updates"
+fi
+assert_stopped "${tmp_dir}/plugin.pid"
+assert_stopped "${tmp_dir}/plugin-child.pid"
+for marker in settings mcp links hooks skills; do
+    [ -f "${state_dir}/${marker}" ] ||
+        fail "independent category was not applied: $marker"
+done
+for action in 'core-tools update' 'agent-tools update' pi-packages-update \
+    skills-update push-plugins; do
+    grep -Fx "$action" "$action_log" >/dev/null ||
+        fail "independent phase was not attempted: $action"
+done
+if grep -Fx plugins-update "$action_log" >/dev/null; then
+    fail "dependent plugin versions ran after failed membership"
+fi
+expect_log '[NOT RUN] plugin versions: requires plugin membership, which failed' \
+    "dependent phase omitted its reason"
+expect_log '[ERROR] claude plugin smoke@market: install plugin failed' \
+    "stalled operation omitted its element and operation"
+expect_log 'Cloning marketplace' "stalled operation omitted tool output"
+expect_log '[PROBLEM] claude plugin smoke@market: install plugin - timed out after 1 s' \
+    "summary omitted the stalled operation"
+expect_log '[PROBLEM] Node and agent tools: refresh - unknown cause (exit 1)' \
+    "summary omitted the unknown phase failure"
+expect_log "[LOG] ${operation_log}" "summary omitted the log"
+grep -Fx '[FAILED] phases: Node and agent tools; plugin membership;' \
+    "${tmp_dir}/update.log" >/dev/null ||
+    fail "sync summary omitted the failed phases"
+grep -Fx '[RESULT] FAIL' "${tmp_dir}/update.log" >/dev/null ||
+    fail "failed sync omitted its result"
+grep -F 'Cloning marketplace' "$operation_log" >/dev/null ||
+    fail "operation log omitted tool output"
+
 : >"$action_log"
 : >"$mutation_log"
 run_sync || fail "compatible sync failed"
@@ -291,7 +349,8 @@ for category in node tools; do
         fail "final check missed the refreshed Node: $category"
 done
 
-find "$home_dir" -type f -exec cksum {} \; | sort \
+find "$home_dir" -path "${home_dir}/.local/state" -prune -o \
+    -type f -exec cksum {} \; | sort \
     >"${tmp_dir}/home.before"
 git -C "$sync_repo" diff --no-ext-diff HEAD >"${tmp_dir}/repo.before"
 : >"$action_log"
@@ -306,7 +365,8 @@ done
 if grep -Fx push-plugins "$action_log" >/dev/null; then
     fail "second sync repeated plugin membership install"
 fi
-find "$home_dir" -type f -exec cksum {} \; | sort \
+find "$home_dir" -path "${home_dir}/.local/state" -prune -o \
+    -type f -exec cksum {} \; | sort \
     >"${tmp_dir}/home.after"
 git -C "$sync_repo" diff --no-ext-diff HEAD >"${tmp_dir}/repo.after"
 cmp "${tmp_dir}/home.before" "${tmp_dir}/home.after" ||

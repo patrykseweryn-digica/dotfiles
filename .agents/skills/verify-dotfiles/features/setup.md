@@ -29,11 +29,17 @@ Preconditions: dependencies from SKILL.md; run from the checkout root.
   isolated HOME through fresh, partial, converged, failed and repeated states
   on the platform matrix. External installers are stubbed.
 - **Plan and update.** Run `bash scripts/smoke-update-local.sh`. It drives
-  public `just sync` in an isolated HOME and checkout, checks a blocked export
-  alongside successful independent categories and upstream refreshes, then
+  public `just sync` in an isolated HOME and checkout. A stalled fetch and a
+  local addition stop sync before changes. A stalled operation stops with its
+  child process; independent phases continue and dependent phases report
+  `NOT RUN` with a reason. The test then
   proves a compatible repeat causes no unnecessary downloads or installs.
   The caller starts with an older Node; the final check must see the Node
   and npm CLIs that the refresh installed.
+- **Bounded operations.** Run `bash scripts/smoke-operation.sh`. It stalls a
+  command with a child process under a 1 s limit, without GNU `timeout`, and
+  on Linux also without `ps`. Both processes must stop. The report must name
+  the element, operation, cause, exit code, tool output, next step, and log.
 - **Export once.** Run `bash scripts/smoke-export.sh`. It checks the clean-tree
   gate, one confirmation, settings allowlists, MCP conflict/privacy rejection,
   skill upstream/rename gates, plugin providers, recognized and unknown tools,

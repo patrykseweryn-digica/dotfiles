@@ -128,6 +128,13 @@ repos:
         entry: ./scripts/smoke-doctor.sh
         language: system
         pass_filenames: false
+      - id: operation-smoke
+        name: Bounded external operation smoke test
+        description: >-
+          Verify time limits, process-tree stops and failure diagnostics
+        entry: bash scripts/smoke-operation.sh
+        language: system
+        pass_filenames: false
       - id: local-update-smoke
         name: Local state update smoke test
         description: Verify planned partial updates and idempotent convergence

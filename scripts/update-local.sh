@@ -11,13 +11,22 @@ CORE_TOOLS="${CORE_TOOLS:-${DOTFILES_DIR}/scripts/core-tools.sh}"
 
 # shellcheck source=/dev/null
 source "$INSTALL_SCRIPT"
+# shellcheck source=scripts/operation.sh
+source "${default_dotfiles_dir}/scripts/operation.sh"
 
 plan_file="$(mktemp)" || exit 1
 final_file="$(mktemp)" || {
     rm -f "$plan_file"
     exit 1
 }
-trap 'rm -f "$plan_file" "$final_file"' EXIT
+# Child phases append one row per failed external operation.
+DOTFILES_OPERATION_FAILURES="$(mktemp)" || {
+    rm -f "$plan_file" "$final_file"
+    exit 1
+}
+DOTFILES_OPERATION_LOG="${DOTFILES_OPERATION_LOG:-$(operation_sync_log_path)}"
+export DOTFILES_OPERATION_FAILURES DOTFILES_OPERATION_LOG
+trap 'rm -f "$plan_file" "$final_file" "$DOTFILES_OPERATION_FAILURES"' EXIT
 
 show_plan() {
     local label="$1" file="$2"
@@ -56,33 +65,71 @@ plan_status() {
         "$plan_file"
 }
 
+failure_count() {
+    wc -l <"$DOTFILES_OPERATION_FAILURES" | tr -d ' '
+}
+
+# Record a failure that no external operation explained.
+record_unexplained_failure() {
+    local element="$1" operation="$2" status="$3" before="$4"
+    [ "$(failure_count)" -eq "$before" ] || return 0
+    operation_record_failure "$element" "$operation" "unknown cause" \
+        "$status" "Read the output above and the log: ${DOTFILES_OPERATION_LOG}"
+}
+
 refresh_phase() {
-    local label="$1"
+    local label="$1" before status=0
     shift
 
     echo "[REFRESH] $label"
-    if "$@"; then
+    before="$(failure_count)"
+    "$@" || status=$?
+    if [ "$status" -eq 0 ]; then
         refreshed=$((refreshed + 1))
-    else
-        echo "[ERROR] Failed to refresh $label" >&2
-        failed=$((failed + 1))
-        failed_phases+=("$label")
+        return 0
     fi
+    echo "[ERROR] Failed to refresh $label" >&2
+    failed=$((failed + 1))
+    failed_phases+=("$label")
+    record_unexplained_failure "$label" refresh "$status" "$before"
+    return 1
+}
+
+# A dependent phase does not run after its prerequisite failed.
+not_run_phase() {
+    echo "[NOT RUN] $1: $2"
+    not_run=$((not_run + 1))
 }
 
 if ! "$STATE_PLAN" all >"$plan_file"; then
     echo "[ERROR] Could not build local update plan" >&2
+    echo "Run: just doctor to see which check failed" >&2
+    echo "[RESULT] FAIL"
     exit 1
 fi
 
 echo "[INFO] Local update plan"
 show_plan PLAN "$plan_file"
 
+# A local addition needs a decision before anything changes the environment.
+blocked=0
+while IFS=$'\t' read -r status category action message; do
+    if [ "$status" = EXPORT ]; then
+        echo "[BLOCKED] ${category}: ${message}"
+        blocked=$((blocked + 1))
+    fi
+done <"$plan_file"
+if [ "$blocked" -gt 0 ]; then
+    echo "Run: just export to keep the additions, or remove them; then run: just sync"
+    echo "[RESULT] EXPORT"
+    exit 1
+fi
+
 applied=0
 unchanged=0
-blocked=0
 failed=0
 skipped=0
+not_run=0
 refreshed=0
 failed_phases=()
 while IFS=$'\t' read -r status category action message; do
@@ -94,21 +141,9 @@ while IFS=$'\t' read -r status category action message; do
         echo "[SKIP] ${category}: ${message}"
         skipped=$((skipped + 1))
         ;;
-    EXPORT:export)
-        if [ "$category" = mcp ]; then
-            echo "[APPLY] mcp managed state"
-            if apply_category "$category"; then
-                applied=$((applied + 1))
-            else
-                echo "[ERROR] Failed to update ${category}" >&2
-                failed=$((failed + 1))
-            fi
-        fi
-        echo "[BLOCKED] ${category}: export local additions first"
-        blocked=$((blocked + 1))
-        ;;
     UPDATE:update | FAIL:update)
         echo "[APPLY] ${category}"
+        before="$(failure_count)"
         result=0
         apply_category "$category" || result=$?
         case "$result" in
@@ -120,12 +155,15 @@ while IFS=$'\t' read -r status category action message; do
         *)
             echo "[ERROR] Failed to update ${category}" >&2
             failed=$((failed + 1))
+            record_unexplained_failure "$category" apply "$result" "$before"
             ;;
         esac
         ;;
     *)
         echo "[ERROR] Invalid plan action for ${category}" >&2
         failed=$((failed + 1))
+        operation_record_failure "$category" plan "invalid plan row" 1 \
+            "Report the plan row as a dotfiles bug"
         ;;
     esac
 done <"$plan_file"
@@ -135,62 +173,73 @@ refresh_phase "core tools" env CORE_TOOLS_HAS_SUDO="${HAS_SUDO:-false}" \
 refresh_phase "Node and agent tools" "$AGENT_TOOLS" update
 # The refresh activates Node only in its own process. Later phases and the
 # final check must use the same runtime and its global CLIs.
+node_ready=true
 if ! activate_node >/dev/null; then
-    echo "[WARN] Could not activate the latest installed Node" >&2
+    echo "[ERROR] Could not activate the installed Node LTS" >&2
+    node_ready=false
+    failed=$((failed + 1))
+    failed_phases+=("Node activation")
+    operation_record_failure Node activate "Node could not be activated" 1 \
+        "Run: just install"
 fi
-refresh_phase "Pi packages" "$SYNC_AGENTS" pi-packages-update
 
-skills_status="$(plan_status skills)"
-if [ "$skills_status" = EXPORT ]; then
-    echo "[BLOCKED] skills upstream refresh: export local additions first"
-else
+if [ "$node_ready" = true ]; then
+    refresh_phase "Pi packages" "$SYNC_AGENTS" pi-packages-update
     refresh_phase "skills" "$SYNC_AGENTS" skills-update
-fi
-
-plugins_status="$(plan_status plugins)"
-if [ "$plugins_status" = EXPORT ]; then
-    echo "[BLOCKED] plugins upstream refresh: export local additions first"
 else
-    if [ "$plugins_status" = UPDATE ] || [ "$plugins_status" = FAIL ]; then
-        refresh_phase "plugin membership" "$SYNC_AGENTS" push-plugins
-    fi
-fi
-refresh_phase "plugin versions" "$SYNC_AGENTS" plugins-update
-
-if ! "$STATE_PLAN" all >"$final_file"; then
-    echo "[ERROR] Could not run final local check" >&2
-    exit 1
+    not_run_phase "Pi packages" "requires Node, which could not be activated"
+    not_run_phase "skills" "requires Node, which could not be activated"
 fi
 
-echo "[INFO] Final local state"
-show_plan FINAL "$final_file"
+membership_ok=true
+plugins_status="$(plan_status plugins)"
+if [ "$plugins_status" = UPDATE ] || [ "$plugins_status" = FAIL ]; then
+    refresh_phase "plugin membership" "$SYNC_AGENTS" push-plugins ||
+        membership_ok=false
+fi
+if [ "$membership_ok" = true ]; then
+    refresh_phase "plugin versions" "$SYNC_AGENTS" plugins-update
+else
+    not_run_phase "plugin versions" "requires plugin membership, which failed"
+fi
 
 remaining=0
-while IFS=$'\t' read -r status category action message; do
-    case "$status" in
-    PASS | SKIP) ;;
-    *) remaining=$((remaining + 1)) ;;
-    esac
-done <"$final_file"
+before="$(failure_count)"
+final_status=0
+"$STATE_PLAN" all >"$final_file" || final_status=$?
+if [ "$final_status" -eq 0 ]; then
+    echo "[INFO] Final local state"
+    show_plan FINAL "$final_file"
+    while IFS=$'\t' read -r status category action message; do
+        case "$status" in
+        PASS | SKIP) ;;
+        *) remaining=$((remaining + 1)) ;;
+        esac
+    done <"$final_file"
+else
+    echo "[ERROR] Could not run final local check" >&2
+    failed=$((failed + 1))
+    failed_phases+=("final check")
+    record_unexplained_failure "final check" plan "$final_status" "$before"
+fi
 
-printf '[SUMMARY] applied=%s refreshed=%s unchanged=%s blocked=%s skipped=%s failed=%s remaining=%s\n' \
-    "$applied" "$refreshed" "$unchanged" "$blocked" "$skipped" \
-    "$failed" "$remaining"
+printf '[SUMMARY] applied=%s refreshed=%s unchanged=%s skipped=%s not_run=%s failed=%s remaining=%s\n' \
+    "$applied" "$refreshed" "$unchanged" "$skipped" "$not_run" "$failed" \
+    "$remaining"
 if [ "${#failed_phases[@]}" -gt 0 ]; then
     printf '[FAILED] phases:'
     printf ' %s;' "${failed_phases[@]}"
     printf '\n'
 fi
+while IFS=$'\t' read -r element operation cause status next; do
+    printf '[PROBLEM] %s: %s - %s (exit %s). Next: %s\n' \
+        "$element" "$operation" "$cause" "$status" "$next"
+done <"$DOTFILES_OPERATION_FAILURES"
+if [ -s "$DOTFILES_OPERATION_FAILURES" ]; then
+    echo "[LOG] ${DOTFILES_OPERATION_LOG}"
+fi
 
-if [ "$failed" -ne 0 ]; then
-    echo "[RESULT] FAIL"
-    exit 1
-fi
-if [ "$blocked" -ne 0 ]; then
-    echo "[RESULT] EXPORT"
-    exit 1
-fi
-if [ "$remaining" -ne 0 ]; then
+if [ "$failed" -ne 0 ] || [ "$remaining" -ne 0 ]; then
     echo "[RESULT] FAIL"
     exit 1
 fi

@@ -45,6 +45,8 @@ SKILL_LOCK_RUNTIME_FIELDS='def runtime_fields:
 EXPORT_GIT_DIR="${EXPORT_GIT_DIR:-${DOTFILES_DIR}}"
 AGENT_TOOLS="${AGENT_TOOLS:-${DOTFILES_DIR}/scripts/agent-tools.sh}"
 TOOL_INVENTORY="${TOOL_INVENTORY:-${DOTFILES_DIR}/.agents/tool-versions.json}"
+# shellcheck source=scripts/operation.sh
+source "${DOTFILES_DIR}/scripts/operation.sh"
 
 QUIET=false
 STAGED_SKILLS_ROOT=""
@@ -92,6 +94,13 @@ fi
 log_info() {
     [ "$QUIET" = true ] && return
     echo "[INFO] $*"
+}
+
+# Run a command from another directory inside one bounded operation.
+run_in_dir() {
+    cd "$1" || return 1
+    shift
+    "$@"
 }
 
 validate_json_config() {
@@ -883,7 +892,8 @@ codex_toml() {
             "${DOTFILES_DIR}/scripts/codex-toml.py" \
             "$action" "$CODEX_CONFIG" "$CODEX_SETTINGS_TEMPLATE" "$MCP_SERVERS" "$@"
     else
-        uv run --quiet --no-project --script \
+        operation_run "Codex settings" "$action with uv" fetch --stdout -- \
+            uv run --quiet --no-project --script \
             "${DOTFILES_DIR}/scripts/codex-toml.py" \
             "$action" "$CODEX_CONFIG" "$CODEX_SETTINGS_TEMPLATE" "$MCP_SERVERS" "$@"
     fi
@@ -1549,7 +1559,8 @@ repair_codex_marketplace_providers() {
     while IFS= read -r marketplace; do
         [ -n "$marketplace" ] || continue
         log_info "Removing provider-specific Codex marketplace: $marketplace"
-        codex plugin marketplace remove "$marketplace" || failed=true
+        operation_run "Codex marketplace $marketplace" remove query -- \
+            codex plugin marketplace remove "$marketplace" || failed=true
     done <<<"$foreign"
     [ "$failed" = false ]
 }
@@ -1699,7 +1710,8 @@ cmd_codex_plugins_export() {
 }
 
 run_codex_marketplace_upgrade() {
-    local staging before after result=0 path
+    local marketplace="$1" staging before after result=0 path
+    shift
     staging="${CODEX_HOME}/.tmp/marketplaces/.staging"
     before="$(mktemp)"
     after="$(mktemp)"
@@ -1708,7 +1720,8 @@ run_codex_marketplace_upgrade() {
             -name 'marketplace-upgrade-*' -print | sort >"$before"
     fi
 
-    codex "$@" || result=$?
+    operation_run "Codex marketplace $marketplace" upgrade install -- \
+        codex "$@" || result=$?
     if [ "$result" -ne 0 ] && [ -d "$staging" ]; then
         find "$staging" -mindepth 1 -maxdepth 1 -type d \
             -name 'marketplace-upgrade-*' -print | sort >"$after"
@@ -1769,7 +1782,8 @@ cmd_codex_marketplace_plugins_push() {
         done < <(jq -r --arg name "$marketplace" \
             '.codexMarketplaceSparsePaths[$name] // [] | .[]' \
             "$CODEX_PLUGIN_MANIFEST")
-        codex "${add_args[@]}" || {
+        operation_run "Codex marketplace $marketplace" "add $source" install -- \
+            codex "${add_args[@]}" || {
             echo "[ERROR] Failed to prepare Codex marketplace: $marketplace ($source)" >&2
             failed=true
         }
@@ -1786,7 +1800,8 @@ cmd_codex_marketplace_plugins_push() {
         jq -e --arg plugin "$plugin" 'index($plugin) != null' \
             "$live_plugins" >/dev/null && continue
         log_info "Adding Codex plugin: $plugin"
-        codex plugin add "$plugin" || {
+        operation_run "Codex plugin $plugin" add install -- \
+            codex plugin add "$plugin" || {
             echo "[ERROR] Failed to install Codex plugin: $plugin" >&2
             failed=true
         }
@@ -1832,7 +1847,8 @@ cmd_codex_plugins_update() {
             upgrade_args+=(--config \
                 "marketplaces.${marketplace}.sparse_paths=${sparse_paths}")
         fi
-        run_codex_marketplace_upgrade "${upgrade_args[@]}" || failed=true
+        run_codex_marketplace_upgrade "$marketplace" "${upgrade_args[@]}" ||
+            failed=true
     done < <(jq -r '.codexMarketplaces // {} | keys[]' \
         "$CODEX_PLUGIN_MANIFEST")
 
@@ -2370,9 +2386,11 @@ stage_locked_skills() {
             command_args+=(--dangerously-accept-openclaw-risks)
         fi
         command_args+=(--agent codex -y --full-depth)
-        if ! HOME="$STAGED_SKILLS_HOME" \
+        # Staging uses a disposable HOME; a stopped clone leaves runtimes intact.
+        if ! operation_run "skills from $source" "stage $names" fetch -- \
+            env HOME="$STAGED_SKILLS_HOME" \
             SKILL_LOCK_LIVE="$STAGED_SKILL_LOCK" \
-            "$skills_cli" "${command_args[@]}" </dev/null; then
+            "$skills_cli" "${command_args[@]}"; then
             echo "[ERROR] Failed to stage current skills: $names (from $source)" >&2
             failed=true
             break
@@ -2661,13 +2679,15 @@ cmd_lock_skills_install() {
             local install_ok=false
             if [ "$source" = "openclaw/agent-skills" ] || [ "$source_url" = "https://github.com/openclaw/agent-skills.git" ]; then
                 log_info "Installing skill: $name (from $source)"
-                "$SKILLS_CLI" add -g "$source" --skill "$install_name" \
-                    --dangerously-accept-openclaw-risks --agent codex -y \
-                    </dev/null && install_ok=true
+                operation_run "skill $name" "install from $source" fetch -- \
+                    "$SKILLS_CLI" add -g "$source" --skill "$install_name" \
+                    --dangerously-accept-openclaw-risks --agent codex -y &&
+                    install_ok=true
             else
                 log_info "Installing skill: $name (from $source)"
-                "$SKILLS_CLI" add -g "$source" --skill "$install_name" --agent codex -y \
-                    </dev/null && install_ok=true
+                operation_run "skill $name" "install from $source" fetch -- \
+                    "$SKILLS_CLI" add -g "$source" --skill "$install_name" \
+                    --agent codex -y && install_ok=true
             fi
 
             if [ "$install_ok" != true ]; then
@@ -2738,7 +2758,9 @@ repair_claude_plugin_providers() {
     while IFS= read -r marketplace; do
         [ -n "$marketplace" ] || continue
         log_info "Removing provider-specific Claude marketplace: $marketplace"
-        CLAUDECODE='' claude plugin marketplace remove "$marketplace" || failed=true
+        operation_run "Claude marketplace $marketplace" remove query -- \
+            env CLAUDECODE='' claude plugin marketplace remove "$marketplace" ||
+            failed=true
     done <<<"$foreign"
     [ "$failed" = false ]
 }
@@ -2865,10 +2887,12 @@ try_claude_plugin_update() {
             echo "[ERROR] Claude plugin project path not found: $project_path" >&2
             return 1
         }
-        (cd "$project_path" &&
-            CLAUDECODE='' claude plugin update "$plugin" --scope "$scope")
+        operation_run "Claude plugin $plugin" "update ($scope)" install -- \
+            run_in_dir "$project_path" env CLAUDECODE='' \
+            claude plugin update "$plugin" --scope "$scope"
     else
-        CLAUDECODE='' claude plugin update "$plugin" --scope "$scope"
+        operation_run "Claude plugin $plugin" "update ($scope)" install -- \
+            env CLAUDECODE='' claude plugin update "$plugin" --scope "$scope"
     fi
 }
 
@@ -2886,7 +2910,8 @@ cmd_claude_plugins_update() {
     while IFS= read -r marketplace; do
         [ -n "$marketplace" ] || continue
         log_info "Updating Claude plugin marketplace: $marketplace"
-        CLAUDECODE='' claude plugin marketplace update "$marketplace" ||
+        operation_run "Claude marketplace $marketplace" update fetch -- \
+            env CLAUDECODE='' claude plugin marketplace update "$marketplace" ||
             failed=true
     done < <(jq -r '.marketplaces // {} | keys[]' "$CLAUDE_MANIFEST")
 
@@ -3041,7 +3066,9 @@ cmd_claude_plugins_prune() {
     while IFS= read -r marketplace; do
         [ -n "$marketplace" ] || continue
         log_info "Removing marketplace outside manifest: $marketplace"
-        CLAUDECODE='' claude plugin marketplace remove "$marketplace" || failed=true
+        operation_run "Claude marketplace $marketplace" remove query -- \
+            env CLAUDECODE='' claude plugin marketplace remove "$marketplace" ||
+            failed=true
     done <<<"$extra_marketplaces"
 
     [ "$failed" = false ] || return 1
@@ -3099,7 +3126,8 @@ resolve_skill_source_refs() {
     : >"$refs"
     while IFS=$'\t' read -r source_url ref; do
         [ -n "$source_url" ] || continue
-        result="$(git ls-remote "$source_url" "$ref")" || {
+        result="$(operation_run "skill source $source_url" "resolve $ref" \
+            query --stdout -- git ls-remote "$source_url" "$ref")" || {
             echo "[ERROR] Could not resolve skill source: $source_url $ref" >&2
             rm -f "$refs"
             return 1
@@ -3205,11 +3233,12 @@ verify_removed_upstream_skills() {
         checkout="${root}/source-${index}"
         index=$((index + 1))
         if [ "$ref" = HEAD ]; then
-            git clone --quiet --depth 1 "$source_url" "$checkout"
+            set -- git clone --quiet --depth 1 "$source_url" "$checkout"
         else
-            git clone --quiet --depth 1 --branch "$ref" \
+            set -- git clone --quiet --depth 1 --branch "$ref" \
                 "$source_url" "$checkout"
-        fi || {
+        fi
+        operation_run "skill source $source_url" "clone $ref" fetch -- "$@" || {
             rm -rf "$root"
             echo "[ERROR] Could not inspect upstream skills: $source_url $ref" >&2
             return 1
@@ -3556,7 +3585,9 @@ cmd_claude_plugins_push() {
             ;;
         esac
         log_info "Adding marketplace: $mp_name"
-        CLAUDECODE='' claude plugin marketplace add "$mp_arg" || failed=true
+        operation_run "Claude marketplace $mp_name" "add $mp_arg" install -- \
+            env CLAUDECODE='' claude plugin marketplace add "$mp_arg" ||
+            failed=true
     done < <(jq -r '.marketplaces | keys[]' "$CLAUDE_MANIFEST")
 
     local installed_keys="" plugin
@@ -3566,7 +3597,8 @@ cmd_claude_plugins_push() {
         [ -n "$plugin" ] || continue
         echo "$installed_keys" | grep -qxF "$plugin" && continue
         log_info "Installing plugin: $plugin"
-        CLAUDECODE='' claude plugin install "$plugin" || failed=true
+        operation_run "Claude plugin $plugin" install install -- \
+            env CLAUDECODE='' claude plugin install "$plugin" || failed=true
     done < <(jq -r '.plugins[].claude // empty' "$CLAUDE_MANIFEST")
 
     [ "$failed" = false ] || return 1
@@ -3685,7 +3717,8 @@ cmd_pi_packages_update() {
         return 1
     }
     restore_pi_packages || return 1
-    pi update --extensions
+    operation_run "Pi packages" "update extensions" install -- \
+        pi update --extensions
 }
 
 restore_pi_packages() {
@@ -3701,7 +3734,8 @@ restore_pi_packages() {
             log_info "Pi package already installed: $package"
         else
             log_info "Installing Pi package: $package"
-            pi install "$package" || return 1
+            operation_run "Pi package $package" install install -- \
+                pi install "$package" || return 1
         fi
     done < <(jq -r '.packages[]' "$PI_SETTINGS_TEMPLATE")
 }

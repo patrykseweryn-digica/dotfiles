@@ -3,6 +3,8 @@
 DOTFILES_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 NODE_POLICY_FILE="${NODE_POLICY_FILE:-${DOTFILES_ROOT}/config/mise/config.toml}"
 MISE_INSTALL_URL="${MISE_INSTALL_URL:-https://mise.run}"
+# shellcheck source=scripts/operation.sh
+source "${DOTFILES_ROOT}/scripts/operation.sh"
 
 required_node_policy() {
     local policy
@@ -115,13 +117,15 @@ install_mise() {
     fi
     mkdir -p "$(dirname "$binary")"
     installer=$(mktemp "${TMPDIR:-/tmp}/mise-install.XXXXXX") || return 1
-    if ! curl -fsSL "$MISE_INSTALL_URL" -o "$installer"; then
+    if ! operation_run mise "download installer" fetch -- \
+        curl -fsSL "$MISE_INSTALL_URL" -o "$installer"; then
         rm -f "$installer"
         echo "[ERROR] Failed to download mise" >&2
         return 1
     fi
     echo "[INFO] Installing mise..."
-    if ! MISE_INSTALL_PATH="$binary" sh "$installer"; then
+    if ! operation_run mise install install -- \
+        env MISE_INSTALL_PATH="$binary" sh "$installer"; then
         rm -f "$installer"
         echo "[ERROR] Failed to install mise" >&2
         return 1
@@ -139,7 +143,8 @@ install_node() {
     install_mise || return 1
     if [ "$refresh" = true ] || ! run_mise which node >/dev/null 2>&1; then
         echo "[INFO] Installing current Node LTS..."
-        if ! run_mise install node; then
+        if ! operation_run "Node LTS" "install with mise" install -- \
+            run_mise install node; then
             echo "[ERROR] Failed to install Node LTS; previous Node retained" >&2
             return 1
         fi
