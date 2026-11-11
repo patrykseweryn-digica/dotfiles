@@ -4,6 +4,9 @@ keybind = cmd+s=text:\x01\x73
 # tmux prefix to toggle zoom on current pane
 keybind = cmd+b=text:\x01\x7a
 
+# install Ghostty terminfo on SSH hosts; fall back to xterm-256color
+shell-integration-features = ssh-env,ssh-terminfo
+
 # aesthetics
 background-opacity = 0.90
 background-blur=16

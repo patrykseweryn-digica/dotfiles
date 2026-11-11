@@ -69,6 +69,26 @@ fi
 grep -Fx 'activate zsh' "$mise_log" >/dev/null ||
     fail ".zshrc did not activate mise"
 
+if command -v infocmp >/dev/null 2>&1; then
+    # Ghostty sends TERM=xterm-ghostty to hosts that may lack its terminfo.
+    for case in 'xterm-dotfiles-missing xterm-256color' 'xterm xterm'; do
+        set -- $case
+        actual="$(HOME="$home_dir" ZDOTDIR="$zshenv" \
+            DOTFILES_ENV_FILE="$env_file" TERM="$1" zsh -df -c \
+            "source '${DOTFILES_DIR}/.zshrc'; print -r -- \"\$TERM\"" \
+            2>"$stderr_log")" || {
+            cat "$stderr_log" >&2
+            fail ".zshrc failed with TERM=$1"
+        }
+        if [ -s "$stderr_log" ]; then
+            cat "$stderr_log" >&2
+            fail ".zshrc wrote stderr with TERM=$1"
+        fi
+        [ "$actual" = "$2" ] ||
+            fail ".zshrc turned TERM=$1 into $actual, expected $2"
+    done
+fi
+
 mkdir -p "$home_dir/.grok/completions/zsh"
 for platform in Darwin Linux; do
     env -u PNPM_HOME -u XDG_DATA_HOME HOME="$home_dir" ZDOTDIR="$zshenv" \

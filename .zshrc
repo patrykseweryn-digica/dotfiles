@@ -3,6 +3,13 @@ if [ -z "${ZSH_VERSION:-}" ]; then
   return 1 2>/dev/null || exit 1
 fi
 
+# A client TERM unknown on this host (e.g. xterm-ghostty over SSH) breaks
+# tput and prompt redraws, so fall back before anything queries terminfo.
+if [[ -n "${TERM:-}" ]] && (( $+commands[infocmp] )) &&
+  ! infocmp "$TERM" >/dev/null 2>&1; then
+  export TERM=xterm-256color
+fi
+
 # SSH agent setup may prompt for passphrases, so keep it before p10k instant prompt.
 dotfiles_ssh_agent_live() {
   [[ -n "${SSH_AUTH_SOCK:-}" ]] || return 1
