@@ -79,9 +79,10 @@ Capture commands, exit codes, platform (`uname -s` and `uname -m`) and
 `git diff --stat` in `$proof/result.txt`, plus the transcripts above.
 The install smoke scripts exercise public just recipes in disposable HOME;
 external installers are stubbed at the network/package-manager boundary.
-The tool smoke installs and updates a real local npm package through the
-internal adapter, exercises the public report, reads back the version, verifies
-unchanged inventory, and tests failures without touching live tools.
+The tool smoke uses a simulated mise provider and generated CLI fixtures.
+It exercises the adapter and report, reads fixture versions, checks unchanged
+inventory, and tests failures. It does not install real npm packages or prove
+their compatibility with a new Node release.
 The sync tests check credentials/session preservation and repeated setup.
 
 Record doctor failures before and after; investigate new failures. For changed

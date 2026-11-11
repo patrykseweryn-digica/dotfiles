@@ -24,7 +24,9 @@ Preconditions: working host Node/npm; no live update needed for verification.
 
 - **Install, update and read back.** Run `bash scripts/smoke-agent-tools.sh`.
   Install migrates npm CLI entries to independent mise tools. The test changes
-  the selected LTS runtime and starts every npm CLI without reinstalling it.
+  the selected LTS runtime and starts generated CLI fixtures without
+  reinstalling them. The mise provider is simulated; real package startup
+  and Node compatibility require separate live evidence.
   Update keeps `latest` without changing inventory bytes. Native tools use only
   their declared self-update commands. Treehouse uses the managed public
   release redirect and skips a current binary. Inside a Herdr pane, the Herdr
@@ -36,11 +38,15 @@ Preconditions: working host Node/npm; no live update needed for verification.
   with an isolated mise provider, changes the resolved LTS version, reads the
   selected Node, and verifies the previous runtime survives download/install
   failure. The bootstrap must reject a non-LTS policy.
+- **Treehouse update.** Run `bash scripts/smoke-treehouse.sh`. Check supported
+  platform fixtures, successful upgrades, preservation after failed downloads,
+  unchanged current binaries, and unsupported architecture rejection.
 - **Live report.** Run `./scripts/agent-tools.sh outdated`; capture the exit
   code. This queries npm metadata but does not install tools. It omits current
-  tools and reports only drift or missing commands. Native latest versions
-  remain unchecked. One bounded message reports that limitation.
-- **Proof.** Capture transcripts and versions. All three smoke scripts exit zero.
+  tools and reports only drift or missing commands. Claude native releases
+  use npm metadata; other native updater versions remain unchecked.
+  One bounded message reports that limitation.
+- **Proof.** Capture transcripts and versions. All four smoke scripts exit zero.
 
 ## Gotchas
 

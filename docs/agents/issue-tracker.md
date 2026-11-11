@@ -26,6 +26,16 @@ or wayfinder:task for children.
 Work unassigned children whose blockers are closed; claim before working.
 Record results before closing a ticket.
 
+## Verification gate
+
+Every implementation issue must run `maintain-verification-skill` or
+`maintain-formal-verification-skill` for the changed behavior. If no suitable
+project skill exists, run `create-verification-skill` or
+`create-formal-verification-skill` and prove its instructions work.
+Keep project skills in `.agents/skills/`. Record the selected skill, coverage,
+commands, results, and limitations before closing the issue. A blocked check
+is not a successful verification. Never weaken checks to hide a product bug.
+
 ## Pull requests as a triage surface
 
 PRs as a request surface: no.

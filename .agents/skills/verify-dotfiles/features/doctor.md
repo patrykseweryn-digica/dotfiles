@@ -23,7 +23,8 @@ Preconditions: repository dependencies; retain before/after evidence.
   isolated public `just doctor` drives the shared plan through matching,
   skip, update, export and failure states. The test checks every `SKIP` reason,
   broken links, missing tools, invalid Node, and disabled hooks. The real local
-  adapters verify settings, MCP, skills, and plugins without network or writes.
+  adapters verify settings, MCP, skills, and plugins with fixture Codex state.
+  External plugin CLI offline/read-only behavior is not proved by these fixtures.
   A secret sentinel in a raw planner failure must not appear.
 - **Live baseline and result.** Run `just doctor` before and after the
   change, with output paths from SKILL.md. Compare failed categories. For
@@ -31,6 +32,8 @@ Preconditions: repository dependencies; retain before/after evidence.
   the checksums must match. Investigate every new failure.
 - **Proof.** Retain both logs and exit codes. A nonzero live doctor means
   unresolved drift; do not report the machine as fully verified.
+  Zero alone is also insufficient: UPDATE and EXPORT intentionally return zero.
+  Inspect category statuses rather than trusting the closing sentence.
 
 ## Gotchas
 
@@ -38,3 +41,7 @@ Preconditions: repository dependencies; retain before/after evidence.
   Review it before any apply command; do not erase it to make doctor green.
 - Doctor filters raw diffs; do not add an unredacted verbose log path.
 - Native latest and upstream Node freshness are not checked by doctor.
+- The current settings fixture prepares dependencies and reuses the uv cache.
+  It does not establish operation with an empty dependency cache (#56).
+- The current closing sentence can claim agreement despite UPDATE or EXPORT
+  (#61). Preserve the intended offline/read-only contract when reporting this bug.

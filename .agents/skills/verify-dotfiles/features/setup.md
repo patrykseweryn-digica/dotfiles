@@ -33,7 +33,8 @@ Preconditions: dependencies from SKILL.md; run from the checkout root.
   local addition stop sync before changes. A stalled operation stops with its
   child process; independent phases continue and dependent phases report
   `NOT RUN` with a reason. The test then
-  proves a compatible repeat causes no unnecessary downloads or installs.
+  checks repeat orchestration and unchanged HOME with updater stubs.
+  This does not prove real download reuse or installer idempotence.
   The caller starts with an older Node; the final check must see the Node
   and npm CLIs that the refresh installed.
 - **Bounded operations.** Run `bash scripts/smoke-operation.sh`. It stalls a
@@ -52,10 +53,17 @@ Preconditions: dependencies from SKILL.md; run from the checkout root.
   Pull previews, cancellation/conflicts and direct adapter entries are
   exercised without importing or replacing live user preferences.
 - **Start shell.** Run `bash scripts/smoke-zshrc-startup.sh`. Require clean
-  startup, correct platform paths and Cursor/Grok command precedence.
+  startup, correct platform paths, Cursor/Grok command precedence, unknown
+  terminal fallback, and preservation of a known terminal.
+- **SSH startup.** Run `bash scripts/smoke-ssh-zsh.sh`. Require generated
+  startup files to execute noninteractive Bash commands and start Zsh only
+  for interactive sessions. This does not cover migration of old blocks.
 - **Clean Linux install.** Build `.github/ci/clean-install.Dockerfile` on the
   native amd64 and arm64 CI runners. The image runs `install`, two `sync`
   commands, and `doctor` as a user without sudo or SSH state.
+  Use the build command in `.github/workflows/check.yml`; it requires Docker
+  with BuildKit, network access, and the `github_token` build secret.
+  The image excludes SSH and account-dependent remote Codex plugins.
 - **Proof.** Capture stdout/stderr and exit codes; each script must exit zero.
 
 ## Gotchas
@@ -68,3 +76,4 @@ Preconditions: dependencies from SKILL.md; run from the checkout root.
 - Darwin/Linux uname fixtures do not replace actual Linux CI execution.
 - A local Docker build proves only the host architecture unless emulation is
   requested explicitly.
+- The shell fixtures do not prove live Ghostty SSH integration.
