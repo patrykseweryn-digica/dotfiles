@@ -6,3 +6,5 @@ docs/*
 .env
 .claude/
 .agent-runs/
+.impeccable/
+.lavish/
