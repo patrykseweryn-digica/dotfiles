@@ -90,6 +90,12 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/steipete/agent-scripts.git"
     },
+    "create-formal-verification-skill": {
+      "skillPath": "pstack/skills/create-formal-verification-skill/SKILL.md",
+      "source": "cursor/plugins",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/cursor/plugins.git"
+    },
     "create-verification-skill": {
       "skillPath": "pstack/skills/create-verification-skill/SKILL.md",
       "source": "cursor/plugins",
@@ -278,6 +284,12 @@
       "source": "getagentseal/founder-playbook",
       "sourceType": "github",
       "sourceUrl": "https://github.com/getagentseal/founder-playbook.git"
+    },
+    "maintain-formal-verification-skill": {
+      "skillPath": "pstack/skills/maintain-formal-verification-skill/SKILL.md",
+      "source": "cursor/plugins",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/cursor/plugins.git"
     },
     "maintain-verification-skill": {
       "skillPath": "pstack/skills/maintain-verification-skill/SKILL.md",
