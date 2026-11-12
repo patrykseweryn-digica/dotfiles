@@ -10,6 +10,8 @@ export MISE_TRUSTED_CONFIG_PATHS="${HOME}/.config/mise/conf.d\
 ${MISE_TRUSTED_CONFIG_PATHS:+:${MISE_TRUSTED_CONFIG_PATHS}}"
 # shellcheck source=scripts/operation.sh
 source "${DOTFILES_DIR}/scripts/operation.sh"
+# shellcheck source=scripts/groups.sh
+source "${DOTFILES_DIR}/scripts/groups.sh"
 
 validate_manifest() {
     jq -e '
@@ -23,6 +25,8 @@ validate_manifest() {
         (.tools | type) == "array" and (.tools | length) > 0 and
         all(.tools[];
             (.name | type == "string" and test("^[^\\t\\r\\n]+$")) and
+            (.group == "core" or .group == "agents" or
+                .group == "desktop") and
             (command_name | type == "string" and
                 test("^[a-zA-Z0-9][a-zA-Z0-9._-]*$")) and
             ((.platforms // ["darwin-arm64", "darwin-x86_64",
@@ -84,8 +88,14 @@ validate_manifest() {
     }
 }
 
+# Select tools whose group this machine installs.
+selected_tools_filter='
+    .group as $group | $groups | split(" ") | index($group) != null'
+
 tool_rows() {
-    jq -r '.tools[] | select((.scope // "agent") == "agent") | [
+    jq -r --arg groups "$DOTFILES_SELECTED_GROUPS" '.tools[] |
+        select((.scope // "agent") == "agent") |
+        select('"$selected_tools_filter"') | [
         .name, .command, (.package // .command),
         .channel, .installer, ((.update // []) | join(" "))
     ] | @tsv' "$VERSIONS_FILE"
@@ -95,9 +105,10 @@ write_mise_agent_tools_config() {
     local candidate
     mkdir -p "$(dirname "$MISE_AGENT_TOOLS_FILE")"
     candidate=$(mktemp "${MISE_AGENT_TOOLS_FILE}.XXXXXX") || return 1
-    jq -r '
+    jq -r --arg groups "$DOTFILES_SELECTED_GROUPS" '
         (["[tools]"] + [
             .tools[] | select(.installer == "npm") |
+            select('"$selected_tools_filter"') |
             (. as $tool |
                 ([
                     if (($tool.allow_builds // []) | length) > 0 then
@@ -157,7 +168,7 @@ plan_rows() {
         .tools[] |
         select(((.platforms // $default_platforms) | index($platform)) != null) |
         select((.scope // "agent") == "agent") |
-        [.name, (.scope // "agent"),
+        [.name, (.scope // "agent"), .group,
          (if has("commands") then (.commands | join(" ")) else .command end)] |
         @tsv
     ' "$VERSIONS_FILE"
@@ -271,8 +282,8 @@ build_tool_export_candidate() {
                 single_command_npm_link \
                     "$path" "$package" "$command_name"; then
                 jq -nc --arg name "$package" --arg command "$command_name" '
-                    {channel: "latest", command: $command, installer: "npm",
-                     name: $name, package: $name}
+                    {channel: "latest", command: $command, group: "agents",
+                     installer: "npm", name: $name, package: $name}
                 ' >>"$additions"
                 printf '%s\n' "$command_name" >>"$commands"
                 printf '%s\n' "$package" >>"$packages"
@@ -383,13 +394,16 @@ report_versions() {
 }
 
 plan_tools() {
-    local rows name scope commands command_name available
+    local rows name scope group commands command_name available
     local candidate report
 
     rows="$(plan_rows)" || return 1
-    while IFS=$'\t' read -r name scope commands; do
+    while IFS=$'\t' read -r name scope group commands; do
         command_name="${commands%% *}"
-        if [ "$scope" = agent ] &&
+        if ! group_selected "$group"; then
+            printf 'SKIP\ttools\tnone\t%s skipped: %s\n' \
+                "$name" "$(group_skip_reason "$group")"
+        elif [ "$scope" = agent ] &&
             command -v "$command_name" >/dev/null 2>&1; then
             printf 'PASS\ttools\tnone\t%s is available\n' "$name"
         elif [ "$scope" = core ]; then
@@ -407,6 +421,8 @@ plan_tools() {
         fi
     done <<<"$rows"
 
+    # Only agent machines can export agent tools to the inventory.
+    group_selected agents || return 0
     candidate="$(mktemp)"
     report="$(mktemp)"
     build_tool_export_candidate "$candidate" "$report" || {
@@ -530,6 +546,7 @@ install_declared_tools() {
 }
 
 validate_manifest
+groups_load || exit 1
 case "${1:-}" in
 outdated) report_versions false true ;;
 report) report_versions false false ;;
@@ -543,6 +560,11 @@ export-candidate)
     build_tool_export_candidate "$2" "$3"
     ;;
 install | update)
+    # Node and every agent tool belong to the agents group.
+    if ! group_selected agents; then
+        echo "[SKIP] Node and agent tools: $(group_skip_reason agents)"
+        exit 0
+    fi
     # Also protect direct callers such as the local update workflow.
     # shellcheck source=bootstrap.d/07-node.sh
     source "$DOTFILES_DIR/bootstrap.d/07-node.sh"

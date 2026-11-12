@@ -16,6 +16,8 @@ fail() {
 
 tmp_dir="$(mktemp -d)"
 trap 'rm -rf "$tmp_dir"' EXIT
+# The machine group setting must not change fixture results.
+export DOTFILES_ENV_FILE="${tmp_dir}/no-group-setting.env"
 checkout="${tmp_dir}/checkout"
 home_dir="${tmp_dir}/home"
 stub_dir="${tmp_dir}/stubs"
@@ -158,6 +160,7 @@ cat >"$tool_manifest" <<'JSON'
     {
       "channel": "latest",
       "command": "known-cli",
+      "group": "agents",
       "installer": "npm",
       "name": "known-cli",
       "package": "known-cli"
@@ -605,8 +608,8 @@ jq -e '
 ' "$plugin_manifest" >/dev/null || fail "plugin membership export failed"
 jq -e '
     [.tools[] | select(.package == "portable-cli")] == [{
-      channel: "latest", command: "portable-cli", installer: "npm",
-      name: "portable-cli", package: "portable-cli"
+      channel: "latest", command: "portable-cli", group: "agents",
+      installer: "npm", name: "portable-cli", package: "portable-cli"
     }] and
     ([.tools[].command] | index("manual-tool")) == null
 ' "$tool_manifest" >/dev/null || fail "portable tool export failed"

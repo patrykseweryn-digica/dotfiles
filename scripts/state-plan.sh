@@ -62,21 +62,38 @@ plan_tools() {
     "$AGENT_TOOLS" plan
 }
 
-plan_links() {
-    local rows source target root link broken=false
+skip_row() {
+    local category="$1" element="$2" group="$3"
+    printf 'SKIP\t%s\tnone\t%s skipped: %s\n' \
+        "$category" "$element" "$(group_skip_reason "$group")"
+}
 
-    rows="$(managed_link_rows)" || return 1
+plan_links() {
+    local rows skipped source target group root link broken=false
+
+    rows="$(managed_link_rows selected)" || return 1
+    skipped="$(managed_link_rows skipped)" || return 1
     while IFS='|' read -r source target; do
+        [ -n "$target" ] || continue
         if [ ! -L "$target" ] || [ "$(readlink "$target")" != "$source" ]; then
             broken=true
         fi
     done <<<"$rows"
+    while IFS='|' read -r group target; do
+        [ -z "$target" ] || skip_row links "$target" "$group"
+    done <<<"$skipped"
 
-    for root in \
-        "${HOME}/.agents/skills" \
-        "${HOME}/.claude/skills" \
-        "${HOME}/.config/opencode/skills" \
-        "${HOME}/.pi/agent/skills"; do
+    # Agent runtimes own these skill directories.
+    local -a skill_roots=()
+    if group_selected agents; then
+        skill_roots=(
+            "${HOME}/.agents/skills"
+            "${HOME}/.claude/skills"
+            "${HOME}/.config/opencode/skills"
+            "${HOME}/.pi/agent/skills"
+        )
+    fi
+    for root in ${skill_roots[@]+"${skill_roots[@]}"}; do
         [ -d "$root" ] || continue
         for link in "$root"/*; do
             [ -L "$link" ] && [ ! -e "$link" ] || continue
@@ -95,7 +112,9 @@ plan_herdr_hook() {
     local settings="${CLAUDE_SETTINGS_FILE:-${HOME}/.claude/settings.json}"
     local hook="${HOME}/.claude/hooks/herdr-agent-state.sh"
 
-    if [ ! -f "$settings" ] ||
+    if ! group_selected agents; then
+        skip_row hooks "Herdr hook" agents
+    elif [ ! -f "$settings" ] ||
         ! jq -e -s 'length == 1 and (.[0] | type == "object")' \
             "$settings" >/dev/null 2>&1; then
         printf 'FAIL\thooks\tupdate\tClaude hook settings are missing or invalid\n'
@@ -115,6 +134,10 @@ plan_herdr_hook() {
 plan_node() {
     local status=0
 
+    if ! group_selected agents; then
+        skip_row node "Node" agents
+        return 0
+    fi
     bash "$NODE_CHECK" check >/dev/null 2>&1 || status=$?
     case "$status" in
     0) printf 'PASS\tnode\tnone\tNode matches the local version policy\n' ;;
@@ -146,6 +169,9 @@ plan_all() {
     plan_node || return
     plan_platform
 }
+
+# Reject an invalid group setting before planning any element.
+groups_load || exit 1
 
 case "${1:-all}" in
 all)

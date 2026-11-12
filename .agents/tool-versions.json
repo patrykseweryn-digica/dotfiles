@@ -10,6 +10,7 @@
       "commands": [
         "fzf"
       ],
+      "group": "core",
       "name": "fzf",
       "scope": "core",
       "versionPolicy": "latest"
@@ -18,6 +19,7 @@
       "commands": [
         "bat"
       ],
+      "group": "core",
       "name": "bat",
       "scope": "core",
       "versionPolicy": "latest"
@@ -26,6 +28,7 @@
       "commands": [
         "rg"
       ],
+      "group": "core",
       "name": "ripgrep",
       "scope": "core",
       "versionPolicy": "latest"
@@ -34,6 +37,7 @@
       "commands": [
         "fd"
       ],
+      "group": "core",
       "name": "fd",
       "scope": "core",
       "versionPolicy": "latest"
@@ -42,6 +46,7 @@
       "commands": [
         "jq"
       ],
+      "group": "core",
       "name": "jq",
       "scope": "core",
       "versionPolicy": "latest"
@@ -50,6 +55,7 @@
       "commands": [
         "tmux"
       ],
+      "group": "core",
       "name": "tmux",
       "scope": "core",
       "versionPolicy": "latest"
@@ -58,6 +64,7 @@
       "commands": [
         "nvim"
       ],
+      "group": "core",
       "mise": "aqua:neovim/neovim",
       "name": "neovim",
       "scope": "core",
@@ -67,6 +74,7 @@
       "commands": [
         "git-lfs"
       ],
+      "group": "core",
       "name": "git-lfs",
       "scope": "core",
       "versionPolicy": "latest"
@@ -75,6 +83,7 @@
       "commands": [
         "shfmt"
       ],
+      "group": "core",
       "name": "shfmt",
       "scope": "core",
       "versionPolicy": "latest"
@@ -83,6 +92,7 @@
       "commands": [
         "just"
       ],
+      "group": "core",
       "name": "just",
       "scope": "core",
       "versionPolicy": "latest"
@@ -91,6 +101,7 @@
       "commands": [
         "hadolint"
       ],
+      "group": "core",
       "name": "hadolint",
       "scope": "core",
       "versionPolicy": "latest"
@@ -99,6 +110,7 @@
       "commands": [
         "eza"
       ],
+      "group": "core",
       "name": "eza",
       "scope": "core",
       "versionPolicy": "latest"
@@ -107,6 +119,7 @@
       "commands": [
         "delta"
       ],
+      "group": "core",
       "name": "delta",
       "scope": "core",
       "versionPolicy": "latest"
@@ -115,6 +128,7 @@
       "commands": [
         "zoxide"
       ],
+      "group": "core",
       "name": "zoxide",
       "scope": "core",
       "versionPolicy": "latest"
@@ -123,6 +137,7 @@
       "commands": [
         "tldr"
       ],
+      "group": "core",
       "name": "tealdeer",
       "scope": "core",
       "versionPolicy": "latest"
@@ -131,6 +146,7 @@
       "commands": [
         "lazygit"
       ],
+      "group": "core",
       "name": "lazygit",
       "scope": "core",
       "versionPolicy": "latest"
@@ -139,6 +155,7 @@
       "commands": [
         "xclip"
       ],
+      "group": "core",
       "name": "xclip",
       "packages": {
         "apt": "xclip",
@@ -157,23 +174,25 @@
       "commands": [
         "pre-commit"
       ],
+      "group": "core",
       "name": "pre-commit",
       "scope": "core",
       "versionPolicy": "latest"
     },
     {
-      "channel": "latest",
-      "command": "bw",
-      "installer": "npm",
-      "name": "Bitwarden CLI",
-      "package": "@bitwarden/cli",
-      "trust_policy_excludes": [
-        "@bitwarden/cli@2026.10.1"
-      ]
+      "commands": [
+        "bw"
+      ],
+      "group": "core",
+      "mise": "aqua:bitwarden/clients",
+      "name": "bitwarden",
+      "scope": "core",
+      "versionPolicy": "latest"
     },
     {
       "channel": "latest",
       "command": "pi",
+      "group": "agents",
       "installer": "npm",
       "name": "Pi",
       "package": "@earendil-works/pi-coding-agent"
@@ -181,6 +200,7 @@
     {
       "channel": "latest",
       "command": "codex",
+      "group": "agents",
       "installer": "npm",
       "name": "Codex",
       "package": "@openai/codex"
@@ -188,6 +208,7 @@
     {
       "channel": "latest",
       "command": "claude",
+      "group": "agents",
       "installer": "claude-native",
       "name": "Claude Code",
       "package": "@anthropic-ai/claude-code",
@@ -198,11 +219,12 @@
       ]
     },
     {
-      "channel": "latest",
-      "command": "opencode",
       "allow_builds": [
         "opencode-ai"
       ],
+      "channel": "latest",
+      "command": "opencode",
+      "group": "agents",
       "installer": "npm",
       "name": "OpenCode",
       "package": "opencode-ai"
@@ -210,6 +232,7 @@
     {
       "channel": "latest",
       "command": "skills",
+      "group": "agents",
       "installer": "npm",
       "name": "Skill manager",
       "package": "skills"
@@ -217,6 +240,7 @@
     {
       "channel": "latest",
       "command": "summarize",
+      "group": "agents",
       "installer": "npm",
       "name": "Summarize",
       "package": "@steipete/summarize"
@@ -224,6 +248,7 @@
     {
       "channel": "latest",
       "command": "gnhf",
+      "group": "agents",
       "installer": "npm",
       "name": "gnhf",
       "package": "gnhf"
@@ -231,6 +256,7 @@
     {
       "channel": "latest",
       "command": "acpx",
+      "group": "agents",
       "installer": "npm",
       "name": "acpx",
       "package": "acpx"
@@ -238,6 +264,7 @@
     {
       "channel": "latest",
       "command": "backpass",
+      "group": "agents",
       "installer": "npm",
       "name": "Backpass",
       "package": "backpass"
@@ -245,6 +272,7 @@
     {
       "channel": "latest",
       "command": "lavish-axi",
+      "group": "agents",
       "installer": "npm",
       "name": "Lavish AXI",
       "package": "lavish-axi"
@@ -252,6 +280,7 @@
     {
       "channel": "latest",
       "command": "gh-axi",
+      "group": "agents",
       "installer": "npm",
       "name": "GitHub AXI",
       "package": "gh-axi"
@@ -259,6 +288,7 @@
     {
       "channel": "latest",
       "command": "chrome-devtools-axi",
+      "group": "agents",
       "installer": "npm",
       "name": "Chrome DevTools AXI",
       "package": "chrome-devtools-axi"
@@ -266,6 +296,7 @@
     {
       "channel": "latest",
       "command": "tasks-axi",
+      "group": "agents",
       "installer": "npm",
       "name": "Tasks AXI",
       "package": "tasks-axi"
@@ -273,6 +304,7 @@
     {
       "channel": "latest",
       "command": "quota-axi",
+      "group": "agents",
       "installer": "npm",
       "name": "Quota AXI",
       "package": "quota-axi"
@@ -280,6 +312,7 @@
     {
       "channel": "latest",
       "command": "herdr",
+      "group": "agents",
       "installer": "herdr-native",
       "name": "Herdr",
       "update": [
@@ -290,12 +323,14 @@
     {
       "channel": "latest",
       "command": "treehouse",
+      "group": "agents",
       "installer": "treehouse-native",
       "name": "Treehouse"
     },
     {
       "channel": "latest",
       "command": "no-mistakes",
+      "group": "agents",
       "installer": "no-mistakes-native",
       "name": "no-mistakes",
       "update": [
@@ -306,6 +341,7 @@
     {
       "channel": "latest",
       "command": "agent",
+      "group": "agents",
       "installer": "cursor-native",
       "name": "Cursor CLI",
       "update": [
@@ -316,6 +352,7 @@
     {
       "channel": "latest",
       "command": "grok",
+      "group": "agents",
       "installer": "grok-native",
       "name": "Grok Build",
       "update": [

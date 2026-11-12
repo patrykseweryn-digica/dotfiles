@@ -213,6 +213,20 @@ run_required_step() {
     return 0
 }
 
+# Run a step only when its group is selected; otherwise record the skip.
+run_group_step() {
+    local group="$1" kind="$2" label="$3"
+    shift 3
+
+    LAST_RUN_STEP_STATUS=0
+    if ! group_selected "$group"; then
+        echo "[SKIP] ${label}: $(group_skip_reason "$group")"
+        record_step_result "$label" "skipped (group ${group})"
+        return 0
+    fi
+    "run_${kind}_step" "$label" "$@"
+}
+
 run_optional_step() {
     local label="$1"
     shift
@@ -264,19 +278,48 @@ update_managed_links() {
     done <<<"$rows"
 }
 
-# Setup and link configuration files
-setup_dotfiles() {
-    echo "[INFO] Setting up dotfile configurations..."
+install_developer_tools() {
+    "$DOTFILES_DIR/scripts/agent-tools.sh" install
+}
 
-    # Fail on dispatch conflicts before changing unrelated configuration.
-    setup_firstmate || return $?
-    ensure_install_dirs
-    # Merge after tool installation; the update workflow also calls this.
+# Merge local agent app settings after tool installation.
+configure_agent_apps() {
     uv run --no-project --script "$DOTFILES_DIR/scripts/no-mistakes-config.py"
     uv run --no-project --script "$DOTFILES_DIR/scripts/herdr-config.py"
-    mkdir -p "${HOME}/.claude/plugins" "${HOME}/.claude/output-styles" "${HOME}/.claude/skills" "${HOME}/.agents/skills" "${HOME}/.codex" "${HOME}/.summarize"
+}
+
+# Sync shared agent config plus tool-specific adapters.
+sync_agent_config() {
+    "$DOTFILES_DIR/sync-agents.sh" install
+}
+
+# Setup and link configuration files
+setup_dotfiles() {
+    local agents=false
+
+    echo "[INFO] Setting up dotfile configurations..."
+    if group_selected agents; then
+        agents=true
+    else
+        echo "[SKIP] agent config: $(group_skip_reason agents)"
+    fi
+
+    # Fail on dispatch conflicts before changing unrelated configuration.
+    if [ "$agents" = true ]; then
+        setup_firstmate || return $?
+    fi
+    ensure_install_dirs
+    if [ "$agents" = true ]; then
+        # The update workflow also merges these settings.
+        configure_agent_apps || return 1
+        mkdir -p "${HOME}/.claude/plugins" "${HOME}/.claude/output-styles" \
+            "${HOME}/.claude/skills" "${HOME}/.agents/skills" \
+            "${HOME}/.codex" "${HOME}/.summarize"
+    fi
     update_managed_links
-    deploy_plain_absent_target "$HOME/.claude/settings.json"
+    if [ "$agents" = true ]; then
+        deploy_plain_absent_target "$HOME/.claude/settings.json"
+    fi
 
     # Link bin scripts
     for script in "$DOTFILES_DIR/bin"/*; do
@@ -285,11 +328,8 @@ setup_dotfiles() {
         deploy_symlink_target "$script" "${BIN_DIR}/$(basename "$script")"
     done
 
-    # Sync shared agent config plus tool-specific adapters.
-    if [ -f "$DOTFILES_DIR/sync-agents.sh" ]; then
-        "$DOTFILES_DIR/sync-agents.sh" install || return 1
-    else
-        echo "[WARN] sync-agents.sh not found, skipping agent config sync"
+    if [ "$agents" = true ]; then
+        sync_agent_config || return 1
     fi
 
     echo "[INFO] Using environment variables defined in $ENV_FILE"
@@ -321,65 +361,70 @@ main() {
         set -x
     fi
 
-    ensure_install_dirs
     load_env
+    # Reject an invalid group setting before any machine change.
+    groups_load || return 1
+    ensure_install_dirs
     setup_repo_git
 
     echo "[INFO] Starting dotfiles installation..."
     echo "[INFO] Sudo available: ${HAS_SUDO}"
     echo "[INFO] Install directory: ${INSTALL_DIR}"
+    echo "[INFO] Install groups: ${DOTFILES_SELECTED_GROUPS}"
     RUN_STEP_RESULTS=()
 
     # Install tools. Required steps abort; optional failures are summarized.
-    run_required_step "jq" ensure_jq
+    run_group_step core required "jq" ensure_jq
     if [ "$LAST_RUN_STEP_STATUS" -ne 0 ]; then
         print_step_summary
         return "$LAST_RUN_STEP_STATUS"
     fi
-    run_optional_step "uv" install_uv
+    run_group_step core optional "uv" install_uv
     if [[ ":$PATH:" != *":${HOME}/.cargo/bin:"* ]]; then
         export PATH="${HOME}/.cargo/bin:${PATH}"
     fi
-    run_required_step "zsh" install_zsh
+    run_group_step core required "zsh" install_zsh
     if [ "$LAST_RUN_STEP_STATUS" -ne 0 ]; then
         print_step_summary
         return "$LAST_RUN_STEP_STATUS"
     fi
-    run_optional_step "Oh My Zsh" install_oh_my_zsh
-    run_optional_step "pipx" install_pipx
-    run_optional_step "CLI tools" install_tools
-    run_optional_step "fonts" install_fonts
-    run_required_step "mise and Node.js LTS" install_node
+    run_group_step core optional "Oh My Zsh" install_oh_my_zsh
+    run_group_step core optional "pipx" install_pipx
+    run_group_step core optional "CLI tools" install_tools
+    run_group_step desktop optional "fonts" install_fonts
+    run_group_step agents required "mise and Node.js LTS" install_node
     if [ "$LAST_RUN_STEP_STATUS" -ne 0 ]; then
         print_step_summary
         return "$LAST_RUN_STEP_STATUS"
     fi
-    # Step helpers use subshells, so activate Node in this shell for all CLIs.
-    activate_node || {
-        local status=$?
-        record_step_result "Node activation" "failed"
-        print_step_summary
-        return "$status"
-    }
-    run_optional_step "developer tools" \
-        "$DOTFILES_DIR/scripts/agent-tools.sh" install
-    run_optional_step "terminal colors" install_terminal_colors
+    if group_selected agents; then
+        # Step helpers use subshells, so activate Node in this shell for all CLIs.
+        activate_node || {
+            local status=$?
+            record_step_result "Node activation" "failed"
+            print_step_summary
+            return "$status"
+        }
+    fi
+    run_group_step agents optional "developer tools" install_developer_tools
+    run_group_step desktop optional "terminal colors" install_terminal_colors
     if declare -f install_macos_apps >/dev/null 2>&1; then
-        run_optional_step "macOS apps" install_macos_apps
+        run_group_step desktop optional "macOS apps" install_macos_apps
     fi
 
     # Setup dotfile configurations
-    run_required_step "dotfile links" setup_dotfiles
+    run_group_step core required "dotfile links" setup_dotfiles
     if [ "$LAST_RUN_STEP_STATUS" -ne 0 ]; then
         print_step_summary
         return "$LAST_RUN_STEP_STATUS"
     fi
-    run_optional_step "tmux plugins" install_tmux_plugins
+    run_group_step core optional "tmux plugins" install_tmux_plugins
 
     # Setup pre-commit hooks
     if pre-commit --version >/dev/null 2>&1; then
         echo "[INFO] Installing pre-commit hooks..."
-        run_optional_step "pre-commit hooks" pre-commit install -c "${DOTFILES_DIR}/.pre-commit-config.yaml"
+        run_group_step core optional "pre-commit hooks" \
+            pre-commit install -c "${DOTFILES_DIR}/.pre-commit-config.yaml"
     fi
 
     print_step_summary

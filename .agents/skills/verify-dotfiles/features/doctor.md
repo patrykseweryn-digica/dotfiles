@@ -9,7 +9,8 @@ credentials. Every category reports `PASS`, `SKIP`, `UPDATE`, `EXPORT`, or
 - `baseline` identifies existing drift before changes.
 - `regression` catches new missing links, config and required tools.
 - `diagnostics` bounds output and omits raw config diffs.
-- `skip` reports every constraint without failing doctor or sync.
+- `skip` reports every constraint without failing doctor or sync,
+  including elements of unselected install groups ([groups](groups.md)).
 
 ## How to get to it (user POV)
 

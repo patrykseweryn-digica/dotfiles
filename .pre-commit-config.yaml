@@ -141,6 +141,13 @@ repos:
         entry: ./scripts/smoke-update-local.sh
         language: system
         pass_filenames: false
+      - id: install-groups-smoke
+        name: Install groups smoke test
+        description: >-
+          Verify install, doctor and sync with all, core-only and unknown groups
+        entry: bash scripts/smoke-groups.sh
+        language: system
+        pass_filenames: false
       - id: transactional-export-smoke
         name: Transactional export smoke test
         description: Verify one-plan portable checkout export

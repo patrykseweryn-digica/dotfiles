@@ -65,6 +65,7 @@ developer CLIs. Managed entries follow stable releases without stored version
 numbers. Mise installs and updates every portable core tool through
 `scripts/core-tools.sh`. System-only entries retain package-manager names.
 Entries without a user-local source declare `requires: "sudo"`.
+Every entry declares its install group (see [Install groups](#install-groups)).
 The generated `~/.config/mise/conf.d/10-core-tools.toml` keeps core tools
 independent from system package versions. Developer entries use
 `channel: "latest"`; update resolves current releases without rewriting the
@@ -92,7 +93,8 @@ To add an npm CLI, add one entry to the manifest:
   "command": "example",
   "package": "example-cli",
   "installer": "npm",
-  "channel": "latest"
+  "channel": "latest",
+  "group": "agents"
 }
 ```
 
@@ -144,6 +146,35 @@ Run `./install.sh` when `just` is not installed yet.
 just install  # converge missing tools and local config
 just sync     # pull and apply safe local and upstream changes
 ```
+
+### Install groups
+
+Each machine selects install groups in its local `.env`. `install` and `sync`
+install and update only elements of the selected groups.
+
+| Group | Contents |
+|---|---|
+| `core` | zsh, Oh My Zsh, CLI tools, Git, SSH, managed links, Bitwarden CLI |
+| `agents` | Node, agent CLIs and settings, MCP, skills, plugins, AXI |
+| `desktop` | fonts, Ghostty and VS Code config, terminal colors, macOS apps |
+
+Set the groups as a comma-separated list. `core` is required:
+
+```bash
+DOTFILES_GROUPS=core            # for example, a Raspberry Pi
+DOTFILES_GROUPS=core,agents     # a server with agents, without desktop
+```
+
+No setting, or an empty value, selects all groups, so existing machines keep
+their full setup. An unknown group or a list without `core` stops `install`,
+`sync` and `doctor` before any change and names the valid groups.
+
+Each element declares its group: tools in `.agents/tool-versions.json`, links
+in `config/managed-links.tsv`, and install steps and sync phases in their
+scripts. The plan reports an element of an unselected group as
+`SKIP ... skipped: group <name> is not selected`. `sync` and `doctor` pass when
+only `SKIP` rows remain. Switching off a group does not remove its installed
+elements.
 
 `just sync` prints the plan, applies settings, MCP, managed links, and the
 Herdr hook, then refreshes inventory tools, Node, skills, and plugins.

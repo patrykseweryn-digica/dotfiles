@@ -11,6 +11,8 @@ developer releases without editing that inventory.
 - `install` provisions portable core tools through mise.
 - `update` resolves current stable releases without stored version numbers.
 - `system` reports `SKIP` with a reason when sudo is unavailable.
+- `groups` installs and plans only tools of selected install groups;
+  Bitwarden CLI is a native core tool ([groups](groups.md)).
 - `failure` retains previous Node and stops when downloads fail.
 
 ## How to get to it (user POV)
@@ -33,7 +35,8 @@ Preconditions: working host Node/npm; no live update needed for verification.
   update is skipped with an instruction and other updates continue.
 - **Core install plan.** Run `bash scripts/smoke-tool-plan.sh`. It exercises
   the public core-tools interface. The test covers macOS arm64, Linux x86_64,
-  Linux arm64, install, update, generated config, and system-tool separation.
+  Linux arm64, install, update, generated config, system-tool separation,
+  required tool groups, and group skips.
 - **Node upgrade.** Run `bash scripts/smoke-node.sh`. It drives bootstrap
   with an isolated mise provider, changes the resolved LTS version, reads the
   selected Node, and verifies the previous runtime survives download/install

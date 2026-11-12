@@ -27,6 +27,8 @@ actual_brew=$(sed -n 's/^brew "\([^"]*\)"$/\1/p' "$DOTFILES_DIR/Brewfile")
 
 tmp_dir="$(mktemp -d)"
 trap 'rm -rf "$tmp_dir"' EXIT
+# The machine group setting must not change fixture results.
+export DOTFILES_ENV_FILE="${tmp_dir}/no-group-setting.env"
 home_dir="$tmp_dir/home"
 mkdir -p "$home_dir/.local/bin"
 mise_log="$tmp_dir/mise.log"
@@ -174,6 +176,42 @@ if TOOL_INVENTORY="$invalid" CORE_TOOLS_OS=Darwin CORE_TOOLS_ARCH=arm64 \
     "$CORE_TOOLS" plan >/dev/null 2>&1; then
     fail "core inventory accepted a custom GitHub source"
 fi
+
+missing_group="$tmp_dir/missing-group.json"
+jq 'del(.tools[0].group)' "$INVENTORY" >"$missing_group"
+if TOOL_INVENTORY="$missing_group" CORE_TOOLS_OS=Darwin CORE_TOOLS_ARCH=arm64 \
+    "$CORE_TOOLS" plan >/dev/null 2>&1; then
+    fail "core inventory accepted a tool without a group"
+fi
+
+# A core-scope tool of an unselected group is skipped by name and group.
+grouped="$tmp_dir/grouped.json"
+jq '.tools += [{"commands": ["demo-viewer"], "group": "desktop",
+    "name": "demo-viewer", "scope": "core", "versionPolicy": "latest"}]' \
+    "$INVENTORY" >"$grouped"
+printf 'DOTFILES_GROUPS=core\n' >"$tmp_dir/core.env"
+DOTFILES_ENV_FILE="$tmp_dir/core.env" TOOL_INVENTORY="$grouped" \
+    CORE_TOOLS_OS=Linux CORE_TOOLS_ARCH=arm64 CORE_TOOLS_HAS_SUDO=false \
+    "$CORE_TOOLS" plan >"$tmp_dir/grouped-plan"
+grep -Fx $'SKIP\ttools\tnone\tdemo-viewer skipped: group desktop is not selected' \
+    "$tmp_dir/grouped-plan" >/dev/null ||
+    fail "core-only plan did not skip a desktop tool by group"
+grep -F $'bitwarden is available through mise' "$tmp_dir/grouped-plan" \
+    >/dev/null || fail "core-only plan omitted Bitwarden CLI"
+: >"$mise_log"
+DOTFILES_ENV_FILE="$tmp_dir/core.env" TOOL_INVENTORY="$grouped" \
+    CORE_TOOLS_OS=Linux CORE_TOOLS_ARCH=arm64 CORE_TOOLS_HAS_SUDO=false \
+    MISE_CORE_TOOLS_FILE="$tmp_dir/grouped.toml" \
+    "$CORE_TOOLS" install >/dev/null
+if grep -F demo-viewer "$mise_log" "$tmp_dir/grouped.toml"; then
+    fail "core-only install provisioned a desktop tool"
+fi
+grep -Fx '"aqua:bitwarden/clients" = "latest"' "$tmp_dir/grouped.toml" \
+    >/dev/null || fail "core-only install omitted native Bitwarden CLI"
+DOTFILES_ENV_FILE="$tmp_dir/no-group-setting.env" TOOL_INVENTORY="$grouped" \
+    CORE_TOOLS_OS=Linux CORE_TOOLS_ARCH=arm64 CORE_TOOLS_HAS_SUDO=false \
+    "$CORE_TOOLS" plan | grep -F 'demo-viewer is available through mise' \
+    >/dev/null || fail "plan without a group setting skipped a desktop tool"
 
 if CORE_TOOLS_OS=Plan9 CORE_TOOLS_ARCH=arm64 \
     "$CORE_TOOLS" plan >/dev/null 2>&1; then

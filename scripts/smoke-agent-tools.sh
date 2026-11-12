@@ -22,6 +22,8 @@ jq -e 'all(.tools[] | select((.scope // "agent") == "agent");
 
 tmp_dir="$(mktemp -d)"
 trap 'rm -rf "$tmp_dir"' EXIT
+# The machine group setting must not change fixture results.
+export DOTFILES_ENV_FILE="${tmp_dir}/no-group-setting.env"
 
 manifest="${tmp_dir}/tool-versions.json"
 stub_dir="${tmp_dir}/stubs"
@@ -104,6 +106,7 @@ cat >"$manifest" <<'JSON'
       "command": "pi",
       "package": "@example/pi",
       "channel": "latest",
+      "group": "agents",
       "installer": "npm"
     },
     {
@@ -111,6 +114,7 @@ cat >"$manifest" <<'JSON'
       "command": "codex",
       "package": "@example/codex",
       "channel": "latest",
+      "group": "agents",
       "installer": "npm"
     },
     {
@@ -118,6 +122,7 @@ cat >"$manifest" <<'JSON'
       "command": "claude",
       "package": "@example/claude",
       "channel": "latest",
+      "group": "agents",
       "installer": "claude-native",
       "update": ["claude", "install", "latest"]
     },
@@ -127,6 +132,7 @@ cat >"$manifest" <<'JSON'
       "package": "opencode-ai",
       "allow_builds": ["opencode-ai"],
       "channel": "latest",
+      "group": "agents",
       "installer": "npm"
     },
     {
@@ -134,6 +140,7 @@ cat >"$manifest" <<'JSON'
       "command": "skills",
       "package": "skills",
       "channel": "latest",
+      "group": "agents",
       "installer": "npm"
     }
   ]
@@ -321,14 +328,16 @@ mv "$HOME/.local/bin/mise.saved" "$HOME/.local/bin/mise"
 
 # Every npm CLI remains runnable after switching between two LTS runtimes.
 npm_manifest="${tmp_dir}/all-npm-tools.json"
-jq '{tools: [.tools[] | select(.installer == "npm")]}' \
+jq '{tools: [.tools[] | select(.installer == "npm")]} |
+  .tools[0].trust_policy_excludes = [.tools[0].package + "@1.2.3"]' \
   "$DOTFILES_DIR/.agents/tool-versions.json" >"$npm_manifest"
+trust_exclude="$(jq -r '.tools[0].trust_policy_excludes[0]' "$npm_manifest")"
 previous_manifest="$AGENT_TOOL_VERSIONS"
 export AGENT_TOOL_VERSIONS="$npm_manifest"
 "$AGENT_TOOLS" install
-grep -F 'trust_policy_excludes = ["@bitwarden/cli@2026.10.1"]' \
+grep -F "trust_policy_excludes = [\"${trust_exclude}\"]" \
   "$HOME/.config/mise/conf.d/20-agent-tools.toml" >/dev/null ||
-  fail "Bitwarden trust exception was not exact"
+  fail "npm trust exception was not exact"
 switched_node="$HOME/.local/share/mise/installs/node/24.11.1/bin/node"
 mkdir -p "$(dirname "$switched_node")"
 printf '#!/bin/sh\necho v24.11.1\n' >"$switched_node"
@@ -350,11 +359,11 @@ export AGENT_TOOL_VERSIONS="$previous_manifest"
 # Native declarations dispatch through the existing installers.
 cat >"$manifest" <<'JSON'
 {"tools":[
- {"name":"Herdr","command":"herdr","installer":"herdr-native","channel":"latest","update":["herdr","update"]},
- {"name":"Treehouse","command":"treehouse","installer":"treehouse-native","channel":"latest"},
- {"name":"no-mistakes","command":"no-mistakes","installer":"no-mistakes-native","channel":"latest","update":["no-mistakes","update"]},
- {"name":"Cursor CLI","command":"agent","installer":"cursor-native","channel":"latest","update":["agent","update"]},
- {"name":"Grok Build","command":"grok","installer":"grok-native","channel":"latest","update":["grok","update"]}
+ {"name":"Herdr","command":"herdr","installer":"herdr-native","channel":"latest","group":"agents","update":["herdr","update"]},
+ {"name":"Treehouse","command":"treehouse","installer":"treehouse-native","channel":"latest","group":"agents"},
+ {"name":"no-mistakes","command":"no-mistakes","installer":"no-mistakes-native","channel":"latest","group":"agents","update":["no-mistakes","update"]},
+ {"name":"Cursor CLI","command":"agent","installer":"cursor-native","channel":"latest","group":"agents","update":["agent","update"]},
+ {"name":"Grok Build","command":"grok","installer":"grok-native","channel":"latest","group":"agents","update":["grok","update"]}
 ]}
 JSON
 cat >"$stub_dir/curl" <<'STUB'
@@ -478,7 +487,8 @@ fi
 export PATH="$HOME/.local/share/mise/npm-tools/bin:${stub_dir}:${REAL_NODE_BIN}:/usr/bin:/bin"
 cat >"$manifest" <<'JSON'
 {"tools":[{"name":"Fixture","command":"dotfiles-fixture",
- "package":"dotfiles-fixture","installer":"npm","channel":"latest"
+ "package":"dotfiles-fixture","installer":"npm","channel":"latest",
+ "group":"agents","group":"agents"
  }]}
 JSON
 if "$AGENT_TOOLS" check >"${tmp_dir}/missing.log"; then

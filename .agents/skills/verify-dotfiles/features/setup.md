@@ -12,6 +12,7 @@ Install or apply dotfiles while preserving runtime credentials and sessions.
 - `export` prepares settings, MCP, skills, plugins, and recognized tools in one
   transaction.
 - `portable-shell` starts Zsh on simulated macOS/Linux layouts.
+- `groups` limits install and sync to selected groups ([groups](groups.md)).
 
 ## How to get to it (user POV)
 

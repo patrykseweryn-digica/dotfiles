@@ -47,6 +47,8 @@ AGENT_TOOLS="${AGENT_TOOLS:-${DOTFILES_DIR}/scripts/agent-tools.sh}"
 TOOL_INVENTORY="${TOOL_INVENTORY:-${DOTFILES_DIR}/.agents/tool-versions.json}"
 # shellcheck source=scripts/operation.sh
 source "${DOTFILES_DIR}/scripts/operation.sh"
+# shellcheck source=scripts/groups.sh
+source "${DOTFILES_DIR}/scripts/groups.sh"
 
 QUIET=false
 STAGED_SKILLS_ROOT=""
@@ -4079,6 +4081,25 @@ cmd_plugins_plan() {
 }
 
 cmd_state_plan() {
+    local category label
+
+    # Every category here belongs to the agents group.
+    groups_load || return 1
+    if ! group_selected agents; then
+        while IFS='|' read -r category label; do
+            emit_state_plan SKIP "$category" none \
+                "$label skipped: $(group_skip_reason agents)"
+        done <<'ROWS'
+settings:codex|Codex settings
+settings:claude|Claude settings
+settings:opencode|OpenCode settings
+settings:pi|Pi settings
+mcp|MCP
+skills|Skills
+plugins|Plugins
+ROWS
+        return 0
+    fi
     plan_check settings:codex "Codex settings" cmd_codex_check
     plan_check settings:claude "Claude settings" cmd_claude_settings_check
     plan_check settings:opencode "OpenCode settings" cmd_opencode_check

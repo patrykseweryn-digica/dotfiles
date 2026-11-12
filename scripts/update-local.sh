@@ -13,6 +13,8 @@ CORE_TOOLS="${CORE_TOOLS:-${DOTFILES_DIR}/scripts/core-tools.sh}"
 source "$INSTALL_SCRIPT"
 # shellcheck source=scripts/operation.sh
 source "${default_dotfiles_dir}/scripts/operation.sh"
+# shellcheck source=scripts/groups.sh
+source "${default_dotfiles_dir}/scripts/groups.sh"
 
 plan_file="$(mktemp)" || exit 1
 final_file="$(mktemp)" || {
@@ -95,11 +97,35 @@ refresh_phase() {
     return 1
 }
 
+# A phase of an unselected group does not run.
+skip_phase() {
+    echo "[SKIP] $2: $(group_skip_reason "$1")"
+    skipped=$((skipped + 1))
+}
+
+# Refresh a phase only when its group is selected.
+group_phase() {
+    local group="$1" label="$2"
+    shift 2
+
+    if group_selected "$group"; then
+        refresh_phase "$label" "$@"
+    else
+        skip_phase "$group" "$label"
+    fi
+}
+
 # A dependent phase does not run after its prerequisite failed.
 not_run_phase() {
     echo "[NOT RUN] $1: $2"
     not_run=$((not_run + 1))
 }
+
+# Reject an invalid group setting before any machine change.
+if ! groups_load; then
+    echo "[RESULT] FAIL"
+    exit 1
+fi
 
 if ! "$STATE_PLAN" all >"$plan_file"; then
     echo "[ERROR] Could not build local update plan" >&2
@@ -168,39 +194,46 @@ while IFS=$'\t' read -r status category action message; do
     esac
 done <"$plan_file"
 
-refresh_phase "core tools" env CORE_TOOLS_HAS_SUDO="${HAS_SUDO:-false}" \
+group_phase core "core tools" env CORE_TOOLS_HAS_SUDO="${HAS_SUDO:-false}" \
     "$CORE_TOOLS" update
-refresh_phase "Node and agent tools" "$AGENT_TOOLS" update
-# The refresh activates Node only in its own process. Later phases and the
-# final check must use the same runtime and its global CLIs.
-node_ready=true
-if ! activate_node >/dev/null; then
-    echo "[ERROR] Could not activate the installed Node LTS" >&2
-    node_ready=false
-    failed=$((failed + 1))
-    failed_phases+=("Node activation")
-    operation_record_failure Node activate "Node could not be activated" 1 \
-        "Run: just install"
-fi
+if group_selected agents; then
+    refresh_phase "Node and agent tools" "$AGENT_TOOLS" update
+    # The refresh activates Node only in its own process. Later phases and
+    # the final check must use the same runtime and its global CLIs.
+    node_ready=true
+    if ! activate_node >/dev/null; then
+        echo "[ERROR] Could not activate the installed Node LTS" >&2
+        node_ready=false
+        failed=$((failed + 1))
+        failed_phases+=("Node activation")
+        operation_record_failure Node activate "Node could not be activated" 1 \
+            "Run: just install"
+    fi
 
-if [ "$node_ready" = true ]; then
-    refresh_phase "Pi packages" "$SYNC_AGENTS" pi-packages-update
-    refresh_phase "skills" "$SYNC_AGENTS" skills-update
-else
-    not_run_phase "Pi packages" "requires Node, which could not be activated"
-    not_run_phase "skills" "requires Node, which could not be activated"
-fi
+    if [ "$node_ready" = true ]; then
+        refresh_phase "Pi packages" "$SYNC_AGENTS" pi-packages-update
+        refresh_phase "skills" "$SYNC_AGENTS" skills-update
+    else
+        not_run_phase "Pi packages" "requires Node, which could not be activated"
+        not_run_phase "skills" "requires Node, which could not be activated"
+    fi
 
-membership_ok=true
-plugins_status="$(plan_status plugins)"
-if [ "$plugins_status" = UPDATE ] || [ "$plugins_status" = FAIL ]; then
-    refresh_phase "plugin membership" "$SYNC_AGENTS" push-plugins ||
-        membership_ok=false
-fi
-if [ "$membership_ok" = true ]; then
-    refresh_phase "plugin versions" "$SYNC_AGENTS" plugins-update
+    membership_ok=true
+    plugins_status="$(plan_status plugins)"
+    if [ "$plugins_status" = UPDATE ] || [ "$plugins_status" = FAIL ]; then
+        refresh_phase "plugin membership" "$SYNC_AGENTS" push-plugins ||
+            membership_ok=false
+    fi
+    if [ "$membership_ok" = true ]; then
+        refresh_phase "plugin versions" "$SYNC_AGENTS" plugins-update
+    else
+        not_run_phase "plugin versions" "requires plugin membership, which failed"
+    fi
 else
-    not_run_phase "plugin versions" "requires plugin membership, which failed"
+    for phase in "Node and agent tools" "Pi packages" skills \
+        "plugin versions"; do
+        skip_phase agents "$phase"
+    done
 fi
 
 remaining=0

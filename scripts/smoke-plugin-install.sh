@@ -3,6 +3,8 @@ set -eu
 repo="$(cd "$(dirname "$0")/.." && pwd)"
 task_dir="$(mktemp -d)"
 trap 'rm -rf "$task_dir"' EXIT
+# The machine group setting must not change fixture results.
+export DOTFILES_ENV_FILE="${task_dir}/no-group-setting.env"
 just_bin="$(command -v just)"
 uv_bin="$(command -v uv)"
 mkdir -p "$task_dir/fixture/scripts" "$task_dir/stubs"

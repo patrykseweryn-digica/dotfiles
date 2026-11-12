@@ -9,6 +9,12 @@ export MISE_TRUSTED_CONFIG_PATHS="${HOME}/.config/mise/conf.d\
 ${MISE_TRUSTED_CONFIG_PATHS:+:${MISE_TRUSTED_CONFIG_PATHS}}"
 # shellcheck source=scripts/operation.sh
 source "${DOTFILES_DIR}/scripts/operation.sh"
+# shellcheck source=scripts/groups.sh
+source "${DOTFILES_DIR}/scripts/groups.sh"
+
+# Select tools whose group this machine installs.
+selected_tools_filter='
+    .group as $group | $groups | split(" ") | index($group) != null'
 
 jq_run() {
     if [ -x "${JQ_BIN:-}" ]; then
@@ -58,6 +64,9 @@ validate_inventory() {
             ($platform | startswith("darwin-")) and
             (($tool.packages.brew // "") | nonempty);
         (.tools | type == "array" and length > 0) and
+        all(.tools[];
+            .group == "core" or .group == "agents" or
+            .group == "desktop") and
         all(.tools[] | select(.scope == "core");
             (.name | command_name) and
             (.commands | type == "array" and length > 0 and
@@ -95,10 +104,12 @@ validate_inventory() {
 
 system_tool_rows() {
     local platform="$1"
-    jq_run -r --arg platform "$platform" '
+    jq_run -r --arg platform "$platform" \
+        --arg groups "$DOTFILES_SELECTED_GROUPS" '
         .tools[] | select(.scope == "system") |
         select(((.platforms // ["darwin-arm64", "darwin-x86_64",
             "linux-arm64", "linux-x86_64"]) | index($platform)) != null) |
+        select('"$selected_tools_filter"') |
         [.name, (.commands | join(" ")), (.packages.apt // "-"),
          (.packages.dnf // "-"), (.packages.pacman // "-"),
          (.packages.brew // "-"), (.requires // "-")] | @tsv
@@ -107,11 +118,13 @@ system_tool_rows() {
 
 mise_tool_rows() {
     local platform="$1"
-    jq_run -r --arg platform "$platform" '
+    jq_run -r --arg platform "$platform" \
+        --arg groups "$DOTFILES_SELECTED_GROUPS" '
         .tools[] | select(.scope == "core" and
             .versionPolicy == "latest") |
         select(((.platforms // ["darwin-arm64", "darwin-x86_64",
             "linux-arm64", "linux-x86_64"]) | index($platform)) != null) |
+        select('"$selected_tools_filter"') |
         [.name, (.mise // .name), .commands[0]] | @tsv
     ' "$TOOL_INVENTORY"
 }
@@ -120,12 +133,14 @@ write_mise_config() {
     local platform="$1" candidate
     mkdir -p "$(dirname "$MISE_CORE_TOOLS_FILE")"
     candidate=$(mktemp "${MISE_CORE_TOOLS_FILE}.XXXXXX") || return 1
-    jq_run -r --arg platform "$platform" '
+    jq_run -r --arg platform "$platform" \
+        --arg groups "$DOTFILES_SELECTED_GROUPS" '
         (["[tools]"] + [
             .tools[] | select(.scope == "core" and
                 .versionPolicy == "latest") |
             select(((.platforms // ["darwin-arm64", "darwin-x86_64",
                 "linux-arm64", "linux-x86_64"]) | index($platform)) != null) |
+            select('"$selected_tools_filter"') |
             (((.mise // .name) | @json) + " = \"latest\"")
         ])[]
     ' "$TOOL_INVENTORY" >"$candidate" || {
@@ -247,9 +262,27 @@ run_system_tools() {
     [ "$failed" = false ]
 }
 
+# Print name and group for core and system tools of unselected groups.
+skipped_tool_rows() {
+    local platform="$1"
+    jq_run -r --arg platform "$platform" \
+        --arg groups "$DOTFILES_SELECTED_GROUPS" '
+        .tools[] | select(.scope == "core" or .scope == "system") |
+        select(((.platforms // ["darwin-arm64", "darwin-x86_64",
+            "linux-arm64", "linux-x86_64"]) | index($platform)) != null) |
+        select(('"$selected_tools_filter"') | not) |
+        [.name, .group] | @tsv
+    ' "$TOOL_INVENTORY"
+}
+
 show_plan() {
-    local platform="$1" name source command_name status
+    local platform="$1" name source command_name status group
     local commands apt dnf pacman brew requires
+    while IFS=$'\t' read -r name group; do
+        [ -n "$name" ] || continue
+        printf 'SKIP\ttools\tnone\t%s skipped: %s\n' \
+            "$name" "$(group_skip_reason "$group")"
+    done < <(skipped_tool_rows "$platform")
     while IFS=$'\t' read -r name source command_name; do
         status=INSTALL
         if env -u MISE_NODE_VERSION "$MISE_BIN" --cd "$HOME" \
@@ -309,6 +342,8 @@ main() {
         return 1
         ;;
     esac
+    # Reject an invalid group setting before installing mise.
+    groups_load || return 1
     if [ ! -x "$MISE_BIN" ]; then
         # A machine provisioned before mise must still plan and converge.
         case "$action" in

@@ -14,6 +14,14 @@ mkdir -p "$(dirname "$DOTFILES_OPERATION_LOG")" &&
     : >"$DOTFILES_OPERATION_LOG" ||
     echo "[WARN] Could not reset operation log: $DOTFILES_OPERATION_LOG" >&2
 
+# Reject an invalid group setting before fetching or changing the machine.
+# shellcheck source=scripts/groups.sh
+source "${default_dotfiles_dir}/scripts/groups.sh"
+if ! groups_load; then
+    echo "[RESULT] FAIL"
+    exit 1
+fi
+
 if ! worktree_state="$(git -C "$DOTFILES_DIR" status --porcelain)"; then
     echo "[ERROR] Could not inspect the dotfiles checkout" >&2
     echo "[RESULT] FAIL"

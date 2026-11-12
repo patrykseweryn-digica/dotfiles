@@ -67,9 +67,11 @@ bash scripts/smoke-install-dotfiles.sh
 bash scripts/smoke-plugin-install.sh
 bash scripts/smoke-update-local.sh
 bash scripts/smoke-export.sh
+bash scripts/smoke-groups.sh
 ```
 
-These tests invoke `just install`, `just sync`, and `just export` with
+These tests invoke `just install`, `just sync`, `just doctor`, and
+`just export` with
 disposable HOME directories and checkouts. Never substitute a live update or
 export for this proof.
 
