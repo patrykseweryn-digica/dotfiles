@@ -1,43 +1,43 @@
 {
   "agentPushNotifEnabled": true,
-  "autoCompactEnabled": false,
+  "autoCompactEnabled": true,
   "autoUpdatesChannel": "latest",
   "defaultMode": "acceptEdits",
+  "editorMode": "normal",
   "env": {
     "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
   },
-  "editorMode": "normal",
   "hooks": {
     "SessionStart": [
       {
-        "matcher": "*",
         "hooks": [
           {
-            "type": "command",
             "command": "bash \"$HOME/.claude/hooks/herdr-agent-state.sh\" session",
-            "timeout": 10
+            "timeout": 10,
+            "type": "command"
           }
-        ]
+        ],
+        "matcher": "*"
       },
       {
-        "matcher": "",
         "hooks": [
           {
-            "type": "command",
             "command": "gh-axi",
-            "timeout": 10
+            "timeout": 10,
+            "type": "command"
           }
-        ]
+        ],
+        "matcher": ""
       },
       {
-        "matcher": "",
         "hooks": [
           {
-            "type": "command",
             "command": "chrome-devtools-axi",
-            "timeout": 10
+            "timeout": 10,
+            "type": "command"
           }
-        ]
+        ],
+        "matcher": ""
       }
     ]
   },
@@ -45,7 +45,7 @@
   "model": "opus",
   "modelSettings": {
     "claude-opus-5-5": {
-      "effortLevel": "xhigh"
+      "effortLevel": "high"
     }
   },
   "permissions": {

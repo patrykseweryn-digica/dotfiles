@@ -1,6 +1,6 @@
-model = "gpt-5.6-sol"
+model = "gpt-6.1-sol"
 model_verbosity = "low"
-model_reasoning_effort = "xhigh"
+model_reasoning_effort = "high"
 approvals_reviewer = "guardian_subagent"
 service_tier = "default"
 plan_mode_reasoning_effort = "high"
@@ -10,14 +10,7 @@ personality = "pragmatic"
 writable_roots = ["~/.cache/uv"]
 
 [tui]
-status_line = [
-    "model-with-reasoning",
-    "current-dir",
-    "model",
-    "project-name",
-    "git-branch",
-    "pull-request-number",
-]
+status_line = ["model-with-reasoning", "current-dir", "model", "project-name", "git-branch", "pull-request-number"]
 status_line_use_colors = true
 
 [features]
@@ -35,4 +28,3 @@ CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS = "1"
 external-agent-import-sync-enabled = false
 conversationDetailMode = "STEPS_COMMANDS"
 ambient-suggestions-enabled = true
-followUpQueueMode = "queue"

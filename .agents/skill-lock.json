@@ -79,11 +79,18 @@
       "sourceUrl": "https://github.com/mattpocock/skills.git"
     },
     "control-cli": {
+      "ref": "main",
       "skillPath": "cursor-team-kit/skills/control-cli/SKILL.md",
       "source": "cursor/plugins",
       "sourceType": "github",
-      "sourceUrl": "https://github.com/cursor/plugins.git",
-      "ref": "main"
+      "sourceUrl": "https://github.com/cursor/plugins.git"
+    },
+    "correct": {
+      "ref": "main",
+      "skillPath": "harness/pstack/claude-code/skills/correct/SKILL.md",
+      "source": "cursor/plugins",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/cursor/plugins.git"
     },
     "create-cli": {
       "skillPath": "skills/create-cli/SKILL.md",
@@ -92,18 +99,18 @@
       "sourceUrl": "https://github.com/steipete/agent-scripts.git"
     },
     "create-formal-verification-skill": {
+      "ref": "main",
       "skillPath": "harness/pstack/claude-code/skills/create-formal-verification-skill/SKILL.md",
       "source": "cursor/plugins",
       "sourceType": "github",
-      "sourceUrl": "https://github.com/cursor/plugins.git",
-      "ref": "main"
+      "sourceUrl": "https://github.com/cursor/plugins.git"
     },
     "create-verification-skill": {
+      "ref": "main",
       "skillPath": "harness/pstack/claude-code/skills/create-verification-skill/SKILL.md",
       "source": "cursor/plugins",
       "sourceType": "github",
-      "sourceUrl": "https://github.com/cursor/plugins.git",
-      "ref": "main"
+      "sourceUrl": "https://github.com/cursor/plugins.git"
     },
     "crossing-the-chasm": {
       "skillPath": "skills/crossing-the-chasm/SKILL.md",
@@ -228,6 +235,12 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/mattpocock/skills.git"
     },
+    "headless": {
+      "skillPath": "skills/headless/SKILL.md",
+      "source": "kunchenguid/headless",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/kunchenguid/headless.git"
+    },
     "i-have-adhd": {
       "skillPath": "skills/i-have-adhd/SKILL.md",
       "source": "ayghri/i-have-adhd",
@@ -251,6 +264,13 @@
       "source": "mattpocock/skills",
       "sourceType": "github",
       "sourceUrl": "https://github.com/mattpocock/skills.git"
+    },
+    "in-your-own-words": {
+      "ref": "main",
+      "skillPath": "harness/pstack/claude-code/skills/in-your-own-words/SKILL.md",
+      "source": "cursor/plugins",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/cursor/plugins.git"
     },
     "influence": {
       "skillPath": "skills/influence/SKILL.md",
@@ -289,18 +309,18 @@
       "sourceUrl": "https://github.com/getagentseal/founder-playbook.git"
     },
     "maintain-formal-verification-skill": {
+      "ref": "main",
       "skillPath": "harness/pstack/claude-code/skills/maintain-formal-verification-skill/SKILL.md",
       "source": "cursor/plugins",
       "sourceType": "github",
-      "sourceUrl": "https://github.com/cursor/plugins.git",
-      "ref": "main"
+      "sourceUrl": "https://github.com/cursor/plugins.git"
     },
     "maintain-verification-skill": {
+      "ref": "main",
       "skillPath": "harness/pstack/claude-code/skills/maintain-verification-skill/SKILL.md",
       "source": "cursor/plugins",
       "sourceType": "github",
-      "sourceUrl": "https://github.com/cursor/plugins.git",
-      "ref": "main"
+      "sourceUrl": "https://github.com/cursor/plugins.git"
     },
     "mlflow-docs": {
       "skillPath": "mlflow-docs/SKILL.md",
@@ -362,6 +382,13 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/getagentseal/founder-playbook.git"
     },
+    "no-comments": {
+      "ref": "main",
+      "skillPath": "harness/pstack/claude-code/skills/no-comments/SKILL.md",
+      "source": "cursor/plugins",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/cursor/plugins.git"
+    },
     "obviously-awesome": {
       "skillPath": "skills/obviously-awesome/SKILL.md",
       "source": "getagentseal/founder-playbook",
@@ -374,14 +401,21 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/emilkowalski/skills.git"
     },
+    "poteto-help": {
+      "ref": "main",
+      "skillPath": "harness/pstack/claude-code/skills/poteto-help/SKILL.md",
+      "source": "cursor/plugins",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/cursor/plugins.git"
+    },
     "poteto-mode": {
       "installName": "poteto-mode",
+      "ref": "main",
       "runtimeName": "Poteto Mode",
       "skillPath": "harness/pstack/claude-code/skills/poteto-mode/SKILL.md",
       "source": "cursor/plugins",
       "sourceType": "github",
-      "sourceUrl": "https://github.com/cursor/plugins.git",
-      "ref": "main"
+      "sourceUrl": "https://github.com/cursor/plugins.git"
     },
     "principle-attack-the-premise": {
       "ref": "main",
@@ -564,11 +598,11 @@
       "sourceUrl": "https://github.com/mattpocock/skills.git"
     },
     "review-and-ship": {
+      "ref": "main",
       "skillPath": "cursor-team-kit/skills/review-and-ship/SKILL.md",
       "source": "cursor/plugins",
       "sourceType": "github",
-      "sourceUrl": "https://github.com/cursor/plugins.git",
-      "ref": "main"
+      "sourceUrl": "https://github.com/cursor/plugins.git"
     },
     "session-viewer": {
       "skillPath": "skills/session-viewer/SKILL.md",
@@ -613,6 +647,13 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/steipete/agent-scripts.git"
     },
+    "statechart": {
+      "ref": "main",
+      "skillPath": "harness/pstack/claude-code/skills/statechart/SKILL.md",
+      "source": "cursor/plugins",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/cursor/plugins.git"
+    },
     "storybrand": {
       "skillPath": "skills/storybrand/SKILL.md",
       "source": "getagentseal/founder-playbook",
@@ -620,11 +661,11 @@
       "sourceUrl": "https://github.com/getagentseal/founder-playbook.git"
     },
     "swarm": {
+      "ref": "main",
       "skillPath": "harness/pstack/claude-code/skills/swarm/SKILL.md",
       "source": "cursor/plugins",
       "sourceType": "github",
-      "sourceUrl": "https://github.com/cursor/plugins.git",
-      "ref": "main"
+      "sourceUrl": "https://github.com/cursor/plugins.git"
     },
     "tdd": {
       "skillPath": "skills/engineering/tdd/SKILL.md",

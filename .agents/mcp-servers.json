@@ -26,6 +26,15 @@
     "command": "uvx",
     "type": "stdio"
   },
+  "garmin-givemydata": {
+    "args": [
+      "--from",
+      "garmin-givemydata",
+      "garmin-mcp"
+    ],
+    "command": "uvx",
+    "type": "stdio"
+  },
   "logfire": {
     "type": "http",
     "url": "https://logfire-us.pydantic.dev/mcp"
