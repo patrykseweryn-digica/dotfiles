@@ -412,6 +412,14 @@
     },
     {
       "channel": "latest",
+      "command": "typescript-language-server",
+      "group": "agents",
+      "installer": "npm",
+      "name": "TypeScript language server",
+      "package": "typescript-language-server"
+    },
+    {
+      "channel": "latest",
       "command": "herdr",
       "group": "agents",
       "installer": "herdr-native",
