@@ -2,7 +2,8 @@
 # Install groups select which inventory elements a machine installs.
 # The local environment file sets DOTFILES_GROUPS, for example:
 #   DOTFILES_GROUPS=core,agents
-# No setting selects every group. Core is always required.
+# No setting selects core only. Core is always required.
+# Run as a script to show or change the setting: see groups_main.
 
 DOTFILES_GROUP_NAMES="core agents desktop"
 DOTFILES_SELECTED_GROUPS=""
@@ -46,7 +47,7 @@ groups_load() {
     }
     read -r -a words <<<"${raw//,/ }"
     if [ "${#words[@]}" -eq 0 ]; then
-        DOTFILES_SELECTED_GROUPS="$DOTFILES_GROUP_NAMES"
+        DOTFILES_SELECTED_GROUPS=core
         return 0
     fi
     for group in "${words[@]}"; do
@@ -95,3 +96,112 @@ group_skip_row() {
     printf 'SKIP\t%s\tnone\t%s skipped: %s\n' \
         "$category" "$element" "$(group_skip_reason "$group")"
 }
+
+# Print the selected groups and the other groups.
+groups_show() {
+    local group others=""
+    groups_load || return 1
+    for group in $DOTFILES_GROUP_NAMES; do
+        group_selected "$group" || others="${others:+$others, }$group"
+    done
+    echo "[INFO] Install groups: ${DOTFILES_SELECTED_GROUPS// /, }"
+    [ -z "$others" ] ||
+        echo "[INFO] Not selected: ${others}. Add one with: just enable <group>"
+}
+
+# Write DOTFILES_GROUPS=<groups> into the env file. The first setting line
+# keeps its position, other setting lines go, and other lines stay. With no
+# setting line, the setting goes at the end.
+groups_write() {
+    local value="${1// /,}" env_file tmp
+    env_file="$(groups_env_file)"
+    tmp="$(mktemp "${env_file}.XXXXXX")" || return 1
+    if ! awk -v line="DOTFILES_GROUPS=${value}" '
+        /^[[:space:]]*(export[[:space:]]+)?DOTFILES_GROUPS=/ {
+            if (!written) print line
+            written = 1
+            next
+        }
+        { print }
+        END { if (!written) print line }
+    ' "$env_file" >"$tmp"; then
+        rm -f "$tmp"
+        return 1
+    fi
+    # Copy into the file so its mode and any symlink stay unchanged.
+    cat "$tmp" >"$env_file" || {
+        rm -f "$tmp"
+        return 1
+    }
+    rm -f "$tmp"
+    DOTFILES_SELECTED_GROUPS=""
+    groups_load
+}
+
+# Add or remove one group in the env file.
+groups_change() {
+    local command="$1" group="$2" env_file known selected=""
+    env_file="$(groups_env_file)"
+    [ -f "$env_file" ] || {
+        echo "[ERROR] ${env_file} does not exist. Run: just install" >&2
+        return 1
+    }
+    case " $DOTFILES_GROUP_NAMES " in
+    *" $group "*) ;;
+    *)
+        printf '[ERROR] Unknown install group "%s". Use: %s\n' \
+            "$group" "${DOTFILES_GROUP_NAMES// /, }" >&2
+        return 1
+        ;;
+    esac
+    groups_load || return 1
+    if [ "$command:$group" = disable:core ]; then
+        echo "[ERROR] Group core is required; it cannot be disabled" >&2
+        return 1
+    fi
+    case "$command" in
+    enable)
+        if group_selected "$group"; then
+            echo "[INFO] Group ${group} is already selected"
+            return 0
+        fi
+        ;;
+    disable)
+        if ! group_selected "$group"; then
+            echo "[INFO] Group ${group} is not selected"
+            return 0
+        fi
+        ;;
+    esac
+    for known in $DOTFILES_GROUP_NAMES; do
+        if [ "$known" = "$group" ]; then
+            [ "$command" = disable ] && continue
+        else
+            group_selected "$known" || continue
+        fi
+        selected="${selected:+$selected }$known"
+    done
+    groups_write "$selected" || return 1
+    echo "[INFO] Install groups: ${DOTFILES_SELECTED_GROUPS// /, }"
+    if [ "$command" = disable ]; then
+        echo "[INFO] Installed elements of group ${group} stay on this machine;" \
+            "dotfiles no longer install or update them"
+    fi
+}
+
+groups_main() {
+    case "${1:-}:${2:-}" in
+    show:) groups_show ;;
+    enable:?* | disable:?*) groups_change "$1" "$2" ;;
+    *)
+        echo "Usage: $0 show | enable <group> | disable <group>" >&2
+        return 1
+        ;;
+    esac
+}
+
+if [ "${BASH_SOURCE[0]}" = "$0" ]; then
+    set -uo pipefail
+    DOTFILES_DIR="${DOTFILES_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+    groups_main "$@"
+fi

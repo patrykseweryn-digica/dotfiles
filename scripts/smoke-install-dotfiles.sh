@@ -35,8 +35,9 @@ smoke_public_menu() {
     expected="$(mktemp)"
     "$JUST_BIN" --justfile "${DOTFILES_DIR}/justfile" --summary |
         tr ' ' '\n' | sort >"$actual"
-    printf '%s\n' doctor export install sync >"$expected"
-    cmp "$expected" "$actual" || fail "public menu is not the four daily commands"
+    printf '%s\n' disable doctor enable export groups install sync >"$expected"
+    cmp "$expected" "$actual" ||
+        fail "public menu is not the daily and install group commands"
     rm -f "$actual" "$expected"
 }
 
@@ -149,6 +150,7 @@ smoke_tmux_plugins_install_after_setup_dotfiles() {
     home_dir="${tmp_dir}/home"
     stub_dir="${tmp_dir}/stubs"
     env_file="${tmp_dir}/dotfiles.env"
+    printf 'DOTFILES_GROUPS=core,agents,desktop\n' >"$env_file"
     npx_log="${tmp_dir}/npx.log"
     tmux_log="${tmp_dir}/tmux.log"
 
@@ -365,6 +367,7 @@ run_case() {
     stub_dir="${tmp_dir}/stubs"
     sync_log="${tmp_dir}/sync.log"
     env_file="${tmp_dir}/dotfiles.env"
+    printf 'DOTFILES_GROUPS=core,agents,desktop\n' >"$env_file"
     npx_log="${tmp_dir}/npx.log"
     pi_log="${tmp_dir}/pi.log"
 
@@ -562,7 +565,8 @@ YAML
         fail "$os_name: .zshrc backup lost drift"
     grep -F "[WARN] ${home_dir}/.zshrc differs from dotfiles source" \
         "$sync_log" >/dev/null || fail "$os_name: missing drift warning"
-    [ ! -e "$env_file" ] || fail "$os_name: setup_dotfiles should not create env file when sourced"
+    [ "$(cat "$env_file")" = 'DOTFILES_GROUPS=core,agents,desktop' ] ||
+        fail "$os_name: setup_dotfiles should not change the env file when sourced"
     [ -L "${home_dir}/${expected_code_dir}/settings.json" ] || fail "$os_name: missing VS Code settings symlink"
     [ -L "${home_dir}/${expected_ghostty_config}" ] || fail "$os_name: missing Ghostty config symlink"
     [ -L "${home_dir}/.claude/CLAUDE.md" ] || fail "$os_name: missing Claude instructions symlink"
@@ -627,6 +631,7 @@ smoke_node_activation_before_tools() {
 printf 'installed\n' >"$TOOLS_INSTALLED"
 STUB
     chmod +x "${task_dir}/node/bin/node" "${task_dir}/fixture/scripts/agent-tools.sh"
+    printf 'DOTFILES_GROUPS=core,agents,desktop\n' >"${task_dir}/all-groups.env"
 
     for outcome in success failure; do
         rm -f "${task_dir}/installed"
@@ -634,6 +639,7 @@ STUB
         (
             export HOME="${task_dir}/home"
             export TOOLS_INSTALLED="${task_dir}/installed"
+            export DOTFILES_ENV_FILE="${task_dir}/all-groups.env"
             # shellcheck source=/dev/null
             source "${DOTFILES_DIR}/install.sh"
             export DOTFILES_DIR="${task_dir}/fixture"

@@ -102,6 +102,21 @@ plan_links() {
     fi
 }
 
+# Name each unselected group whose managed links are still installed.
+# Without a setting only core is selected, so a machine set up before that
+# default keeps its other groups installed but no longer updates them.
+plan_groups() {
+    local installed group
+
+    installed="$(managed_link_rows installed)" || return 1
+    for group in $DOTFILES_GROUP_NAMES; do
+        grep -Fx "$group" <<<"$installed" >/dev/null || continue
+        printf 'SKIP\tgroups\tnone\t%s %s\n' \
+            "Group ${group} is installed but not selected;" \
+            "dotfiles do not update it. Run: just enable ${group}"
+    done
+}
+
 plan_herdr_hook() {
     local settings="${CLAUDE_SETTINGS_FILE:-${HOME}/.claude/settings.json}"
     local hook="${HOME}/.claude/hooks/herdr-agent-state.sh"
@@ -159,6 +174,7 @@ plan_all() {
     plan_sync || return
     plan_tools || return
     plan_links || return
+    plan_groups || return
     plan_herdr_hook || return
     plan_node || return
     plan_platform

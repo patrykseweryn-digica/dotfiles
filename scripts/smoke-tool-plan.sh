@@ -38,7 +38,8 @@ fi
 tmp_dir="$(mktemp -d)"
 trap 'rm -rf "$tmp_dir"' EXIT
 # The machine group setting must not change fixture results.
-export DOTFILES_ENV_FILE="${tmp_dir}/no-group-setting.env"
+export DOTFILES_ENV_FILE="${tmp_dir}/all-groups.env"
+printf 'DOTFILES_GROUPS=core,agents,desktop\n' >"$DOTFILES_ENV_FILE"
 home_dir="$tmp_dir/home"
 mkdir -p "$home_dir/.local/bin"
 mise_log="$tmp_dir/mise.log"
@@ -264,10 +265,10 @@ if grep -F demo-viewer "$mise_log" "$tmp_dir/grouped.toml"; then
 fi
 grep -Fx '"aqua:bitwarden/clients" = "latest"' "$tmp_dir/grouped.toml" \
     >/dev/null || fail "core-only install omitted native Bitwarden CLI"
-DOTFILES_ENV_FILE="$tmp_dir/no-group-setting.env" TOOL_INVENTORY="$grouped" \
+TOOL_INVENTORY="$grouped" \
     CORE_TOOLS_OS=Linux CORE_TOOLS_ARCH=arm64 CORE_TOOLS_HAS_SUDO=false \
     "$CORE_TOOLS" plan | grep -F 'demo-viewer is available through mise' \
-    >/dev/null || fail "plan without a group setting skipped a desktop tool"
+    >/dev/null || fail "plan with all groups skipped a desktop tool"
 
 if CORE_TOOLS_OS=Plan9 CORE_TOOLS_ARCH=arm64 \
     "$CORE_TOOLS" plan >/dev/null 2>&1; then

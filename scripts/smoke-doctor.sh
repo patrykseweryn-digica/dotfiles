@@ -16,7 +16,8 @@ fail() {
 tmp_dir="$(mktemp -d)"
 trap 'rm -rf "$tmp_dir"' EXIT
 # The machine group setting must not change fixture results.
-export DOTFILES_ENV_FILE="${tmp_dir}/no-group-setting.env"
+export DOTFILES_ENV_FILE="${tmp_dir}/all-groups.env"
+printf 'DOTFILES_GROUPS=core,agents,desktop\n' >"$DOTFILES_ENV_FILE"
 home_dir="${tmp_dir}/home with spaces"
 stub_dir="${tmp_dir}/stubs"
 check_log="${tmp_dir}/checks.log"

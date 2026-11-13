@@ -11,6 +11,19 @@ default:
 install:
     ./install.sh
 
+# Show the install groups of this machine.
+groups:
+    bash scripts/groups.sh show
+
+# Select an install group, then install its elements.
+enable group:
+    bash scripts/groups.sh enable "{{ group }}"
+    ./install.sh
+
+# Stop installing and updating an install group; its elements stay.
+disable group:
+    bash scripts/groups.sh disable "{{ group }}"
+
 # Pull repository changes, then converge local and upstream state.
 sync:
     ./scripts/sync-local.sh

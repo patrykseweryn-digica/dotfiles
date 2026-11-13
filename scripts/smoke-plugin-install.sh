@@ -4,7 +4,8 @@ repo="$(cd "$(dirname "$0")/.." && pwd)"
 task_dir="$(mktemp -d)"
 trap 'rm -rf "$task_dir"' EXIT
 # The machine group setting must not change fixture results.
-export DOTFILES_ENV_FILE="${task_dir}/no-group-setting.env"
+export DOTFILES_ENV_FILE="${task_dir}/all-groups.env"
+printf 'DOTFILES_GROUPS=core,agents,desktop\n' >"$DOTFILES_ENV_FILE"
 just_bin="$(command -v just)"
 uv_bin="$(command -v uv)"
 # Disposable HOMEs share uv caches; a fresh Python download per HOME is flaky.

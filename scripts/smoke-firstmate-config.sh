@@ -6,6 +6,9 @@ tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 export HOME="$tmp/home"
 mkdir -p "$HOME"
+# The machine group setting must not change fixture results.
+export DOTFILES_ENV_FILE="$tmp/all-groups.env"
+printf 'DOTFILES_GROUPS=core,agents,desktop\n' >"$DOTFILES_ENV_FILE"
 # Source the actual setup entrypoint without running the full installer.
 # shellcheck source=/dev/null
 source "$DOTFILES_DIR/install.sh"

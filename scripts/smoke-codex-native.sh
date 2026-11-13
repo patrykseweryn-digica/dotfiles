@@ -138,13 +138,14 @@ grep -Fx 'mise uninstall --all npm:@openai/codex' "$CODEX_LOG" >/dev/null ||
 echo "[INFO] Linux: a former mise npm Codex is replaced"
 
 # Doctor requires the Codex that the platform channel manages.
+printf 'DOTFILES_GROUPS=core,agents,desktop\n' >"$task_dir/all-groups.env"
 manifest="$task_dir/tools.json"
 printf '%s\n' '{"tools":[{"name":"Codex","command":"codex",' \
     '"installer":"codex-native","channel":"latest","group":"agents"}]}' \
     >"$manifest"
 codex_plan() {
     env AGENT_TOOL_VERSIONS="$manifest" PATH="$1" \
-        DOTFILES_ENV_FILE="$task_dir/no-group-setting.env" \
+        DOTFILES_ENV_FILE="$task_dir/all-groups.env" \
         bash "$repo/scripts/agent-tools.sh" plan 2>&1 |
         awk -F '\t' '$2 == "tools" { print $1 "\t" $4 }'
 }

@@ -5,8 +5,9 @@ MANAGED_LINKS_FILE="${MANAGED_LINKS_FILE:-${DOTFILES_DIR}/config/managed-links.t
 # shellcheck source=scripts/groups.sh
 source "${DOTFILES_DIR}/scripts/groups.sh"
 
-# Print source|target rows for selected groups, or group|target rows for
-# rows that unselected groups skip.
+# Print source|target rows for selected groups (mode selected), group|target
+# rows that unselected groups skip (mode skipped), or the group of each
+# skipped link that still points into the checkout (mode installed).
 managed_link_rows() {
     local mode="${1:-selected}" current_platform group platform source target
     local selected
@@ -51,6 +52,10 @@ managed_link_rows() {
             printf '%s|%s\n' "${DOTFILES_DIR}/${source}" "${HOME}/${target}"
             ;;
         skipped:false) printf '%s|%s\n' "$group" "$target" ;;
+        installed:false)
+            [ "$(readlink "${HOME}/${target}" 2>/dev/null)" != \
+                "${DOTFILES_DIR}/${source}" ] || printf '%s\n' "$group"
+            ;;
         esac
     done <"$MANAGED_LINKS_FILE"
 }

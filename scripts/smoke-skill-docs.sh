@@ -64,13 +64,14 @@ chmod +x "$task_dir/bin/skills" "$task_dir/bin/curl"
 
 home="$task_dir/fresh home"
 mkdir -p "$home"
+printf 'DOTFILES_GROUPS=core,agents,desktop\n' >"$task_dir/all-groups.env"
 run_sync_agents() {
     env -u CODEX_HOME -u OPENCODE_CONFIG_DIR -u PI_CODING_AGENT_DIR \
         -u PI_SKILLS_DIR -u CLAUDE_SETTINGS_FILE HOME="$home" \
         SKILL_LOCK_LIVE="$home/.agents/.skill-lock.json" \
         SKILL_LOCK_REPO="$task_dir/lock.json" \
         SHARED_SKILLS_CUSTOM_DIR="$task_dir/custom" \
-        DOTFILES_ENV_FILE="$task_dir/no-group-setting.env" \
+        DOTFILES_ENV_FILE="$task_dir/all-groups.env" \
         PATH="$task_dir/bin:$PATH" SKILLS_CLI="$task_dir/bin/skills" \
         CURL_LOG="$task_dir/curl.log" DOC_CONTENT="${DOC_CONTENT:-adapter v1}" \
         DOC_LINK_PATH="${DOC_LINK_PATH:-harness/claude-code.md}" \

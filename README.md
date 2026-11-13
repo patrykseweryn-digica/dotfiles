@@ -175,23 +175,31 @@ install and update only elements of the selected groups.
 | `agents` | Node, pnpm, agent CLIs and settings, MCP, skills, plugins, AXI |
 | `desktop` | fonts, Ghostty and VS Code config, terminal colors, macOS apps (Brewfile casks) |
 
-Set the groups as a comma-separated list. `core` is required:
+No setting, or an empty value, selects `core` only. Add or remove a group
+with these commands:
 
 ```bash
-DOTFILES_GROUPS=core            # for example, a Raspberry Pi
-DOTFILES_GROUPS=core,agents     # a server with agents, without desktop
+just groups           # show the selected groups
+just enable agents    # select agents, then run install
+just disable desktop  # stop installing and updating desktop
 ```
 
-No setting, or an empty value, selects all groups, so existing machines keep
-their full setup. An unknown group or a list without `core` stops `install`,
-`sync` and `doctor` before any change and names the valid groups.
+The commands write `DOTFILES_GROUPS` in `.env`, for example
+`DOTFILES_GROUPS=core,agents`. `core` is required and cannot be disabled.
+An unknown group or a list without `core` stops `install`, `sync` and
+`doctor` before any change and names the valid groups.
+
+A machine set up before `core` became the default keeps its other groups
+installed. When managed links of an unselected group remain, `sync` and
+`doctor` print one row for each group:
+`[SKIP] groups: Group agents is installed but not selected; ...
+Run: just enable agents`.
 
 Each element declares its group: tools in `.agents/tool-versions.json`, links
 in `config/managed-links.tsv`, and install steps and sync phases in their
 scripts. The plan reports an element of an unselected group as
 `SKIP ... skipped: group <name> is not selected`. `sync` and `doctor` pass when
-only `SKIP` rows remain. Switching off a group does not remove its installed
-elements.
+only `SKIP` rows remain. `just disable` does not remove installed elements.
 
 `just sync` prints the plan, applies settings, MCP, managed links, and the
 Herdr hook, then refreshes inventory tools, Node, skills, and plugins.
