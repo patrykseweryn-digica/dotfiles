@@ -200,16 +200,27 @@ codex_removal_hint() {
     esac
 }
 
-# OpenAI's installer verifies checksums and skips a current release.
-# With another Codex on PATH, it edits shell profiles, so stop first.
-install_codex() {
-    local installer existing
+# Codex follows each platform's best channel at latest: the Homebrew cask
+# on macOS and OpenAI's official installer on Linux.
+codex_managed_path() {
+    local prefix
+    if [ "$(uname -s)" = Darwin ]; then
+        prefix="$(brew --prefix 2>/dev/null)" || return 1
+        printf '%s/bin/codex\n' "$prefix"
+    else
+        printf '%s/codex\n' "${BIN_DIR:-$HOME/.local/bin}"
+    fi
+}
 
+# Stop when another Codex is on PATH; it would shadow the managed one and
+# make OpenAI's installer edit shell profiles. Earlier dotfiles versions
+# installed Codex with mise npm, so remove that install.
+clear_codex_path() {
+    local managed="$1" existing
     while IFS= read -r existing; do
-        [ "$existing" != "$BIN_DIR/codex" ] || continue
+        [ "$existing" != "$managed" ] || continue
         case "$existing" in
         "$HOME/.local/share/mise/"*)
-            # Earlier dotfiles versions installed Codex with mise npm.
             echo "[INFO] Removing mise npm Codex: $existing"
             mise uninstall --all npm:@openai/codex || return 1
             [ ! -e "$existing" ] || {
@@ -224,12 +235,35 @@ install_codex() {
             ;;
         esac
     done < <(type -ap codex)
+}
 
+install_codex() {
+    local managed installer
+
+    if [ "$(uname -s)" = Darwin ]; then
+        command -v brew >/dev/null 2>&1 || {
+            echo "[ERROR] Codex: Homebrew is required on macOS" >&2
+            return 1
+        }
+        managed="$(codex_managed_path)" || return 1
+        clear_codex_path "$managed" || return 1
+        if brew list --cask codex >/dev/null 2>&1; then
+            brew upgrade --cask codex || return 1
+        else
+            brew install --cask codex || return 1
+        fi
+        "$managed" --version
+        return
+    fi
+
+    managed="$(codex_managed_path)" || return 1
+    clear_codex_path "$managed" || return 1
+    # OpenAI's installer verifies checksums and skips a current release.
     installer="$(curl -fsSL "$CODEX_INSTALL_URL")" || return 1
     mkdir -p "$BIN_DIR" || return 1
     CODEX_NON_INTERACTIVE=1 CODEX_INSTALL_DIR="$BIN_DIR" \
         PATH="$BIN_DIR:$PATH" sh -c "$installer" || return 1
-    "$BIN_DIR/codex" --version
+    "$managed" --version
 }
 
 install_no_mistakes() {

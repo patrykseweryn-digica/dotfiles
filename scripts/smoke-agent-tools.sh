@@ -393,6 +393,23 @@ export AGENT_TOOL_VERSIONS="$previous_manifest"
 # Native declarations dispatch through the existing installers.
 # The npm Codex fixtures would shadow the native Codex.
 rm "$stub_dir/codex" "$HOME/.local/share/mise/npm-tools/bin/codex"
+# macOS installs Codex as a Homebrew cask; Linux uses OpenAI's installer.
+mkdir -p "$tmp_dir/brew/bin"
+cat >"$tmp_dir/brew/bin/brew" <<'STUB'
+#!/bin/bash
+prefix="$(cd "$(dirname "$0")/.." && pwd)"
+case "$*" in
+--prefix) echo "$prefix" ;;
+'list --cask codex') [ -x "$prefix/bin/codex" ] ;;
+'install --cask codex' | 'upgrade --cask codex')
+    [ "${NATIVE_DOWNLOAD_FAIL:-false}" = false ] || exit 1
+    printf '#!/bin/sh\necho "codex-cli 1.2.3"\n' >"$prefix/bin/codex"
+    chmod +x "$prefix/bin/codex"
+    echo codex >>"$NATIVE_LOG" ;;
+*) exit 1 ;;
+esac
+STUB
+chmod +x "$tmp_dir/brew/bin/brew"
 cat >"$manifest" <<'JSON'
 {"tools":[
  {"name":"Herdr","command":"herdr","installer":"herdr-native","channel":"latest","group":"agents","update":["herdr","update"]},
@@ -490,7 +507,7 @@ else
 fi
 [ "${NATIVE_DOWNLOAD_FAIL:-false}" = false ] || exit 22
 STUB
-export PATH="$HOME/.local/bin:$PATH"
+export PATH="$HOME/.local/bin:$tmp_dir/brew/bin:$PATH"
 : >"$native_log"
 "$AGENT_TOOLS" install
 "$AGENT_TOOLS" check >"$tmp_dir/native-report.log"
@@ -517,7 +534,7 @@ grep -F '[SKIP] Herdr: run `herdr update` outside Herdr after detaching' \
 grep -Fx 'update no-mistakes' "$native_log" >/dev/null ||
   fail "Herdr skip stopped other native updates"
 grep -Fx codex "$native_log" >/dev/null ||
-  fail "Codex update did not rerun the official installer"
+  fail "Codex update did not rerun its platform installer"
 grep -Fx treehouse-check "$native_log" >/dev/null || fail "Treehouse update was not checked"
 ! grep -Fx treehouse "$native_log" >/dev/null || fail "current Treehouse was downloaded"
 ! grep -Fx 'update treehouse' "$native_log" >/dev/null || fail "Treehouse used its API updater"

@@ -33,12 +33,14 @@ Preconditions: working host Node/npm; no live update needed for verification.
   and Node compatibility require separate live evidence.
   Update keeps `latest` without changing inventory bytes. Native tools use only
   their declared self-update commands. Treehouse uses the managed public
-  release redirect and skips a current binary. Codex reruns OpenAI's
-  installer, which skips a current release. Inside a Herdr pane, the Herdr
+  release redirect and skips a current binary. Codex upgrades its cask on
+  macOS and reruns OpenAI's installer on Linux. Inside a Herdr pane, the Herdr
   update is skipped with an instruction and other updates continue.
-- **Codex.** Run `bash scripts/smoke-codex-native.sh`. It drives the official
-  installer path: fresh install, failed download, update, a foreign `codex`
-  on PATH (stop before any change), mise npm migration, and the plan row.
+- **Codex.** Run `bash scripts/smoke-codex-native.sh`. On Linux it drives
+  OpenAI's installer: fresh install, failed download, update, a foreign
+  `codex` on PATH (stop before any change), mise npm migration, plan row.
+  On macOS it drives the Homebrew cask: install, upgrade, plan row, and a
+  machine without Homebrew.
 - **Core install plan.** Run `bash scripts/smoke-tool-plan.sh`. It exercises
   the public core-tools interface. The test covers macOS arm64, Linux x86_64,
   Linux arm64, install, update, generated config, system-tool separation,

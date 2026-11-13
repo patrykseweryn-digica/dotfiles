@@ -94,10 +94,12 @@ Native latest installers do not expose one common version source.
 Each npm CLI uses the mise npm backend. Claude Code uses
 `claude install latest` for updates and Anthropic's native installer for a
 missing command.
-Codex uses OpenAI's official installer (`chatgpt.com/codex/install.sh`) on
-every platform. It verifies checksums, installs into `~/.local/bin`, and does
-nothing when the release is current. Another `codex` on `PATH` stops the
-install, and doctor reports it. Sync removes a former mise npm Codex.
+Codex follows the best channel of each platform at latest. macOS uses the
+Homebrew cask (`brew install` or `brew upgrade --cask codex`). Linux uses
+OpenAI's official installer (`chatgpt.com/codex/install.sh`). It verifies
+checksums, installs into `~/.local/bin`, and does nothing when the release
+is current. Another `codex` on `PATH` stops the install, and doctor reports
+it. Sync removes a former mise npm Codex.
 Configuration application never resolves channels or updates tool versions.
 
 To add an npm CLI, add one entry to the manifest:

@@ -403,6 +403,9 @@ report_versions() {
     fi
 }
 
+# shellcheck source=bootstrap.d/05-tools.sh
+source "$DOTFILES_DIR/bootstrap.d/05-tools.sh"
+
 plan_tools() {
     local rows name scope group commands installer command_name available
     local candidate report resolved
@@ -414,10 +417,10 @@ plan_tools() {
         if ! group_selected "$group"; then
             group_skip_row tools "$name" "$group"
         elif [ "$installer" = codex-native ] && [ -n "$resolved" ] &&
-            [ "$resolved" != "$HOME/.local/bin/codex" ]; then
+            [ "$resolved" != "$(codex_managed_path)" ]; then
             # Another Codex first on PATH shadows the managed install.
             printf 'FAIL\ttools\tupdate\t%s resolves to %s; expected %s\n' \
-                "$name" "$resolved" "$HOME/.local/bin/codex"
+                "$name" "$resolved" "$(codex_managed_path)"
         elif [ "$scope" = agent ] &&
             command -v "$command_name" >/dev/null 2>&1; then
             printf 'PASS\ttools\tnone\t%s is available\n' "$name"
@@ -542,8 +545,6 @@ install_declared_tools() {
         codex-native | cursor-native | grok-native | herdr-native | \
             treehouse-native | no-mistakes-native)
             # Reuse the existing, small native installers.
-            # shellcheck source=bootstrap.d/05-tools.sh
-            source "$DOTFILES_DIR/bootstrap.d/05-tools.sh"
             BIN_DIR="${HOME}/.local/bin"
             mkdir -p "$BIN_DIR"
             case "$installer" in
