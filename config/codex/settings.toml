@@ -7,7 +7,7 @@ plan_mode_reasoning_effort = "high"
 personality = "pragmatic"
 
 [sandbox_workspace_write]
-writable_roots = ["/home/pseweryn/.cache/uv"]
+writable_roots = ["~/.cache/uv"]
 
 [tui]
 status_line = [
