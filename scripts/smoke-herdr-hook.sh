@@ -2,6 +2,7 @@
 set -eu
 
 DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "${DOTFILES_DIR}/scripts/host-tools.sh"
 HERDR_BIN="${HERDR_BIN:-$(command -v herdr || true)}"
 [ -x "$HERDR_BIN" ] || {
     echo '[ERROR] Herdr required; install it or set HERDR_BIN' >&2
@@ -14,6 +15,7 @@ trap 'rm -rf "$tmp_dir"' EXIT
 
 (
     export HOME="${tmp_dir}/another user home"
+    # shellcheck disable=SC2034 # bootstrap.d/05-tools.sh reads BIN_DIR.
     BIN_DIR="${HOME}/local bin"
     mkdir -p "$HOME/.claude"
     jq '.localPreference = "preserve me"' \

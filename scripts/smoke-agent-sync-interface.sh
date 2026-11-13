@@ -2,6 +2,7 @@
 set -eu
 
 DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "${DOTFILES_DIR}/scripts/host-tools.sh"
 SYNC="${DOTFILES_DIR}/sync-agents.sh"
 UV_BIN="$(command -v uv)"
 UV_CACHE_DIR="${UV_CACHE_DIR:-$("$UV_BIN" cache dir)}"

@@ -1,6 +1,7 @@
 #!/bin/bash
 set -eu
 repo="$(cd "$(dirname "$0")/.." && pwd)"
+source "${repo}/scripts/host-tools.sh"
 task_dir="$(mktemp -d)"
 trap 'rm -rf "$task_dir"' EXIT
 mkdir -p "$task_dir/bin" "$task_dir/custom"

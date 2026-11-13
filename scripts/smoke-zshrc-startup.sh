@@ -13,11 +13,17 @@ if ! command -v zsh >/dev/null 2>&1; then
     exit 0
 fi
 
+# Host tools such as mise shims would read the real HOME's configuration.
+PATH="$(dirname "$(command -v zsh)"):/usr/bin:/bin:/usr/sbin:/sbin"
+export PATH
+
 tmp_dir="$(mktemp -d)"
 cleanup() {
     rm -rf "$tmp_dir"
 }
 trap cleanup EXIT
+# mise also reads .config/mise in every parent of the working directory.
+cd "$tmp_dir"
 
 home_dir="${tmp_dir}/home"
 zshenv="${tmp_dir}/zshenv"

@@ -2,6 +2,7 @@
 set -eu
 
 DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "${DOTFILES_DIR}/scripts/host-tools.sh"
 CORE_TOOLS="$DOTFILES_DIR/scripts/core-tools.sh"
 INVENTORY="$DOTFILES_DIR/.agents/tool-versions.json"
 

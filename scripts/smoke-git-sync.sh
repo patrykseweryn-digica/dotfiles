@@ -2,6 +2,7 @@
 set -euo pipefail
 
 repo_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "${repo_dir}/scripts/host-tools.sh"
 task_dir="$(mktemp -d)"
 trap 'rm -rf "$task_dir"' EXIT
 

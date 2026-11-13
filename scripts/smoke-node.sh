@@ -2,6 +2,7 @@
 set -eu
 
 DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "${DOTFILES_DIR}/scripts/host-tools.sh"
 source "$DOTFILES_DIR/bootstrap.d/07-node.sh"
 
 fail() {

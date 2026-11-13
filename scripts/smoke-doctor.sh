@@ -2,6 +2,7 @@
 set -eu
 
 DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "${DOTFILES_DIR}/scripts/host-tools.sh"
 STATE_PLAN="${DOTFILES_DIR}/scripts/state-plan.sh"
 JUST_BIN="$(command -v just)"
 UV_BIN="$(command -v uv)"

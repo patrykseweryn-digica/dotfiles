@@ -2,6 +2,7 @@
 set -eu
 
 DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "${DOTFILES_DIR}/scripts/host-tools.sh"
 AGENT_TOOLS="${DOTFILES_DIR}/scripts/agent-tools.sh"
 REAL_JQ="$(command -v jq)"
 # shellcheck source=bootstrap.d/07-node.sh

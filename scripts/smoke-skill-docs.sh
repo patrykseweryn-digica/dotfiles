@@ -3,6 +3,7 @@
 # Upstream pstack skills link their Claude Code adapter this way.
 set -eu
 repo="$(cd "$(dirname "$0")/.." && pwd)"
+source "${repo}/scripts/host-tools.sh"
 
 fail() {
     echo "[ERROR] $*" >&2
