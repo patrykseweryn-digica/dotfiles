@@ -383,6 +383,174 @@
       "sourceUrl": "https://github.com/cursor/plugins.git",
       "ref": "main"
     },
+    "principle-attack-the-premise": {
+      "ref": "main",
+      "skillPath": "harness/pstack/claude-code/skills/principle-attack-the-premise/SKILL.md",
+      "source": "cursor/plugins",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/cursor/plugins.git"
+    },
+    "principle-boundary-discipline": {
+      "ref": "main",
+      "skillPath": "harness/pstack/claude-code/skills/principle-boundary-discipline/SKILL.md",
+      "source": "cursor/plugins",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/cursor/plugins.git"
+    },
+    "principle-build-the-lever": {
+      "ref": "main",
+      "skillPath": "harness/pstack/claude-code/skills/principle-build-the-lever/SKILL.md",
+      "source": "cursor/plugins",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/cursor/plugins.git"
+    },
+    "principle-encode-lessons-in-structure": {
+      "ref": "main",
+      "skillPath": "harness/pstack/claude-code/skills/principle-encode-lessons-in-structure/SKILL.md",
+      "source": "cursor/plugins",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/cursor/plugins.git"
+    },
+    "principle-exhaust-the-design-space": {
+      "ref": "main",
+      "skillPath": "harness/pstack/claude-code/skills/principle-exhaust-the-design-space/SKILL.md",
+      "source": "cursor/plugins",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/cursor/plugins.git"
+    },
+    "principle-experience-first": {
+      "ref": "main",
+      "skillPath": "harness/pstack/claude-code/skills/principle-experience-first/SKILL.md",
+      "source": "cursor/plugins",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/cursor/plugins.git"
+    },
+    "principle-explain-the-number": {
+      "ref": "main",
+      "skillPath": "harness/pstack/claude-code/skills/principle-explain-the-number/SKILL.md",
+      "source": "cursor/plugins",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/cursor/plugins.git"
+    },
+    "principle-fix-root-causes": {
+      "ref": "main",
+      "skillPath": "harness/pstack/claude-code/skills/principle-fix-root-causes/SKILL.md",
+      "source": "cursor/plugins",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/cursor/plugins.git"
+    },
+    "principle-foundational-thinking": {
+      "ref": "main",
+      "skillPath": "harness/pstack/claude-code/skills/principle-foundational-thinking/SKILL.md",
+      "source": "cursor/plugins",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/cursor/plugins.git"
+    },
+    "principle-guard-the-context-window": {
+      "ref": "main",
+      "skillPath": "harness/pstack/claude-code/skills/principle-guard-the-context-window/SKILL.md",
+      "source": "cursor/plugins",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/cursor/plugins.git"
+    },
+    "principle-laziness-protocol": {
+      "ref": "main",
+      "skillPath": "harness/pstack/claude-code/skills/principle-laziness-protocol/SKILL.md",
+      "source": "cursor/plugins",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/cursor/plugins.git"
+    },
+    "principle-make-operations-idempotent": {
+      "ref": "main",
+      "skillPath": "harness/pstack/claude-code/skills/principle-make-operations-idempotent/SKILL.md",
+      "source": "cursor/plugins",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/cursor/plugins.git"
+    },
+    "principle-migrate-callers-then-delete-legacy-apis": {
+      "ref": "main",
+      "skillPath": "harness/pstack/claude-code/skills/principle-migrate-callers-then-delete-legacy-apis/SKILL.md",
+      "source": "cursor/plugins",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/cursor/plugins.git"
+    },
+    "principle-minimize-reader-load": {
+      "ref": "main",
+      "skillPath": "harness/pstack/claude-code/skills/principle-minimize-reader-load/SKILL.md",
+      "source": "cursor/plugins",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/cursor/plugins.git"
+    },
+    "principle-model-the-domain": {
+      "ref": "main",
+      "skillPath": "harness/pstack/claude-code/skills/principle-model-the-domain/SKILL.md",
+      "source": "cursor/plugins",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/cursor/plugins.git"
+    },
+    "principle-never-block-on-the-human": {
+      "ref": "main",
+      "skillPath": "harness/pstack/claude-code/skills/principle-never-block-on-the-human/SKILL.md",
+      "source": "cursor/plugins",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/cursor/plugins.git"
+    },
+    "principle-outcome-oriented-execution": {
+      "ref": "main",
+      "skillPath": "harness/pstack/claude-code/skills/principle-outcome-oriented-execution/SKILL.md",
+      "source": "cursor/plugins",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/cursor/plugins.git"
+    },
+    "principle-prove-it-works": {
+      "ref": "main",
+      "skillPath": "harness/pstack/claude-code/skills/principle-prove-it-works/SKILL.md",
+      "source": "cursor/plugins",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/cursor/plugins.git"
+    },
+    "principle-redesign-from-first-principles": {
+      "ref": "main",
+      "skillPath": "harness/pstack/claude-code/skills/principle-redesign-from-first-principles/SKILL.md",
+      "source": "cursor/plugins",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/cursor/plugins.git"
+    },
+    "principle-separate-before-serializing-shared-state": {
+      "ref": "main",
+      "skillPath": "harness/pstack/claude-code/skills/principle-separate-before-serializing-shared-state/SKILL.md",
+      "source": "cursor/plugins",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/cursor/plugins.git"
+    },
+    "principle-sequence-verifiable-units": {
+      "ref": "main",
+      "skillPath": "harness/pstack/claude-code/skills/principle-sequence-verifiable-units/SKILL.md",
+      "source": "cursor/plugins",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/cursor/plugins.git"
+    },
+    "principle-subtract-before-you-add": {
+      "ref": "main",
+      "skillPath": "harness/pstack/claude-code/skills/principle-subtract-before-you-add/SKILL.md",
+      "source": "cursor/plugins",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/cursor/plugins.git"
+    },
+    "principle-test-behavior-not-implementation": {
+      "ref": "main",
+      "skillPath": "harness/pstack/claude-code/skills/principle-test-behavior-not-implementation/SKILL.md",
+      "source": "cursor/plugins",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/cursor/plugins.git"
+    },
+    "principle-type-system-discipline": {
+      "ref": "main",
+      "skillPath": "harness/pstack/claude-code/skills/principle-type-system-discipline/SKILL.md",
+      "source": "cursor/plugins",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/cursor/plugins.git"
+    },
     "prototype": {
       "skillPath": "skills/engineering/prototype/SKILL.md",
       "source": "mattpocock/skills",
