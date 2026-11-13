@@ -112,6 +112,7 @@ cat >"$skill_lock_repo" <<'JSON'
   }
 }
 JSON
+# Live records an older upstream path; the repository decides how to install.
 cat >"$skill_lock_live" <<'JSON'
 {
   "dismissed": {},
@@ -119,7 +120,7 @@ cat >"$skill_lock_live" <<'JSON'
     "managed-skill": {
       "installedAt": "local",
       "skillFolderHash": "local",
-      "skillPath": "package/skills/managed-skill/SKILL.md",
+      "skillPath": "old/managed-skill/SKILL.md",
       "source": "example/skills",
       "sourceType": "github",
       "sourceUrl": "https://github.com/example/skills.git"
@@ -596,7 +597,9 @@ jq -e '
 grep -F 'model = "live-codex"' "$codex_template" >/dev/null ||
     fail "Codex allowlist export failed"
 jq -e '
-    (.skills | keys) == ["managed-skill", "new-managed"]
+    (.skills | keys) == ["managed-skill", "new-managed"] and
+    .skills["managed-skill"].skillPath ==
+        "package/skills/managed-skill/SKILL.md"
 ' "$skill_lock_repo" >/dev/null || fail "managed skill export failed"
 [ -f "${custom_skills}/new-custom/SKILL.md" ] ||
     fail "portable skill was not exported"

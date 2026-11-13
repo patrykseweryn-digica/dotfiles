@@ -3484,9 +3484,23 @@ preflight_skill_candidate() {
 }
 
 build_skill_export_candidate() {
-    local candidate_lock="$1" candidate_custom="$2"
+    local candidate_lock="$1" candidate_custom="$2" tmp
     build_live_skill_inventory "$candidate_lock" "$candidate_custom" ||
         return 1
+    # Live decides membership. For a skill that the repository already
+    # tracks from the same source, the repository decides how to install it.
+    tmp="$(mktemp)" || return 1
+    jq -S --slurpfile repo "$SKILL_LOCK_REPO" '
+        def origin: {source, sourceType, sourceUrl};
+        .skills |= with_entries(
+            ($repo[0].skills[.key]) as $tracked |
+            if $tracked != null and ($tracked | origin) == (.value | origin)
+            then .value = $tracked else . end
+        )
+    ' "$candidate_lock" >"$tmp" && mv "$tmp" "$candidate_lock" || {
+        rm -f "$tmp"
+        return 1
+    }
     validate_skill_export_continuity "$candidate_lock" "$candidate_custom" ||
         return 1
     preflight_skill_candidate "$candidate_lock"
