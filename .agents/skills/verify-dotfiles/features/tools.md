@@ -13,6 +13,9 @@ developer releases without editing that inventory.
 - `system` installs gnupg and xclip with the OS package manager. It reports
   `SKIP` with a reason when Linux has no sudo or macOS has no Homebrew.
 - `brewfile` holds only desktop casks; gh, shellcheck and pnpm come from mise.
+- `completions` writes the zsh completion of each mise tool that declares
+  `zshCompletion` to `~/.zfunc/_<command>`. Plan reports missing or outdated
+  files; a failed generator keeps the old file and fails the update.
 - `groups` installs and plans only tools of selected install groups;
   Bitwarden CLI is a native core tool ([groups](groups.md)).
 - `failure` retains previous Node and stops when downloads fail.
@@ -44,7 +47,9 @@ Preconditions: working host Node/npm; no live update needed for verification.
 - **Core install plan.** Run `bash scripts/smoke-tool-plan.sh`. It exercises
   the public core-tools interface. The test covers macOS arm64, Linux x86_64,
   Linux arm64, install, update, generated config, system-tool separation,
-  Homebrew without sudo, required tool groups, and group skips.
+  Homebrew without sudo, required tool groups, group skips, and zsh
+  completions: written, outdated, missing, kept on generator failure,
+  limited to selected groups, and rejected when declared invalid.
 - **Node upgrade.** Run `bash scripts/smoke-node.sh`. It drives bootstrap
   with an isolated mise provider, changes the resolved LTS version, reads the
   selected Node, and verifies the previous runtime survives download/install

@@ -68,7 +68,8 @@ Preconditions: dependencies from SKILL.md; run from the checkout root.
   exercised without importing or replacing live user preferences.
 - **Start shell.** Run `bash scripts/smoke-zshrc-startup.sh`. Require clean
   startup, correct platform paths, Cursor/Grok command precedence, unknown
-  terminal fallback, and preservation of a known terminal.
+  terminal fallback, preservation of a known terminal, and `~/.zfunc`
+  completions ahead of zsh's own (`delta` maps to `_delta`, not `_sccs`).
 - **SSH startup.** Run `bash scripts/smoke-ssh-zsh.sh`. Require generated
   startup files to execute noninteractive Bash commands and start Zsh only
   for interactive sessions. This does not cover migration of old blocks.

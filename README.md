@@ -78,7 +78,12 @@ numbers. Mise installs and updates every portable core tool through
 Entries without a user-local source declare `requires: "sudo"`.
 Every entry declares its install group (see [Install groups](#install-groups)).
 The generated `~/.config/mise/conf.d/10-core-tools.toml` keeps core tools
-independent from system package versions. Developer entries use
+independent from system package versions. A core tool can declare
+`zshCompletion`: a generator (`args`, for example `gh completion -s zsh`) or a
+file in its mise install directory (`file`). Install and sync write each one to
+`~/.zfunc/_<command>`; `.zshrc` puts `~/.zfunc` first in `fpath`. A failed
+generator keeps the old file. Doctor reports missing or outdated completions.
+Developer entries use
 `channel: "latest"`; update resolves current releases without rewriting the
 inventory. npm CLI entries become independent mise tools, so Node upgrades do
 not hide them. Reports resolve npm `latest` and fail explicitly when the

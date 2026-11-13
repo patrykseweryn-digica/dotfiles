@@ -100,7 +100,8 @@ ZSH_THEME="powerlevel10k/powerlevel10k"
 
 zsh_completions_dir="${ZSH_CUSTOM:-${ZSH:-~/.oh-my-zsh}/custom}/plugins/zsh-completions/src"
 [[ ! -d "$zsh_completions_dir" ]] || fpath+=("$zsh_completions_dir")
-[[ ! -d "$HOME/.zfunc" ]] || fpath+=("$HOME/.zfunc")
+# Managed completions come first: zsh's _sccs also claims delta.
+[[ ! -d "$HOME/.zfunc" ]] || fpath=("$HOME/.zfunc" $fpath)
 [[ ! -d "$HOME/.grok/completions/zsh" ]] || fpath+=("$HOME/.grok/completions/zsh")
 unset zsh_completions_dir
 

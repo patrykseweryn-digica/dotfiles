@@ -5,6 +5,8 @@ DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TOOL_INVENTORY="${TOOL_INVENTORY:-${DOTFILES_DIR}/.agents/tool-versions.json}"
 MISE_BIN="${MISE_BIN:-${HOME}/.local/bin/mise}"
 MISE_CORE_TOOLS_FILE="${MISE_CORE_TOOLS_FILE:-${HOME}/.config/mise/conf.d/10-core-tools.toml}"
+# .zshrc adds this directory to fpath.
+ZSH_COMPLETION_DIR="${ZSH_COMPLETION_DIR:-${HOME}/.zfunc}"
 export MISE_TRUSTED_CONFIG_PATHS="${HOME}/.config/mise/conf.d\
 ${MISE_TRUSTED_CONFIG_PATHS:+:${MISE_TRUSTED_CONFIG_PATHS}}"
 # shellcheck source=scripts/operation.sh
@@ -59,6 +61,14 @@ validate_inventory() {
         def no_sudo_source($tool; $platform):
             ($platform | startswith("darwin-")) and
             (($tool.packages.brew // "") | nonempty);
+        # A generator command or a file relative to the mise install directory.
+        def valid_completion:
+            type == "object" and
+            ((keys == ["args"] and (.args | type == "array" and
+                length > 0 and all(.[]; nonempty))) or
+             (keys == ["file"] and (.file | nonempty and
+                (startswith("/") | not) and
+                (split("/") | index("..") == null))));
         (.tools | type == "array" and length > 0) and
         all(.tools[]; '"$GROUP_VALID_JQ"') and
         all(.tools[] | select(.scope == "core");
@@ -70,7 +80,8 @@ validate_inventory() {
             .versionPolicy == "latest" and
             ((.mise // .name) | nonempty and test("^[^[:space:]]+$")) and
             (has("github") | not) and (has("packages") | not) and
-            (has("adapter") | not)
+            (has("adapter") | not) and
+            ((has("zshCompletion") | not) or (.zshCompletion | valid_completion))
         ) and
         all(.tools[] | select(.scope == "system");
             . as $tool |
@@ -78,6 +89,7 @@ validate_inventory() {
             ($tool.commands | type == "array" and length > 0 and
                 all(.[]; command_name)) and
             ($tool.versionPolicy == "system") and
+            ($tool | has("zshCompletion") | not) and
             ($tool.packages | type == "object" and length > 0) and
             (($tool.platforms // ["darwin-arm64", "darwin-x86_64",
                 "linux-arm64", "linux-x86_64"]) | valid_platforms) and
@@ -182,6 +194,92 @@ run_mise_tools() {
         echo "[WARN] Could not update tldr pages; see $(operation_log_path)" >&2
 }
 
+# Print name, command and completion source (args or file, as JSON) of
+# selected mise tools that declare a zsh completion.
+completion_rows() {
+    local platform="$1"
+    jq_run -r --arg platform "$platform" \
+        --arg groups "$DOTFILES_SELECTED_GROUPS" '
+        .tools[] | select(.scope == "core" and has("zshCompletion")) |
+        select(((.platforms // ["darwin-arm64", "darwin-x86_64",
+            "linux-arm64", "linux-x86_64"]) | index($platform)) != null) |
+        select('"$GROUP_SELECTED_JQ"') |
+        [.name, (.mise // .name), .commands[0],
+         (.zshCompletion | keys[0]),
+         (.zshCompletion | to_entries[0].value | tojson)] | @tsv
+    ' "$TOOL_INVENTORY"
+}
+
+# Write the zsh completion of one tool into a file.
+render_completion() {
+    local source="$1" command_name="$2" kind="$3" value="$4" output="$5"
+    local dir arg
+    local -a args=()
+
+    case "$kind" in
+    args)
+        while IFS= read -r arg; do args+=("$arg"); done < <(
+            jq_run -r '.[]' <<<"$value")
+        env -u MISE_NODE_VERSION "$MISE_BIN" --cd "$HOME" \
+            exec -- "$command_name" "${args[@]}" >"$output" 2>/dev/null ||
+            return 1
+        ;;
+    file)
+        dir="$(env -u MISE_NODE_VERSION "$MISE_BIN" --cd "$HOME" \
+            where "$source" 2>/dev/null)" || return 1
+        cp "${dir}/$(jq_run -r . <<<"$value")" "$output" 2>/dev/null ||
+            return 1
+        ;;
+    *) return 1 ;;
+    esac
+    head -n 1 "$output" | grep -q '^#compdef '
+}
+
+# Print the names of tools whose completion file is missing or outdated.
+outdated_completions() {
+    local platform="$1" name source command_name kind value candidate
+    candidate="$(mktemp)" || return 1
+    while IFS=$'\t' read -r name source command_name kind value; do
+        [ -n "$name" ] || continue
+        # A missing tool already has its own plan row.
+        env -u MISE_NODE_VERSION "$MISE_BIN" --cd "$HOME" \
+            which "$command_name" >/dev/null 2>&1 || continue
+        if ! render_completion "$source" "$command_name" "$kind" "$value" \
+            "$candidate" ||
+            ! cmp -s "$candidate" "${ZSH_COMPLETION_DIR}/_${command_name}"; then
+            printf '%s\n' "$name"
+        fi
+    done < <(completion_rows "$platform")
+    rm -f "$candidate"
+}
+
+# Write each changed completion; keep the old file when generation fails.
+write_completions() {
+    local platform="$1" failed=false name source command_name kind value
+    local target candidate
+
+    mkdir -p "$ZSH_COMPLETION_DIR" || return 1
+    while IFS=$'\t' read -r name source command_name kind value; do
+        [ -n "$name" ] || continue
+        target="${ZSH_COMPLETION_DIR}/_${command_name}"
+        candidate="$(mktemp "${ZSH_COMPLETION_DIR}/.${command_name}.XXXXXX")" ||
+            return 1
+        if ! render_completion "$source" "$command_name" "$kind" "$value" \
+            "$candidate"; then
+            echo "[ERROR] ${name}: could not generate the zsh completion" >&2
+            rm -f "$candidate"
+            failed=true
+            continue
+        fi
+        if cmp -s "$candidate" "$target"; then
+            rm -f "$candidate"
+        else
+            mv "$candidate" "$target" || failed=true
+        fi
+    done < <(completion_rows "$platform")
+    [ "$failed" = false ]
+}
+
 sudo_available() {
     if [ -n "${CORE_TOOLS_HAS_SUDO:-}" ]; then
         [ "$CORE_TOOLS_HAS_SUDO" = true ]
@@ -282,7 +380,7 @@ skipped_tool_rows() {
 }
 
 show_plan() {
-    local platform="$1" name source command_name status group
+    local platform="$1" name source command_name status group outdated
     local commands apt dnf pacman brew requires
     while IFS=$'\t' read -r name group; do
         [ -n "$name" ] || continue
@@ -300,6 +398,14 @@ show_plan() {
             printf 'FAIL\ttools\tupdate\t%s is missing from mise\n' "$name"
         fi
     done < <(mise_tool_rows "$platform")
+    outdated="$(outdated_completions "$platform" | paste -sd ',' - |
+        sed 's/,/, /g')" || return 1
+    if [ -n "$outdated" ]; then
+        printf 'UPDATE\ttools\tupdate\tZsh completions are missing or outdated: %s\n' \
+            "$outdated"
+    else
+        printf 'PASS\ttools\tnone\tZsh completions match installed tools\n'
+    fi
     while IFS=$'\t' read -r name commands apt dnf pacman brew requires; do
         [ -n "$name" ] || continue
         if tool_available "$commands"; then
@@ -339,7 +445,7 @@ check_tools() {
 }
 
 main() {
-    local action="${1:-}" platform
+    local action="${1:-}" platform completions
     case "$action" in
     plan | install | update | check) ;;
     *)
@@ -375,8 +481,12 @@ main() {
     case "$action" in
     plan) show_plan "$platform" ;;
     install | update)
-        run_mise_tools "$action" "$platform" &&
-            run_system_tools "$platform"
+        run_mise_tools "$action" "$platform" || return 1
+        # A failed completion must not stop system tools; report it after.
+        completions=0
+        write_completions "$platform" || completions=1
+        run_system_tools "$platform" || return 1
+        return "$completions"
         ;;
     check) check_tools "$platform" ;;
     esac

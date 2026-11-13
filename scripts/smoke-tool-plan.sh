@@ -30,6 +30,24 @@ jq -e '
 ' "$INVENTORY" >/dev/null ||
     fail "gh, shellcheck, pnpm and gnupg are not in the tool inventory"
 
+# Tools with a zsh completion declare how to get it: a generator command or
+# a file shipped in the mise install directory.
+jq -e '
+    def tool($name): .tools[] | select(.name == $name);
+    def args($name): tool($name).zshCompletion.args;
+    args("gh") == ["completion", "-s", "zsh"] and
+    args("pnpm") == ["completion", "zsh"] and
+    args("bitwarden") == ["completion", "--shell", "zsh"] and
+    args("just") == ["--completions", "zsh"] and
+    args("ripgrep") == ["--generate", "complete-zsh"] and
+    args("fd") == ["--gen-completions", "zsh"] and
+    args("delta") == ["--generate-completion", "zsh"] and
+    args("bat") == ["--completion", "zsh"] and
+    args("git-lfs") == ["completion", "zsh"] and
+    tool("zoxide").zshCompletion == {"file": "completions/_zoxide"}
+' "$INVENTORY" >/dev/null ||
+    fail "inventory does not declare zsh completions of mise tools"
+
 # Brewfile holds only desktop casks; CLI tools come from the inventory.
 if grep -E '^brew ' "$DOTFILES_DIR/Brewfile"; then
     fail "Brewfile installs a CLI tool outside the install groups"
@@ -55,11 +73,29 @@ printf '%s\n' "$*" >>"$MISE_LOG"
 action=""
 for argument in "$@"; do
     case "$argument" in
-    install | upgrade | which | exec) action="$argument"; break ;;
+    install | upgrade | which | exec | where) action="$argument"; break ;;
     esac
 done
 case "$action" in
-install | upgrade | exec) exit 0 ;;
+install | upgrade) exit 0 ;;
+exec)
+    while [ "$1" != -- ]; do shift; done
+    command_name="$2"
+    case "$command_name" in
+    git | tldr) exit 0 ;;
+    esac
+    # A generator prints a completion whose content follows the release.
+    [ "${COMPLETION_FAIL:-}" != "$command_name" ] || exit 1
+    printf '#compdef %s %s\n' "$command_name" "${COMPLETION_VERSION:-v1}"
+    ;;
+where)
+    tool="${!#}"
+    dir="$HOME/mise-installs/${tool//[:\/]/-}"
+    mkdir -p "$dir/completions"
+    printf '#compdef %s %s\n' "$tool" "${COMPLETION_VERSION:-v1}" \
+        >"$dir/completions/_${tool}"
+    printf '%s\n' "$dir"
+    ;;
 which)
     command_name="${!#}"
     printf '%s/bin/%s\n' "$HOME" "$command_name"
@@ -76,6 +112,9 @@ export PATH="/usr/bin:/bin"
 tool_list=$(jq -r '.tools[] | select(.scope == "core") | (.mise // .name)' \
     "$INVENTORY" | paste -sd ' ' -)
 tool_count=$(jq '[.tools[] | select(.scope == "core")] | length' "$INVENTORY")
+completion_commands=$(jq -r '.tools[] | select(.scope == "core" and
+    has("zshCompletion")) | .commands[0]' "$INVENTORY")
+completion_dir="$home_dir/.zfunc"
 
 for target in Darwin:arm64 Linux:x86_64 Linux:arm64; do
     os="${target%%:*}"
@@ -94,8 +133,9 @@ for target in Darwin:arm64 Linux:x86_64 Linux:arm64; do
         CORE_TOOLS_HAS_SUDO=false \
         MISE_CORE_TOOLS_FILE="$config" "$CORE_TOOLS" plan \
         >"$tmp_dir/plan"
+    rm -rf "$completion_dir"
     [ "$(wc -l <"$tmp_dir/plan" | tr -d ' ')" \
-        -eq "$((tool_count + system_count))" ] ||
+        -eq "$((tool_count + system_count + 1))" ] ||
         fail "public plan omitted tools for $target"
     [ "$(grep -c 'is available through mise$' "$tmp_dir/plan")" \
         -eq "$tool_count" ] || fail "public plan omitted mise tools for $target"
@@ -114,6 +154,16 @@ for target in Darwin:arm64 Linux:x86_64 Linux:arm64; do
         fail "generated mise config has no tools table"
     grep -F '"aqua:neovim/neovim" = "latest"' "$config" >/dev/null ||
         fail "generated mise config omitted the declared backend"
+    for command_name in $completion_commands; do
+        [ "$(cat "$completion_dir/_${command_name}")" = \
+            "#compdef ${command_name} v1" ] ||
+            fail "install did not write the $command_name completion for $target"
+    done
+    CORE_TOOLS_OS="$os" CORE_TOOLS_ARCH="$arch" \
+        CORE_TOOLS_HAS_SUDO=false \
+        MISE_CORE_TOOLS_FILE="$config" "$CORE_TOOLS" plan |
+        grep -Fx $'PASS\ttools\tnone\tZsh completions match installed tools' \
+        >/dev/null || fail "plan did not pass written completions for $target"
 
     : >"$mise_log"
     CORE_TOOLS_OS="$os" CORE_TOOLS_ARCH="$arch" \
@@ -123,6 +173,67 @@ for target in Darwin:arm64 Linux:x86_64 Linux:arm64; do
         "$mise_log" >/dev/null ||
         fail "update did not use the common mise path for $target"
 done
+
+# A new release changes a completion; the plan names it and update rewrites it.
+completion_plan() {
+    CORE_TOOLS_OS=Darwin CORE_TOOLS_ARCH=arm64 CORE_TOOLS_HAS_SUDO=false \
+        MISE_CORE_TOOLS_FILE="$tmp_dir/completion.toml" "$CORE_TOOLS" plan |
+        awk -F '\t' '$4 ~ /^Zsh completions/ { print $1 "\t" $3 "\t" $4 }'
+}
+printf '#compdef gh v2\n' >"$tmp_dir/gh-v2"
+COMPLETION_VERSION=v2 completion_plan >"$tmp_dir/completion-plan"
+grep -E $'^UPDATE\tupdate\tZsh completions are missing or outdated: .*gh' \
+    "$tmp_dir/completion-plan" >/dev/null ||
+    fail "plan did not name an outdated completion"
+rm "$completion_dir/_zoxide"
+[ "$(COMPLETION_VERSION=v1 completion_plan)" = \
+    $'UPDATE\tupdate\tZsh completions are missing or outdated: zoxide' ] ||
+    fail "plan did not name a missing shipped completion"
+COMPLETION_VERSION=v2 CORE_TOOLS_OS=Darwin CORE_TOOLS_ARCH=arm64 \
+    CORE_TOOLS_HAS_SUDO=false MISE_CORE_TOOLS_FILE="$tmp_dir/completion.toml" \
+    "$CORE_TOOLS" update >/dev/null || fail "completion update failed"
+cmp -s "$tmp_dir/gh-v2" "$completion_dir/_gh" ||
+    fail "update did not rewrite an outdated completion"
+[ "$(cat "$completion_dir/_zoxide")" = '#compdef zoxide v2' ] ||
+    fail "update did not copy the shipped completion"
+[ "$(COMPLETION_VERSION=v2 completion_plan)" = \
+    $'PASS\tnone\tZsh completions match installed tools' ] ||
+    fail "plan did not pass rewritten completions"
+
+# A failed generator keeps its old completion and fails the update; other
+# completions still update.
+if COMPLETION_VERSION=v3 COMPLETION_FAIL=gh CORE_TOOLS_OS=Darwin \
+    CORE_TOOLS_ARCH=arm64 CORE_TOOLS_HAS_SUDO=false \
+    MISE_CORE_TOOLS_FILE="$tmp_dir/completion.toml" \
+    "$CORE_TOOLS" update >"$tmp_dir/completion-fail" 2>&1; then
+    fail "update passed with a failed completion generator"
+fi
+grep -F '[ERROR] gh: could not generate the zsh completion' \
+    "$tmp_dir/completion-fail" >/dev/null ||
+    fail "failed completion generator was not named"
+cmp -s "$tmp_dir/gh-v2" "$completion_dir/_gh" ||
+    fail "failed completion generator changed the old completion"
+[ "$(cat "$completion_dir/_bat")" = '#compdef bat v3' ] ||
+    fail "a failed generator stopped other completions"
+for leftover in "$completion_dir"/.*; do
+    case "${leftover##*/}" in
+    . | ..) ;;
+    *) [ ! -e "$leftover" ] || fail "completion update left $leftover" ;;
+    esac
+done
+
+for invalid_completion in \
+    '(.tools[] | select(.name == "gh")).zshCompletion = {"args": ["x"], "file": "y"}' \
+    '(.tools[] | select(.name == "gh")).zshCompletion = {"args": []}' \
+    '(.tools[] | select(.name == "gh")).zshCompletion = {"file": "../_gh"}' \
+    '(.tools[] | select(.name == "gnupg")).zshCompletion = {"args": ["x"]}'; do
+    jq "$invalid_completion" "$INVENTORY" >"$tmp_dir/invalid-completion.json"
+    if TOOL_INVENTORY="$tmp_dir/invalid-completion.json" CORE_TOOLS_OS=Darwin \
+        CORE_TOOLS_ARCH=arm64 "$CORE_TOOLS" plan >/dev/null 2>&1; then
+        fail "inventory accepted an invalid completion: $invalid_completion"
+    fi
+done
+echo "[INFO] zsh completions: written, updated, kept on failure, validated"
 
 assert_xclip_plan() {
     local os="$1" arch="$2" has_sudo="$3" expected="$4"
@@ -259,12 +370,15 @@ grep -F $'bitwarden is available through mise' "$tmp_dir/grouped-plan" \
 DOTFILES_ENV_FILE="$tmp_dir/core.env" TOOL_INVENTORY="$grouped" \
     CORE_TOOLS_OS=Linux CORE_TOOLS_ARCH=arm64 CORE_TOOLS_HAS_SUDO=false \
     MISE_CORE_TOOLS_FILE="$tmp_dir/grouped.toml" \
+    ZSH_COMPLETION_DIR="$tmp_dir/core-zfunc" \
     "$CORE_TOOLS" install >/dev/null
 if grep -F demo-viewer "$mise_log" "$tmp_dir/grouped.toml"; then
     fail "core-only install provisioned a desktop tool"
 fi
 grep -Fx '"aqua:bitwarden/clients" = "latest"' "$tmp_dir/grouped.toml" \
     >/dev/null || fail "core-only install omitted native Bitwarden CLI"
+[ -f "$tmp_dir/core-zfunc/_gh" ] && [ ! -e "$tmp_dir/core-zfunc/_pnpm" ] ||
+    fail "core-only install did not limit completions to selected groups"
 TOOL_INVENTORY="$grouped" \
     CORE_TOOLS_OS=Linux CORE_TOOLS_ARCH=arm64 CORE_TOOLS_HAS_SUDO=false \
     "$CORE_TOOLS" plan | grep -F 'demo-viewer is available through mise' \

@@ -69,6 +69,20 @@ fi
 grep -Fx 'activate zsh' "$mise_log" >/dev/null ||
     fail ".zshrc did not activate mise"
 
+# Managed completions in ~/.zfunc win over zsh's own: zsh maps delta to
+# _sccs unless ~/.zfunc comes first in fpath.
+mkdir -p "$home_dir/.zfunc"
+printf '#compdef delta\n_arguments "--help"\n' >"$home_dir/.zfunc/_delta"
+# The host FPATH may carry another _delta, such as Homebrew's.
+if ! env -u FPATH HOME="$home_dir" ZDOTDIR="$zshenv" \
+    DOTFILES_ENV_FILE="$env_file" \
+    zsh -df -c "source '${DOTFILES_DIR}/.zshrc'; \
+    test \"\${_comps[delta]}\" = _delta" 2>"$stderr_log"; then
+    cat "$stderr_log" >&2
+    fail ".zshrc did not let ~/.zfunc completions win"
+fi
+rm -rf "$home_dir/.zfunc" "$home_dir"/.zcompdump*
+
 if command -v infocmp >/dev/null 2>&1; then
     # Ghostty sends TERM=xterm-ghostty to hosts that may lack its terminfo.
     for case in 'xterm-dotfiles-missing xterm-256color' 'xterm xterm'; do

@@ -22,7 +22,13 @@
       "group": "core",
       "name": "bat",
       "scope": "core",
-      "versionPolicy": "latest"
+      "versionPolicy": "latest",
+      "zshCompletion": {
+        "args": [
+          "--completion",
+          "zsh"
+        ]
+      }
     },
     {
       "commands": [
@@ -31,7 +37,13 @@
       "group": "core",
       "name": "ripgrep",
       "scope": "core",
-      "versionPolicy": "latest"
+      "versionPolicy": "latest",
+      "zshCompletion": {
+        "args": [
+          "--generate",
+          "complete-zsh"
+        ]
+      }
     },
     {
       "commands": [
@@ -40,7 +52,13 @@
       "group": "core",
       "name": "fd",
       "scope": "core",
-      "versionPolicy": "latest"
+      "versionPolicy": "latest",
+      "zshCompletion": {
+        "args": [
+          "--gen-completions",
+          "zsh"
+        ]
+      }
     },
     {
       "commands": [
@@ -77,7 +95,13 @@
       "group": "core",
       "name": "git-lfs",
       "scope": "core",
-      "versionPolicy": "latest"
+      "versionPolicy": "latest",
+      "zshCompletion": {
+        "args": [
+          "completion",
+          "zsh"
+        ]
+      }
     },
     {
       "commands": [
@@ -95,7 +119,13 @@
       "group": "core",
       "name": "just",
       "scope": "core",
-      "versionPolicy": "latest"
+      "versionPolicy": "latest",
+      "zshCompletion": {
+        "args": [
+          "--completions",
+          "zsh"
+        ]
+      }
     },
     {
       "commands": [
@@ -122,7 +152,13 @@
       "group": "core",
       "name": "delta",
       "scope": "core",
-      "versionPolicy": "latest"
+      "versionPolicy": "latest",
+      "zshCompletion": {
+        "args": [
+          "--generate-completion",
+          "zsh"
+        ]
+      }
     },
     {
       "commands": [
@@ -131,7 +167,10 @@
       "group": "core",
       "name": "zoxide",
       "scope": "core",
-      "versionPolicy": "latest"
+      "versionPolicy": "latest",
+      "zshCompletion": {
+        "file": "completions/_zoxide"
+      }
     },
     {
       "commands": [
@@ -202,7 +241,14 @@
       "group": "core",
       "name": "gh",
       "scope": "core",
-      "versionPolicy": "latest"
+      "versionPolicy": "latest",
+      "zshCompletion": {
+        "args": [
+          "completion",
+          "-s",
+          "zsh"
+        ]
+      }
     },
     {
       "commands": [
@@ -220,7 +266,13 @@
       "group": "agents",
       "name": "pnpm",
       "scope": "core",
-      "versionPolicy": "latest"
+      "versionPolicy": "latest",
+      "zshCompletion": {
+        "args": [
+          "completion",
+          "zsh"
+        ]
+      }
     },
     {
       "commands": [
@@ -230,7 +282,14 @@
       "mise": "aqua:bitwarden/clients",
       "name": "bitwarden",
       "scope": "core",
-      "versionPolicy": "latest"
+      "versionPolicy": "latest",
+      "zshCompletion": {
+        "args": [
+          "completion",
+          "--shell",
+          "zsh"
+        ]
+      }
     },
     {
       "channel": "latest",
