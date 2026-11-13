@@ -54,7 +54,8 @@ Preconditions: dependencies from SKILL.md; run from the checkout root.
   linking `../../docs/<path>` must get that file in `~/.agents/docs`, with
   each runtime `docs` directory linked to it. Doctor reports a missing doc
   as skills `UPDATE` without network access. A failed download changes
-  nothing. Staging rejects unsafe paths. The test simulates downloads.
+  nothing. Staging rejects unsafe paths. Two packages may ship one doc;
+  only different content fails. The test simulates downloads.
   For real upstream, run `skills-update` with a scratch HOME and a lock
   subset, then `skills-check` in that HOME.
 - **Upstream skill path.** `smoke-skill-install.sh` also covers a skill that

@@ -2369,7 +2369,7 @@ stage_skill_docs() {
     local docs_root="${STAGED_SKILLS_ROOT}/docs"
     local rows="${STAGED_SKILLS_ROOT}/doc-rows"
     local sources="${STAGED_SKILLS_ROOT}/doc-sources"
-    local name path url existing
+    local name path url existing target
 
     mkdir -p "$docs_root" || return 1
     : >"$sources"
@@ -2378,17 +2378,20 @@ stage_skill_docs() {
         url="$(skill_doc_url "$name" "$path")" || return 1
         existing="$(awk -F '\t' -v path="$path" \
             '$1 == path { print $2; exit }' "$sources")"
-        if [ -n "$existing" ]; then
-            [ "$existing" = "$url" ] && continue
-            echo "[ERROR] Support doc docs/${path} has two sources: ${existing} and ${url}" >&2
-            return 1
-        fi
+        [ "$existing" != "$url" ] || continue
+        # Packages may ship the same doc; a second source must match it.
+        target="${docs_root}/${path}"
+        [ -z "$existing" ] || target="${STAGED_SKILLS_ROOT}/doc-candidate"
         mkdir -p "$(dirname "${docs_root}/${path}")" || return 1
         operation_run "support doc docs/${path}" "download for ${name}" fetch -- \
-            curl -fsSL -o "${docs_root}/${path}" "$url" || {
+            curl -fsSL -o "$target" "$url" || {
             echo "[ERROR] Failed to download support doc docs/${path} for ${name}" >&2
             return 1
         }
+        if [ -n "$existing" ] && ! cmp -s "$target" "${docs_root}/${path}"; then
+            echo "[ERROR] Support doc docs/${path} differs between ${existing} and ${url}" >&2
+            return 1
+        fi
         printf '%s\t%s\n' "$path" "$url" >>"$sources"
     done <"$rows"
 }

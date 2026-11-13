@@ -27,10 +27,18 @@ JSON
 cat >"$task_dir/bin/skills" <<'STUB'
 #!/bin/bash
 set -eu
-mkdir -p "$HOME/.agents/skills/maintain-verification-skill"
-printf '%s\n' '---' 'name: maintain-verification-skill' '---' \
-    "In Claude Code, read [the adapter](../../docs/${DOC_LINK_PATH}) once." \
-    >"$HOME/.agents/skills/maintain-verification-skill/SKILL.md"
+collect=false
+for arg in "$@"; do
+    case "$arg" in
+    --skill) collect=true; continue ;;
+    --*) collect=false ;;
+    esac
+    [ "$collect" = true ] || continue
+    mkdir -p "$HOME/.agents/skills/$arg"
+    printf '%s\n' '---' "name: $arg" '---' \
+        "In Claude Code, read [the adapter](../../docs/${DOC_LINK_PATH}) once." \
+        >"$HOME/.agents/skills/$arg/SKILL.md"
+done
 STUB
 cat >"$task_dir/bin/curl" <<'STUB'
 #!/bin/bash
@@ -47,7 +55,10 @@ while [ "$#" -gt 0 ]; do
 done
 printf '%s\n' "$url" >>"$CURL_LOG"
 [ "${FAIL_DOC:-false}" = false ] || { echo 'HTTP 404' >&2; exit 22; }
-printf '%s\n' "$DOC_CONTENT" >"$output"
+case "$url" in
+*/other/*) printf '%s\n' "${OTHER_DOC_CONTENT:-$DOC_CONTENT}" >"$output" ;;
+*) printf '%s\n' "$DOC_CONTENT" >"$output" ;;
+esac
 STUB
 chmod +x "$task_dir/bin/skills" "$task_dir/bin/curl"
 
@@ -145,4 +156,25 @@ fi
 grep -F 'Unsafe support doc path' "$task_dir/output" >/dev/null ||
     fail "unsafe doc path was not explained"
 [ ! -s "$task_dir/curl.log" ] || fail "unsafe doc path was downloaded"
+echo "[INFO] an unsafe doc path is rejected before any download"
+
+# Two packages can ship the same doc; only different content conflicts.
+jq '.skills["second-skill"] = (.skills["maintain-verification-skill"] |
+    .skillPath = "other/skills/second-skill/SKILL.md")' \
+    "$task_dir/lock.json" >"$task_dir/lock.next"
+mv "$task_dir/lock.next" "$task_dir/lock.json"
+run_sync_agents push-skills || {
+    cat "$task_dir/output" >&2
+    fail "identical support docs from two packages were rejected"
+}
+[ "$(cat "$home/.agents/docs/harness/claude-code.md")" = 'adapter v1' ] ||
+    fail "shared support doc is wrong"
+snapshot >"$task_dir/before"
+if OTHER_DOC_CONTENT='other adapter' run_sync_agents push-skills; then
+    fail "different support docs from two packages were accepted"
+fi
+grep -F 'Support doc docs/harness/claude-code.md differs between' \
+    "$task_dir/output" >/dev/null || fail "doc conflict was not explained"
+snapshot | cmp -s "$task_dir/before" - ||
+    fail "a doc conflict changed the runtime"
 echo "[INFO] skill support doc smoke test passed (network simulated)"
