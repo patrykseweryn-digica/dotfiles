@@ -12,10 +12,6 @@ source "${DOTFILES_DIR}/scripts/operation.sh"
 # shellcheck source=scripts/groups.sh
 source "${DOTFILES_DIR}/scripts/groups.sh"
 
-# Select tools whose group this machine installs.
-selected_tools_filter='
-    .group as $group | $groups | split(" ") | index($group) != null'
-
 jq_run() {
     if [ -x "${JQ_BIN:-}" ]; then
         "$JQ_BIN" "$@"
@@ -44,7 +40,7 @@ tool_platform() {
 }
 
 validate_inventory() {
-    jq_run -e '
+    jq_run -e --arg names "$DOTFILES_GROUP_NAMES" '
         def valid_platforms:
             type == "array" and length > 0 and
             all(.[]; test("^(darwin|linux)-(arm64|x86_64)$"));
@@ -64,9 +60,7 @@ validate_inventory() {
             ($platform | startswith("darwin-")) and
             (($tool.packages.brew // "") | nonempty);
         (.tools | type == "array" and length > 0) and
-        all(.tools[];
-            .group == "core" or .group == "agents" or
-            .group == "desktop") and
+        all(.tools[]; '"$GROUP_VALID_JQ"') and
         all(.tools[] | select(.scope == "core");
             (.name | command_name) and
             (.commands | type == "array" and length > 0 and
@@ -87,10 +81,10 @@ validate_inventory() {
             ($tool.packages | type == "object" and length > 0) and
             (($tool.platforms // ["darwin-arm64", "darwin-x86_64",
                 "linux-arm64", "linux-x86_64"]) | valid_platforms) and
-            all(($tool.platforms // ["darwin-arm64", "darwin-x86_64",
-                "linux-arm64", "linux-x86_64"])[];
-                package_source($tool; .) and
-                if no_sudo_source($tool; .) then
+            (($tool.platforms // ["darwin-arm64", "darwin-x86_64",
+                "linux-arm64", "linux-x86_64"]) as $platforms |
+                all($platforms[]; package_source($tool; .)) and
+                if all($platforms[]; no_sudo_source($tool; .)) then
                     ($tool | has("requires") | not)
                 else
                     $tool.requires == "sudo"
@@ -109,10 +103,13 @@ system_tool_rows() {
         .tools[] | select(.scope == "system") |
         select(((.platforms // ["darwin-arm64", "darwin-x86_64",
             "linux-arm64", "linux-x86_64"]) | index($platform)) != null) |
-        select('"$selected_tools_filter"') |
+        select('"$GROUP_SELECTED_JQ"') |
         [.name, (.commands | join(" ")), (.packages.apt // "-"),
          (.packages.dnf // "-"), (.packages.pacman // "-"),
-         (.packages.brew // "-"), (.requires // "-")] | @tsv
+         (.packages.brew // "-"),
+         # macOS needs Homebrew, not sudo; Linux package managers need sudo.
+         (if ($platform | startswith("darwin-")) then "brew"
+          else (.requires // "-") end)] | @tsv
     ' "$TOOL_INVENTORY"
 }
 
@@ -124,7 +121,7 @@ mise_tool_rows() {
             .versionPolicy == "latest") |
         select(((.platforms // ["darwin-arm64", "darwin-x86_64",
             "linux-arm64", "linux-x86_64"]) | index($platform)) != null) |
-        select('"$selected_tools_filter"') |
+        select('"$GROUP_SELECTED_JQ"') |
         [.name, (.mise // .name), .commands[0]] | @tsv
     ' "$TOOL_INVENTORY"
 }
@@ -140,7 +137,7 @@ write_mise_config() {
                 .versionPolicy == "latest") |
             select(((.platforms // ["darwin-arm64", "darwin-x86_64",
                 "linux-arm64", "linux-x86_64"]) | index($platform)) != null) |
-            select('"$selected_tools_filter"') |
+            select('"$GROUP_SELECTED_JQ"') |
             (((.mise // .name) | @json) + " = \"latest\"")
         ])[]
     ' "$TOOL_INVENTORY" >"$candidate" || {
@@ -201,6 +198,15 @@ tool_available() {
     return 1
 }
 
+# A system tool needs sudo on Linux and Homebrew on macOS.
+requirement_met() {
+    case "$1" in
+    sudo) sudo_available ;;
+    brew) command -v brew >/dev/null 2>&1 ;;
+    *) return 0 ;;
+    esac
+}
+
 system_package_manager() {
     local platform="$1" manager
     if [[ "$platform" == darwin-* ]]; then
@@ -226,8 +232,8 @@ run_system_tools() {
             echo "[INFO] $name is already installed"
             continue
         fi
-        if [ "$requires" = sudo ] && ! sudo_available; then
-            echo "[SKIP] $name: requires sudo on $platform"
+        if ! requirement_met "$requires"; then
+            echo "[SKIP] $name: requires $requires on $platform"
             continue
         fi
         manager="$(system_package_manager "$platform")" || {
@@ -270,7 +276,7 @@ skipped_tool_rows() {
         .tools[] | select(.scope == "core" or .scope == "system") |
         select(((.platforms // ["darwin-arm64", "darwin-x86_64",
             "linux-arm64", "linux-x86_64"]) | index($platform)) != null) |
-        select(('"$selected_tools_filter"') | not) |
+        select(('"$GROUP_SELECTED_JQ"') | not) |
         [.name, .group] | @tsv
     ' "$TOOL_INVENTORY"
 }
@@ -280,8 +286,7 @@ show_plan() {
     local commands apt dnf pacman brew requires
     while IFS=$'\t' read -r name group; do
         [ -n "$name" ] || continue
-        printf 'SKIP\ttools\tnone\t%s skipped: %s\n' \
-            "$name" "$(group_skip_reason "$group")"
+        group_skip_row tools "$name" "$group"
     done < <(skipped_tool_rows "$platform")
     while IFS=$'\t' read -r name source command_name; do
         status=INSTALL
@@ -299,9 +304,9 @@ show_plan() {
         [ -n "$name" ] || continue
         if tool_available "$commands"; then
             printf 'PASS\ttools\tnone\t%s is available\n' "$name"
-        elif [ "$requires" = sudo ] && ! sudo_available; then
-            printf 'SKIP\ttools\tnone\t%s requires sudo on %s\n' \
-                "$name" "$platform"
+        elif ! requirement_met "$requires"; then
+            printf 'SKIP\ttools\tnone\t%s requires %s on %s\n' \
+                "$name" "$requires" "$platform"
         else
             printf 'FAIL\ttools\tupdate\t%s is missing\n' "$name"
         fi
@@ -323,8 +328,8 @@ check_tools() {
         if tool_available "$commands"; then
             continue
         fi
-        if [ "$requires" = sudo ] && ! sudo_available; then
-            echo "[SKIP] $name: requires sudo on $platform"
+        if ! requirement_met "$requires"; then
+            echo "[SKIP] $name: requires $requires on $platform"
         else
             echo "[ERROR] $name is unavailable" >&2
             failed=true

@@ -111,6 +111,11 @@ repos:
         entry: bash scripts/smoke-treehouse.sh
         language: system
         pass_filenames: false
+      - id: codex-native-smoke
+        name: Codex native installer smoke test
+        entry: bash scripts/smoke-codex-native.sh
+        language: system
+        pass_filenames: false
       - id: codex-settings-smoke
         name: Codex TOML settings smoke test
         entry: uv run --no-project --script scripts/smoke-codex-settings.py

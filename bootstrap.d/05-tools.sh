@@ -184,6 +184,54 @@ install_grok() {
     "$BIN_DIR/grok" --version
 }
 
+CODEX_INSTALL_URL="${CODEX_INSTALL_URL:-https://chatgpt.com/codex/install.sh}"
+
+# Print how to remove a Codex that another manager installed.
+codex_removal_hint() {
+    case "$1" in
+    /opt/homebrew/* | /usr/local/*) echo "brew uninstall --cask codex" ;;
+    *)
+        if head -n 1 "$1" 2>/dev/null | grep -q node; then
+            echo "npm uninstall -g @openai/codex"
+        else
+            echo "rm $1"
+        fi
+        ;;
+    esac
+}
+
+# OpenAI's installer verifies checksums and skips a current release.
+# With another Codex on PATH, it edits shell profiles, so stop first.
+install_codex() {
+    local installer existing
+
+    while IFS= read -r existing; do
+        [ "$existing" != "$BIN_DIR/codex" ] || continue
+        case "$existing" in
+        "$HOME/.local/share/mise/"*)
+            # Earlier dotfiles versions installed Codex with mise npm.
+            echo "[INFO] Removing mise npm Codex: $existing"
+            mise uninstall --all npm:@openai/codex || return 1
+            [ ! -e "$existing" ] || {
+                echo "[ERROR] Codex: mise left $existing" >&2
+                return 1
+            }
+            ;;
+        *)
+            echo "[ERROR] Codex: another install is on PATH: $existing" >&2
+            echo "[ERROR] Remove it, then rerun: $(codex_removal_hint "$existing")" >&2
+            return 1
+            ;;
+        esac
+    done < <(type -ap codex)
+
+    installer="$(curl -fsSL "$CODEX_INSTALL_URL")" || return 1
+    mkdir -p "$BIN_DIR" || return 1
+    CODEX_NON_INTERACTIVE=1 CODEX_INSTALL_DIR="$BIN_DIR" \
+        PATH="$BIN_DIR:$PATH" sh -c "$installer" || return 1
+    "$BIN_DIR/codex" --version
+}
+
 install_no_mistakes() {
     local installer
 

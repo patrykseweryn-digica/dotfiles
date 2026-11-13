@@ -1,8 +1,3 @@
-brew "gh"
-brew "gnupg"
-brew "pnpm"
-brew "shellcheck"
-
 cask "bitwarden"
 cask "brave-browser"
 cask "cmux"

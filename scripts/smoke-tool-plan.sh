@@ -16,14 +16,24 @@ jq -e '
         (has("github") | not) and
         (has("packages") | not) and
         (has("adapter") | not)) and
-    ([.tools[] | select(.scope == "system") | .name] == ["xclip"])
+    ([.tools[] | select(.scope == "system") | .name] ==
+        ["gnupg", "xclip"])
 ' "$INVENTORY" >/dev/null ||
     fail "core inventory is not fully provisioned by mise"
+jq -e '
+    def tool($name): .tools[] | select(.name == $name);
+    (tool("gh") | .scope == "core" and .group == "core") and
+    (tool("shellcheck") | .scope == "core" and .group == "core") and
+    (tool("pnpm") | .scope == "core" and .group == "agents") and
+    (tool("gnupg") | .group == "core" and .commands == ["gpg"] and
+        .packages.brew == "gnupg" and .packages.apt == "gnupg")
+' "$INVENTORY" >/dev/null ||
+    fail "gh, shellcheck, pnpm and gnupg are not in the tool inventory"
 
-expected_brew=$(printf '%s\n' gh gnupg pnpm shellcheck)
-actual_brew=$(sed -n 's/^brew "\([^"]*\)"$/\1/p' "$DOTFILES_DIR/Brewfile")
-[ "$actual_brew" = "$expected_brew" ] ||
-    fail "Brewfile repeats a managed tool"
+# Brewfile holds only desktop casks; CLI tools come from the inventory.
+if grep -E '^brew ' "$DOTFILES_DIR/Brewfile"; then
+    fail "Brewfile installs a CLI tool outside the install groups"
+fi
 
 tmp_dir="$(mktemp -d)"
 trap 'rm -rf "$tmp_dir"' EXIT
@@ -74,7 +84,8 @@ for target in Darwin:arm64 Linux:x86_64 Linux:arm64; do
         --arg arch "${arch/x86_64/x86_64}" '
         (($platform | ascii_downcase) + "-" + $arch) as $target |
         [.tools[] | select(.scope == "system") |
-            select(.platforms | index($target))] | length
+            select((.platforms // ["darwin-arm64", "darwin-x86_64",
+                "linux-arm64", "linux-x86_64"]) | index($target))] | length
     ' "$INVENTORY")
     : >"$mise_log"
 
@@ -129,14 +140,22 @@ assert_xclip_plan Linux arm64 true \
 assert_xclip_plan Linux x86_64 true \
     $'FAIL\ttools\tupdate\txclip is missing'
 
+# The host may already have gpg; a fixture command keeps installs visible.
+brew_fixture="$tmp_dir/brew-fixture.json"
+jq '(.tools[] | select(.name == "gnupg")).commands = ["gpg-fixture"]' \
+    "$INVENTORY" >"$brew_fixture"
 system_bin="$tmp_dir/system-bin"
 system_log="$tmp_dir/system.log"
 mkdir -p "$system_bin"
 cat >"$system_bin/apt-get" <<'STUB'
 #!/bin/bash
 printf 'apt-get %s\n' "$*" >>"$SYSTEM_LOG"
-printf '#!/bin/sh\n' >"$SYSTEM_BIN/xclip"
-chmod +x "$SYSTEM_BIN/xclip"
+case "${!#}" in
+gnupg) command_name=gpg-fixture ;;
+*) command_name="${!#}" ;;
+esac
+printf '#!/bin/sh\n' >"$SYSTEM_BIN/$command_name"
+chmod +x "$SYSTEM_BIN/$command_name"
 STUB
 cat >"$system_bin/sudo" <<'STUB'
 #!/bin/bash
@@ -145,14 +164,51 @@ printf 'sudo %s\n' "$*" >>"$SYSTEM_LOG"
 STUB
 chmod +x "$system_bin/apt-get" "$system_bin/sudo"
 : >"$system_log"
-PATH="$system_bin:/usr/bin:/bin" SYSTEM_BIN="$system_bin" \
+TOOL_INVENTORY="$brew_fixture" \
+    PATH="$system_bin:/usr/bin:/bin" SYSTEM_BIN="$system_bin" \
     SYSTEM_LOG="$system_log" \
     CORE_TOOLS_OS=Linux CORE_TOOLS_ARCH=arm64 \
     CORE_TOOLS_HAS_SUDO=true "$CORE_TOOLS" install >/dev/null
 grep -Fx 'sudo apt-get install -y xclip' "$system_log" >/dev/null ||
     fail "sudo-aware install omitted xclip"
+grep -Fx 'sudo apt-get install -y gnupg' "$system_log" >/dev/null ||
+    fail "sudo-aware install omitted gnupg"
 PATH="$system_bin:/usr/bin:/bin" assert_xclip_plan Linux arm64 false \
     $'PASS\ttools\tnone\txclip is available'
+
+# Homebrew needs no sudo; Linux package managers do.
+rm "$system_bin/gpg-fixture"
+cat >"$system_bin/brew" <<'STUB'
+#!/bin/bash
+printf 'brew %s\n' "$*" >>"$SYSTEM_LOG"
+printf '#!/bin/sh\n' >"$SYSTEM_BIN/gpg-fixture"
+chmod +x "$SYSTEM_BIN/gpg-fixture"
+STUB
+chmod +x "$system_bin/brew"
+gnupg_plan() {
+    TOOL_INVENTORY="$brew_fixture" CORE_TOOLS_OS="$1" CORE_TOOLS_ARCH=arm64 \
+        CORE_TOOLS_HAS_SUDO=false PATH="$system_bin:/usr/bin:/bin" \
+        "$CORE_TOOLS" plan | awk -F '\t' '$4 ~ /^gnupg / { print $1 "\t" $4 }'
+}
+[ "$(gnupg_plan Darwin)" = "$(printf 'FAIL\tgnupg is missing')" ] ||
+    fail "macOS plan skipped gnupg without sudo"
+[ "$(TOOL_INVENTORY="$brew_fixture" CORE_TOOLS_OS=Darwin CORE_TOOLS_ARCH=arm64 \
+    PATH=/usr/bin:/bin "$CORE_TOOLS" plan |
+    awk -F '\t' '$4 ~ /^gnupg / { print $1 "\t" $4 }')" = \
+    "$(printf 'SKIP\tgnupg requires brew on darwin-arm64')" ] ||
+    fail "macOS plan without Homebrew did not skip gnupg"
+[ "$(gnupg_plan Linux)" = \
+    "$(printf 'SKIP\tgnupg requires sudo on linux-arm64')" ] ||
+    fail "Linux plan did not require sudo for gnupg"
+: >"$system_log"
+TOOL_INVENTORY="$brew_fixture" PATH="$system_bin:/usr/bin:/bin" \
+    SYSTEM_BIN="$system_bin" SYSTEM_LOG="$system_log" \
+    CORE_TOOLS_OS=Darwin CORE_TOOLS_ARCH=arm64 \
+    CORE_TOOLS_HAS_SUDO=false "$CORE_TOOLS" install >/dev/null
+grep -Fx 'brew install gnupg' "$system_log" >/dev/null ||
+    fail "macOS install without sudo omitted gnupg"
+[ "$(gnupg_plan Darwin)" = "$(printf 'PASS\tgnupg is available')" ] ||
+    fail "installed gnupg did not pass the plan"
 
 for platform in darwin-arm64 darwin-x86_64 linux-arm64 linux-x86_64; do
     invalid_system="$tmp_dir/invalid-${platform}.json"

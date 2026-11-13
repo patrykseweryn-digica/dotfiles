@@ -94,6 +94,10 @@ Native latest installers do not expose one common version source.
 Each npm CLI uses the mise npm backend. Claude Code uses
 `claude install latest` for updates and Anthropic's native installer for a
 missing command.
+Codex uses OpenAI's official installer (`chatgpt.com/codex/install.sh`) on
+every platform. It verifies checksums, installs into `~/.local/bin`, and does
+nothing when the release is current. Another `codex` on `PATH` stops the
+install, and doctor reports it. Sync removes a former mise npm Codex.
 Configuration application never resolves channels or updates tool versions.
 
 To add an npm CLI, add one entry to the manifest:
@@ -165,9 +169,9 @@ install and update only elements of the selected groups.
 
 | Group | Contents |
 |---|---|
-| `core` | zsh, Oh My Zsh, CLI tools, Git, SSH, managed links, Bitwarden CLI |
-| `agents` | Node, agent CLIs and settings, MCP, skills, plugins, AXI |
-| `desktop` | fonts, Ghostty and VS Code config, terminal colors, macOS apps |
+| `core` | zsh, Oh My Zsh, CLI tools (gh, shellcheck, gnupg), Git, SSH, managed links, Bitwarden CLI |
+| `agents` | Node, pnpm, agent CLIs and settings, MCP, skills, plugins, AXI |
+| `desktop` | fonts, Ghostty and VS Code config, terminal colors, macOS apps (Brewfile casks) |
 
 Set the groups as a comma-separated list. `core` is required:
 
@@ -198,7 +202,7 @@ replaces. A failure names the element, operation, cause, exit code, and next
 step. Independent phases continue after a failure. A dependent phase prints
 `NOT RUN` with its reason. The summary lists each problem and exits nonzero.
 
-Cursor CLI, Grok Build, Herdr, Treehouse and no-mistakes use
+Codex, Cursor CLI, Grok Build, Herdr, Treehouse and no-mistakes use
 official latest-release installers selected by the tool manifest.
 Native commands use `~/.local/bin`;
 no-mistakes keeps its binary in `~/.no-mistakes/bin` and restarts its daemon.

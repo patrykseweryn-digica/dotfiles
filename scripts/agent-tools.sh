@@ -14,7 +14,7 @@ source "${DOTFILES_DIR}/scripts/operation.sh"
 source "${DOTFILES_DIR}/scripts/groups.sh"
 
 validate_manifest() {
-    jq -e '
+    jq -e --arg names "$DOTFILES_GROUP_NAMES" '
         def command_name:
             if has("command") then .command else .commands[0] end;
         def valid_platforms:
@@ -25,8 +25,7 @@ validate_manifest() {
         (.tools | type) == "array" and (.tools | length) > 0 and
         all(.tools[];
             (.name | type == "string" and test("^[^\\t\\r\\n]+$")) and
-            (.group == "core" or .group == "agents" or
-                .group == "desktop") and
+            '"$GROUP_VALID_JQ"' and
             (command_name | type == "string" and
                 test("^[a-zA-Z0-9][a-zA-Z0-9._-]*$")) and
             ((.platforms // ["darwin-arm64", "darwin-x86_64",
@@ -59,7 +58,8 @@ validate_manifest() {
                     (.package | type == "string" and
                         test("^(@[a-z0-9._-]+/)?[a-z0-9][a-z0-9._-]*$"))
                  else
-                    (.installer == "cursor-native" or
+                    (.installer == "codex-native" or
+                     .installer == "cursor-native" or
                      .installer == "grok-native" or
                      .installer == "herdr-native" or
                      .installer == "treehouse-native" or
@@ -88,27 +88,36 @@ validate_manifest() {
     }
 }
 
-# Select tools whose group this machine installs.
-selected_tools_filter='
-    .group as $group | $groups | split(" ") | index($group) != null'
-
 tool_rows() {
-    jq -r --arg groups "$DOTFILES_SELECTED_GROUPS" '.tools[] |
+    local platform
+    platform="$(platform_key)" || return 1
+    jq -r --arg groups "$DOTFILES_SELECTED_GROUPS" \
+        --arg platform "$platform" '
+        (.platforms // ["darwin-arm64", "darwin-x86_64",
+            "linux-arm64", "linux-x86_64"]) as $default_platforms |
+        .tools[] |
         select((.scope // "agent") == "agent") |
-        select('"$selected_tools_filter"') | [
+        select(((.platforms // $default_platforms) | index($platform)) != null) |
+        select('"$GROUP_SELECTED_JQ"') | [
         .name, .command, (.package // .command),
         .channel, .installer, ((.update // []) | join(" "))
     ] | @tsv' "$VERSIONS_FILE"
 }
 
 write_mise_agent_tools_config() {
-    local candidate
+    local candidate platform
+    platform="$(platform_key)" || return 1
     mkdir -p "$(dirname "$MISE_AGENT_TOOLS_FILE")"
     candidate=$(mktemp "${MISE_AGENT_TOOLS_FILE}.XXXXXX") || return 1
-    jq -r --arg groups "$DOTFILES_SELECTED_GROUPS" '
+    jq -r --arg groups "$DOTFILES_SELECTED_GROUPS" \
+        --arg platform "$platform" '
+        (.platforms // ["darwin-arm64", "darwin-x86_64",
+            "linux-arm64", "linux-x86_64"]) as $default_platforms |
         (["[tools]"] + [
             .tools[] | select(.installer == "npm") |
-            select('"$selected_tools_filter"') |
+            select(((.platforms // $default_platforms) |
+                index($platform)) != null) |
+            select('"$GROUP_SELECTED_JQ"') |
             (. as $tool |
                 ([
                     if (($tool.allow_builds // []) | length) > 0 then
@@ -169,7 +178,8 @@ plan_rows() {
         select(((.platforms // $default_platforms) | index($platform)) != null) |
         select((.scope // "agent") == "agent") |
         [.name, (.scope // "agent"), .group,
-         (if has("commands") then (.commands | join(" ")) else .command end)] |
+         (if has("commands") then (.commands | join(" ")) else .command end),
+         (.installer // "none")] |
         @tsv
     ' "$VERSIONS_FILE"
 }
@@ -394,15 +404,20 @@ report_versions() {
 }
 
 plan_tools() {
-    local rows name scope group commands command_name available
-    local candidate report
+    local rows name scope group commands installer command_name available
+    local candidate report resolved
 
     rows="$(plan_rows)" || return 1
-    while IFS=$'\t' read -r name scope group commands; do
+    while IFS=$'\t' read -r name scope group commands installer; do
         command_name="${commands%% *}"
+        resolved="$(command -v "$command_name" 2>/dev/null || true)"
         if ! group_selected "$group"; then
-            printf 'SKIP\ttools\tnone\t%s skipped: %s\n' \
-                "$name" "$(group_skip_reason "$group")"
+            group_skip_row tools "$name" "$group"
+        elif [ "$installer" = codex-native ] && [ -n "$resolved" ] &&
+            [ "$resolved" != "$HOME/.local/bin/codex" ]; then
+            # Another Codex first on PATH shadows the managed install.
+            printf 'FAIL\ttools\tupdate\t%s resolves to %s; expected %s\n' \
+                "$name" "$resolved" "$HOME/.local/bin/codex"
         elif [ "$scope" = agent ] &&
             command -v "$command_name" >/dev/null 2>&1; then
             printf 'PASS\ttools\tnone\t%s is available\n' "$name"
@@ -524,13 +539,15 @@ install_declared_tools() {
             operation_run "$name" "install $expected" install -- \
                 bash -c "$script" -- "$expected" || failed=true
             ;;
-        cursor-native | grok-native | herdr-native | treehouse-native | no-mistakes-native)
+        codex-native | cursor-native | grok-native | herdr-native | \
+            treehouse-native | no-mistakes-native)
             # Reuse the existing, small native installers.
             # shellcheck source=bootstrap.d/05-tools.sh
             source "$DOTFILES_DIR/bootstrap.d/05-tools.sh"
             BIN_DIR="${HOME}/.local/bin"
             mkdir -p "$BIN_DIR"
             case "$installer" in
+            codex-native) set -- install_codex ;;
             cursor-native) set -- install_cursor_cli ;;
             grok-native) set -- install_grok ;;
             herdr-native) set -- install_herdr ;;

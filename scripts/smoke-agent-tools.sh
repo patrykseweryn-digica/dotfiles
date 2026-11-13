@@ -19,6 +19,9 @@ jq -e 'all(.tools[] | select((.scope // "agent") == "agent");
   .channel == "latest" and (has("version") | not))' \
   "$DOTFILES_DIR/.agents/tool-versions.json" >/dev/null ||
   fail "agent tools must follow latest without version pins"
+jq -e '[.tools[] | select(.command == "codex") | .installer] ==
+  ["codex-native"]' "$DOTFILES_DIR/.agents/tool-versions.json" >/dev/null ||
+  fail "Codex must use OpenAI's native installer on every platform"
 
 tmp_dir="$(mktemp -d)"
 trap 'rm -rf "$tmp_dir"' EXIT
@@ -327,10 +330,29 @@ LATEST_VERSION=2.0.0 "$AGENT_TOOLS" check >/dev/null
 mv "$HOME/.local/bin/mise.saved" "$HOME/.local/bin/mise"
 
 # Every npm CLI remains runnable after switching between two LTS runtimes.
+host_os="$(uname -s)"
+host_arch="$(uname -m)"
+case "$host_arch" in
+arm64|aarch64) host_arch=arm64 ;;
+x86_64|amd64) host_arch=x86_64 ;;
+*) fail "unsupported architecture: $host_arch" ;;
+esac
+case "$host_os" in
+Darwin) host_os=darwin ;;
+Linux) host_os=linux ;;
+*) fail "unsupported OS: $host_os" ;;
+esac
+host_platform="${host_os}-${host_arch}"
+other_platform=linux-x86_64
+[ "$host_platform" != "$other_platform" ] || other_platform=darwin-arm64
 npm_manifest="${tmp_dir}/all-npm-tools.json"
-jq '{tools: [.tools[] | select(.installer == "npm")]} |
-  .tools[0].trust_policy_excludes = [.tools[0].package + "@1.2.3"]' \
+# The second tool is limited to another platform and must stay out.
+jq --arg other "$other_platform" '
+  {tools: [.tools[] | select(.installer == "npm")]} |
+  .tools[0].trust_policy_excludes = [.tools[0].package + "@1.2.3"] |
+  .tools[1].platforms = [$other]' \
   "$DOTFILES_DIR/.agents/tool-versions.json" >"$npm_manifest"
+other_package="$(jq -r '.tools[1].package' "$npm_manifest")"
 trust_exclude="$(jq -r '.tools[0].trust_policy_excludes[0]' "$npm_manifest")"
 previous_manifest="$AGENT_TOOL_VERSIONS"
 export AGENT_TOOL_VERSIONS="$npm_manifest"
@@ -338,16 +360,28 @@ export AGENT_TOOL_VERSIONS="$npm_manifest"
 grep -F "trust_policy_excludes = [\"${trust_exclude}\"]" \
   "$HOME/.config/mise/conf.d/20-agent-tools.toml" >/dev/null ||
   fail "npm trust exception was not exact"
+if grep -F "npm:${other_package}" \
+  "$HOME/.config/mise/conf.d/20-agent-tools.toml"; then
+  fail "a tool for another platform was written into mise config"
+fi
 switched_node="$HOME/.local/share/mise/installs/node/24.11.1/bin/node"
 mkdir -p "$(dirname "$switched_node")"
 printf '#!/bin/sh\necho v24.11.1\n' >"$switched_node"
 chmod +x "$switched_node"
 printf '24.11.1\n' >"$HOME/.local/share/mise/current-node"
 activate_node >/dev/null
+platform_commands="${tmp_dir}/platform-npm-commands.txt"
+jq -r --arg platform "$host_platform" '
+  (.platforms // ["darwin-arm64", "darwin-x86_64",
+    "linux-arm64", "linux-x86_64"]) as $default_platforms |
+  .tools[] |
+  select(((.platforms // $default_platforms) | index($platform)) != null) |
+  .command
+' "$npm_manifest" >"$platform_commands"
 while IFS= read -r command_name; do
   "$command_name" --version >/dev/null ||
     fail "npm CLI failed after Node switch: $command_name"
-done < <(jq -r '.tools[].command' "$npm_manifest")
+done <"$platform_commands"
 if grep -F '/installs/node/' "$HOME/.config/mise/conf.d/20-agent-tools.toml";
 then
   fail "mise npm config contains a versioned Node path"
@@ -357,13 +391,16 @@ activate_node >/dev/null
 export AGENT_TOOL_VERSIONS="$previous_manifest"
 
 # Native declarations dispatch through the existing installers.
+# The npm Codex fixtures would shadow the native Codex.
+rm "$stub_dir/codex" "$HOME/.local/share/mise/npm-tools/bin/codex"
 cat >"$manifest" <<'JSON'
 {"tools":[
  {"name":"Herdr","command":"herdr","installer":"herdr-native","channel":"latest","group":"agents","update":["herdr","update"]},
  {"name":"Treehouse","command":"treehouse","installer":"treehouse-native","channel":"latest","group":"agents"},
  {"name":"no-mistakes","command":"no-mistakes","installer":"no-mistakes-native","channel":"latest","group":"agents","update":["no-mistakes","update"]},
  {"name":"Cursor CLI","command":"agent","installer":"cursor-native","channel":"latest","group":"agents","update":["agent","update"]},
- {"name":"Grok Build","command":"grok","installer":"grok-native","channel":"latest","group":"agents","update":["grok","update"]}
+ {"name":"Grok Build","command":"grok","installer":"grok-native","channel":"latest","group":"agents","update":["grok","update"]},
+ {"name":"Codex","command":"codex","installer":"codex-native","channel":"latest","group":"agents"}
 ]}
 JSON
 cat >"$stub_dir/curl" <<'STUB'
@@ -376,6 +413,16 @@ printf '#!/bin/sh\nif [ "$1" = update ]; then echo "update agent" >> "$NATIVE_LO
 chmod +x "$HOME/.local/bin/cursor-agent"
 ln -sf cursor-agent "$HOME/.local/bin/agent"
 echo cursor-agent >> "$NATIVE_LOG"
+INSTALLER
+        [ "${NATIVE_DOWNLOAD_FAIL:-false}" = false ] || exit 22
+        exit 0 ;;
+    *chatgpt.com/codex/install.sh*)
+        cat <<'INSTALLER'
+[ "$CODEX_NON_INTERACTIVE" = 1 ] || exit 1
+mkdir -p "$CODEX_INSTALL_DIR"
+printf '#!/bin/sh\necho "codex-cli 1.2.3"\n' > "$CODEX_INSTALL_DIR/codex"
+chmod +x "$CODEX_INSTALL_DIR/codex"
+echo codex >> "$NATIVE_LOG"
 INSTALLER
         [ "${NATIVE_DOWNLOAD_FAIL:-false}" = false ] || exit 22
         exit 0 ;;
@@ -447,9 +494,9 @@ export PATH="$HOME/.local/bin:$PATH"
 : >"$native_log"
 "$AGENT_TOOLS" install
 "$AGENT_TOOLS" check >"$tmp_dir/native-report.log"
-[ "$(grep -c '^PASS[[:space:]]' "$tmp_dir/native-report.log")" -eq 5 ] ||
+[ "$(grep -c '^PASS[[:space:]]' "$tmp_dir/native-report.log")" -eq 6 ] ||
   fail "native tool plan omitted an available tool"
-for name in herdr treehouse no-mistakes cursor-agent grok; do
+for name in herdr treehouse no-mistakes cursor-agent grok codex; do
   [ "$(grep -Fxc "$name" "$native_log")" -eq 1 ] || fail "native install missing: $name"
 done
 : >"$native_log"
@@ -469,6 +516,8 @@ grep -F '[SKIP] Herdr: run `herdr update` outside Herdr after detaching' \
   fail "Herdr update ran inside a Herdr pane"
 grep -Fx 'update no-mistakes' "$native_log" >/dev/null ||
   fail "Herdr skip stopped other native updates"
+grep -Fx codex "$native_log" >/dev/null ||
+  fail "Codex update did not rerun the official installer"
 grep -Fx treehouse-check "$native_log" >/dev/null || fail "Treehouse update was not checked"
 ! grep -Fx treehouse "$native_log" >/dev/null || fail "current Treehouse was downloaded"
 ! grep -Fx 'update treehouse' "$native_log" >/dev/null || fail "Treehouse used its API updater"

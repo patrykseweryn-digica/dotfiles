@@ -10,7 +10,9 @@ developer releases without editing that inventory.
 - `plan` checks every platform-applicable inventory entry offline.
 - `install` provisions portable core tools through mise.
 - `update` resolves current stable releases without stored version numbers.
-- `system` reports `SKIP` with a reason when sudo is unavailable.
+- `system` installs gnupg and xclip with the OS package manager. It reports
+  `SKIP` with a reason when Linux has no sudo or macOS has no Homebrew.
+- `brewfile` holds only desktop casks; gh, shellcheck and pnpm come from mise.
 - `groups` installs and plans only tools of selected install groups;
   Bitwarden CLI is a native core tool ([groups](groups.md)).
 - `failure` retains previous Node and stops when downloads fail.
@@ -31,12 +33,16 @@ Preconditions: working host Node/npm; no live update needed for verification.
   and Node compatibility require separate live evidence.
   Update keeps `latest` without changing inventory bytes. Native tools use only
   their declared self-update commands. Treehouse uses the managed public
-  release redirect and skips a current binary. Inside a Herdr pane, the Herdr
+  release redirect and skips a current binary. Codex reruns OpenAI's
+  installer, which skips a current release. Inside a Herdr pane, the Herdr
   update is skipped with an instruction and other updates continue.
+- **Codex.** Run `bash scripts/smoke-codex-native.sh`. It drives the official
+  installer path: fresh install, failed download, update, a foreign `codex`
+  on PATH (stop before any change), mise npm migration, and the plan row.
 - **Core install plan.** Run `bash scripts/smoke-tool-plan.sh`. It exercises
   the public core-tools interface. The test covers macOS arm64, Linux x86_64,
   Linux arm64, install, update, generated config, system-tool separation,
-  required tool groups, and group skips.
+  Homebrew without sudo, required tool groups, and group skips.
 - **Node upgrade.** Run `bash scripts/smoke-node.sh`. It drives bootstrap
   with an isolated mise provider, changes the resolved LTS version, reads the
   selected Node, and verifies the previous runtime survives download/install
@@ -49,7 +55,7 @@ Preconditions: working host Node/npm; no live update needed for verification.
   tools and reports only drift or missing commands. Claude native releases
   use npm metadata; other native updater versions remain unchecked.
   One bounded message reports that limitation.
-- **Proof.** Capture transcripts and versions. All four smoke scripts exit zero.
+- **Proof.** Capture transcripts and versions. All five smoke scripts exit zero.
 
 ## Gotchas
 

@@ -153,6 +153,22 @@
     },
     {
       "commands": [
+        "gpg"
+      ],
+      "group": "core",
+      "name": "gnupg",
+      "packages": {
+        "apt": "gnupg",
+        "brew": "gnupg",
+        "dnf": "gnupg2",
+        "pacman": "gnupg"
+      },
+      "requires": "sudo",
+      "scope": "system",
+      "versionPolicy": "system"
+    },
+    {
+      "commands": [
         "xclip"
       ],
       "group": "core",
@@ -181,6 +197,33 @@
     },
     {
       "commands": [
+        "gh"
+      ],
+      "group": "core",
+      "name": "gh",
+      "scope": "core",
+      "versionPolicy": "latest"
+    },
+    {
+      "commands": [
+        "shellcheck"
+      ],
+      "group": "core",
+      "name": "shellcheck",
+      "scope": "core",
+      "versionPolicy": "latest"
+    },
+    {
+      "commands": [
+        "pnpm"
+      ],
+      "group": "agents",
+      "name": "pnpm",
+      "scope": "core",
+      "versionPolicy": "latest"
+    },
+    {
+      "commands": [
         "bw"
       ],
       "group": "core",
@@ -201,9 +244,8 @@
       "channel": "latest",
       "command": "codex",
       "group": "agents",
-      "installer": "npm",
-      "name": "Codex",
-      "package": "@openai/codex"
+      "installer": "codex-native",
+      "name": "Codex"
     },
     {
       "channel": "latest",
