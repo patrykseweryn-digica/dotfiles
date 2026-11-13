@@ -3769,11 +3769,15 @@ cmd_push_plugins() {
     [ "$failed" = false ]
 }
 
+# Pi writes these keys for one machine; they never enter the repository.
+PI_LOCAL_SETTINGS_KEYS='["lastChangelogVersion", "deviceId", "trackingId",
+    "apiKeys", "extensionChangelogVersions"]'
+
 validate_pi_settings_template() {
     local template="$1" key
-    key="$(jq -r '
+    key="$(jq -r --argjson local_keys "$PI_LOCAL_SETTINGS_KEYS" '
         . as $settings |
-        ["lastChangelogVersion", "deviceId", "trackingId", "apiKeys"] |
+        $local_keys |
         map(select(. as $key | $settings | has($key))) |
         .[0] // empty
     ' "$template")" || return 1
@@ -3788,11 +3792,10 @@ render_pi_settings() {
     local target_file="$2"
 
     validate_pi_settings_template "$PI_SETTINGS_TEMPLATE" || return 1
-    jq -S --slurpfile wanted "$PI_SETTINGS_TEMPLATE" '
+    jq -S --slurpfile wanted "$PI_SETTINGS_TEMPLATE" \
+        --argjson local_keys "$PI_LOCAL_SETTINGS_KEYS" '
         . as $live |
-        reduce [
-            "lastChangelogVersion", "deviceId", "trackingId", "apiKeys"
-        ][] as $key ($wanted[0];
+        reduce $local_keys[] as $key ($wanted[0];
             if ($live | has($key)) then
                 .[$key] = $live[$key]
             else .

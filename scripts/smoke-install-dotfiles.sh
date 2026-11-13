@@ -270,7 +270,8 @@ smoke_pi_drift_check() {
         lastChangelogVersion: "local-only",
         deviceId: "local-device",
         trackingId: "local-tracking",
-        apiKeys: {fixture: "local-api-key"}
+        apiKeys: {fixture: "local-api-key"},
+        extensionChangelogVersions: {"npm:example-package": "1.2.3"}
     }' "$template" \
         >"${pi_dir}/settings.json"
     printf '{"version":"1.2.3"}\n' \
@@ -413,6 +414,7 @@ TOML
   "deviceId": "local-device",
   "trackingId": "local-tracking",
   "apiKeys": {"fixture": "local-api-key"},
+  "extensionChangelogVersions": {"npm:example-package": "1.2.3"},
   "theme": "unmanaged"
 }
 JSON
@@ -574,11 +576,13 @@ YAML
         .deviceId == "local-device" and
         .trackingId == "local-tracking" and
         .apiKeys == {fixture: "local-api-key"} and
+        .extensionChangelogVersions == {"npm:example-package": "1.2.3"} and
         (del(
             .lastChangelogVersion,
             .deviceId,
             .trackingId,
-            .apiKeys
+            .apiKeys,
+            .extensionChangelogVersions
         ) == $wanted[0])
     ' "${home_dir}/.pi/agent/settings.json" >/dev/null ||
         fail "$os_name: Pi stable settings or local changelog state differ"
