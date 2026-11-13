@@ -75,6 +75,49 @@ EOF
     done
 }
 
+MISE_SHIMS_BEGIN='# >>> dotfiles: mise shims for login shells >>>'
+MISE_SHIMS_END='# <<< dotfiles: mise shims for login shells <<<'
+
+# Print the managed ~/.zprofile block. Login shells that skip .zshrc, such
+# as `zsh -lc` from agents, find mise tools through its shims.
+mise_shims_block() {
+    printf '%s\n' "$MISE_SHIMS_BEGIN" \
+        '# Keep this block after Homebrew so mise tools come first.' \
+        'if [ -x "$HOME/.local/bin/mise" ]; then' \
+        '  eval "$("$HOME/.local/bin/mise" activate zsh --shims)"' \
+        'fi' \
+        "$MISE_SHIMS_END"
+}
+
+# Print ~/.zprofile without the managed block.
+zprofile_without_mise_shims() {
+    local profile="$HOME/.zprofile"
+    [ -f "$profile" ] || return 0
+    awk -v begin="$MISE_SHIMS_BEGIN" -v end="$MISE_SHIMS_END" '
+        $0 == begin { skip = 1; next }
+        $0 == end { skip = 0; next }
+        !skip { print }
+    ' "$profile"
+}
+
+# Succeed when ~/.zprofile ends with the current managed block.
+mise_shims_profile_current() {
+    local profile="$HOME/.zprofile" expected
+    [ -f "$profile" ] || return 1
+    expected="$(zprofile_without_mise_shims; mise_shims_block)" || return 1
+    [ "$(cat "$profile")" = "$expected" ]
+}
+
+# Move or add the managed block to the end of ~/.zprofile; other lines stay.
+configure_mise_shims_profile() {
+    local profile="$HOME/.zprofile" content
+    mise_shims_profile_current && return 0
+    content="$(zprofile_without_mise_shims; mise_shims_block)" || return 1
+    # Write into the file so its mode and any symlink stay unchanged.
+    printf '%s\n' "$content" >"$profile" || return 1
+    echo "[INFO] Login shells find mise tools: updated $profile"
+}
+
 install_zsh() {
     echo "[INFO] Checking zsh installation..."
 

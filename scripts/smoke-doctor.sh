@@ -66,6 +66,7 @@ repair_managed_links() {
         # shellcheck source=/dev/null
         source "${DOTFILES_DIR}/install.sh"
         update_managed_links >/dev/null
+        configure_mise_shims_profile >/dev/null
     )
 }
 
@@ -219,6 +220,19 @@ grep -F '[FAIL] links:' "${tmp_dir}/doctor.log" >/dev/null ||
 repair_managed_links
 run_doctor || fail "doctor rejected a repaired managed link"
 [ -L "${home_dir}/.zshrc" ] || fail "sync adapter did not restore .zshrc"
+
+grep -Fx '[PASS] shell: Login shells find mise tools' \
+    "${tmp_dir}/doctor.log" >/dev/null ||
+    fail "doctor did not pass the mise shims profile"
+printf 'export LOCAL=1\n' >"${home_dir}/.zprofile"
+run_doctor || fail "doctor failed for a profile without mise shims"
+grep -Fx '[UPDATE] shell: Login shells do not find mise tools; ~/.zprofile needs the dotfiles block' \
+    "${tmp_dir}/doctor.log" >/dev/null ||
+    fail "doctor omitted the missing mise shims block"
+repair_managed_links
+[ "$(head -n 1 "${home_dir}/.zprofile")" = 'export LOCAL=1' ] ||
+    fail "repair dropped a local profile line"
+run_doctor || fail "doctor rejected a repaired profile"
 
 PLAN_SCENARIO=update
 run_doctor || fail "doctor rejected UPDATE"

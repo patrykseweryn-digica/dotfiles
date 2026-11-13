@@ -83,6 +83,11 @@ independent from system package versions. A core tool can declare
 file in its mise install directory (`file`). Install and sync write each one to
 `~/.zfunc/_<command>`; `.zshrc` puts `~/.zfunc` first in `fpath`. A failed
 generator keeps the old file. Doctor reports missing or outdated completions.
+Interactive zsh activates mise in `.zshrc`. Login shells that skip `.zshrc`,
+such as `zsh -lc` from agents, find mise tools through mise shims: install and
+sync keep a marked block at the end of `~/.zprofile`, after Homebrew, and
+leave other lines unchanged. Doctor reports `UPDATE shell` when the block is
+missing or a later line follows it.
 Developer entries use
 `channel: "latest"`; update resolves current releases without rewriting the
 inventory. npm CLI entries become independent mise tools, so Node upgrades do

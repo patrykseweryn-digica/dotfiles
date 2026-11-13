@@ -10,6 +10,8 @@ NODE_CHECK="${NODE_CHECK:-${DOTFILES_DIR}/bootstrap.d/07-node.sh}"
 
 # shellcheck source=managed-links.sh
 source "${DOTFILES_DIR}/scripts/managed-links.sh"
+# shellcheck source=bootstrap.d/02-zsh.sh
+source "${DOTFILES_DIR}/bootstrap.d/02-zsh.sh"
 
 validate_plan() {
     local status category action message extra failed=false
@@ -117,6 +119,16 @@ plan_groups() {
     done
 }
 
+# Login shells that skip .zshrc find mise tools through ~/.zprofile.
+plan_shell() {
+    if mise_shims_profile_current; then
+        printf 'PASS\tshell\tnone\tLogin shells find mise tools\n'
+    else
+        printf 'UPDATE\tshell\tupdate\t%s\n' \
+            'Login shells do not find mise tools; ~/.zprofile needs the dotfiles block'
+    fi
+}
+
 plan_herdr_hook() {
     local settings="${CLAUDE_SETTINGS_FILE:-${HOME}/.claude/settings.json}"
     local hook="${HOME}/.claude/hooks/herdr-agent-state.sh"
@@ -175,6 +187,7 @@ plan_all() {
     plan_tools || return
     plan_links || return
     plan_groups || return
+    plan_shell || return
     plan_herdr_hook || return
     plan_node || return
     plan_platform

@@ -73,6 +73,11 @@ Preconditions: dependencies from SKILL.md; run from the checkout root.
 - **SSH startup.** Run `bash scripts/smoke-ssh-zsh.sh`. Require generated
   startup files to execute noninteractive Bash commands and start Zsh only
   for interactive sessions. This does not cover migration of old blocks.
+- **Login shells.** The same script drives real `zsh -lc` in a fixture HOME:
+  the `~/.zprofile` block must put mise shims ahead of a Homebrew line, keep
+  local lines, stay unchanged on repeat, move after a later Homebrew line,
+  and do nothing without mise. `smoke-doctor.sh` covers the `shell` row and
+  `smoke-update-local.sh` covers its sync apply.
 - **Clean Linux install.** Build `.github/ci/clean-install.Dockerfile` on the
   native amd64 and arm64 CI runners. The image runs `install`, two `sync`
   commands, and `doctor` as a user without sudo or SSH state.

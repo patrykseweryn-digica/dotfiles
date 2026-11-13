@@ -72,6 +72,8 @@ fi
     row FAIL links update "Links missing"
 [ -f "$state/hooks" ] && row PASS hooks none "Hooks match" ||
     row UPDATE hooks update "Hooks drift"
+[ -f "$state/shell" ] && row PASS shell none "Login shells find mise tools" ||
+    row UPDATE shell update "Login shells do not find mise tools"
 if [ -f "$state/export-skills" ]; then
     row EXPORT skills export "Skills have a local addition"
 elif [ -f "$state/skills" ]; then
@@ -176,6 +178,11 @@ configure_herdr_hook() {
     printf '%s\n' hooks >>"$ACTION_LOG"
     touch "$HOME/.state/hooks"
     echo hooks >>"$MUTATION_LOG"
+}
+configure_mise_shims_profile() {
+    printf '%s\n' shell >>"$ACTION_LOG"
+    touch "$HOME/.state/shell"
+    echo shell >>"$MUTATION_LOG"
 }
 STUB
 printf 'source %q\n' "${DOTFILES_DIR}/bootstrap.d/07-node.sh" \
@@ -303,7 +310,7 @@ if HANG_PLUGIN_MEMBERSHIP=true DOTFILES_OPERATION_TIMEOUT=1 run_sync true; then
 fi
 assert_stopped "${tmp_dir}/plugin.pid"
 assert_stopped "${tmp_dir}/plugin-child.pid"
-for marker in settings mcp links hooks skills; do
+for marker in settings mcp links hooks shell skills; do
     [ -f "${state_dir}/${marker}" ] ||
         fail "independent category was not applied: $marker"
 done

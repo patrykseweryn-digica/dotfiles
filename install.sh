@@ -317,6 +317,7 @@ setup_dotfiles() {
             "${HOME}/.codex" "${HOME}/.summarize"
     fi
     update_managed_links
+    configure_mise_shims_profile || return 1
     if [ "$agents" = true ]; then
         deploy_plain_absent_target "$HOME/.claude/settings.json"
     fi

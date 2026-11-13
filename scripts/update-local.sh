@@ -53,6 +53,9 @@ apply_category() {
     links)
         update_managed_links
         ;;
+    shell)
+        configure_mise_shims_profile
+        ;;
     hooks)
         configure_herdr_hook
         ;;
