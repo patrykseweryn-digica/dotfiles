@@ -32,7 +32,7 @@ inherit = "core"
 CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS = "1"
 
 [desktop]
-external-agent-import-sync-enabled = true
+external-agent-import-sync-enabled = false
 conversationDetailMode = "STEPS_COMMANDS"
 ambient-suggestions-enabled = true
 followUpQueueMode = "queue"
