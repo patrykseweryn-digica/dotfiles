@@ -18,6 +18,8 @@ CODEX_AGENTS_FILE="${CODEX_HOME}/AGENTS.md"
 CLAUDE_AGENTS_FILE="${HOME}/.claude/CLAUDE.md"
 CLAUDE_SKILLS_DIR="${HOME}/.claude/skills"
 AGENT_SKILLS_DIR="${HOME}/.agents/skills"
+# Skills link support docs as ../../docs/<path>; ~/.agents/docs holds them.
+AGENT_DOCS_DIR="${AGENT_SKILLS_DIR%/*}/docs"
 OPENCODE_CONFIG_DIR="${OPENCODE_CONFIG_DIR:-${HOME}/.config/opencode}"
 OPENCODE_CONFIG="${OPENCODE_CONFIG:-${OPENCODE_CONFIG_DIR}/opencode.json}"
 OPENCODE_AGENTS_FILE="${OPENCODE_CONFIG_DIR}/AGENTS.md"
@@ -26,6 +28,10 @@ PI_AGENT_DIR="${PI_CODING_AGENT_DIR:-${HOME}/.pi/agent}"
 PI_AGENTS_FILE="${PI_AGENT_DIR}/AGENTS.md"
 PI_SETTINGS_FILE="${PI_SETTINGS_FILE:-${PI_AGENT_DIR}/settings.json}"
 PI_SKILLS_DIR="${PI_SKILLS_DIR:-${PI_AGENT_DIR}/skills}"
+# Each runtime links its docs directory to ~/.agents/docs.
+CLAUDE_DOCS_DIR="${CLAUDE_SKILLS_DIR%/*}/docs"
+OPENCODE_DOCS_DIR="${OPENCODE_SKILLS_DIR%/*}/docs"
+PI_DOCS_DIR="${PI_SKILLS_DIR%/*}/docs"
 PI_MCP_CONFIG="${PI_MCP_CONFIG:-${HOME}/.agents/mcp.json}"
 PLUGIN_MANIFEST="${PLUGIN_MANIFEST:-${DOTFILES_DIR}/.agents/plugin-manifest.json}"
 CLAUDE_MANIFEST="${CLAUDE_MANIFEST:-${PLUGIN_MANIFEST}}"
@@ -2289,6 +2295,123 @@ merge_staged_skill_lock() {
     ' "$SKILL_LOCK_REPO" >"$target_lock"
 }
 
+# Upstream can hold two copies of one skill. The skills CLI records the
+# path it resolved; fail when that path differs from the inventory.
+check_staged_skill_paths() {
+    local staged_lock="$1" mismatches
+
+    mismatches=$(jq -r --slurpfile staged "$staged_lock" '
+        ($staged[0].skills // {}) as $live
+        | .skills | to_entries[]
+        | .key as $key
+        | .value as $repo
+        | ($repo.installName // $key) as $install_name
+        | (($repo.skillPath // "") | split("/") | .[-2]) as $path_name
+        | ($live[$key] // $live[$install_name] // $live[$path_name] // {})
+        | (.skillPath // "") as $resolved
+        | select($resolved != "" and $resolved != ($repo.skillPath // ""))
+        | "[ERROR] Skill \($key) resolved from \($resolved); " +
+          "inventory expects \($repo.skillPath // "no path")"
+    ' "$SKILL_LOCK_REPO") || {
+        echo "[ERROR] Cannot compare staged skill paths: $staged_lock" >&2
+        return 1
+    }
+    [ -z "$mismatches" ] && return 0
+    printf '%s\n' "$mismatches" >&2
+    return 1
+}
+
+# Print "<skill>\t<path>" for each ../../docs/<path> link in locked skills.
+# Fail on a path that leaves the docs directory.
+skill_doc_rows() {
+    local skills_root="$1" name skill_file path failed=false
+
+    while IFS= read -r name; do
+        skill_file="${skills_root}/${name}/SKILL.md"
+        [ -f "$skill_file" ] || continue
+        while IFS= read -r path; do
+            [ -n "$path" ] || continue
+            case "/${path}/" in
+            //* | */../* | */./*)
+                echo "[ERROR] Unsafe support doc path in ${name}: docs/${path}" >&2
+                failed=true
+                continue
+                ;;
+            esac
+            printf '%s\t%s\n' "$name" "$path"
+        done < <(grep -oE '\]\(\.\./\.\./docs/[^)#[:space:]]+' "$skill_file" |
+            sed 's|^](\.\./\.\./docs/||' | sort -u)
+    done < <(jq -r '.skills | keys[]' "$SKILL_LOCK_REPO")
+    [ "$failed" = false ]
+}
+
+# Resolve a support doc in the skill's upstream package, next to skills/.
+skill_doc_url() {
+    local name="$1" path="$2"
+
+    jq -er --arg name "$name" --arg path "$path" '
+        .skills[$name] as $skill |
+        ($skill.sourceUrl // "") as $url |
+        ($skill.skillPath // "" | split("/")) as $parts |
+        select($url | test("^https://github\\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")) |
+        select(($parts | length) >= 3) |
+        ($url | sub("^https://github\\.com/"; "") | sub("\\.git$"; "")) as $repo |
+        ($parts[0:-3] + ["docs", $path] | join("/")) as $file |
+        "https://raw.githubusercontent.com/\($repo)/\($skill.ref // "HEAD")/\($file)"
+    ' "$SKILL_LOCK_REPO" 2>/dev/null || {
+        echo "[ERROR] Cannot resolve support doc docs/${path} for ${name}: the source is not a GitHub skill path" >&2
+        return 1
+    }
+}
+
+# Download every support doc that a staged skill links.
+stage_skill_docs() {
+    local docs_root="${STAGED_SKILLS_ROOT}/docs"
+    local rows="${STAGED_SKILLS_ROOT}/doc-rows"
+    local sources="${STAGED_SKILLS_ROOT}/doc-sources"
+    local name path url existing
+
+    mkdir -p "$docs_root" || return 1
+    : >"$sources"
+    skill_doc_rows "${STAGED_SKILLS_HOME}/.agents/skills" >"$rows" || return 1
+    while IFS=$'\t' read -r name path; do
+        url="$(skill_doc_url "$name" "$path")" || return 1
+        existing="$(awk -F '\t' -v path="$path" \
+            '$1 == path { print $2; exit }' "$sources")"
+        if [ -n "$existing" ]; then
+            [ "$existing" = "$url" ] && continue
+            echo "[ERROR] Support doc docs/${path} has two sources: ${existing} and ${url}" >&2
+            return 1
+        fi
+        mkdir -p "$(dirname "${docs_root}/${path}")" || return 1
+        operation_run "support doc docs/${path}" "download for ${name}" fetch -- \
+            curl -fsSL -o "${docs_root}/${path}" "$url" || {
+            echo "[ERROR] Failed to download support doc docs/${path} for ${name}" >&2
+            return 1
+        }
+        printf '%s\t%s\n' "$path" "$url" >>"$sources"
+    done <"$rows"
+}
+
+# Report support docs that a runtime cannot reach from its skill links.
+# A runtime resolves ../../docs lexically from its own skill directory.
+# Return 1 for a missing doc and 2 for an unsafe link.
+check_skill_docs() {
+    local runtime root rows name path failed=false unsafe=false
+
+    while IFS='|' read -r runtime root; do
+        rows="$(skill_doc_rows "$root")" || unsafe=true
+        while IFS=$'\t' read -r name path; do
+            [ -n "$path" ] || continue
+            [ -f "${root%/*}/docs/${path}" ] && continue
+            echo "[ERROR] ${runtime} missing support doc: ${name} -> docs/${path}" >&2
+            failed=true
+        done <<<"$rows"
+    done < <(skill_runtime_rows)
+    [ "$unsafe" = false ] || return 2
+    [ "$failed" = false ]
+}
+
 stage_locked_skills() {
     cleanup_staged_skills
     [ -f "$SKILL_LOCK_REPO" ] || {
@@ -2437,6 +2560,16 @@ stage_locked_skills() {
         return 1
     fi
 
+    check_staged_skill_paths "$STAGED_SKILL_LOCK" || {
+        cleanup_staged_skills
+        return 1
+    }
+
+    stage_skill_docs || {
+        cleanup_staged_skills
+        return 1
+    }
+
     local merged_lock="${STAGED_SKILLS_ROOT}/skill-lock.json"
     merge_staged_skill_lock "$STAGED_SKILL_LOCK" "$merged_lock" || {
         cleanup_staged_skills
@@ -2476,6 +2609,11 @@ prepare_skill_runtime_candidates() {
         fi
         ln -s "$skill_path" "${canonical_candidate}/${skill_name}" || return 1
     done
+
+    cp -a "${STAGED_SKILLS_ROOT}/docs" "${candidates_root}/docs" || return 1
+    ln -s "$AGENT_DOCS_DIR" "${candidates_root}/docs-claude" || return 1
+    ln -s "$AGENT_DOCS_DIR" "${candidates_root}/docs-opencode" || return 1
+    ln -s "$AGENT_DOCS_DIR" "${candidates_root}/docs-pi" || return 1
 
     local runtime candidate
     for runtime in claude opencode pi; do
@@ -2521,7 +2659,7 @@ prepare_staged_live_lock() {
 }
 
 staged_skills_match_live() {
-    local candidates_root="$1"
+    local candidates_root="$1" target
     local -a targets=(
         "$AGENT_SKILLS_DIR"
         "$CLAUDE_SKILLS_DIR"
@@ -2540,6 +2678,13 @@ staged_skills_match_live() {
         [ -d "${targets[$index]}" ] || return 1
         diff -qr "${candidates[$index]}" "${targets[$index]}" \
             >/dev/null 2>&1 ||
+            return 1
+    done
+    [ -d "$AGENT_DOCS_DIR" ] && [ ! -L "$AGENT_DOCS_DIR" ] &&
+        diff -qr "${candidates_root}/docs" "$AGENT_DOCS_DIR" >/dev/null 2>&1 ||
+        return 1
+    for target in "$CLAUDE_DOCS_DIR" "$OPENCODE_DOCS_DIR" "$PI_DOCS_DIR"; do
+        [ -L "$target" ] && [ "$(readlink "$target")" = "$AGENT_DOCS_DIR" ] ||
             return 1
     done
     [ -f "$SKILL_LOCK_LIVE" ] &&
@@ -2575,6 +2720,10 @@ apply_staged_skills() {
         "$CLAUDE_SKILLS_DIR"
         "$OPENCODE_SKILLS_DIR"
         "$PI_SKILLS_DIR"
+        "$AGENT_DOCS_DIR"
+        "$CLAUDE_DOCS_DIR"
+        "$OPENCODE_DOCS_DIR"
+        "$PI_DOCS_DIR"
         "$SKILL_LOCK_LIVE"
     )
     local -a source_candidates=(
@@ -2582,9 +2731,14 @@ apply_staged_skills() {
         "${candidates_root}/claude"
         "${candidates_root}/opencode"
         "${candidates_root}/pi"
+        "${candidates_root}/docs"
+        "${candidates_root}/docs-claude"
+        "${candidates_root}/docs-opencode"
+        "${candidates_root}/docs-pi"
         "${STAGED_SKILLS_ROOT}/live-lock.json"
     )
-    local -a labels=(codex claude opencode pi skill-lock)
+    local -a labels=(codex claude opencode pi docs docs-claude docs-opencode
+        docs-pi skill-lock)
     local -a candidates=()
     local index prepared
     for index in "${!source_candidates[@]}"; do
@@ -3474,6 +3628,7 @@ cmd_skills_check() {
             failed=true
         fi
     done < <(skill_runtime_rows)
+    check_skill_docs || failed=true
 
     rm -rf "$tmp_dir"
     [ "$failed" = false ]
@@ -4021,6 +4176,13 @@ cmd_skills_plan() {
         [ -z "$extra" ] || status="$(merge_plan_status "$status" EXPORT)"
         [ -z "$stale" ] || status=FAIL
     done < <(skill_runtime_rows)
+    local docs_status=0
+    check_skill_docs 2>/dev/null || docs_status=$?
+    case "$docs_status" in
+    0) ;;
+    1) status="$(merge_plan_status "$status" UPDATE)" ;;
+    *) status=FAIL ;;
+    esac
 
     rm -rf "$tmp_dir"
     emit_category_plan "$status" skills Skills

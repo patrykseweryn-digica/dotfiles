@@ -46,6 +46,13 @@ for skill in "${skills[@]}"; do
     mkdir -p "$HOME/.agents/skills/$folder"
     printf '%s\n' '---' "name: $skill" 'version: current' '---' \
         > "$HOME/.agents/skills/$folder/SKILL.md"
+    # The real CLI records the upstream path it resolved in the lock.
+    if [ -n "${RESOLVED_SKILL_PATH:-}" ] && [ "$folder" = poteto-mode ]; then
+        jq --arg path "$RESOLVED_SKILL_PATH" \
+            '.skills["poteto-mode"].skillPath = $path' \
+            "$SKILL_LOCK_LIVE" >"$SKILL_LOCK_LIVE.next"
+        mv "$SKILL_LOCK_LIVE.next" "$SKILL_LOCK_LIVE"
+    fi
 done
 if [ "${INSTALL_EXTRA:-false}" = true ]; then
     mkdir -p "$HOME/.agents/skills/unexpected"
@@ -111,8 +118,12 @@ env -u CODEX_HOME -u OPENCODE_CONFIG_DIR -u PI_CODING_AGENT_DIR \
     SKILL_TEST_LOG="$task_dir/preflight-calls" \
     "$repo/sync-agents.sh" skills-preflight >"$task_dir/preflight-output" 2>&1
 test ! -e "$preflight_home/.agents"
-rg -qx \
-    'add -g cursor/plugins --skill control-cli poteto-mode --agent codex -y --full-depth' \
+tree='https://github.com/cursor/plugins/tree/main'
+rg -qxF \
+    "add -g $tree/cursor-team-kit --skill control-cli --agent codex -y --full-depth" \
+    "$task_dir/preflight-calls"
+rg -qxF \
+    "add -g $tree/harness/pstack/claude-code --skill poteto-mode --agent codex -y --full-depth" \
     "$task_dir/preflight-calls"
 
 multi_home="$task_dir/multi failure home"
@@ -137,7 +148,7 @@ if env -u CODEX_HOME -u OPENCODE_CONFIG_DIR -u PI_CODING_AGENT_DIR \
 fi
 rg -q 'No matching skills found for: Missing Skill' "$task_dir/multi-output"
 rg -q -- \
-    '--skill control-cli poteto-mode Missing Skill --agent codex -y --full-depth' \
+    '--skill poteto-mode Missing Skill --agent codex -y --full-depth' \
     "$task_dir/multi-calls"
 rg -q '^preserve me$' "$multi_home/.agents/skills/preserve/SKILL.md"
 test ! -e "$multi_home/.agents/.skill-lock.json"
@@ -159,6 +170,29 @@ fi
 rg -q 'Staged skill inventory differs' "$task_dir/extra-output"
 rg -q '^preserve me$' "$extra_home/.agents/skills/preserve/SKILL.md"
 test ! -e "$extra_home/.agents/.skill-lock.json"
+
+# Upstream can hold two copies of a skill; the CLI may pick the other one.
+variant_home="$task_dir/variant home"
+mkdir -p "$variant_home/.agents/skills/preserve"
+printf '%s\n' 'preserve me' >"$variant_home/.agents/skills/preserve/SKILL.md"
+other_path='pstack/skills/poteto-mode/SKILL.md'
+if env -u CODEX_HOME -u OPENCODE_CONFIG_DIR -u PI_CODING_AGENT_DIR \
+    -u PI_SKILLS_DIR HOME="$variant_home" \
+    SKILL_LOCK_LIVE="$variant_home/.agents/.skill-lock.json" \
+    SKILL_LOCK_REPO="$task_dir/lock.json" \
+    SHARED_SKILLS_CUSTOM_DIR="$task_dir/custom" \
+    PATH="$task_dir/bin:$PATH" SKILLS_CLI="$task_dir/bin/skills" \
+    SKILL_TEST_LOG="$task_dir/variant-calls" \
+    RESOLVED_SKILL_PATH="$other_path" \
+    "$repo/sync-agents.sh" push-skills >"$task_dir/variant-output" 2>&1; then
+    echo 'Skill from another upstream path passed' >&2
+    exit 1
+fi
+expected_path="$(jq -r '.skills["poteto-mode"].skillPath' "$task_dir/lock.json")"
+rg -qF "Skill poteto-mode resolved from $other_path; inventory expects $expected_path" \
+    "$task_dir/variant-output"
+rg -q '^preserve me$' "$variant_home/.agents/skills/preserve/SKILL.md"
+test ! -e "$variant_home/.agents/.skill-lock.json"
 
 for state in empty partial complete broken alias no_url apply_failure rollback_failure backup_collision; do
     jq '{skills: {"poteto-mode": .skills["poteto-mode"]}}' \
@@ -277,11 +311,12 @@ for state in empty partial complete broken alias no_url apply_failure rollback_f
         run_sync || { cat "$task_dir/output" >&2; exit 1; }
         jq -e '.skills["poteto-mode"].pluginName == "pstack"' "$live_lock" >/dev/null
         # A source field removed from the repository must leave the live lock.
-        jq '.skills["poteto-mode"].ref = "main"' "$live_lock" > "$live_lock.next"
+        jq '.skills["poteto-mode"].subpath = "old/path"' "$live_lock" \
+            > "$live_lock.next"
         mv "$live_lock.next" "$live_lock"
         run_sync || { cat "$task_dir/output" >&2; exit 1; }
         jq -e '.skills["poteto-mode"] |
-            (has("ref") | not) and .pluginName == "pstack"' \
+            (has("subpath") | not) and .pluginName == "pstack"' \
             "$live_lock" >/dev/null || {
             echo 'Stale skill source field survived sync' >&2
             exit 1

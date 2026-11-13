@@ -36,6 +36,17 @@ environment change and points to `just export`. The final result is `PASS`,
 `EXPORT`, or `FAIL`. Sync never exports, commits, or pushes.
 `SKIP` rows keep the final result at `PASS` and state why no action applies.
 Remote skills remain unpinned and follow current upstream.
+A skill can link a support doc as `../../docs/<path>`, for example the pstack
+Claude Code adapter. The skills CLI copies only skill folders, so sync
+downloads each linked doc from the skill's upstream package into
+`~/.agents/docs`. `~/.claude/docs`, `~/.config/opencode/docs` and
+`~/.pi/agent/docs` link to it. A missing doc is a skills `UPDATE` in doctor.
+`~/.agents/skills` is the one shared skill set. Codex, Cursor and Grok Build
+read it directly; Claude Code, OpenCode and Pi read it through symlinks.
+pstack skills come from `harness/pstack/claude-code` in `cursor/plugins`:
+its adapter line applies only in Claude Code, so every harness can share it.
+Staging fails when the skills CLI resolves a skill from another upstream path
+than its `skillPath`.
 Doctor ignores Codex's active model and reasoning selection; repository values
 remain install defaults.
 

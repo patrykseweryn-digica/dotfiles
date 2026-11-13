@@ -99,6 +99,13 @@ repos:
         entry: bash scripts/smoke-skill-install.sh
         language: system
         pass_filenames: false
+      - id: skill-docs-smoke
+        name: Skill support docs smoke test
+        description: >-
+          Verify linked upstream skill docs reach every runtime transactionally
+        entry: bash scripts/smoke-skill-docs.sh
+        language: system
+        pass_filenames: false
       - id: treehouse-smoke
         name: Treehouse release installation smoke test
         entry: bash scripts/smoke-treehouse.sh

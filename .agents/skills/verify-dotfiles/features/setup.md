@@ -50,6 +50,18 @@ Preconditions: dependencies from SKILL.md; run from the checkout root.
   Require current content in every runtime, no live changes after staging or
   network failures, rollback after apply failures, and no new backup on an
   unchanged repeated push.
+- **Skill support docs.** Run `bash scripts/smoke-skill-docs.sh`. A skill
+  linking `../../docs/<path>` must get that file in `~/.agents/docs`, with
+  each runtime `docs` directory linked to it. Doctor reports a missing doc
+  as skills `UPDATE` without network access. A failed download changes
+  nothing. Staging rejects unsafe paths. The test simulates downloads.
+  For real upstream, run `skills-update` with a scratch HOME and a lock
+  subset, then `skills-check` in that HOME.
+- **Upstream skill path.** `smoke-skill-install.sh` also covers a skill that
+  the skills CLI resolves from another upstream path than `skillPath`.
+  Staging must fail and name both paths. Upstream repositories can hold two
+  copies of one skill, for example `cursor/plugins` pstack.
+  `./sync-agents.sh skills-preflight` checks every real entry.
 - **Sync internals.** Run `bash scripts/smoke-agent-sync-interface.sh`.
   Pull previews, cancellation/conflicts and direct adapter entries are
   exercised without importing or replacing live user preferences.
