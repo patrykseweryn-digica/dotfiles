@@ -17,6 +17,7 @@ JQ_BIN="$(command -v jq 2>/dev/null || true)"
 UV_BIN="$(command -v uv)"
 JUST_BIN="$(command -v just)"
 export UV_CACHE_DIR="${UV_CACHE_DIR:-$(uv cache dir)}"
+export UV_PYTHON_INSTALL_DIR="${UV_PYTHON_INSTALL_DIR:-$(uv python dir)}"
 # Runtime overrides must never escape the temporary HOME used by each case.
 unset DOTFILES_FIRSTMATE_HOME
 unset CODEX_HOME CODEX_CONFIG CODEX_SETTINGS_TEMPLATE CODEX_PLUGIN_MANIFEST

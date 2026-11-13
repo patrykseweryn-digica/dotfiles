@@ -17,6 +17,9 @@ import tomllib
 def main():
     sync = Path(__file__).resolve().parents[1] / "sync-agents.sh"
     cache = subprocess.check_output(["uv", "cache", "dir"], text=True).strip()
+    python_dir = subprocess.check_output(
+        ["uv", "python", "dir"], text=True
+    ).strip()
     with tempfile.TemporaryDirectory(prefix="codex-settings-") as temporary:
         home = Path(temporary)
         config = home / ".codex/config.toml"
@@ -31,6 +34,7 @@ def main():
             "CODEX_SETTINGS_TEMPLATE": str(template),
             "MCP_SERVERS": str(mcp),
             "UV_CACHE_DIR": cache,
+            "UV_PYTHON_INSTALL_DIR": python_dir,
         }
         template.write_text("""model = "repo-model"
 model_reasoning_effort = "medium"

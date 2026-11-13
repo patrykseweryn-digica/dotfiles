@@ -6,6 +6,7 @@ STATE_PLAN="${DOTFILES_DIR}/scripts/state-plan.sh"
 JUST_BIN="$(command -v just)"
 UV_BIN="$(command -v uv)"
 export UV_CACHE_DIR="${UV_CACHE_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/uv}"
+export UV_PYTHON_INSTALL_DIR="${UV_PYTHON_INSTALL_DIR:-$("$UV_BIN" python dir)}"
 
 fail() {
     echo "[ERROR] $*" >&2

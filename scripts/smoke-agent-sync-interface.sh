@@ -6,6 +6,8 @@ SYNC="${DOTFILES_DIR}/sync-agents.sh"
 UV_BIN="$(command -v uv)"
 UV_CACHE_DIR="${UV_CACHE_DIR:-$("$UV_BIN" cache dir)}"
 export UV_CACHE_DIR
+UV_PYTHON_INSTALL_DIR="${UV_PYTHON_INSTALL_DIR:-$("$UV_BIN" python dir)}"
+export UV_PYTHON_INSTALL_DIR
 
 fail() {
     echo "[ERROR] $*" >&2

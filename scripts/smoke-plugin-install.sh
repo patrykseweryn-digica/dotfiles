@@ -7,6 +7,10 @@ trap 'rm -rf "$task_dir"' EXIT
 export DOTFILES_ENV_FILE="${task_dir}/no-group-setting.env"
 just_bin="$(command -v just)"
 uv_bin="$(command -v uv)"
+# Disposable HOMEs share uv caches; a fresh Python download per HOME is flaky.
+UV_CACHE_DIR="${UV_CACHE_DIR:-$("$uv_bin" cache dir)}"
+UV_PYTHON_INSTALL_DIR="${UV_PYTHON_INSTALL_DIR:-$("$uv_bin" python dir)}"
+export UV_CACHE_DIR UV_PYTHON_INSTALL_DIR
 mkdir -p "$task_dir/fixture/scripts" "$task_dir/stubs"
 cp "$repo/justfile" "$task_dir/fixture/justfile"
 cat > "$task_dir/manifest.json" <<'JSON'

@@ -7,6 +7,7 @@ JUST_BIN="$(command -v just)"
 UV_BIN="$(command -v uv)"
 REAL_GIT="$(command -v git)"
 UV_CACHE_REAL="${UV_CACHE_DIR:-$("$UV_BIN" cache dir)}"
+UV_PYTHON_REAL="${UV_PYTHON_INSTALL_DIR:-$("$UV_BIN" python dir)}"
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE
 
 fail() {
@@ -384,6 +385,7 @@ initial_head="$(git -C "$checkout" rev-parse HEAD)"
 
 export HOME="$home_dir"
 export UV_CACHE_DIR="$UV_CACHE_REAL"
+export UV_PYTHON_INSTALL_DIR="$UV_PYTHON_REAL"
 export REAL_GIT
 export PATH="${stub_dir}:$PATH"
 export SYNC_AGENTS="$SYNC"
