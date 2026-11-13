@@ -15,12 +15,6 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/getagentseal/founder-playbook.git"
     },
-    "agent-transcript": {
-      "skillPath": "skills/agent-transcript/SKILL.md",
-      "source": "openclaw/agent-skills",
-      "sourceType": "github",
-      "sourceUrl": "https://github.com/openclaw/agent-skills.git"
-    },
     "apple-design": {
       "skillPath": "skills/apple-design/SKILL.md",
       "source": "emilkowalski/skills",
@@ -603,12 +597,6 @@
       "source": "cursor/plugins",
       "sourceType": "github",
       "sourceUrl": "https://github.com/cursor/plugins.git"
-    },
-    "session-viewer": {
-      "skillPath": "skills/session-viewer/SKILL.md",
-      "source": "openclaw/agent-skills",
-      "sourceType": "github",
-      "sourceUrl": "https://github.com/openclaw/agent-skills.git"
     },
     "setup-matt-pocock-skills": {
       "skillPath": "skills/engineering/setup-matt-pocock-skills/SKILL.md",

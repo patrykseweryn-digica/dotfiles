@@ -57,7 +57,7 @@ hang_case() {
     local name="$1" path="$2"
     rm -f "${tmp_dir}/parent.pid" "${tmp_dir}/child.pid"
     DOTFILES_OPERATION_TIMEOUT=1 run_case "$name" "$path" \
-        "skills openclaw/agent-skills" "stage skills" fetch -- \
+        "skills example/agent-skills" "stage skills" fetch -- \
         bash -c '
             echo $$ >"$1/parent.pid"
             sleep 300 &
@@ -68,7 +68,7 @@ hang_case() {
     [ "$status" -eq 124 ] || fail "$name returned $status, expected 124"
     assert_stopped "${tmp_dir}/parent.pid"
     assert_stopped "${tmp_dir}/child.pid"
-    expect_line "$name" "[ERROR] skills openclaw/agent-skills: stage skills failed"
+    expect_line "$name" "[ERROR] skills example/agent-skills: stage skills failed"
     expect_line "$name" "cause: timed out after 1 s"
     expect_line "$name" "exit: 124"
     expect_line "$name" "Cloning into staging"
@@ -78,7 +78,7 @@ hang_case() {
         fail "$name tool output missing from log"
     [ "$(wc -l <"$DOTFILES_OPERATION_FAILURES")" -eq 1 ] ||
         fail "$name did not record exactly one failure"
-    awk -F '\t' '$1 == "skills openclaw/agent-skills" &&
+    awk -F '\t' '$1 == "skills example/agent-skills" &&
         $2 == "stage skills" && $3 ~ /^timed out after 1 s/ &&
         $4 == 124 && $5 ~ /^Check the network/' \
         "$DOTFILES_OPERATION_FAILURES" | grep . >/dev/null ||

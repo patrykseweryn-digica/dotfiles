@@ -24,9 +24,9 @@
 ## Why this matters
 
 `just doctor` promises an offline inspection without writes. Its agent-tool
-plan executes every CLI with `--version`. Hermes acquires an installation lock
-even for that command, so a read-only sandbox reports a false missing-tool
-failure. Other CLIs can gain similar startup side effects later.
+plan executes every CLI with `--version`. A CLI can write files even for that
+command, for example an installation lock. A read-only sandbox then reports a
+false missing-tool failure.
 
 The separate `agent-versions` report is the correct place to execute version
 commands. Doctor needs only inventory availability.
@@ -46,8 +46,8 @@ Current behavior:
 output=$("$command_name" --version 2>/dev/null) || return 1
 ```
 
-In the sandbox, Hermes failed while attempting to write an install lock. The
-same live doctor outside the sandbox reported Hermes available.
+In the sandbox, a former agent CLI failed while it tried to write an install
+lock. The same live doctor outside the sandbox reported the CLI available.
 
 ## Commands you will need
 
@@ -72,7 +72,7 @@ Use `.agents/skills/verify-dotfiles/SKILL.md` and retain its evidence.
 **Out of scope**:
 
 - Changing `agent-versions`; it should continue executing version commands
-- Hermes-specific environment variables or a Hermes name special case
+- Tool-specific environment variables or a tool name special case
 - Updating or reinstalling any live CLI
 - Weakening missing-command detection
 
@@ -110,7 +110,7 @@ Keep `installed_version` for explicit report, install, and update flows.
 Change failure text from `missing or not runnable` to `missing` if the plan no
 longer executes a health probe.
 
-Do not special-case Hermes. The contract must protect every present and future
+Do not special-case a tool. The contract must protect every present and future
 CLI.
 
 **Verify**: `bash scripts/smoke-agent-tools.sh` exits 0.
@@ -125,13 +125,13 @@ network-blocking assertions.
 
 ### Step 4: Run live and full verification
 
-Run `just doctor` in the ordinary sandbox and outside it. Hermes must have the
-same status in both outputs. The only expected live hard failures are genuinely
+Run `just doctor` in the ordinary sandbox and outside it. Every agent tool must
+have the same status in both outputs. The only expected live hard failures are genuinely
 missing commands.
 
 Then run `just check` and compare doctor output with the baseline.
 
-**Verify**: `just check` exits 0; sandbox and live Hermes status match.
+**Verify**: `just check` exits 0; sandbox and live tool statuses match.
 
 ## Test plan
 
@@ -144,7 +144,8 @@ Then run `just check` and compare doctor output with the baseline.
 ## Done criteria
 
 - [ ] No managed CLI executes during `agent-tools plan`.
-- [ ] Hermes has identical doctor status inside and outside the sandbox.
+- [ ] Every agent tool has identical doctor status inside and outside the
+  sandbox.
 - [ ] `agent-versions` still reports versions.
 - [ ] Missing commands still fail doctor.
 - [ ] Targeted tests and `just check` pass.

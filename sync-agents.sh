@@ -2441,7 +2441,7 @@ stage_locked_skills() {
         return 1
     }
 
-    local groups group names name source source_url install_source install_name
+    local groups group names name source install_source install_name
     local skills_cli resolved_skills_cli
     local runtime_name skill_file
     local failed=false
@@ -2501,7 +2501,6 @@ stage_locked_skills() {
     while IFS= read -r group; do
         [ -n "$group" ] || continue
         source="$(jq -r '.[0].source' <<<"$group")"
-        source_url="$(jq -r '.[0].sourceUrl' <<<"$group")"
         install_source="$(jq -r '.[0].installSource' <<<"$group")"
         names="$(jq -r 'map(.name) | join(", ")' <<<"$group")"
         log_info "Staging current skills: $names (from $install_source)"
@@ -2509,10 +2508,6 @@ stage_locked_skills() {
         while IFS= read -r install_name; do
             command_args+=("$install_name")
         done < <(jq -r '.[].installName' <<<"$group")
-        if [ "$source" = "openclaw/agent-skills" ] ||
-            [ "$source_url" = "https://github.com/openclaw/agent-skills.git" ]; then
-            command_args+=(--dangerously-accept-openclaw-risks)
-        fi
         command_args+=(--agent codex -y --full-depth)
         # Staging uses a disposable HOME; a stopped clone leaves runtimes intact.
         if ! operation_run "skills from $source" "stage $names" fetch -- \
@@ -2824,30 +2819,22 @@ cmd_lock_skills_install() {
     done < <(skill_runtime_rows)
 
     local entries
-    entries=$(jq -r '.skills | to_entries[] | [.key, .value.source, (.value.installName // .key), (.value.sourceUrl // "")] | @tsv' "$SKILL_LOCK_LIVE")
+    entries=$(jq -r '.skills | to_entries[] | [.key, .value.source, (.value.installName // .key)] | @tsv' "$SKILL_LOCK_LIVE")
     [ -n "$entries" ] || {
         log_info "No skills in lock"
         return 0
     }
 
-    local name source source_url install_name failed=false
-    while IFS=$'\t' read -r name source install_name source_url; do
+    local name source install_name failed=false
+    while IFS=$'\t' read -r name source install_name; do
         [ -n "$name" ] || continue
 
         if [ ! -e "${AGENT_SKILLS_DIR}/${name}/SKILL.md" ] && [ ! -e "${CLAUDE_SKILLS_DIR}/${name}/SKILL.md" ] && [ ! -e "${OPENCODE_SKILLS_DIR}/${name}/SKILL.md" ] && [ ! -e "${PI_SKILLS_DIR}/${name}/SKILL.md" ]; then
             local install_ok=false
-            if [ "$source" = "openclaw/agent-skills" ] || [ "$source_url" = "https://github.com/openclaw/agent-skills.git" ]; then
-                log_info "Installing skill: $name (from $source)"
-                operation_run "skill $name" "install from $source" fetch -- \
-                    "$SKILLS_CLI" add -g "$source" --skill "$install_name" \
-                    --dangerously-accept-openclaw-risks --agent codex -y &&
-                    install_ok=true
-            else
-                log_info "Installing skill: $name (from $source)"
-                operation_run "skill $name" "install from $source" fetch -- \
-                    "$SKILLS_CLI" add -g "$source" --skill "$install_name" \
-                    --agent codex -y && install_ok=true
-            fi
+            log_info "Installing skill: $name (from $source)"
+            operation_run "skill $name" "install from $source" fetch -- \
+                "$SKILLS_CLI" add -g "$source" --skill "$install_name" \
+                --agent codex -y && install_ok=true
 
             if [ "$install_ok" != true ]; then
                 echo "[ERROR] Failed to install skill: $name (from $source)" >&2
