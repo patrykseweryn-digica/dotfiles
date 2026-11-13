@@ -398,7 +398,7 @@ main() {
         return "$LAST_RUN_STEP_STATUS"
     fi
     if group_selected agents; then
-        # Step helpers use subshells, so activate Node in this shell for all CLIs.
+        # Step helpers use subshells; activate Node here for all CLIs.
         activate_node || {
             local status=$?
             record_step_result "Node activation" "failed"

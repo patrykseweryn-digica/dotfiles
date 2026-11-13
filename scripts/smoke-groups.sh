@@ -243,7 +243,7 @@ for category in settings:codex settings:claude settings:opencode \
         "${tmp_dir}/doctor.log" >/dev/null ||
         fail "core-only doctor did not skip $category with its group"
 done
-for tool in Codex 'Cursor CLI' 'Claude Code'; do
+for tool in Pi 'Cursor CLI' 'Claude Code'; do
     expect_log doctor "[SKIP] tools: ${tool} skipped: group agents is not selected" \
         "core-only doctor did not skip agent tool $tool"
 done

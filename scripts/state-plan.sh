@@ -62,12 +62,6 @@ plan_tools() {
     "$AGENT_TOOLS" plan
 }
 
-skip_row() {
-    local category="$1" element="$2" group="$3"
-    printf 'SKIP\t%s\tnone\t%s skipped: %s\n' \
-        "$category" "$element" "$(group_skip_reason "$group")"
-}
-
 plan_links() {
     local rows skipped source target group root link broken=false
 
@@ -80,7 +74,7 @@ plan_links() {
         fi
     done <<<"$rows"
     while IFS='|' read -r group target; do
-        [ -z "$target" ] || skip_row links "$target" "$group"
+        [ -z "$target" ] || group_skip_row links "$target" "$group"
     done <<<"$skipped"
 
     # Agent runtimes own these skill directories.
@@ -113,7 +107,7 @@ plan_herdr_hook() {
     local hook="${HOME}/.claude/hooks/herdr-agent-state.sh"
 
     if ! group_selected agents; then
-        skip_row hooks "Herdr hook" agents
+        group_skip_row hooks "Herdr hook" agents
     elif [ ! -f "$settings" ] ||
         ! jq -e -s 'length == 1 and (.[0] | type == "object")' \
             "$settings" >/dev/null 2>&1; then
@@ -135,7 +129,7 @@ plan_node() {
     local status=0
 
     if ! group_selected agents; then
-        skip_row node "Node" agents
+        group_skip_row node "Node" agents
         return 0
     fi
     bash "$NODE_CHECK" check >/dev/null 2>&1 || status=$?

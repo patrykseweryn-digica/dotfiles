@@ -71,9 +71,8 @@ bash scripts/smoke-groups.sh
 ```
 
 These tests invoke `just install`, `just sync`, `just doctor`, and
-`just export` with
-disposable HOME directories and checkouts. Never substitute a live update or
-export for this proof.
+`just export` with disposable HOME directories and checkouts. Never substitute
+a live update or export for this proof.
 
 ## Evidence
 

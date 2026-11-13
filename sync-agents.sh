@@ -4087,8 +4087,7 @@ cmd_state_plan() {
     groups_load || return 1
     if ! group_selected agents; then
         while IFS='|' read -r category label; do
-            emit_state_plan SKIP "$category" none \
-                "$label skipped: $(group_skip_reason agents)"
+            group_skip_row "$category" "$label" agents
         done <<'ROWS'
 settings:codex|Codex settings
 settings:claude|Claude settings

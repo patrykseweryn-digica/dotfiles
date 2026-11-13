@@ -13,7 +13,8 @@ other elements as `SKIP ... skipped: group <name> is not selected`.
 - `install` skips install steps of unselected groups and names the group in
   the step summary.
 - `plan` reports skipped tools, links, settings, MCP, skills, plugins, hooks
-  and Node as `SKIP` with the group name. Only `SKIP` rows still pass.
+  and Node as `SKIP` with the group name. Sync and doctor pass when only
+  `SKIP` rows remain.
 - `sync` skips refresh phases of unselected groups; core tools still update.
 
 ## How to get to it (user POV)

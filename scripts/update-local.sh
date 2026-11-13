@@ -231,7 +231,7 @@ if group_selected agents; then
     fi
 else
     for phase in "Node and agent tools" "Pi packages" skills \
-        "plugin versions"; do
+        "plugin membership" "plugin versions"; do
         skip_phase agents "$phase"
     done
 fi
