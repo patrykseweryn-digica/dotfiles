@@ -536,6 +536,13 @@ grep -Fx 'update no-mistakes' "$native_log" >/dev/null ||
   fail "Herdr skip stopped other native updates"
 grep -Fx codex "$native_log" >/dev/null ||
   fail "Codex update did not rerun its platform installer"
+for name in Codex Treehouse; do
+  grep -E "^\[INFO\] Updating ${name} [0-9.]+ to latest\.\.\.$" \
+    "$tmp_dir/herdr-pane.log" >/dev/null ||
+    fail "$name update was not reported as an update"
+  ! grep -F "Installing ${name}" "$tmp_dir/herdr-pane.log" ||
+    fail "$name update was reported as an install"
+done
 grep -Fx treehouse-check "$native_log" >/dev/null || fail "Treehouse update was not checked"
 ! grep -Fx treehouse "$native_log" >/dev/null || fail "current Treehouse was downloaded"
 ! grep -Fx 'update treehouse' "$native_log" >/dev/null || fail "Treehouse used its API updater"

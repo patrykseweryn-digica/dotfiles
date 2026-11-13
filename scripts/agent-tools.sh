@@ -531,7 +531,11 @@ install_declared_tools() {
             continue
         fi
 
-        echo "[INFO] Installing $name $expected..."
+        if [ -n "$current" ]; then
+            echo "[INFO] Updating $name $current to $expected..."
+        else
+            echo "[INFO] Installing $name $expected..."
+        fi
         case "$installer" in
         claude-native)
             script=$(operation_run "$name" "download installer" fetch \
