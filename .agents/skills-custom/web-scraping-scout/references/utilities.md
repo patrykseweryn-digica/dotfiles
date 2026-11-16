@@ -27,7 +27,7 @@ logger.bind(url=url, page=page_num).info("Scraped page")
 
 ### Scrapy integration
 
-See `references/scrapy-integration.md` for loguru routing in Scrapy.
+In Scrapy projects use structlog instead: see `../../scrapy-build/references/production.md`.
 
 ---
 

@@ -149,6 +149,8 @@ When deploying, update or create the operator README/runbook with:
 - Docker/compose/server/cron/systemd commands
 - required env vars and secret names
 - output paths for manifest, parsed, curated, audit, raw samples, and failures
+  (a project without the `scrapy-build` production layer has only
+  `output/<spider>/<time>.jsonl`; document that path instead)
 - how to inspect stats JSON, audit reports, and logs
 - common deployment failures and first debug step
 - when output should not be trusted
@@ -182,6 +184,6 @@ Verify the deployment works:
 1. Run a test crawl on the server
 2. Check logs for errors
 3. Confirm stats JSON is being saved to `output/<spider>/stats/`
-4. Confirm manifest/parsed/curated/audit output paths still match the runbook
+4. Confirm output paths (feeds, plus manifest/parsed/curated/audit when present) still match the runbook
 5. Confirm optional alerts are skipped cleanly when env vars are absent
 6. Confirm SpiderMon runs and reports status in logs when enabled

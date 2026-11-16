@@ -119,8 +119,14 @@ require_text "$simple" "raw/failure evidence"
 
 scrapy=".agents/skills-custom/scrapy-build/SKILL.md"
 require_text "$scrapy" "Scrapy is the default production implementation path"
-require_text "$scrapy" "smoke/sample mode and full mode"
-require_text "$scrapy" "manifest, parsed output, curated output, audit output"
+require_text "$scrapy" "Get page HTML only from \`scrapy savefixture\`"
+require_text "$scrapy" "Never \`@property\` or \`to_item()\`"
+for ref in project-setup page-objects spider fixtures fetching platform-apis production; do
+    require_file ".agents/skills-custom/scrapy-build/references/${ref}.md"
+done
+require_file ".agents/skills-custom/scrapy-build/scripts/clean_fixture.py"
+require_text ".agents/skills-custom/scrapy-build/references/project-setup.md" "CLOSESPIDER_ITEMCOUNT"
+require_text ".agents/skills-custom/scrapy-build/references/production.md" "manifest, parsed output, curated output, audit output"
 
 crawlee=".agents/skills-custom/crawlee-build/SKILL.md"
 require_text "$crawlee" "browser-context-heavy"
