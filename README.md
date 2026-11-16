@@ -43,6 +43,9 @@ downloads each linked doc from the skill's upstream package into
 `~/.pi/agent/docs` link to it. A missing doc is a skills `UPDATE` in doctor.
 `~/.agents/skills` is the one shared skill set. Codex, Cursor and Grok Build
 read it directly; Claude Code, OpenCode and Pi read it through symlinks.
+Personal skills come from `p-severin/skills` through that same unpinned
+skills CLI install. `.agents/skills-custom` keeps only skills that stay
+in this repository.
 pstack skills come from `harness/pstack/claude-code` in `cursor/plugins`:
 its adapter line applies only in Claude Code, so every harness can share it.
 Staging fails when the skills CLI resolves a skill from another upstream path

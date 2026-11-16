@@ -2,166 +2,72 @@
 set -eu
 
 DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+LOCK="${DOTFILES_DIR}/.agents/skill-lock.json"
 
 fail() {
     echo "[ERROR] $*" >&2
     exit 1
 }
 
-require_file() {
-    [ -f "${DOTFILES_DIR}/$1" ] || fail "missing file: $1"
-}
-
-require_text() {
-    local file="$1"
-    local expected="$2"
-
-    grep -F "$expected" "${DOTFILES_DIR}/${file}" >/dev/null 2>&1 || fail "missing '${expected}' in ${file}"
-}
-
-require_frontmatter() {
-    python3 - "$@" <<'PY'
-import sys
-from pathlib import Path
-
-for raw_path in sys.argv[1:]:
-    path = Path(raw_path)
-    text = path.read_text(encoding="utf-8")
-    if not text.startswith("---\n"):
-        raise SystemExit(f"missing frontmatter: {path}")
-
-    parts = text.split("\n---\n", 1)
-    if len(parts) != 2:
-        raise SystemExit(f"unterminated frontmatter: {path}")
-    block = parts[0].removeprefix("---\n")
-
-    keys = set()
-    for line in block.splitlines():
-        if not line or line.startswith("#"):
-            continue
-        if ":" not in line:
-            raise SystemExit(f"invalid frontmatter line in {path}: {line}")
-        key, value = line.split(":", 1)
-        if not key.replace("-", "_").isidentifier():
-            raise SystemExit(f"invalid frontmatter key in {path}: {key}")
-        value = value.strip()
-        if value.startswith(("'", '"')) and not value.endswith(value[0]):
-            raise SystemExit(f"unterminated frontmatter quote in {path}: {line}")
-        keys.add(key)
-
-    missing = {"name", "description"} - keys
-    if missing:
-        missing_keys = ", ".join(sorted(missing))
-        raise SystemExit(f"missing frontmatter keys in {path}: {missing_keys}")
-PY
-}
-
-skills=(
-    ".agents/skills-custom/web-scraping-scout/SKILL.md"
-    ".agents/skills-custom/web-scraping-simple/SKILL.md"
-    ".agents/skills-custom/web-scraping-pipeline-design/SKILL.md"
-    ".agents/skills-custom/scrapy-build/SKILL.md"
-    ".agents/skills-custom/crawlee-build/SKILL.md"
-    ".agents/skills-custom/web-scraping-audit/SKILL.md"
-    ".agents/skills-custom/web-scraping-debug/SKILL.md"
-    ".agents/skills-custom/scrapy-deploy/SKILL.md"
-    ".agents/skills-custom/web-scraping-references/SKILL.md"
+locked=(
+    anki-export
+    crawlee-build
+    generate-flashcards
+    hook-setup
+    kolbs-reflection
+    mlflow-analyzer
+    obsidian-notes
+    plain-talk
+    project-statement
+    scrapy-build
+    scrapy-deploy
+    show-the-change
+    web-scraping-ops
+    web-scraping-pipeline-design
+    web-scraping-references
+    web-scraping-scout
+    web-scraping-simple
+    write-digica-readme
 )
 
-for skill in "${skills[@]}"; do
-    require_file "$skill"
-done
-require_frontmatter "${skills[@]/#/${DOTFILES_DIR}/}"
+removed=(
+    web-scraping-audit
+    web-scraping-debug
+)
 
-require_file ".agents/skills-custom/web-scraping-references/references/lifecycle.md"
-require_file ".agents/skills-custom/web-scraping-references/references/feasibility-poc.md"
-require_file ".agents/skills-custom/web-scraping-references/references/framework-choice.md"
-require_file ".agents/skills-custom/web-scraping-references/references/storage-policy.md"
-require_file ".agents/skills-custom/web-scraping-references/references/quality-gates.md"
-require_file ".agents/skills-custom/web-scraping-references/references/legal-ethics.md"
-require_file ".agents/skills-custom/web-scraping-references/references/operator-runbook.md"
-require_file ".agents/skills-custom/web-scraping-references/references/downstream-ml-llm.md"
-require_file ".agents/skills-custom/web-scraping-references/references/toolbox.md"
-require_file ".agents/skills-custom/web-scraping-references/references/checkpointing.md"
+kept=(
+    ask-matt
+    last30days
+    design-control-loop
+)
 
-scout=".agents/skills-custom/web-scraping-scout/SKILL.md"
-require_text "$scout" "One-off feasibility or small API/HTML/browser-backed proof: use \`web-scraping-simple\`."
-require_text "$scout" "Recurring, production, long-running, or operational scraper: use \`web-scraping-pipeline-design\`."
-require_text "$scout" "Existing scraper broken or output empty: use \`web-scraping-debug\`."
-require_text "$scout" "Need output quality review: use \`web-scraping-audit\`."
-require_text "$scout" "Deploying, Dockerizing, scheduling, or monitoring an existing Scrapy project: use \`scrapy-deploy\`."
-require_text "$scout" "GraphQL discovery"
-require_text "$scout" "Ask before login/session reuse"
-
-pipeline=".agents/skills-custom/web-scraping-pipeline-design/SKILL.md"
-for section in \
-    "### Target" \
-    "### Goal/Data Contract" \
-    "### Source Strategy" \
-    "### Framework Decision" \
-    "### Why Not Alternatives" \
-    "### Data Lifecycle" \
-    "### Storage/Formats" \
-    "### Run Modes" \
-    "### Quality Gates/Audit" \
-    "### Risk Notes" \
-    "### Deploy/Operations" \
-    "### Open Questions" \
-    "### Approval Request"; do
-    require_text "$pipeline" "$section"
-done
-require_text "$pipeline" "Stop after the design brief and ask for approval before implementation handoff."
-
-simple=".agents/skills-custom/web-scraping-simple/SKILL.md"
-require_text "$simple" "structured feasibility PoC"
-require_text "$simple" "FEASIBILITY.md"
-require_text "$simple" "raw/failure evidence"
-
-scrapy=".agents/skills-custom/scrapy-build/SKILL.md"
-require_text "$scrapy" "Scrapy is the default production implementation path"
-require_text "$scrapy" "Get page HTML only from \`scrapy savefixture\`"
-require_text "$scrapy" "Never \`@property\` or \`to_item()\`"
-for ref in project-setup page-objects spider fixtures fetching platform-apis production; do
-    require_file ".agents/skills-custom/scrapy-build/references/${ref}.md"
-done
-require_file ".agents/skills-custom/scrapy-build/scripts/clean_fixture.py"
-require_text ".agents/skills-custom/scrapy-build/references/project-setup.md" "CLOSESPIDER_ITEMCOUNT"
-require_text ".agents/skills-custom/scrapy-build/references/production.md" "manifest, parsed output, curated output, audit output"
-
-crawlee=".agents/skills-custom/crawlee-build/SKILL.md"
-require_text "$crawlee" "browser-context-heavy"
-require_text "$crawlee" "Do not use Crawlee as the default for ordinary HTTP/API/listing-detail production scraping"
-require_text "$crawlee" "SPA interaction-heavy"
-
-audit=".agents/skills-custom/web-scraping-audit/SKILL.md"
-require_text "$audit" "Audit runs, not just files."
-require_text "$audit" "Compare to a previous good run"
-require_text "$audit" "trusted, suspicious, or blocked"
-
-debug=".agents/skills-custom/web-scraping-debug/SKILL.md"
-require_text "$debug" "Prefer replay before live refetching."
-require_text "$debug" "fetch failure"
-require_text "$debug" "validation/schema drift"
-
-deploy=".agents/skills-custom/scrapy-deploy/SKILL.md"
-require_text "$deploy" "Keep this Scrapy-specific"
-require_text "$deploy" "cron/systemd"
-require_text "$deploy" "Retention Notes"
-require_text "$deploy" "optional alerts are skipped cleanly"
-
-quality=".agents/skills-custom/web-scraping-references/references/quality-gates.md"
-for scenario in \
-    "static HTML feasibility and production" \
-    "API/XHR feasibility and production" \
-    "listing-detail crawl" \
-    "SPA with discoverable API" \
-    "occasional render" \
-    "interaction-heavy SPA" \
-    "login/captcha/anti-bot risk" \
-    "existing broken scraper" \
-    "existing production audit" \
-    "Scrapy deployment"; do
-    require_text "$quality" "$scenario"
+for name in "${locked[@]}"; do
+    [ ! -e "${DOTFILES_DIR}/.agents/skills-custom/${name}" ] ||
+        fail "personal skill still copied in skills-custom: ${name}"
+    jq -e --arg name "$name" '
+        .skills[$name] as $skill |
+        $skill.source == "p-severin/skills" and
+        $skill.sourceType == "github" and
+        $skill.sourceUrl == "https://github.com/p-severin/skills.git" and
+        $skill.skillPath == ($name + "/SKILL.md") and
+        ($skill.ref | not)
+    ' "$LOCK" >/dev/null ||
+        fail "personal skill lock entry is wrong: ${name}"
 done
 
-echo "[INFO] web scraping skill smoke test passed"
+for name in "${removed[@]}"; do
+    jq -e --arg name "$name" '.skills[$name] | not' "$LOCK" >/dev/null ||
+        fail "removed skill still locked: ${name}"
+    [ ! -e "${DOTFILES_DIR}/.agents/skills-custom/${name}" ] ||
+        fail "removed skill still copied: ${name}"
+done
+
+for name in "${kept[@]}"; do
+    [ -f "${DOTFILES_DIR}/.agents/skills-custom/${name}/SKILL.md" ] ||
+        fail "vendored skill missing: ${name}"
+done
+
+[ -f "${DOTFILES_DIR}/.agents/skills/verify-dotfiles/SKILL.md" ] ||
+    fail "verify-dotfiles missing"
+
+echo "[INFO] personal skill lock smoke test passed"

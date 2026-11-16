@@ -130,7 +130,7 @@ repos:
       - id: web-scraping-skills-smoke
         name: Web scraping skills smoke test
         description: >-
-          Ensure web scraping skill routing, gates, and references stay aligned
+          Ensure moved personal skills stay in the lock, not skills-custom
         entry: ./scripts/smoke-web-scraping-skills.sh
         language: system
         pass_filenames: false
