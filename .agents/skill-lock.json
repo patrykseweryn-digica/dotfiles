@@ -358,6 +358,12 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/mlflow/skills.git"
     },
+    "modern-web-guidance": {
+      "skillPath": "skills/modern-web-guidance/SKILL.md",
+      "source": "GoogleChrome/modern-web-guidance",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/GoogleChrome/modern-web-guidance.git"
+    },
     "mom-test": {
       "skillPath": "skills/mom-test/SKILL.md",
       "source": "getagentseal/founder-playbook",
@@ -718,6 +724,12 @@
       "source": "cursor/plugins",
       "sourceType": "github",
       "sourceUrl": "https://github.com/cursor/plugins.git"
+    },
+    "vision": {
+      "skillPath": "skills/vision/SKILL.md",
+      "source": "kunchenguid/vision",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/kunchenguid/vision.git"
     },
     "wait-what": {
       "skillPath": "skills/productivity/wait-what/SKILL.md",

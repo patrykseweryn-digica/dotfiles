@@ -152,6 +152,9 @@
     "ui-ux-pro-max": {
       "claude": "ui-ux-pro-max@ui-ux-pro-max-skill"
     },
+    "visualize": {
+      "codex": "plugin_connector_1p_e27075fa9af48191968b90b68ab08ba3"
+    },
     "work-pets": {
       "codex": "plugin_connector_1p_bccf6c8660c08191ae4470d9ae4877fa"
     }
