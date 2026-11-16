@@ -183,8 +183,10 @@ normalize_skill_lock() {
     jq -e -S '
         select((.skills | type) == "object")
         | {
+            # Remote skills track upstream, so drop the installer commit pin.
             skills: (.skills | map_values(
-                del(.skillFolderHash, .installedAt, .updatedAt, .pluginName)
+                del(.skillFolderHash, .installedAt, .updatedAt, .pluginName,
+                    .commit)
             )),
             dismissed: (.dismissed // {})
         }

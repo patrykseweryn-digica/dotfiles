@@ -128,6 +128,7 @@ cat >"$skill_lock_live" <<'JSON'
       "sourceUrl": "https://github.com/example/skills.git"
     },
     "new-managed": {
+      "commit": "0123456789abcdef0123456789abcdef01234567",
       "installedAt": "local",
       "skillFolderHash": "local",
       "skillPath": "package/skills/new-managed/SKILL.md",
@@ -601,7 +602,8 @@ grep -F 'model = "live-codex"' "$codex_template" >/dev/null ||
 jq -e '
     (.skills | keys) == ["managed-skill", "new-managed"] and
     .skills["managed-skill"].skillPath ==
-        "package/skills/managed-skill/SKILL.md"
+        "package/skills/managed-skill/SKILL.md" and
+    (.skills | all(has("commit") | not))
 ' "$skill_lock_repo" >/dev/null || fail "managed skill export failed"
 [ -f "${custom_skills}/new-custom/SKILL.md" ] ||
     fail "portable skill was not exported"
