@@ -278,6 +278,12 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/dmmulroy/anti-slop.git"
     },
+    "kun": {
+      "skillPath": "skills/kun/SKILL.md",
+      "source": "kunchenguid/kun",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/kunchenguid/kun.git"
+    },
     "lean-startup": {
       "skillPath": "skills/lean-startup/SKILL.md",
       "source": "getagentseal/founder-playbook",
