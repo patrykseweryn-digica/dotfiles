@@ -16,6 +16,8 @@ fi
 # Host tools such as mise shims would read the real HOME's configuration.
 PATH="$(dirname "$(command -v zsh)"):/usr/bin:/bin:/usr/sbin:/sbin"
 export PATH
+# .zshrc appends to an inherited value, so a login shell's value leaks in.
+unset MISE_TRUSTED_CONFIG_PATHS
 
 tmp_dir="$(mktemp -d)"
 cleanup() {
