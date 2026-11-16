@@ -253,12 +253,16 @@ isolated-HOME install/sync smoke tests and `just check`, then compares the
 read-only live `just doctor` result with the baseline. Doctor prints bounded
 diagnostics rather than raw config diffs, which may contain credentials.
 Evidence stays under ignored `.agent-runs/verify-dotfiles/`.
-CI runs repository checks on macOS and Linux. Native amd64 and arm64 jobs also
-run `install`, two `sync` commands, and `doctor` in a clean Ubuntu image as a
-user without sudo. Accountless CI skips only remote Codex plugins because
-their installation requires OAuth. CI mounts a read-only GitHub token only
-during `sync`; Docker does not copy the token into the image. A separate job
-resolves every current upstream skill on pushes, pull requests, and daily.
+Pull requests and a manual run check the repository on macOS and Linux.
+Pushes to master and the Monday 05:17 UTC schedule check Linux only.
+Native amd64 and arm64 jobs run `install`, two `sync` commands, and `doctor`
+in a clean Ubuntu image as a user without sudo. Those jobs run on pull
+requests, the Monday schedule, and a manual run. A push to master does not
+run them. Accountless CI skips only remote Codex plugins because their
+installation requires OAuth. CI mounts a read-only GitHub token only during
+`sync`. Docker does not copy the token into the image. A separate job resolves
+every current upstream skill when the workflow runs. A push that only changes
+docs, plans, or Markdown does not start the workflow.
 A local macOS run alone proves only macOS execution and the simulated Linux
 cases.
 Commit hooks run repository tests; live drift remains a separate check because
