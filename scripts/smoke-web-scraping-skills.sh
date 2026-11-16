@@ -9,9 +9,8 @@ fail() {
     exit 1
 }
 
-locked=$'anki-export\tskills/learning/anki-export/SKILL.md
+locked=$'anki-flashcards\tskills/learning/anki-flashcards/SKILL.md
 crawlee-build\tskills/scraping/crawlee-build/SKILL.md
-generate-flashcards\tskills/learning/generate-flashcards/SKILL.md
 hook-setup\tskills/engineering/hook-setup/SKILL.md
 kolbs-reflection\tskills/learning/kolbs-reflection/SKILL.md
 mlflow-analyzer\tskills/engineering/mlflow-analyzer/SKILL.md
@@ -29,6 +28,8 @@ web-scraping-simple\tskills/scraping/web-scraping-simple/SKILL.md
 write-digica-readme\tskills/engineering/write-digica-readme/SKILL.md'
 
 removed=(
+    anki-export
+    generate-flashcards
     web-scraping-audit
     web-scraping-debug
 )
@@ -56,8 +57,8 @@ while IFS=$'\t' read -r name path; do
     ' "$LOCK" >/dev/null ||
         fail "personal skill lock entry is wrong: ${name}"
 done <<<"$locked"
-[ "$personal_count" -eq 18 ] ||
-    fail "personal skill lock must list 18 skills, got ${personal_count}"
+[ "$personal_count" -eq 17 ] ||
+    fail "personal skill lock must list 17 skills, got ${personal_count}"
 
 for name in "${removed[@]}"; do
     jq -e --arg name "$name" '.skills[$name] | not' "$LOCK" >/dev/null ||

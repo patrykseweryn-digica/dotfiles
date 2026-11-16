@@ -15,8 +15,8 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/getagentseal/founder-playbook.git"
     },
-    "anki-export": {
-      "skillPath": "skills/learning/anki-export/SKILL.md",
+    "anki-flashcards": {
+      "skillPath": "skills/learning/anki-flashcards/SKILL.md",
       "source": "p-severin/skills",
       "sourceType": "github",
       "sourceUrl": "https://github.com/p-severin/skills.git"
@@ -192,12 +192,6 @@
       "source": "getagentseal/founder-playbook",
       "sourceType": "github",
       "sourceUrl": "https://github.com/getagentseal/founder-playbook.git"
-    },
-    "generate-flashcards": {
-      "skillPath": "skills/learning/generate-flashcards/SKILL.md",
-      "source": "p-severin/skills",
-      "sourceType": "github",
-      "sourceUrl": "https://github.com/p-severin/skills.git"
     },
     "github-deep-review": {
       "skillPath": "skills/github-deep-review/SKILL.md",
