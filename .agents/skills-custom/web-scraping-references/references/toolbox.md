@@ -32,3 +32,42 @@ Prefer the simplest reliable path that matches the production decision:
 - Scrapy over standalone for recurring production
 - Crawlee when browser interaction is central
 - saved evidence over repeated live requests
+
+## Scrapling MCP
+
+Use available Scrapling MCP tools for HTTP samples, selector checks,
+pagination discovery, and API inspection before writing a scraper.
+If unavailable, use existing HTTP/browser tools and report the missing integration.
+Keep the production framework selected by `web-scraping-pipeline-design`.
+MCP reconnaissance alone does not require a production dependency on Scrapling.
+
+For ordinary HTTP sampling, set `impersonate=null` and `stealthy_headers=false`
+on `make_request`; inspect the current tool schema first.
+Browser fetchers use stealth defaults; follow the scout's escalation boundary
+before invoking them or enabling impersonation.
+Use an existing browser tool for ordinary rendering when stealth is unnecessary.
+Inspect raw HTML/API responses when cleaned Markdown omits needed fields.
+Save representative records, selectors, pagination evidence, and failed requests
+for implementation and validation. Close sessions created for reconnaissance.
+
+When project-local MCP setup is requested in a uv repository:
+
+```bash
+uv add --dev "scrapling[ai]"
+```
+
+For browser fetchers, install browser dependencies with `uv run scrapling install`.
+Configure the agent's MCP client to launch `uv` with these arguments:
+
+```text
+["--directory", "<absolute-repo-path>", "run", "scrapling", "mcp"]
+```
+
+Use the client's supported configuration location and preserve existing servers.
+Verify MCP tool discovery and a small HTTP sample before reporting setup complete.
+If scraper code imports Scrapling, add it as a runtime dependency with `uv add scrapling`.
+For Scrapy parsing integration, read
+[`parsers.md`](../../web-scraping-scout/references/parsers.md#scrapling-optional-parsing).
+
+Check the [official MCP guide](https://scrapling.readthedocs.io/en/latest/ai/mcp-server.html)
+for current tools and installation requirements.

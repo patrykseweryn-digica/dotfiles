@@ -10,6 +10,9 @@ Use this first for unclear or new "scrape this site" requests. Actively discover
 
 If the user gives only a URL, ask what records/fields they want before deeper discovery.
 
+When Scrapling MCP is available or its setup is requested, read
+[`toolbox.md`](../web-scraping-references/references/toolbox.md#scrapling-mcp).
+
 ## Scout
 
 1. Confirm data goal: target records, fields, one-off vs recurring/production.

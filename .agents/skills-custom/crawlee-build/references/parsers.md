@@ -8,7 +8,7 @@ JS objects in <script> tags?     → chompjs + jmespath   (Next.js, SPAs, __INIT
 Articles / news / blogs?         → trafilatura          (clean text, no selectors needed)
 Structured HTML (CSS/XPath)?     → parsel               (default, Scrapy-style)
 Need speed (>10k items)?         → selectolax           (5-30x faster, CSS only)
-Long-running, site redesigns?    → Scrapling            (self-healing selectors)
+Adaptive element matching?      → Scrapling            (validate relocated fields)
 ```
 
 ## parsel (default)
@@ -134,20 +134,9 @@ text = result["text"]
 
 ## Scrapling
 
-Self-healing selectors — survives website redesigns by matching element similarity.
-
-```bash
-uv add scrapling
-```
-
-```python
-from scrapling import Adaptor
-
-page = Adaptor(html, url=url)
-# First run: finds element, stores fingerprint
-price = page.css(".product-price", auto_save=True)
-# Later runs: if CSS fails, finds element by similarity to stored fingerprint
-```
+For optional parsing and adaptive matching, read
+[`parsers.md`](../../web-scraping-scout/references/parsers.md#scrapling-optional-parsing).
+Keep Crawlee responsible for fetching and crawl state.
 
 ## Swapping Parsers
 

@@ -7,7 +7,7 @@ CSS + XPath (Scrapy ecosystem)   → parsel (default)
 Max speed, CSS only              → selectolax (lexbor backend)
 JS objects in <script> tags      → chompjs + jmespath
 Structured data (JSON-LD, etc.)  → extruct
-Self-healing selectors           → Scrapling (long-running scrapers)
+Adaptive element matching        → Scrapling (validate relocated fields)
 Article/news content extraction  → trafilatura
 ```
 
@@ -142,53 +142,44 @@ To swap, change the import and adapt `.get()` → `.text()`. Logic stays the sam
 
 ---
 
-## Scrapling (self-healing selectors)
+## Scrapling (optional parsing)
 
-Adaptive parser that remembers element "fingerprints" and relocates them after site redesigns.
-Use for **long-running, recurring scrapers** where selectors break frequently.
+Use Scrapling when its parsing API or adaptive matching solves an observed extraction problem.
+Keep existing parsers when they already satisfy the data contract.
 
 ```bash
 uv add scrapling
 ```
 
 ```python
-from scrapling import Adaptor
+from scrapling import Selector
 
-# First run — learns element fingerprints (position, attributes, siblings, text)
-page = Adaptor(html, auto_match=True, url="https://example.com")
-title = page.css("h1.product-title").first.text
-price = page.css("span.price").first.text
-
-# After site redesign — h1.product-title is now h2.item-name
-# Scrapling finds it by similarity matching, not exact selector
-page = Adaptor(new_html, auto_match=True, url="https://example.com")
-title = page.css("h1.product-title").first.text  # still works!
+page = Selector(html, url=url)
+title = page.css("h1::text").get()
 ```
 
-### When to use
-- Recurring monitoring scrapers (prices, stock, news)
-- Sites that redesign frequently
-- When selector maintenance is a bigger cost than initial setup
+For Scrapy, convert the fetched response inside the existing callback:
 
-### When NOT to use
-- One-off scrapes (no benefit from learning)
-- API scraping (no HTML selectors involved)
-- Scrapy spiders (Scrapling has its own fetching layer, doesn't integrate with Scrapy)
+```python
+from scrapling.integrations.scrapy import convert_response
 
-### Fingerprint persistence
-
-Scrapling stores learned element fingerprints in a SQLite database (`.scrapling/`)
-in the working directory. Fingerprints persist between runs automatically.
-
-For Docker deployments, mount `.scrapling/` as a volume to preserve fingerprints:
-```yaml
-volumes:
-  - ./scrapling_data:/app/.scrapling
+page = convert_response(response)
+title = page.css("h1::text").get()
 ```
 
-**Note:** Scrapling is a standalone framework with its own HTTP fetchers (`Fetcher`,
-`StealthyFetcher`, `PlayWrightFetcher`). For parsing only, use `Adaptor` directly
-with HTML fetched by curl_cffi or other clients. Do NOT confuse with Scrapy.
+Keep Scrapy requests, scheduling, retries, and pipelines unchanged.
+Use the original Scrapy response for `response.follow()`.
+Scrapling's own `Response.follow()` creates requests for its separate crawler.
+See the [Scrapy integration guide](https://scrapling.readthedocs.io/en/latest/integrations/scrapy.html).
+
+Adaptive matching relocates elements by similarity; it does not prove field correctness.
+Validate relocated fields against saved samples before trusting output.
+Persist learned state explicitly when enabling adaptive matching across runs.
+Check the [adaptive parsing guide](https://scrapling.readthedocs.io/en/latest/parsing/adaptive.html)
+for current settings and storage configuration.
+
+For agent reconnaissance and MCP setup, read
+[`toolbox.md`](../../web-scraping-references/references/toolbox.md#scrapling-mcp).
 
 ---
 
