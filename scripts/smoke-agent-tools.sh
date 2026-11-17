@@ -636,7 +636,20 @@ if grep -F 'already installed' "${tmp_dir}/foreign-codex.log" >/dev/null; then
   fail "install reported a foreign Codex as installed"
 fi
 grep -F "another install is on PATH: $foreign_dir/codex" \
-  "${tmp_dir}/foreign-codex.log" >/dev/null ||
+  "${tmp_dir}/foreign-codex.log" >/dev/null || {
+  # Diagnostic only: expose the install output and a brew-on-PATH rerun.
+  {
+    echo "[DIAG] uname -s: $(uname -s)"
+    echo "[DIAG] PATH=$foreign_dir:$PATH"
+    echo "[DIAG] brew: $(command -v brew || echo none)"
+    echo "[DIAG] foreign-codex.log:"
+    sed 's/^/[DIAG] | /' "${tmp_dir}/foreign-codex.log"
+    echo "[DIAG] counterfactual: brew stub on PATH"
+    AGENT_TOOL_VERSIONS="$codex_manifest" \
+      PATH="$foreign_dir:$tmp_dir/brew/bin:$PATH" "$AGENT_TOOLS" install 2>&1 |
+      sed 's/^/[DIAG] | /'
+  } >&2
   fail "install did not name the foreign Codex"
+}
 
 echo "[INFO] agent tools smoke test passed"
