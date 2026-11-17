@@ -236,10 +236,15 @@ for invalid_completion in \
 done
 echo "[INFO] zsh completions: written, updated, kept on failure, validated"
 
+# The host may already have xclip; a fixture command keeps the plan stable.
+xclip_fixture="$tmp_dir/xclip-fixture.json"
+jq '(.tools[] | select(.name == "xclip")).commands = ["xclip-fixture"]' \
+    "$INVENTORY" >"$xclip_fixture"
 assert_xclip_plan() {
     local os="$1" arch="$2" has_sudo="$3" expected="$4"
-    CORE_TOOLS_OS="$os" CORE_TOOLS_ARCH="$arch" \
-        CORE_TOOLS_HAS_SUDO="$has_sudo" "$CORE_TOOLS" plan |
+    TOOL_INVENTORY="$xclip_fixture" CORE_TOOLS_OS="$os" \
+        CORE_TOOLS_ARCH="$arch" CORE_TOOLS_HAS_SUDO="$has_sudo" \
+        "$CORE_TOOLS" plan |
         grep -Fx "$expected" >/dev/null ||
         fail "unexpected xclip plan for $os/$arch sudo=$has_sudo"
 }
@@ -256,7 +261,7 @@ assert_xclip_plan Linux x86_64 true \
 # The host may already have gpg; a fixture command keeps installs visible.
 brew_fixture="$tmp_dir/brew-fixture.json"
 jq '(.tools[] | select(.name == "gnupg")).commands = ["gpg-fixture"]' \
-    "$INVENTORY" >"$brew_fixture"
+    "$xclip_fixture" >"$brew_fixture"
 system_bin="$tmp_dir/system-bin"
 system_log="$tmp_dir/system.log"
 mkdir -p "$system_bin"
@@ -265,6 +270,7 @@ cat >"$system_bin/apt-get" <<'STUB'
 printf 'apt-get %s\n' "$*" >>"$SYSTEM_LOG"
 case "${!#}" in
 gnupg) command_name=gpg-fixture ;;
+xclip) command_name=xclip-fixture ;;
 *) command_name="${!#}" ;;
 esac
 printf '#!/bin/sh\n' >"$SYSTEM_BIN/$command_name"
