@@ -51,7 +51,7 @@
 - When end-to-end testing a product, be picky about the UI you see and be
   obsessed with pixel perfection.
   If something clearly looks off, even if it is not directly related to what
-  you are doing, try to get it fixed along the way.
+  you are doing, get it fixed along the way.
 - Apply that same high standard to engineering excellence: lint, test failures,
   and test flakiness.
   If you see one, even if it is not caused by what you are working on right now,
@@ -112,8 +112,8 @@ or where the repository has no established tooling.
 
 ## Maintaining this file
 
-Keep this file for knowledge useful to almost every future agent session in
-this project.
+Keep this file for knowledge useful to almost every future agent session
+across all projects.
 Do not repeat what the codebase already shows; point to the authoritative file
 or command instead.
 Prefer rewriting or pruning existing entries over appending new ones.
