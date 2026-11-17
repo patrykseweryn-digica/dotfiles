@@ -480,6 +480,11 @@ install_declared_tools() {
     while IFS=$'\t' read -r \
         name command_name package expected installer update_command; do
         current="$(installed_version "$command_name" || true)"
+        # Another Codex first on PATH does not count as the managed one.
+        if [ "$installer" = codex-native ] &&
+            [ "$(command -v codex 2>/dev/null)" != "$(codex_managed_path)" ]; then
+            current=""
+        fi
         if [ "$installer" = npm ]; then
             managed_by_mise=false
             if run_global_mise which "$command_name" >/dev/null 2>&1; then

@@ -619,4 +619,24 @@ REGISTRY_FAIL=true "$AGENT_TOOLS" install >/dev/null ||
   fail "install queried the registry for an available fixture"
 cmp "$manifest" "$manifest.before" || fail "failed update changed declaration"
 
+# A foreign Codex first on PATH, e.g. an nvm global, is not the managed one.
+codex_manifest="${tmp_dir}/codex-native.json"
+printf '%s\n' '{"tools":[{"name":"Codex","command":"codex",' \
+  '"installer":"codex-native","channel":"latest","group":"agents"}]}' \
+  >"$codex_manifest"
+foreign_dir="${tmp_dir}/foreign"
+mkdir -p "$foreign_dir"
+printf '#!/bin/sh\necho codex-cli 0.1.0\n' >"$foreign_dir/codex"
+chmod +x "$foreign_dir/codex"
+if AGENT_TOOL_VERSIONS="$codex_manifest" PATH="$foreign_dir:$PATH" \
+  "$AGENT_TOOLS" install >"${tmp_dir}/foreign-codex.log" 2>&1; then
+  fail "install accepted a foreign Codex instead of the managed one"
+fi
+if grep -F 'already installed' "${tmp_dir}/foreign-codex.log" >/dev/null; then
+  fail "install reported a foreign Codex as installed"
+fi
+grep -F "another install is on PATH: $foreign_dir/codex" \
+  "${tmp_dir}/foreign-codex.log" >/dev/null ||
+  fail "install did not name the foreign Codex"
+
 echo "[INFO] agent tools smoke test passed"
