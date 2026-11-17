@@ -155,6 +155,9 @@ for target in Darwin:arm64 Linux:x86_64 Linux:arm64; do
         fail "generated mise config has no tools table"
     grep -F '"aqua:neovim/neovim" = "latest"' "$config" >/dev/null ||
         fail "generated mise config omitted the declared backend"
+    # The aqua zipapp lacks dependencies for the host python3, e.g. 3.10.
+    grep -Fx '"pypi:pre-commit" = "latest"' "$config" >/dev/null ||
+        fail "pre-commit does not install as a Python package"
     for command_name in $completion_commands; do
         [ "$(cat "$completion_dir/_${command_name}")" = \
             "#compdef ${command_name} v1" ] ||

@@ -230,6 +230,7 @@
         "pre-commit"
       ],
       "group": "core",
+      "mise": "pypi:pre-commit",
       "name": "pre-commit",
       "scope": "core",
       "versionPolicy": "latest"
