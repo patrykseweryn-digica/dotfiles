@@ -75,6 +75,14 @@ or where the repository has no established tooling.
 - Python: `uv`, `ruff`, `pyright`, pre-commit hooks, `new-project <name>` (copier from `gh:p-severin/python-repo-template`).
 - JS/TS: `eslint`, `prettier`, pre-commit hooks.
 
+## Browser
+
+- Use the `browse` MCP for browsing, logged-in sites, and tasks done for me.
+  It drives my real browser with my sessions.
+- Use Chrome DevTools (`chrome-devtools` MCP or `chrome-devtools-axi`) only
+  to debug or profile: performance, Lighthouse, network, console, memory.
+- This rule overrides hooks that prefer `chrome-devtools-axi` for browsing.
+
 <!-- context7 -->
 ## Context7
 
