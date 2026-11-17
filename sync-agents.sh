@@ -1416,14 +1416,9 @@ claude_plugin_state_available() {
     [ -f "$1" ] || command -v claude >/dev/null 2>&1
 }
 
-cmd_codex_remote_plugins_check() {
-    validate_plugin_manifest "$CODEX_PLUGIN_MANIFEST" || return 1
-    if [ "${DOTFILES_SKIP_CODEX_REMOTE_PLUGINS:-false}" = true ]; then
-        log_info "Skipping Codex remote plugins: accountless environment"
-        return 0
-    fi
-
-    local live wanted missing
+# Print "name<TAB>remote id" for manifest plugins absent from the local cache.
+missing_codex_remote_plugins() {
+    local live wanted
     live="$(mktemp)"
     wanted="$(mktemp)"
     render_codex_remote_plugins "$live" || {
@@ -1437,15 +1432,28 @@ cmd_codex_remote_plugins_check() {
         }
     ] | sort_by(.remotePluginId)' "$CODEX_PLUGIN_MANIFEST" >"$wanted"
 
-    missing=$(jq -rn \
+    local status=0
+    jq -rn \
         --slurpfile wanted "$wanted" \
         --slurpfile live "$live" '
         ($live[0] | map(.remotePluginId)) as $live_ids |
         $wanted[0][] as $plugin |
         select(($live_ids | index($plugin.remotePluginId)) | not) |
         [$plugin.name, $plugin.remotePluginId] | @tsv
-    ')
+    ' || status=$?
     rm -f "$live" "$wanted"
+    return "$status"
+}
+
+cmd_codex_remote_plugins_check() {
+    validate_plugin_manifest "$CODEX_PLUGIN_MANIFEST" || return 1
+    if [ "${DOTFILES_SKIP_CODEX_REMOTE_PLUGINS:-false}" = true ]; then
+        log_info "Skipping Codex remote plugins: accountless environment"
+        return 0
+    fi
+
+    local missing
+    missing="$(missing_codex_remote_plugins)" || return 1
 
     if [ -z "$missing" ]; then
         log_info "Codex remote plugins match manifest"
@@ -1822,9 +1830,43 @@ cmd_codex_marketplace_plugins_push() {
     [ "$failed" = false ]
 }
 
+# Remote plugins belong to the Codex account. `codex plugin add` installs a
+# missing plugin, or only fills the local cache when the account has it.
+cmd_codex_remote_plugins_push() {
+    validate_plugin_manifest "$CODEX_PLUGIN_MANIFEST" || return 1
+    if [ "${DOTFILES_SKIP_CODEX_REMOTE_PLUGINS:-false}" = true ]; then
+        log_info "Skipping Codex remote plugins: accountless environment"
+        return 0
+    fi
+
+    local missing catalog name remote_id plugin_id
+    missing="$(missing_codex_remote_plugins)" || return 1
+    if [ -n "$missing" ] && command -v codex >/dev/null 2>&1; then
+        catalog="$(operation_run "Codex remote plugin catalog" list query \
+            --stdout -- codex plugin list --marketplace openai-curated-remote \
+            --available --json)" || catalog='{}'
+        while IFS=$'\t' read -r name remote_id; do
+            [ -n "$remote_id" ] || continue
+            plugin_id="$(printf '%s\n' "$catalog" | jq -r --arg id "$remote_id" '
+                first((.installed // []) + (.available // []) | .[] |
+                    select(.source.id == $id) | .pluginId) // empty
+            ' 2>/dev/null)" || plugin_id=""
+            if [ -z "$plugin_id" ]; then
+                echo "[WARN] Codex remote plugin not in catalog: $name ($remote_id)" >&2
+                continue
+            fi
+            log_info "Adding Codex remote plugin: $plugin_id"
+            operation_run "Codex plugin $plugin_id" add install -- \
+                codex plugin add "$plugin_id" ||
+                echo "[WARN] Failed to add Codex remote plugin: $plugin_id" >&2
+        done <<<"$missing"
+    fi
+    cmd_codex_remote_plugins_check
+}
+
 cmd_codex_plugins_push() {
     local failed=false
-    cmd_codex_remote_plugins_check || failed=true
+    cmd_codex_remote_plugins_push || failed=true
     cmd_codex_marketplace_plugins_push || failed=true
     [ "$failed" = false ]
 }

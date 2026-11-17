@@ -7,7 +7,9 @@ Verified on 2026-10-20. Base commit: `ab589331f00f`.
 - Codex exports enabled, installed plugins with a Git marketplace source.
   Local marketplace paths are runtime state, not portable install sources.
   The rule uses source metadata, not an OpenAI name blacklist. Remote
-  connectors retain their separate manifest and interactive OAuth workflow.
+  connectors keep a separate manifest. Sync adds each missing connector
+  with `codex plugin add`; a failed add prints the interactive `/plugins`
+  and OAuth steps.
 - The manifest now requires the three Git plugins: last30days, logfire,
   and ponytail. The eleven bundled/runtime requirements were removed.
   Checks require declared plugins and sources; additional Codex plugins

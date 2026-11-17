@@ -269,6 +269,20 @@ if [[ "$*" == plugin\ marketplace\ remove\ * ]]; then
     ' "$CODEX_MARKETPLACE_LIST_FILE" >"$CODEX_MARKETPLACE_LIST_FILE.next" &&
         mv "$CODEX_MARKETPLACE_LIST_FILE.next" "$CODEX_MARKETPLACE_LIST_FILE"
 fi
+if [ "$*" = "plugin list --marketplace openai-curated-remote --available --json" ]; then
+    cat "$CODEX_REMOTE_CATALOG_FILE"
+    exit 0
+fi
+if [[ "$*" == plugin\ add\ *@openai-curated-remote ]]; then
+    plugin_name="${3%@*}"
+    [ "$plugin_name" != broken ] || exit 1
+    remote_id="$(jq -r --arg plugin "$3" '
+        .available[] | select(.pluginId == $plugin) | .source.id
+    ' "$CODEX_REMOTE_CATALOG_FILE")"
+    mkdir -p "$CODEX_REMOTE_PLUGIN_CACHE/$plugin_name"
+    printf '{"schema_version":1,"remote_plugin_id":"%s"}\n' "$remote_id" \
+        >"$CODEX_REMOTE_PLUGIN_CACHE/$plugin_name/.codex-remote-plugin-install.json"
+fi
 if [[ "$*" == plugin\ marketplace\ upgrade* ]] &&
     [ "${FAIL_CODEX_UPGRADE:-false}" = true ]; then
     mkdir -p "$CODEX_HOME/.tmp/marketplaces/.staging/marketplace-upgrade-new"
@@ -303,6 +317,66 @@ done
 if grep -q 'remove' "$plugin_log"; then
     fail "Codex push removed additional user plugins or marketplaces"
 fi
+
+# Push adds remote plugins that the manifest lists and the cache lacks.
+export CODEX_REMOTE_CATALOG_FILE="${tmp_dir}/remote-catalog.json"
+cat >"$CODEX_REMOTE_CATALOG_FILE" <<'JSON'
+{
+  "installed": [],
+  "available": [
+    {
+      "pluginId": "visualize@openai-curated-remote",
+      "source": {"source": "remote", "id": "plugin_connector_visualize"}
+    },
+    {
+      "pluginId": "broken@openai-curated-remote",
+      "source": {"source": "remote", "id": "plugin_connector_broken"}
+    }
+  ]
+}
+JSON
+cp "$manifest" "$tmp_dir/remote-push-manifest.json"
+jq '.plugins.visualize = {codex: "plugin_connector_visualize"}' \
+    "$tmp_dir/remote-push-manifest.json" >"$manifest"
+: >"$plugin_log"
+HOME="${tmp_dir}/home" PATH="${stub_dir}:$PATH" \
+    CODEX_PLUGIN_LOG="$plugin_log" \
+    "$DOTFILES_DIR/sync-agents.sh" --quiet push-plugins \
+    >"$sync_log" 2>&1 || {
+    cat "$sync_log" >&2
+    fail "Codex push did not add a missing remote plugin"
+}
+grep -Fx 'plugin add visualize@openai-curated-remote' "$plugin_log" \
+    >/dev/null || fail "Codex push omitted the remote plugin install"
+jq -e '.remote_plugin_id == "plugin_connector_visualize"' \
+    "$cache/visualize/.codex-remote-plugin-install.json" >/dev/null ||
+    fail "Remote plugin install left no cache marker"
+
+# Failed installs and unknown plugins keep the manual instructions.
+: >"$plugin_log"
+HOME="${tmp_dir}/home" PATH="${stub_dir}:$PATH" \
+    CODEX_PLUGIN_LOG="$plugin_log" \
+    "$DOTFILES_DIR/sync-agents.sh" --quiet push-plugins \
+    >"$sync_log" 2>&1 || fail "Codex push failed without remote drift"
+grep -F 'openai-curated-remote' "$plugin_log" >/dev/null &&
+    fail "Codex push queried remote plugins without drift"
+jq '.plugins.broken = {codex: "plugin_connector_broken"} |
+    .plugins.retired = {codex: "plugin_connector_retired"}' \
+    "$tmp_dir/remote-push-manifest.json" >"$manifest"
+if HOME="${tmp_dir}/home" PATH="${stub_dir}:$PATH" \
+    CODEX_PLUGIN_LOG="$plugin_log" \
+    "$DOTFILES_DIR/sync-agents.sh" --quiet push-plugins \
+    >"$sync_log" 2>&1; then
+    fail "Codex push accepted a failed remote plugin install"
+fi
+for expected in 'broken (plugin_connector_broken)' \
+    'retired (plugin_connector_retired)' \
+    'not in catalog: retired' 'Open Codex and enter: /plugins'; do
+    grep -F "$expected" "$sync_log" >/dev/null ||
+        fail "Codex push omitted: $expected"
+done
+cp "$tmp_dir/remote-push-manifest.json" "$manifest"
+rm -rf "$cache/visualize"
 
 : > "$plugin_log"
 HOME="${tmp_dir}/home" CODEX_HOME="${tmp_dir}/home/.codex" \
