@@ -352,7 +352,8 @@
       "group": "agents",
       "installer": "npm",
       "name": "gnhf",
-      "package": "gnhf"
+      "package": "gnhf",
+      "allow_low_downloads": true
     },
     {
       "channel": "latest",

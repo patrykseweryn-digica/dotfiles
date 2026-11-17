@@ -144,6 +144,7 @@ cat >"$manifest" <<'JSON'
       "name": "Skill manager",
       "command": "skills",
       "package": "skills",
+      "allow_low_downloads": true,
       "channel": "latest",
       "group": "agents",
       "installer": "npm"
@@ -163,6 +164,19 @@ jq '.tools[0].allow_builds = []' "$manifest" \
 if AGENT_TOOL_VERSIONS="${tmp_dir}/empty-build-allowlist.json" \
   "$AGENT_TOOLS" plan >/dev/null 2>&1; then
   fail "manifest accepted an empty build allowlist"
+fi
+
+jq '.tools[4].allow_low_downloads = false' "$manifest" \
+  >"${tmp_dir}/false-low-downloads.json"
+if AGENT_TOOL_VERSIONS="${tmp_dir}/false-low-downloads.json" \
+  "$AGENT_TOOLS" plan >/dev/null 2>&1; then
+  fail "manifest accepted a false low-download approval"
+fi
+jq '.tools[2].allow_low_downloads = true' "$manifest" \
+  >"${tmp_dir}/native-low-downloads.json"
+if AGENT_TOOL_VERSIONS="${tmp_dir}/native-low-downloads.json" \
+  "$AGENT_TOOLS" plan >/dev/null 2>&1; then
+  fail "manifest accepted a low-download approval for a native tool"
 fi
 
 for command_name in pi codex claude opencode skills; do
@@ -266,10 +280,10 @@ export TEST_AGENT_PI_VERSION TEST_AGENT_CODEX_VERSION TEST_AGENT_CLAUDE_VERSION 
 mise_config="$HOME/.config/mise/conf.d/20-agent-tools.toml"
 grep -Fx '"npm:@example/pi" = "latest"' "$mise_config" >/dev/null ||
   fail "Pi mise declaration is not latest"
-for package in @example/codex skills; do
-  grep -Fx "\"npm:${package}\" = \"latest\"" "$mise_config" \
-    >/dev/null || fail "npm mise declaration is not latest: $package"
-done
+grep -Fx '"npm:skills" = { version = "latest", allow_low_downloads = true }' \
+  "$mise_config" >/dev/null || fail "Skill manager low-download approval is missing"
+grep -Fx '"npm:@example/codex" = "latest"' "$mise_config" >/dev/null ||
+  fail "Codex mise declaration is not latest"
 grep -F '"npm:opencode-ai" = { version = "latest", allow_builds = ["opencode-ai"] }' \
   "$mise_config" >/dev/null || fail "OpenCode build allowlist is missing"
 

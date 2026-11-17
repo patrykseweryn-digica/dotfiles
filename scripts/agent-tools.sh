@@ -41,6 +41,9 @@ validate_manifest() {
                         type == "string" and
                         test("^(@[a-z0-9._-]+/)?[a-z0-9][a-z0-9._-]*$"))
                  else true end) and
+                (if has("allow_low_downloads") then
+                    .installer == "npm" and .allow_low_downloads == true
+                 else true end) and
                 (if has("trust_policy_excludes") then
                     .installer == "npm" and
                     (.trust_policy_excludes | type) == "array" and
@@ -124,6 +127,9 @@ write_mise_agent_tools_config() {
                         "allow_builds = [" +
                         (($tool.allow_builds | map(@json)) | join(", ")) +
                         "]"
+                    else empty end,
+                    if $tool.allow_low_downloads == true then
+                        "allow_low_downloads = true"
                     else empty end,
                     if (($tool.trust_policy_excludes // []) | length) > 0 then
                         "trust_policy_excludes = [" +
