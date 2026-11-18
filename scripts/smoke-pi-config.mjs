@@ -43,11 +43,13 @@ const caps = (provider) =>
     assert.deepEqual(Object.keys(model), ["contextWindow"]);
     return model.contextWindow;
   });
-// Anthropic: 30% of the 1M or 200K catalog window. OpenAI family: 272000.
+// Chat models only. Anthropic: 30% of the 1M or 200K catalog window.
+// OpenAI family: 272000 (Pi ignores overrides for classifier entries).
 assert.ok(caps("anthropic").every((cap) => [300000, 60000].includes(cap)));
 for (const provider of ["openai-codex", "openai"]) {
   assert.ok(caps(provider).every((cap) => cap === 272000));
 }
+assert.equal(models.providers.openai.modelOverrides["gpt-6-luna"].contextWindow, 272000);
 
 const temp = mkdtempSync(join(tmpdir(), "pi-config-test-"));
 try {
