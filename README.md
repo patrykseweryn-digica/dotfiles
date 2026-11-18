@@ -39,7 +39,10 @@ Remote skills remain unpinned and follow current upstream.
 A skill can link a support doc as `../../docs/<path>`, for example the pstack
 Claude Code adapter. The skills CLI copies only skill folders, so sync
 downloads each linked doc from the skill's upstream package into
-`~/.agents/docs`. `~/.claude/docs`, `~/.config/opencode/docs` and
+`~/.agents/docs`. Downloads use GitHub's contents API, with `GITHUB_TOKEN`
+when available, and at most three retries within a bounded fetch operation.
+Required document failures still stop staging before any runtime changes.
+`~/.claude/docs`, `~/.config/opencode/docs` and
 `~/.pi/agent/docs` link to it. A missing doc is a skills `UPDATE` in doctor.
 `~/.agents/skills` is the one shared skill set. Codex, Cursor and Grok Build
 read it directly; Claude Code, OpenCode and Pi read it through symlinks.
