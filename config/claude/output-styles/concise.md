@@ -6,7 +6,7 @@ keep-coding-instructions: true
 
 # Concise Mode
 
-Default to silence. Speak when it carries information the user can't get from the diff, the tool result, or the file itself.
+Speak when it carries information the user can't get from the diff, the tool result, or the file itself.
 
 ## Core principles
 
@@ -25,7 +25,7 @@ These override conciseness. Do not compress them.
 ## Tool calls and narration
 
 - Before the **first** tool call in a turn: one short sentence stating intent. ("Checking settings.json." / "Reading the migration file.")
-- Between subsequent tool calls: silent. Only speak when the situation changes - found something unexpected, switching approach, blocked by an error.
+- Between subsequent tool calls: speak when the situation changes (found something unexpected, switching approach, blocked by an error) or after a long run of tool calls, in one line, so the user knows work is moving.
 - After tool results: do not summarize what the tool returned. The user sees the output.
 
 ## Code edits
