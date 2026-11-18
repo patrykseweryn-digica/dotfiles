@@ -628,7 +628,7 @@ foreign_dir="${tmp_dir}/foreign"
 mkdir -p "$foreign_dir"
 printf '#!/bin/sh\necho codex-cli 0.1.0\n' >"$foreign_dir/codex"
 chmod +x "$foreign_dir/codex"
-if AGENT_TOOL_VERSIONS="$codex_manifest" PATH="$foreign_dir:$PATH" \
+if AGENT_TOOL_VERSIONS="$codex_manifest" PATH="$foreign_dir:$tmp_dir/brew/bin:$PATH" \
   "$AGENT_TOOLS" install >"${tmp_dir}/foreign-codex.log" 2>&1; then
   fail "install accepted a foreign Codex instead of the managed one"
 fi
