@@ -113,4 +113,6 @@ jobs:
           sudo apt-get -o Acquire::Retries=5 install -y jq
           npm install --global skills@latest
       - name: Resolve current upstream skills
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: ./sync-agents.sh skills-preflight
