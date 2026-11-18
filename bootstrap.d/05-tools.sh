@@ -123,12 +123,18 @@ install_treehouse() (
     case "$os" in
     Linux) os=linux ;;
     Darwin) os=darwin ;;
-    *) echo "[ERROR] Unsupported OS for Treehouse: $os" >&2; return 1 ;;
+    *)
+        echo "[ERROR] Unsupported OS for Treehouse: $os" >&2
+        return 1
+        ;;
     esac
     case "$arch" in
     x86_64 | amd64) arch=amd64 ;;
     arm64 | aarch64) arch=arm64 ;;
-    *) echo "[ERROR] Unsupported architecture for Treehouse: $arch" >&2; return 1 ;;
+    *)
+        echo "[ERROR] Unsupported architecture for Treehouse: $arch" >&2
+        return 1
+        ;;
     esac
 
     latest="$(github_latest_version kunchenguid/treehouse)" || {
