@@ -14,6 +14,7 @@ import { fileURLToPath } from "node:url";
 import { validateThemeJson } from "../config/pi/node_modules/@earendil-works/pi-coding-agent/dist/modes/interactive/theme/theme-json.js";
 import { loadThemeFromPath } from "../config/pi/node_modules/@earendil-works/pi-coding-agent/dist/modes/interactive/theme/theme.js";
 import moon from "../config/pi/themes/rose-pine-moon.json" with { type: "json" };
+import models from "../config/pi/models.json" with { type: "json" };
 import settings from "../config/pi/settings.json" with { type: "json" };
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -37,6 +38,17 @@ for (const source of settings.packages) {
   assert.doesNotMatch(source, /@[0-9a-f]{7,}$|@\d/);
 }
 
+const caps = (provider) =>
+  Object.values(models.providers[provider].modelOverrides).map((model) => {
+    assert.deepEqual(Object.keys(model), ["contextWindow"]);
+    return model.contextWindow;
+  });
+// Anthropic: 30% of the 1M or 200K catalog window. OpenAI family: 272000.
+assert.ok(caps("anthropic").every((cap) => [300000, 60000].includes(cap)));
+for (const provider of ["openai-codex", "openai"]) {
+  assert.ok(caps(provider).every((cap) => cap === 272000));
+}
+
 const temp = mkdtempSync(join(tmpdir(), "pi-config-test-"));
 try {
   const source = join(temp, "source");
@@ -57,7 +69,7 @@ try {
       "openai-codex": {
         modelOverrides: {
           "gpt-5.6-sol": { maxTokens: 8192 },
-          "gpt-6-astra": { contextWindow: 1000000 },
+          "local-unmanaged": { contextWindow: 1000000 },
         },
       },
       custom: { apiKey: "private-test-sentinel" },
@@ -102,8 +114,8 @@ try {
   );
   assert.deepEqual(actual.providers.custom, localModels.providers.custom);
   assert.deepEqual(
-    actual.providers["openai-codex"].modelOverrides["gpt-6-astra"],
-    localModels.providers["openai-codex"].modelOverrides["gpt-6-astra"],
+    actual.providers["openai-codex"].modelOverrides["local-unmanaged"],
+    localModels.providers["openai-codex"].modelOverrides["local-unmanaged"],
   );
   assert.equal(
     readFileSync(join(agent, "auth.json"), "utf8"),

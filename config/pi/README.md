@@ -1,8 +1,10 @@
 # Pi configuration
 
 `settings.json` owns preferences and current-upstream extension sources.
-`models.json` owns only the three Codex context-window overrides; sync merges
-these into local overrides without deleting other models, fields or auth.
+`models.json` owns only context-window caps: 30% of each Anthropic model's
+maximum, and 272000 for OpenAI-family chat models whose maximum is at least
+that. Cap means the input window, not output length. Sync merges the caps into
+local overrides without deleting other models, fields or auth.
 Themes and local extensions are linked individually. Herdr's extension,
 credentials, sessions, caches and Fast Mode state remain unmanaged.
 

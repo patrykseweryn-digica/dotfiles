@@ -1,10 +1,74 @@
 {
   "providers": {
+    "anthropic": {
+      "modelOverrides": {
+        "claude-fable-5": { "contextWindow": 300000 },
+        "claude-fable-5-1": { "contextWindow": 300000 },
+        "claude-fable-5-2": { "contextWindow": 300000 },
+        "claude-haiku-4-5": { "contextWindow": 60000 },
+        "claude-haiku-4-5-20251001": { "contextWindow": 60000 },
+        "claude-haiku-5-5": { "contextWindow": 300000 },
+        "claude-opus-4-5": { "contextWindow": 60000 },
+        "claude-opus-4-5-20251101": { "contextWindow": 60000 },
+        "claude-opus-4-6": { "contextWindow": 300000 },
+        "claude-opus-4-7": { "contextWindow": 300000 },
+        "claude-opus-4-8": { "contextWindow": 300000 },
+        "claude-opus-5": { "contextWindow": 300000 },
+        "claude-opus-5-5": { "contextWindow": 300000 },
+        "claude-sonnet-4-5": { "contextWindow": 60000 },
+        "claude-sonnet-4-5-20250929": { "contextWindow": 60000 },
+        "claude-sonnet-4-6": { "contextWindow": 300000 },
+        "claude-sonnet-5": { "contextWindow": 300000 },
+        "claude-sonnet-5-5": { "contextWindow": 300000 }
+      }
+    },
     "openai-codex": {
       "modelOverrides": {
         "gpt-5.6-luna": { "contextWindow": 272000 },
         "gpt-5.6-sol": { "contextWindow": 272000 },
-        "gpt-5.6-terra": { "contextWindow": 272000 }
+        "gpt-5.6-terra": { "contextWindow": 272000 },
+        "gpt-6-astra": { "contextWindow": 272000 },
+        "gpt-6-luna": { "contextWindow": 272000 },
+        "gpt-6-sol": { "contextWindow": 272000 },
+        "gpt-6.1-sol": { "contextWindow": 272000 },
+        "gpt-6.1-terra": { "contextWindow": 272000 },
+        "gpt-6.2-astra": { "contextWindow": 272000 },
+        "gpt-6.2-sol": { "contextWindow": 272000 }
+      }
+    },
+    "openai": {
+      "modelOverrides": {
+        "chat-latest": { "contextWindow": 272000 },
+        "gpt-4.1": { "contextWindow": 272000 },
+        "gpt-4.1-mini": { "contextWindow": 272000 },
+        "gpt-4.1-nano": { "contextWindow": 272000 },
+        "gpt-5": { "contextWindow": 272000 },
+        "gpt-5-mini": { "contextWindow": 272000 },
+        "gpt-5-nano": { "contextWindow": 272000 },
+        "gpt-5-pro": { "contextWindow": 272000 },
+        "gpt-5.1": { "contextWindow": 272000 },
+        "gpt-5.2": { "contextWindow": 272000 },
+        "gpt-5.2-pro": { "contextWindow": 272000 },
+        "gpt-5.3-codex": { "contextWindow": 272000 },
+        "gpt-5.4": { "contextWindow": 272000 },
+        "gpt-5.4-mini": { "contextWindow": 272000 },
+        "gpt-5.4-nano": { "contextWindow": 272000 },
+        "gpt-5.4-pro": { "contextWindow": 272000 },
+        "gpt-5.5": { "contextWindow": 272000 },
+        "gpt-5.5-pro": { "contextWindow": 272000 },
+        "gpt-5.6-cyber": { "contextWindow": 272000 },
+        "gpt-5.6-luna": { "contextWindow": 272000 },
+        "gpt-5.6-sol": { "contextWindow": 272000 },
+        "gpt-5.6-terra": { "contextWindow": 272000 },
+        "gpt-6-astra": { "contextWindow": 272000 },
+        "gpt-6-cyber": { "contextWindow": 272000 },
+        "gpt-6-sol": { "contextWindow": 272000 },
+        "gpt-6.1-sol": { "contextWindow": 272000 },
+        "gpt-6.1-terra": { "contextWindow": 272000 },
+        "gpt-6.2-astra": { "contextWindow": 272000 },
+        "gpt-6.2-sol": { "contextWindow": 272000 },
+        "gpt-daybreak-blue-latest": { "contextWindow": 272000 },
+        "gpt-daybreak-red-latest": { "contextWindow": 272000 }
       }
     }
   }
