@@ -33,6 +33,7 @@
     "npm:@narumitw/pi-goal",
     "npm:pi-simplify",
     "npm:pi-codex-fast-mode",
+    "npm:openwiki",
     "git:github.com/algal/pi-openai-server-compaction",
     "npm:pi-subagents",
     "npm:pi-powerline-footer",
