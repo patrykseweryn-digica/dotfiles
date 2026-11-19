@@ -8,8 +8,8 @@ developer releases without editing that inventory.
 - `outdated` shows only tools with version drift or a missing command.
 - `report` shows all installed and expected CLI versions for diagnostics.
 - `plan` checks every platform-applicable inventory entry offline.
-- `install` provisions portable core tools through mise.
-- `update` resolves current stable releases without stored version numbers.
+- `install` provisions portable core tools through mise and just through uv.
+- `update` resolves current stable releases and preserves explicit release pins.
 - `system` installs gnupg and xclip with the OS package manager. It reports
   `SKIP` with a reason when Linux has no sudo or macOS has no Homebrew.
 - `brewfile` holds only desktop casks; gh, shellcheck and pnpm come from mise.
@@ -34,8 +34,11 @@ Preconditions: working host Node/npm; no live update needed for verification.
   the selected LTS runtime and starts generated CLI fixtures without
   reinstalling them. The mise provider is simulated; real package startup
   and Node compatibility require separate live evidence.
-  Update keeps `latest` without changing inventory bytes. Native tools use only
-  their declared self-update commands. Treehouse uses the managed public
+  Update keeps release channels without changing inventory bytes. Fixtures
+  cover pinned npm builds, uv tools, GitHub extensions, repeated install,
+  release-preserving update, offline checks and installer failures.
+  Native tools use only their declared self-update commands.
+  Treehouse uses the managed public
   release redirect and skips a current binary. Codex upgrades its cask on
   macOS and reruns OpenAI's installer on Linux. Inside a Herdr pane, the Herdr
   update is skipped with an instruction and other updates continue.
@@ -50,6 +53,8 @@ Preconditions: working host Node/npm; no live update needed for verification.
   Homebrew without sudo, required tool groups, group skips, and zsh
   completions: written, outdated, missing, kept on generator failure,
   limited to selected groups, and rejected when declared invalid.
+  Core-only install and update must install pinned rust-just through uv.
+  A failed uv install must fail core provisioning.
 - **Node upgrade.** Run `bash scripts/smoke-node.sh`. It drives bootstrap
   with an isolated mise provider, changes the resolved LTS version, reads the
   selected Node, and verifies the previous runtime survives download/install

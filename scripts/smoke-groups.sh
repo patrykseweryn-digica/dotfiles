@@ -25,6 +25,7 @@ stub_dir="${tmp_dir}/stubs"
 calls="${tmp_dir}/calls.log"
 mkdir -p "$stub_dir" "${tmp_dir}/fixture"
 ln -s "$JQ_BIN" "${stub_dir}/jq"
+ln -s "$JUST_BIN" "${stub_dir}/just"
 : >"$calls"
 
 # Network clients must never run; each call is recorded as a failure.

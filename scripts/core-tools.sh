@@ -77,7 +77,9 @@ validate_inventory() {
                 all(.[]; command_name)) and
             ((.platforms // ["darwin-arm64", "darwin-x86_64",
                 "linux-arm64", "linux-x86_64"]) | valid_platforms) and
-            .versionPolicy == "latest" and
+            ((.versionPolicy == "latest" and (has("version") | not)) or
+             (.versionPolicy == "pinned" and
+              (.version | type == "string" and test("^[0-9]+\\.[0-9]+\\.[0-9]+$")))) and
             ((.mise // .name) | nonempty and test("^[^[:space:]]+$")) and
             (has("github") | not) and (has("packages") | not) and
             (has("adapter") | not) and
@@ -129,8 +131,7 @@ mise_tool_rows() {
     local platform="$1"
     jq_run -r --arg platform "$platform" \
         --arg groups "$DOTFILES_SELECTED_GROUPS" '
-        .tools[] | select(.scope == "core" and
-            .versionPolicy == "latest") |
+        .tools[] | select(.scope == "core") |
         select(((.platforms // ["darwin-arm64", "darwin-x86_64",
             "linux-arm64", "linux-x86_64"]) | index($platform)) != null) |
         select('"$GROUP_SELECTED_JQ"') |
@@ -145,12 +146,12 @@ write_mise_config() {
     jq_run -r --arg platform "$platform" \
         --arg groups "$DOTFILES_SELECTED_GROUPS" '
         (["[tools]"] + [
-            .tools[] | select(.scope == "core" and
-                .versionPolicy == "latest") |
+            .tools[] | select(.scope == "core") |
             select(((.platforms // ["darwin-arm64", "darwin-x86_64",
                 "linux-arm64", "linux-x86_64"]) | index($platform)) != null) |
             select('"$GROUP_SELECTED_JQ"') |
-            (((.mise // .name) | @json) + " = \"latest\"")
+            (((.mise // .name) | @json) + " = " +
+                ((.version // "latest") | @json))
         ])[]
     ' "$TOOL_INVENTORY" >"$candidate" || {
         rm -f "$candidate"
@@ -445,7 +446,7 @@ check_tools() {
 }
 
 main() {
-    local action="${1:-}" platform completions
+    local action="${1:-}" platform completions just_version
     case "$action" in
     plan | install | update | check) ;;
     *)
@@ -481,6 +482,11 @@ main() {
     case "$action" in
     plan) show_plan "$platform" ;;
     install | update)
+        just_version=$(jq_run -er '.tools[] |
+            select(.package == "rust-just") | .channel' "$TOOL_INVENTORY") ||
+            return 1
+        operation_run just "install with uv" install -- \
+            uv tool install "rust-just==$just_version" || return 1
         run_mise_tools "$action" "$platform" || return 1
         # A failed completion must not stop system tools; report it after.
         completions=0
