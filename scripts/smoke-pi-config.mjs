@@ -31,6 +31,9 @@ assert.equal(settings.terminal.trueColor, true);
 assert.equal(settings.steeringMode, "all");
 assert.equal(settings.followUpMode, "all");
 assert.deepEqual(settings.extensions, ["-builtin:mcp"]);
+assert.deepEqual(settings.defaultTools, ["+codemode"]);
+assert.ok(settings.packages.includes("npm:pi-subagents"));
+assert.ok(settings.packages.includes("npm:pi-powerline-footer"));
 for (const key of ["quietStartup", "hideThinkingBlock", "collapseChangelog"]) {
   assert.equal(settings[key], true);
 }

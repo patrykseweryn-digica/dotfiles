@@ -13,7 +13,7 @@ fail() {
 
 jq -e '
     all(.tools[] | select(.scope == "core");
-        .versionPolicy == "latest" and
+        (.versionPolicy == "latest" or .versionPolicy == "pinned") and
         (has("github") | not) and
         (has("packages") | not) and
         (has("adapter") | not)) and
@@ -39,7 +39,6 @@ jq -e '
     args("gh") == ["completion", "-s", "zsh"] and
     args("pnpm") == ["completion", "zsh"] and
     args("bitwarden") == ["completion", "--shell", "zsh"] and
-    args("just") == ["--completions", "zsh"] and
     args("ripgrep") == ["--generate", "complete-zsh"] and
     args("fd") == ["--gen-completions", "zsh"] and
     args("delta") == ["--generate-completion", "zsh"] and
@@ -149,12 +148,22 @@ for target in Darwin:arm64 Linux:x86_64 Linux:arm64; do
         MISE_CORE_TOOLS_FILE="$config" "$CORE_TOOLS" install
     grep -F -- "--cd $HOME install $tool_list" "$mise_log" >/dev/null ||
         fail "install did not use the common mise path for $target"
-    [ "$(grep -c ' = "latest"$' "$config")" -eq "$tool_count" ] ||
+    [ "$(grep -c ' = "' "$config")" -eq "$tool_count" ] ||
         fail "generated mise config omitted tools for $target"
     grep -F '[tools]' "$config" >/dev/null ||
         fail "generated mise config has no tools table"
     grep -F '"aqua:neovim/neovim" = "latest"' "$config" >/dev/null ||
         fail "generated mise config omitted the declared backend"
+    for entry in 'aqua:crate-ci/typos 1.52.2' \
+        'aqua:sharkdp/hyperfine 2.0.0' 'aqua:watchexec/watchexec 2.8.0' \
+        'aqua:errata-ai/vale 3.27.0'; do
+        read -r source version <<<"$entry"
+        grep -Fx "\"$source\" = \"$version\"" "$config" >/dev/null ||
+            fail "generated config lost the $source pin"
+    done
+    if grep -E '^"just" = ' "$config"; then
+        fail "just must use uv, not mise"
+    fi
     # The aqua zipapp lacks dependencies for the host python3, e.g. 3.10.
     grep -Fx '"pypi:pre-commit" = "latest"' "$config" >/dev/null ||
         fail "pre-commit does not install as a Python package"

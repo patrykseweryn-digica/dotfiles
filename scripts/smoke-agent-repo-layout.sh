@@ -69,6 +69,7 @@ jq -e '
         "defaultModel",
         "defaultProvider",
         "defaultThinkingLevel",
+        "defaultTools",
         "hideThinkingBlock",
         "enabledModels",
         "theme",

@@ -31,8 +31,19 @@ validate_manifest() {
             ((.platforms // ["darwin-arm64", "darwin-x86_64",
                 "linux-arm64", "linux-x86_64"]) | valid_platforms) and
             if (.scope // "agent") == "agent" then
-                .channel == "latest" and
+                (.channel | type == "string" and
+                    test("^(latest|[0-9]+[.][0-9]+[.][0-9]+)$")) and
+                (.channel == "latest" or
+                    .installer == "npm" or .installer == "uv" or
+                    .installer == "gh-extension") and
                 (has("version") | not) and
+                (if has("commands") then
+                    (.commands | type == "array" and length > 0 and
+                        all(.[]; type == "string" and
+                            test("^[a-zA-Z0-9][a-zA-Z0-9._-]*$"))) and
+                    (.command as $command |
+                        (.commands | index($command)) != null)
+                 else true end) and
                 (if has("allow_builds") then
                     .installer == "npm" and
                     (.allow_builds | type) == "array" and
@@ -57,7 +68,12 @@ validate_manifest() {
                         all(.[]; type == "string" and
                             test("^[a-zA-Z0-9][a-zA-Z0-9._-]*$")))
                  else true end) and
-                (if .installer == "npm" or .installer == "claude-native" then
+                (if .installer == "gh-extension" then
+                    .channel != "latest" and
+                    (.package | type == "string" and
+                        test("^[a-zA-Z0-9._-]+/gh-[a-zA-Z0-9._-]+$"))
+                 elif .installer == "npm" or .installer == "claude-native" or
+                      .installer == "uv" then
                     (.package | type == "string" and
                         test("^(@[a-z0-9._-]+/)?[a-z0-9][a-z0-9._-]*$"))
                  else
@@ -71,7 +87,10 @@ validate_manifest() {
             else
                 (.commands | type == "array" and length > 0) and
                 if .scope == "core" then
-                    .versionPolicy == "latest"
+                    (.versionPolicy == "latest" or
+                     (.versionPolicy == "pinned" and
+                      (.version | type == "string" and
+                          test("^[0-9]+[.][0-9]+[.][0-9]+$"))))
                 elif .scope == "system" then
                     .versionPolicy == "system" and
                     (.packages | type == "object" and length > 0)
@@ -328,8 +347,11 @@ build_tool_export_candidate() {
 
 installed_version() {
     local command_name="$1" output
-    command -v "$command_name" >/dev/null 2>&1 || return 1
-    output=$("$command_name" --version 2>/dev/null) || return 1
+    if [ "$command_name" = gh-dash ]; then
+        output=$(gh dash --version 2>/dev/null) || return 1
+    else
+        output=$("$command_name" --version 2>/dev/null) || return 1
+    fi
     if [[ "$output" =~ ([0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?) ]]; then
         printf '%s\n' "${BASH_REMATCH[1]}"
         return 0
@@ -428,7 +450,11 @@ plan_tools() {
             printf 'FAIL\ttools\tupdate\t%s resolves to %s; expected %s\n' \
                 "$name" "$resolved" "$(codex_managed_path)"
         elif [ "$scope" = agent ] &&
-            command -v "$command_name" >/dev/null 2>&1; then
+            { if [ "$installer" = gh-extension ]; then
+                installed_version "$command_name" >/dev/null 2>&1
+              else
+                command -v "$command_name" >/dev/null 2>&1
+              fi; }; then
             printf 'PASS\ttools\tnone\t%s is available\n' "$name"
         elif [ "$scope" = core ]; then
             available=false
@@ -475,7 +501,7 @@ install_declared_tools() {
     local failed=false managed_by_mise script
     local -a update_args
     local name command_name package expected installer
-    local update_command current
+    local update_command current package_spec
 
     while IFS=$'\t' read -r \
         name command_name package expected installer update_command; do
@@ -485,12 +511,36 @@ install_declared_tools() {
             [ "$(command -v codex 2>/dev/null)" != "$(codex_managed_path)" ]; then
             current=""
         fi
+        case "$installer" in
+        uv)
+            if [ "$expected" = latest ]; then
+                package_spec="$package"
+            else
+                package_spec="${package}==${expected}"
+            fi
+            update_args=()
+            [ "$refresh" != true ] || update_args+=(--upgrade)
+            operation_run "$name" "install with uv" install -- \
+                uv tool install ${update_args[@]+"${update_args[@]}"} \
+                "$package_spec" || failed=true
+            continue
+            ;;
+        gh-extension)
+            if [ "$current" != "$expected" ]; then
+                operation_run "$name" "install GitHub extension" install -- \
+                    gh extension install "$package" --pin "v${expected}" \
+                    --force || failed=true
+            fi
+            continue
+            ;;
+        esac
         if [ "$installer" = npm ]; then
             managed_by_mise=false
             if run_global_mise which "$command_name" >/dev/null 2>&1; then
                 managed_by_mise=true
             fi
             if [ "$refresh" != true ] && [ -n "$current" ] &&
+                { [ "$expected" = latest ] || [ "$current" = "$expected" ]; } &&
                 [ "$managed_by_mise" = true ]; then
                 echo "[INFO] $name $current already installed"
                 continue
