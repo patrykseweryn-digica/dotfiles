@@ -446,7 +446,7 @@ check_tools() {
 }
 
 main() {
-    local action="${1:-}" platform completions
+    local action="${1:-}" platform completions just_version
     case "$action" in
     plan | install | update | check) ;;
     *)
@@ -482,6 +482,11 @@ main() {
     case "$action" in
     plan) show_plan "$platform" ;;
     install | update)
+        just_version=$(jq_run -er '.tools[] |
+            select(.package == "rust-just") | .channel' "$TOOL_INVENTORY") ||
+            return 1
+        operation_run just "install with uv" install -- \
+            uv tool install "rust-just==$just_version" || return 1
         run_mise_tools "$action" "$platform" || return 1
         # A failed completion must not stop system tools; report it after.
         completions=0

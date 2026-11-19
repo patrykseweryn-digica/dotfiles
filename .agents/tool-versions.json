@@ -514,7 +514,7 @@
     {
       "channel": "1.59.0",
       "command": "just",
-      "group": "agents",
+      "group": "core",
       "installer": "uv",
       "name": "rust-just",
       "package": "rust-just"
