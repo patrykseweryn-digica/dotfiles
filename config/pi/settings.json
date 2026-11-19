@@ -24,6 +24,7 @@
     "git:github.com/DietrichGebert/ponytail",
     "git:github.com/ghoseb/pi-askuserquestion",
     "npm:@porche/pi-usage",
+    "npm:billion-context",
     "npm:pi-lens",
     "npm:pi-mcp-adapter",
     "npm:pi-web-access",
