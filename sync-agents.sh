@@ -2400,8 +2400,10 @@ skill_doc_url() {
         select($url | test("^https://github\\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")) |
         select(($parts | length) >= 3) |
         ($url | sub("^https://github\\.com/"; "") | sub("\\.git$"; "")) as $repo |
-        ($parts[0:-3] + ["docs", $path] | join("/")) as $file |
-        "https://raw.githubusercontent.com/\($repo)/\($skill.ref // "HEAD")/\($file)"
+        ($parts[0:-3] + ["docs"] + ($path | split("/")) |
+            map(@uri) | join("/")) as $file |
+        ($skill.ref // "HEAD" | @uri) as $ref |
+        "https://api.github.com/repos/\($repo)/contents/\($file)?ref=\($ref)"
     ' "$SKILL_LOCK_REPO" 2>/dev/null || {
         echo "[ERROR] Cannot resolve support doc docs/${path} for ${name}: the source is not a GitHub skill path" >&2
         return 1
@@ -2413,7 +2415,14 @@ stage_skill_docs() {
     local docs_root="${STAGED_SKILLS_ROOT}/docs"
     local rows="${STAGED_SKILLS_ROOT}/doc-rows"
     local sources="${STAGED_SKILLS_ROOT}/doc-sources"
-    local name path url existing target
+    local name path url existing target status
+    # The raw host can throttle while the contents API still serves the file.
+    local -a curl_args=(-fsS --retry 3 --retry-max-time 60
+        --connect-timeout 10 --max-time 30
+        -H 'Accept: application/vnd.github.raw+json')
+    # URLs are built for api.github.com only; never follow token-bearing redirects.
+    [ -z "${GITHUB_TOKEN:-}" ] ||
+        curl_args+=(-H "Authorization: Bearer ${GITHUB_TOKEN}")
 
     mkdir -p "$docs_root" || return 1
     : >"$sources"
@@ -2427,11 +2436,15 @@ stage_skill_docs() {
         target="${docs_root}/${path}"
         [ -z "$existing" ] || target="${STAGED_SKILLS_ROOT}/doc-candidate"
         mkdir -p "$(dirname "${docs_root}/${path}")" || return 1
-        operation_run "support doc docs/${path}" "download for ${name}" fetch -- \
-            curl -fsSL -o "$target" "$url" || {
+        status="$(operation_run "support doc docs/${path}" "download for ${name}" fetch --stdout -- \
+            curl "${curl_args[@]}" -w '%{http_code}' -o "$target" "$url")" || {
             echo "[ERROR] Failed to download support doc docs/${path} for ${name}" >&2
             return 1
         }
+        if [ "$status" != 200 ]; then
+            echo "[ERROR] Support doc docs/${path} for ${name}: expected HTTP 200, got ${status}" >&2
+            return 1
+        fi
         if [ -n "$existing" ] && ! cmp -s "$target" "${docs_root}/${path}"; then
             echo "[ERROR] Support doc docs/${path} differs between ${existing} and ${url}" >&2
             return 1

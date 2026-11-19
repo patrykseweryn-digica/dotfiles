@@ -14,8 +14,8 @@ task_dir="$(mktemp -d)"
 trap 'rm -rf "$task_dir"' EXIT
 mkdir -p "$task_dir/bin" "$task_dir/custom"
 # A fixture lock entry; the doc lives next to skills/ in its package.
-doc_url='https://raw.githubusercontent.com/example/kit/main/pack/docs/'
-doc_url="${doc_url}harness/claude-code.md"
+doc_url='https://api.github.com/repos/example/kit/contents/pack/docs/'
+doc_url="${doc_url}harness/claude-code.md?ref=main"
 cat >"$task_dir/lock.json" <<'JSON'
 {"skills": {"maintain-verification-skill": {
   "ref": "main",
@@ -44,22 +44,44 @@ STUB
 cat >"$task_dir/bin/curl" <<'STUB'
 #!/bin/bash
 set -eu
-output=""
-url=""
+output="" url="" auth=false retry="" retry_max="" max_time=""
 while [ "$#" -gt 0 ]; do
     case "$1" in
     -o) output="$2"; shift ;;
+    --retry) retry="$2"; shift ;;
+    --retry-max-time) retry_max="$2"; shift ;;
+    --max-time) max_time="$2"; shift ;;
+    --connect-timeout | -w) shift ;;
+    -H)
+        case "$2" in
+        Authorization:*)
+            [ "$2" = "Authorization: Bearer ${GITHUB_TOKEN:-}" ] || exit 98
+            auth=true
+            ;;
+        esac
+        shift
+        ;;
     -*) ;;
     *) url="$1" ;;
     esac
     shift
 done
 printf '%s\n' "$url" >>"$CURL_LOG"
+# Reproduce the real host-specific failure; the API serves the same file.
+case "$url" in
+https://api.github.com/repos/*) ;;
+*) echo 'curl: (22) The requested URL returned error: 429' >&2; exit 22 ;;
+esac
+[ "$retry:$retry_max:$max_time" = '3:60:30' ] || exit 97
+[ -z "${GITHUB_TOKEN:-}" ] || [ "$auth" = true ] || exit 96
 [ "${FAIL_DOC:-false}" = false ] || { echo 'HTTP 404' >&2; exit 22; }
+status="${DOC_HTTP_STATUS:-200}"
+[ "$status" -lt 400 ] || { echo "HTTP $status" >&2; exit 22; }
 case "$url" in
 */other/*) printf '%s\n' "${OTHER_DOC_CONTENT:-$DOC_CONTENT}" >"$output" ;;
 *) printf '%s\n' "$DOC_CONTENT" >"$output" ;;
 esac
+printf '%s' "$status"
 STUB
 chmod +x "$task_dir/bin/skills" "$task_dir/bin/curl"
 
@@ -83,6 +105,24 @@ skills_plan_status() {
     run_sync_agents --quiet state-plan || true
     awk -F '\t' '$2 == "skills" { print $1 }' "$task_dir/output"
 }
+
+: >"$task_dir/curl.log"
+GITHUB_TOKEN='fixture-token' run_sync_agents skills-preflight || {
+    cat "$task_dir/output" >&2
+    fail "preflight failed while raw GitHub is rate limited and API is healthy"
+}
+grep -Fx "$doc_url" "$task_dir/curl.log" >/dev/null ||
+    fail "preflight did not fetch the doc from GitHub API"
+! grep -F 'fixture-token' "$task_dir/output" >/dev/null ||
+    fail "preflight printed the token"
+[ ! -e "$home/.agents" ] || fail "preflight changed the live runtime"
+for status in 401 403 404 429 302; do
+    if DOC_HTTP_STATUS="$status" run_sync_agents skills-preflight; then
+        fail "preflight accepted HTTP $status for a required support doc"
+    fi
+    [ ! -e "$home/.agents" ] || fail "failed preflight changed the runtime"
+done
+echo "[INFO] preflight survives raw-host 429 without hiding API failures"
 
 : >"$task_dir/curl.log"
 run_sync_agents push-skills || {
@@ -159,6 +199,17 @@ grep -F 'Unsafe support doc path' "$task_dir/output" >/dev/null ||
     fail "unsafe doc path was not explained"
 [ ! -s "$task_dir/curl.log" ] || fail "unsafe doc path was downloaded"
 echo "[INFO] an unsafe doc path is rejected before any download"
+
+# A token must never reach a lookalike GitHub host.
+cp "$task_dir/lock.json" "$task_dir/lock.saved"
+jq '.skills[].sourceUrl = "https://github.com.evil.invalid/example/kit"' \
+    "$task_dir/lock.saved" >"$task_dir/lock.json"
+: >"$task_dir/curl.log"
+if GITHUB_TOKEN='fixture-token' run_sync_agents skills-preflight; then
+    fail "preflight accepted an untrusted doc source"
+fi
+[ ! -s "$task_dir/curl.log" ] || fail "untrusted doc source received a request"
+mv "$task_dir/lock.saved" "$task_dir/lock.json"
 
 # Two packages can ship the same doc; only different content conflicts.
 jq '.skills["second-skill"] = (.skills["maintain-verification-skill"] |
