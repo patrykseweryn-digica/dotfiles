@@ -34,6 +34,7 @@
     "npm:pi-codex-fast-mode",
     "git:github.com/algal/pi-openai-server-compaction",
     "npm:pi-subagents",
-    "npm:pi-powerline-footer"
+    "npm:pi-powerline-footer",
+    "npm:pi-processes"
   ]
 }
