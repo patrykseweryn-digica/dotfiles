@@ -338,6 +338,7 @@ cat >"${stub_dir}/skills" <<'STUB'
 #!/bin/bash
 set -eu
 printf '%s\n' "$*" >>"$SKILL_TEST_LOG"
+[ "${SKILL_STAGE_FAIL:-false}" = false ] || exit 1
 skills=()
 collect=false
 for argument in "$@"; do
@@ -678,5 +679,148 @@ cmp "${tmp_dir}/expected-changed" "${tmp_dir}/changed" ||
 find "$home_dir" -type f -exec cksum {} \; | sort >"${tmp_dir}/live.final"
 cmp "${tmp_dir}/live.apply-before" "${tmp_dir}/live.final" ||
     fail "approved export changed live state"
+
+# Run the public selector from a terminal; stub only the fzf selection.
+cat >"${stub_dir}/fzf" <<'STUB'
+#!/bin/bash
+[ "${SKILL_SELECTION:-}" != cancel ] || exit 130
+tee "$SKILL_MENU_LOG" | awk -F '\t' -v names="${SKILL_SELECTION:-}" '
+    BEGIN { split(names, selected, ",") }
+    { for (i in selected) if ($1 == selected[i]) print }
+'
+STUB
+chmod +x "${stub_dir}/fzf"
+run_skill_export() {
+    local answer="$1" output="$2"
+    shift 2
+    env "$@" python3 - "$answer" "$JUST_BIN" --justfile "${DOTFILES_DIR}/justfile" export skills >"$output" 2>&1 <<'PY'
+import errno
+import os
+import pty
+import select
+import signal
+import sys
+import time
+
+answer, *command = sys.argv[1:]
+pid, terminal = pty.fork()
+if pid == 0:
+    os.execv(command[0], command)
+
+deadline = time.monotonic() + 30
+output = bytearray()
+while time.monotonic() < deadline:
+    if not select.select([terminal], [], [], 0.25)[0]:
+        continue
+    try:
+        chunk = os.read(terminal, 4096)
+    except OSError as exc:
+        if exc.errno != errno.EIO:
+            raise
+        break
+    if not chunk:
+        break
+    sys.stdout.buffer.write(chunk)
+    output.extend(chunk)
+    if answer and b"Apply selected skill changes" in output:
+        os.write(terminal, (answer + "\n").encode())
+        answer = ""
+else:
+    os.kill(pid, signal.SIGKILL)
+    os.waitpid(pid, 0)
+    sys.exit("interactive skill export timed out")
+_, status = os.waitpid(pid, 0)
+sys.exit(os.waitstatus_to_exitcode(status))
+PY
+}
+
+export SKILL_MENU_LOG="${tmp_dir}/menu"
+jq '.skills["keep-missing"] = (.skills["managed-skill"] |
+    .skillPath = "package/skills/keep-missing/SKILL.md")' \
+    "$skill_lock_repo" >"${tmp_dir}/baseline-lock"
+mv "${tmp_dir}/baseline-lock" "$skill_lock_repo"
+git -C "$checkout" add -A
+git -C "$checkout" commit -qm 'fixture: baseline for interactive export'
+interactive_head=$(git -C "$checkout" rev-parse HEAD)
+rm -r "${home_dir}/.agents/skills/managed-skill"
+for skill in added local-only; do
+    mkdir -p "${home_dir}/.agents/skills/$skill"
+    printf '%s\n' '---' "name: $skill" '---' >"${home_dir}/.agents/skills/$skill/SKILL.md"
+done
+jq '.skills["added"] = (.skills["new-managed"] |
+    .skillPath = "package/skills/added/SKILL.md" | .deviceId = "local") |
+    .skills["new-managed"] |= (.source = "example/replacement" |
+        .sourceUrl = "https://github.com/example/replacement.git" |
+        .runtimeName = "New Managed")' \
+    "$skill_lock_live" >"${tmp_dir}/modified-lock"
+mv "${tmp_dir}/modified-lock" "$skill_lock_live"
+find "$home_dir" -type f -exec cksum {} \; | sort >"${tmp_dir}/interactive.before"
+assert_clean_skill_export() {
+    [ -z "$(git -C "$checkout" status --porcelain --untracked-files=all)" ] ||
+        fail "unapproved skill export changed checkout"
+}
+
+if "$JUST_BIN" --justfile "${DOTFILES_DIR}/justfile" export skills \
+        </dev/null >"${tmp_dir}/no-terminal.log" 2>&1; then
+    fail "export unexpectedly succeeded without terminal approval"
+fi
+grep -F 'interactive terminal' "${tmp_dir}/no-terminal.log" >/dev/null
+run_skill_export '' "${tmp_dir}/no-selection.log" SKILL_SELECTION='' ||
+    fail "interactive export failed with no selection"
+assert_clean_skill_export
+run_skill_export '' "${tmp_dir}/escape.log" SKILL_SELECTION=cancel ||
+    fail "interactive export failed on Escape"
+assert_clean_skill_export
+run_skill_export n "${tmp_dir}/declined.log" SKILL_SELECTION=managed-skill ||
+    fail "interactive export failed on refusal"
+assert_clean_skill_export
+if run_skill_export y "${tmp_dir}/stage-failure.log" \
+    SKILL_SELECTION=managed-skill SKILL_STAGE_FAIL=true; then
+    fail "interactive export ignored staging failure"
+fi
+grep -F 'Failed to stage current skills' "${tmp_dir}/stage-failure.log" >/dev/null
+assert_clean_skill_export
+
+mv "$skill_lock_live" "${tmp_dir}/saved-live-lock"
+printf 'broken JSON\n' >"$skill_lock_live"
+if run_skill_export y "${tmp_dir}/broken.log" SKILL_SELECTION=managed-skill; then
+    fail "interactive export accepted a malformed global lock"
+fi
+grep -F 'Invalid live skill lock' "${tmp_dir}/broken.log" >/dev/null
+jq '.skills["new-managed"].source = 123' "${tmp_dir}/saved-live-lock" >"$skill_lock_live"
+if run_skill_export y "${tmp_dir}/bad-source.log" SKILL_SELECTION=managed-skill; then
+    fail "interactive export accepted a global lock with invalid source metadata"
+fi
+grep -F 'Invalid live skill lock' "${tmp_dir}/bad-source.log" >/dev/null
+mv "${tmp_dir}/saved-live-lock" "$skill_lock_live"
+assert_clean_skill_export
+
+run_skill_export y "${tmp_dir}/interactive.log" \
+    SKILL_SELECTION=managed-skill,new-managed,added || {
+    cat "${tmp_dir}/interactive.log" >&2
+    fail "interactive skill export failed"
+}
+grep -F 'Not exportable: local skills without an upstream source' \
+    "${tmp_dir}/interactive.log" >/dev/null
+grep -F 'local-only' "${tmp_dir}/interactive.log" >/dev/null
+grep -Fx $'managed-skill\tREMOVE\thttps://github.com/example/skills.git' "$SKILL_MENU_LOG"
+grep -Fx $'added\tADD\thttps://github.com/example/skills.git' "$SKILL_MENU_LOG"
+grep -Fx $'new-managed\tCHANGE SOURCE\thttps://github.com/example/skills.git -> https://github.com/example/replacement.git' "$SKILL_MENU_LOG"
+jq -e --slurpfile before <(git -C "$checkout" show HEAD:.agents/skill-lock.json) '
+    (.skills | keys) == ["added", "keep-missing", "new-managed"] and
+    .skills["keep-missing"] == $before[0].skills["keep-missing"] and
+    .skills["new-managed"].source == "example/replacement" and
+    .skills["new-managed"].runtimeName == "New Managed" and
+    .skills.added == {skillPath: "package/skills/added/SKILL.md",
+        source: "example/skills", sourceType: "github",
+        sourceUrl: "https://github.com/example/skills.git"}
+' "$skill_lock_repo" >/dev/null || fail "interactive export applied the wrong selection"
+[ "$(git -C "$checkout" status --porcelain --untracked-files=all)" = ' M .agents/skill-lock.json' ] ||
+    fail "interactive export changed something besides the unstaged lock"
+[ "$(git -C "$checkout" rev-parse HEAD)" = "$interactive_head" ] ||
+    fail "interactive export created a commit"
+find "$home_dir" -type f -exec cksum {} \; | sort >"${tmp_dir}/interactive.after"
+cmp "${tmp_dir}/interactive.before" "${tmp_dir}/interactive.after" ||
+    fail "interactive export changed live state"
 
 echo "[INFO] transactional export smoke test passed"

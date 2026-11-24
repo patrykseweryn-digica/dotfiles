@@ -10,7 +10,8 @@ Install or apply dotfiles while preserving runtime credentials and sessions.
   managed MCP state plus independent settings/link/hook categories, and checks
   the final state without removing export-required MCP additions.
 - `export` prepares settings, MCP, skills, plugins, and recognized tools in one
-  transaction.
+  transaction. `export skills` lets the user select global skill additions,
+  removals, and source changes without changing installed skills.
 - `portable-shell` starts Zsh on simulated macOS/Linux layouts.
 - `groups` limits install and sync to selected groups ([groups](groups.md)).
 
@@ -20,6 +21,7 @@ Install or apply dotfiles while preserving runtime credentials and sessions.
 - `just sync` for a fast-forward pull and controlled local/upstream updates.
   The checkout must be clean.
 - `just export` for one confirmed portable export into a clean checkout.
+- `just export skills` for a searchable list of global skill changes.
 
 ## Driving it with Bash smoke scripts
 
@@ -46,6 +48,11 @@ Preconditions: dependencies from SKILL.md; run from the checkout root.
   gate, one confirmation, settings allowlists, MCP conflict/privacy rejection,
   skill upstream/rename gates, plugin providers, recognized and unknown tools,
   rollback, and absence of staging, commits, pushes, or live mutations.
+  It also drives `just export skills` in a terminal with a stubbed selector.
+  Require unmarked and unrestorable skills to stay out of the export plan.
+  To check the real selector, use an isolated HOME and checkout with a known
+  difference. Search for a skill, press Enter without marking, then select
+  with Tab, review with Enter, and refuse the write. Verify Esc also cancels.
 - **Stage and apply skills.** Run `bash scripts/smoke-skill-install.sh`.
   Require current content in every runtime, no live changes after staging or
   network failures, rollback after apply failures, and no new backup on an
