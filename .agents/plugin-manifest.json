@@ -116,6 +116,9 @@
     "openai-templates": {
       "codex": "plugin_connector_1p_2330815c823c8191941e5dc465bb899f"
     },
+    "pages": {
+      "codex": "plugin_connector_1p_4a72ddeef4c481918f92d8e8df18fb2c"
+    },
     "playwright": {
       "claude": "playwright@claude-plugins-official"
     },
