@@ -16,8 +16,10 @@ developer releases without editing that inventory.
 - `completions` writes the zsh completion of each mise tool that declares
   `zshCompletion` to `~/.zfunc/_<command>`. Plan reports missing or outdated
   files; a failed generator keeps the old file and fails the update.
-- `groups` installs and plans only tools of selected install groups;
-  Bitwarden CLI is a native core tool ([groups](groups.md)).
+- `groups` installs and plans only tools of selected install groups
+  ([groups](groups.md)).
+- The core tool refresh removes the retired Bitwarden CLI and its completion
+  when the previous generated mise config still lists the tool.
 - `failure` retains previous Node and stops when downloads fail.
 
 ## How to get to it (user POV)
@@ -50,6 +52,10 @@ Preconditions: working host Node/npm; no live update needed for verification.
   Homebrew without sudo, required tool groups, group skips, and zsh
   completions: written, outdated, missing, kept on generator failure,
   limited to selected groups, and rejected when declared invalid.
+- **Retired core tool.** Run `just sync` in an isolated HOME with the previous
+  generated mise config, installed aqua versions, and `~/.zfunc/_bw`. Require
+  both versions and the completion to disappear. Verify that unrelated files
+  stay and that a second sync succeeds. Use real mise for uninstall.
 - **Node upgrade.** Run `bash scripts/smoke-node.sh`. It drives bootstrap
   with an isolated mise provider, changes the resolved LTS version, reads the
   selected Node, and verifies the previous runtime survives download/install
