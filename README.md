@@ -10,7 +10,8 @@ details unless you are debugging them.
 ```bash
 just sync     # daily pull, local convergence, and managed updates
 just install  # prepare or repair a machine
-just export   # review and save portable local additions
+just export         # review and save portable local additions
+just export skills  # choose global skill changes to save in the repository
 just doctor   # inspect local state offline and without writes
 ```
 
@@ -28,6 +29,12 @@ allows the reviewed inventory change. Export never stages, commits, pushes, or
 changes runtime files; an
 apply failure rolls the checkout back. Environment values, HTTP headers,
 credentials, OAuth state, unsupported transports, and local paths stay local.
+
+Use `just export skills` to record intentional changes to global skills, such
+as removals made with `npx skills remove -g`. Type to filter the `fzf` list.
+Mark changes with `Tab`, review them with `Enter`, or cancel with `Esc`.
+Unmarked skills keep their repository entries. The command checks the resulting
+inventory against current upstream before it writes only the repository lock.
 
 `just sync` requires a clean checkout. It fetches upstream, fast-forwards,
 applies repository settings and membership, then refreshes managed tools,
