@@ -30,6 +30,10 @@
       "repo": "anthropics/claude-plugins-official",
       "source": "github"
     },
+    "cursor-plugins": {
+      "repo": "cursor/plugins",
+      "source": "github"
+    },
     "impeccable": {
       "repo": "pbakaus/impeccable",
       "source": "github"
