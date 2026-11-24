@@ -91,24 +91,9 @@ configure_herdr_hook() {
 
     # Herdr writes an absolute path; keep its hook portable in managed settings.
     tmp="$(mktemp "${settings}.XXXXXX")" || return 1
-    if jq -S '
-        (.hooks.SessionStart[].hooks[] |
-            select(.type == "command" and
-                (.command | contains("herdr-agent-state.sh")))).command =
-            "bash \"$HOME/.claude/hooks/herdr-agent-state.sh\" session" |
-        .hooks.SessionStart |= (
-            reduce .[] as $entry ({items: [], seen_herdr: false};
-                ($entry.hooks | any(.command? // "" |
-                    contains("herdr-agent-state.sh"))) as $is_herdr |
-                if $is_herdr and .seen_herdr then
-                    .
-                else
-                    .items += [$entry] |
-                    if $is_herdr then .seen_herdr = true else . end
-                end
-            ) | .items
-        )
-    ' "$settings" >"$tmp"; then
+    if jq -S -L "${DOTFILES_DIR}/scripts" \
+        'include "claude-herdr-hook"; normalize_herdr_hook' \
+        "$settings" >"$tmp"; then
         mv "$tmp" "$settings"
     else
         rm -f "$tmp"

@@ -48,6 +48,7 @@ Preconditions: dependencies from SKILL.md; run from the checkout root.
   gate, one confirmation, settings allowlists, MCP conflict/privacy rejection,
   skill upstream/rename gates, plugin providers, recognized and unknown tools,
   rollback, and absence of staging, commits, pushes, or live mutations.
+  A live Herdr hook with an absolute path must export as one `$HOME` hook.
   It also drives `just export skills` in a terminal with a stubbed selector.
   Require unmarked and unrestorable skills to stay out of the export plan.
   To check the real selector, use an isolated HOME and checkout with a known

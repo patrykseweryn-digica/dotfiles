@@ -72,6 +72,9 @@ TOML
 cat >"$claude_template" <<'JSON'
 {
   "env": {"SAFE": "repo"},
+  "hooks": {"SessionStart": [{"hooks": [{
+    "command": "bash \"$HOME/.claude/hooks/herdr-agent-state.sh\" session",
+    "timeout": 10, "type": "command"}], "matcher": "*"}]},
   "model": "repo-claude",
   "permissions": {"allow": ["Read"]}
 }
@@ -232,6 +235,15 @@ cat >"$claude_live" <<'JSON'
   "permissions": {"allow": ["Read", "mcp__shared__*"]}
 }
 JSON
+# Herdr appends its own absolute-path hook next to the portable one.
+jq --slurpfile repo "$claude_template" \
+    --arg hook "${home_dir}/.claude/hooks/herdr-agent-state.sh" '
+    .hooks.SessionStart = $repo[0].hooks.SessionStart + [{
+        hooks: [{command: "bash '"'"'\($hook)'"'"' session",
+            timeout: 10, type: "command"}],
+        matcher: "^(startup|resume|clear|compact|fork)$"}]
+' "$claude_live" >"${claude_live}.tmp"
+mv "${claude_live}.tmp" "$claude_live"
 cat >"$claude_user" <<'JSON'
 {
   "mcpServers": {
@@ -597,6 +609,11 @@ jq -e '
     .permissions.allow == ["Read"] and
     (has("oauthToken") | not)
 ' "$claude_template" >/dev/null || fail "Claude allowlist export failed"
+jq -e '
+    [.hooks.SessionStart[].hooks[].command] ==
+        ["bash \"$HOME/.claude/hooks/herdr-agent-state.sh\" session"]
+' "$claude_template" >/dev/null ||
+    fail "Claude export kept a Herdr absolute-path hook"
 jq -e '
     .model == "live-opencode" and
     .preserveWhenMissing == "repo" and
