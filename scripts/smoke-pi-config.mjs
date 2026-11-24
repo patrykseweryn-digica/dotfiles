@@ -65,7 +65,12 @@ try {
   const agent = join(home, ".pi/agent");
   mkdirSync(source);
   mkdirSync(join(agent, "extensions"), { recursive: true });
-  for (const path of ["themes", "extensions", "models.json"]) {
+  for (const path of [
+    "themes",
+    "extensions",
+    "models.json",
+    "billion-context.json",
+  ]) {
     cpSync(join(config, path), join(source, path), { recursive: true });
   }
   // Package installation has its own fixture and real clean-HOME check.
@@ -97,14 +102,40 @@ try {
     PI_SETTINGS_TEMPLATE: join(source, "settings.json"),
     PI_SETTINGS_FILE: join(agent, "settings.json"),
     PI_MCP_CONFIG: join(home, "mcp.json"),
+    XDG_CONFIG_HOME: join(home, "xdg"),
   };
-  const run = (action) =>
-    execFileSync(join(root, "sync-agents.sh"), [action], {
+  const run = (...args) =>
+    execFileSync(join(root, "sync-agents.sh"), args, {
       env,
       stdio: "pipe",
     });
+  const bili = join(
+    env.XDG_CONFIG_HOME,
+    "billion-context/billion-context.json",
+  );
   run("pi-install");
   run("pi-check");
+  assert.deepEqual(JSON.parse(readFileSync(bili, "utf8")), {
+    pi: { subagents: false },
+  });
+  const biliLocal = {
+    providers: { custom: { apiKey: "private-test-sentinel" } },
+    pi: { subagents: { forceEnable: true }, local: true },
+  };
+  writeFileSync(bili, JSON.stringify(biliLocal));
+  assert.throws(() => run("pi-check"));
+  run("settings-install", "pi");
+  const biliApplied = readFileSync(bili, "utf8");
+  assert.deepEqual(JSON.parse(biliApplied), {
+    ...biliLocal,
+    pi: { ...biliLocal.pi, subagents: false },
+  });
+  run("pi-install");
+  assert.equal(readFileSync(bili, "utf8"), biliApplied);
+  writeFileSync(bili, "{invalid JSON");
+  assert.throws(() => run("pi-install"));
+  assert.equal(readFileSync(bili, "utf8"), "{invalid JSON");
+  writeFileSync(bili, biliApplied);
   const before = readFileSync(join(agent, "settings.json"), "utf8");
   run("pi-install");
   run("pi-check");

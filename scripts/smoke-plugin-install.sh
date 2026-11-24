@@ -103,7 +103,8 @@ for platform in Linux-x86_64 Linux-arm64 Darwin-x86_64 Darwin-arm64; do
                 "$([ "$state" = complete ] && echo true || echo false)" > "$task_home/.codex/plugins.json"
         fi
         run_install() {
-            env -u CODEX_PLUGIN_LIST_FILE -u CODEX_MARKETPLACE_LIST_FILE \
+            env -u XDG_CONFIG_HOME \
+                -u CODEX_PLUGIN_LIST_FILE -u CODEX_MARKETPLACE_LIST_FILE \
                 -u OPENCODE_CONFIG_DIR -u OPENCODE_CONFIG \
                 -u PI_MCP_CONFIG \
                 -u PI_CODING_AGENT_DIR -u PI_SKILLS_DIR -u PI_SETTINGS_FILE \

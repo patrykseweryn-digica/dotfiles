@@ -30,6 +30,12 @@ Temporary credit routing and Fast Mode remain local.
 
 `defaultTools: ["+codemode"]` enables the batching tool alongside defaults.
 Subagents and the powerline footer install through the existing package list.
+`billion-context.json` tells Pi sync to keep `pi-subagents` as the only
+subagent extension. Sync disables `acp_delegate` in the default Billion
+Context JSON file under `${XDG_CONFIG_HOME:-$HOME/.config}/billion-context/`.
+Sync preserves other JSON settings. It does not edit JSON with comments or
+alternate files selected through `BILI_CONFIG_FILE`.
+Restart Pi and start a new session after applying the change.
 
 Pi-lens configuration is live-only: dotfiles does not manage
 `~/.pi-lens/config.json`. Keep `{"fallow":{"enabled":true}}` there, merged

@@ -3991,6 +3991,39 @@ pi_models() {
     fi
 }
 
+pi_billion_context() {
+    local action="$1" source target merged tmp
+    source="$(dirname "$PI_SETTINGS_TEMPLATE")/billion-context.json"
+    [ -f "$source" ] || return 0
+    target="${XDG_CONFIG_HOME:-$HOME/.config}/billion-context/billion-context.json"
+    if ! merged="$(jq -S -s --slurpfile wanted "$source" '
+        if length != 1 or (.[0] | type != "object") or
+            (.[0].pi | type != "null" and type != "object") then
+            error("expected a configuration object")
+        else
+            .[0] as $local | ($local * $wanted[0]) | select(. != $local)
+        end
+    ' < <(if [ -e "$target" ] || [ -L "$target" ]; then cat "$target"; else echo '{}'; fi) 2>/dev/null)"; then
+        echo "[ERROR] Cannot read Billion Context config as JSON: $target" >&2
+        return 1
+    fi
+    [ -n "$merged" ] || return 0
+    if [ "$action" = check ]; then
+        echo "[ERROR] Billion Context config drift: $target" >&2
+        return 1
+    fi
+    if [ -L "$target" ]; then
+        echo "[ERROR] Update pi.subagents in the linked Billion Context config: $target" >&2
+        return 1
+    fi
+    mkdir -p "$(dirname "$target")" || return 1
+    tmp="$(mktemp "${target}.XXXXXX")" || return 1
+    if ! printf '%s\n' "$merged" >"$tmp" || ! mv "$tmp" "$target"; then
+        rm -f "$tmp"
+        return 1
+    fi
+}
+
 pi_resources() {
     local action="$1" root source target failed=false
     root="$(dirname "$PI_SETTINGS_TEMPLATE")"
@@ -4020,6 +4053,7 @@ cmd_pi_install() {
     sync_pi_settings || return 1
     pi_resources install || return 1
     pi_models install || return 1
+    pi_billion_context install || return 1
     restore_pi_packages || return 1
     sync_pi_mcp_config || return 1
 }
@@ -4035,6 +4069,7 @@ cmd_pi_check() {
     local tmp package failed=false
     pi_resources check || failed=true
     pi_models check || failed=true
+    pi_billion_context check || failed=true
     tmp="$(mktemp)"
     render_pi_settings "$PI_SETTINGS_FILE" "$tmp" || {
         rm -f "$tmp"
@@ -4381,6 +4416,7 @@ cmd_settings_install() {
         sync_pi_settings || return 1
         pi_resources install || return 1
         pi_models install || return 1
+        pi_billion_context install || return 1
         restore_pi_packages
         ;;
     *)
