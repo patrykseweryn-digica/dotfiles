@@ -3408,9 +3408,9 @@ cmd_export_skills() (
     # Default fzf accept returns the highlighted row if nothing was marked.
     FZF_DEFAULT_OPTS='' FZF_DEFAULT_OPTS_FILE='' SHELL=/bin/sh \
         fzf --multi --layout=reverse --delimiter=$'\t' \
-        --with-nth=2,1,3 --header='Type to filter | Tab: mark | Enter: review | Esc: cancel' \
+        --with-nth=2,1,3 --header='Tab: mark | Ctrl+A: mark matches | Enter: review | Esc: cancel' \
         --bind 'enter:transform:[ "${FZF_SELECT_COUNT:-0}" -gt 0 ] && echo accept' \
-        --bind 'double-click:ignore' \
+        --bind 'ctrl-a:select-all,double-click:ignore' \
         <"$root/rows" >"$root/selected" || status=$?
     case "$status" in
     0) ;;

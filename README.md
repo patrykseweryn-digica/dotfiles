@@ -32,7 +32,8 @@ credentials, OAuth state, unsupported transports, and local paths stay local.
 
 Use `just export skills` to record intentional changes to global skills, such
 as removals made with `npx skills remove -g`. Type to filter the `fzf` list.
-Mark changes with `Tab`, review them with `Enter`, or cancel with `Esc`.
+Mark one change with `Tab` or all matching changes with `Ctrl+A`.
+Clear the search to mark the entire list. Review with `Enter` or cancel with `Esc`.
 Unmarked skills keep their repository entries. The command checks the resulting
 inventory against current upstream before it writes only the repository lock.
 

@@ -50,9 +50,11 @@ Preconditions: dependencies from SKILL.md; run from the checkout root.
   rollback, and absence of staging, commits, pushes, or live mutations.
   It also drives `just export skills` in a terminal with a stubbed selector.
   Require unmarked and unrestorable skills to stay out of the export plan.
-  To check the real selector, use an isolated HOME and checkout with a known
-  difference. Search for a skill, press Enter without marking, then select
-  with Tab, review with Enter, and refuse the write. Verify Esc also cancels.
+  Check the real selector with several differences in an isolated HOME.
+  Press Enter without marking; require no review. Filter to a subset, mark
+  with Ctrl+A, and review with Enter. Require only matching changes.
+  Repeat without a filter; require all changes. Refuse the write both times.
+  Verify Tab still marks one change and Esc cancels.
 - **Stage and apply skills.** Run `bash scripts/smoke-skill-install.sh`.
   Require current content in every runtime, no live changes after staging or
   network failures, rollback after apply failures, and no new backup on an
