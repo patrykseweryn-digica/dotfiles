@@ -1,4 +1,3 @@
-cask "bitwarden"
 cask "brave-browser"
 cask "cmux"
 cask "codexbar"

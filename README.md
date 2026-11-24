@@ -190,7 +190,7 @@ install and update only elements of the selected groups.
 
 | Group | Contents |
 |---|---|
-| `core` | zsh, Oh My Zsh, CLI tools (gh, shellcheck, gnupg), Git, SSH, managed links, Bitwarden CLI |
+| `core` | zsh, Oh My Zsh, CLI tools (gh, shellcheck, gnupg), Git, SSH, managed links |
 | `agents` | Node, pnpm, agent CLIs and settings, MCP, skills, plugins, AXI |
 | `desktop` | fonts, Ghostty and VS Code config, terminal colors, macOS apps (Brewfile casks) |
 

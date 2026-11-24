@@ -276,23 +276,6 @@
       }
     },
     {
-      "commands": [
-        "bw"
-      ],
-      "group": "core",
-      "mise": "aqua:bitwarden/clients",
-      "name": "bitwarden",
-      "scope": "core",
-      "versionPolicy": "latest",
-      "zshCompletion": {
-        "args": [
-          "completion",
-          "--shell",
-          "zsh"
-        ]
-      }
-    },
-    {
       "channel": "latest",
       "command": "pi",
       "group": "agents",

@@ -164,6 +164,18 @@ write_mise_config() {
     fi
 }
 
+retire_bitwarden() {
+    # The old managed config marks ownership and lets a failed removal retry.
+    local tool='aqua:bitwarden/clients'
+    if [ -f "$MISE_CORE_TOOLS_FILE" ] &&
+        grep -Fxq "\"$tool\" = \"latest\"" "$MISE_CORE_TOOLS_FILE"; then
+        operation_run "Bitwarden CLI" "uninstall retired tool" install -- \
+            env -u MISE_NODE_VERSION "$MISE_BIN" --cd "$HOME" \
+            uninstall --all "$tool" || return 1
+        rm -f "${ZSH_COMPLETION_DIR}/_bw"
+    fi
+}
+
 run_mise_tools() {
     local action="$1" platform="$2" name source command_name
     local -a tools=()
@@ -171,6 +183,7 @@ run_mise_tools() {
     while IFS=$'\t' read -r name source command_name; do
         [ -n "$source" ] && tools+=("$source")
     done < <(mise_tool_rows "$platform")
+    retire_bitwarden || return 1
     [ "${#tools[@]}" -gt 0 ] || return 0
     write_mise_config "$platform" || return 1
     case "$action" in

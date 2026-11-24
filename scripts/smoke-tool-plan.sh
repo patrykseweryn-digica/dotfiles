@@ -38,7 +38,6 @@ jq -e '
     def args($name): tool($name).zshCompletion.args;
     args("gh") == ["completion", "-s", "zsh"] and
     args("pnpm") == ["completion", "zsh"] and
-    args("bitwarden") == ["completion", "--shell", "zsh"] and
     args("just") == ["--completions", "zsh"] and
     args("ripgrep") == ["--generate", "complete-zsh"] and
     args("fd") == ["--gen-completions", "zsh"] and
@@ -374,8 +373,8 @@ DOTFILES_ENV_FILE="$tmp_dir/core.env" TOOL_INVENTORY="$grouped" \
 grep -Fx $'SKIP\ttools\tnone\tdemo-viewer skipped: group desktop is not selected' \
     "$tmp_dir/grouped-plan" >/dev/null ||
     fail "core-only plan did not skip a desktop tool by group"
-grep -F $'bitwarden is available through mise' "$tmp_dir/grouped-plan" \
-    >/dev/null || fail "core-only plan omitted Bitwarden CLI"
+grep -F $'gh is available through mise' "$tmp_dir/grouped-plan" \
+    >/dev/null || fail "core-only plan omitted gh"
 : >"$mise_log"
 DOTFILES_ENV_FILE="$tmp_dir/core.env" TOOL_INVENTORY="$grouped" \
     CORE_TOOLS_OS=Linux CORE_TOOLS_ARCH=arm64 CORE_TOOLS_HAS_SUDO=false \
@@ -385,8 +384,8 @@ DOTFILES_ENV_FILE="$tmp_dir/core.env" TOOL_INVENTORY="$grouped" \
 if grep -F demo-viewer "$mise_log" "$tmp_dir/grouped.toml"; then
     fail "core-only install provisioned a desktop tool"
 fi
-grep -Fx '"aqua:bitwarden/clients" = "latest"' "$tmp_dir/grouped.toml" \
-    >/dev/null || fail "core-only install omitted native Bitwarden CLI"
+grep -Fx '"gh" = "latest"' "$tmp_dir/grouped.toml" \
+    >/dev/null || fail "core-only install omitted gh"
 [ -f "$tmp_dir/core-zfunc/_gh" ] && [ ! -e "$tmp_dir/core-zfunc/_pnpm" ] ||
     fail "core-only install did not limit completions to selected groups"
 TOOL_INVENTORY="$grouped" \
