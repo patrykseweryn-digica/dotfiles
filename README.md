@@ -55,7 +55,8 @@ Required document failures still stop staging before any runtime changes.
 `~/.claude/docs`, `~/.config/opencode/docs` and
 `~/.pi/agent/docs` link to it. A missing doc is a skills `UPDATE` in doctor.
 `~/.agents/skills` is the one shared skill set. Codex, Cursor and Grok Build
-read it directly; Claude Code, OpenCode and Pi read it through symlinks.
+read it directly. Claude Code and OpenCode use per-skill symlinks. Pi uses
+one symlink to the shared directory, so external removals leave no stale entries.
 Every skill comes from an upstream lock entry through that same unpinned
 skills CLI install; personal skills live in `p-severin/skills`. The
 repository keeps no skill copies, except its own `verify-dotfiles`. Export and `skills-check` reject a live

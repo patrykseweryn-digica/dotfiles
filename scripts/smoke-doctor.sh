@@ -53,8 +53,9 @@ mkdir -p \
     "${home_dir}/.claude/skills" \
     "${home_dir}/.codex" \
     "${home_dir}/.config/opencode/skills" \
-    "${home_dir}/.pi/agent/skills" \
+    "$PI_CODING_AGENT_DIR" \
     "$stub_dir"
+ln -s "${home_dir}/.agents/skills" "$PI_SKILLS_DIR"
 ln -s "$UV_BIN" "${stub_dir}/uv"
 cp "${DOTFILES_DIR}/config/claude/settings.json" "$CLAUDE_TEMPLATE_FILE"
 cp "${DOTFILES_DIR}/config/codex/settings.toml" "$CODEX_SETTINGS_TEMPLATE"

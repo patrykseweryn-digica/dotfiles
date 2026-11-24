@@ -2468,7 +2468,9 @@ prepare_skill_runtime_candidates() {
     ln -s "$AGENT_DOCS_DIR" "${candidates_root}/docs-pi" || return 1
 
     local runtime candidate skill_path skill_name
-    for runtime in claude opencode pi; do
+    # A directory link follows external removals without leaving stale Pi entries.
+    ln -s "$AGENT_SKILLS_DIR" "${candidates_root}/pi" || return 1
+    for runtime in claude opencode; do
         candidate="${candidates_root}/${runtime}"
         mkdir -p "$candidate" || return 1
         for skill_path in "$canonical_candidate"/*; do
@@ -2510,19 +2512,22 @@ prepare_staged_live_lock() {
     fi
 }
 
+pi_skills_link_current() {
+    [ -L "$PI_SKILLS_DIR" ] && [ "$(readlink "$PI_SKILLS_DIR")" = "$AGENT_SKILLS_DIR" ]
+}
+
 staged_skills_match_live() {
     local candidates_root="$1" target
+    pi_skills_link_current || return 1
     local -a targets=(
         "$AGENT_SKILLS_DIR"
         "$CLAUDE_SKILLS_DIR"
         "$OPENCODE_SKILLS_DIR"
-        "$PI_SKILLS_DIR"
     )
     local -a candidates=(
         "${candidates_root}/codex"
         "${candidates_root}/claude"
         "${candidates_root}/opencode"
-        "${candidates_root}/pi"
     )
     local index
 
@@ -3548,6 +3553,10 @@ cmd_skills_check() {
         failed=true
     fi
     report_unmanaged_skills "$unmanaged" || failed=true
+    if ! pi_skills_link_current; then
+        echo "[ERROR] Pi skill directory must link to $AGENT_SKILLS_DIR: $PI_SKILLS_DIR" >&2
+        failed=true
+    fi
 
     write_expected_skill_names "$expected"
     while IFS='|' read -r runtime root; do
@@ -3559,7 +3568,7 @@ cmd_skills_check() {
 
         missing="$(comm -23 "$expected" "$actual")"
         extra="$(comm -13 "$expected" "$actual")"
-        stale="$(find "$root" -mindepth 1 -maxdepth 1 -type l ! -exec test -e {} \; -print)"
+        stale="$(find -H "$root" -mindepth 1 -maxdepth 1 -type l ! -exec test -e {} \; -print)"
         if [ -n "$missing" ]; then
             echo "[ERROR] ${runtime} missing skills:" >&2
             echo "$missing" | sed 's/^/  - /' >&2
@@ -3895,7 +3904,7 @@ pi_resources() {
 
 cmd_pi_install() {
     log_info "Installing Pi agent config..."
-    mkdir -p "$PI_AGENT_DIR" "$PI_SKILLS_DIR" || return 1
+    mkdir -p "$PI_AGENT_DIR" || return 1
     ln -sfn "$PI_AGENTS_SOURCE" "$PI_AGENTS_FILE" || return 1
     sync_pi_settings || return 1
     pi_resources install || return 1
@@ -4082,6 +4091,7 @@ cmd_skills_plan() {
     elif ! cmp -s "$repo_lock" "$live_lock"; then
         status=UPDATE
     fi
+    pi_skills_link_current || status="$(merge_plan_status "$status" UPDATE)"
 
     write_expected_skill_names "$expected"
     while IFS='|' read -r runtime root; do
@@ -4091,7 +4101,7 @@ cmd_skills_plan() {
         fi
         missing="$(comm -23 "$expected" "$actual")"
         extra="$(comm -13 "$expected" "$actual")"
-        stale="$(find "$root" -mindepth 1 -maxdepth 1 \
+        stale="$(find -H "$root" -mindepth 1 -maxdepth 1 \
             -type l ! -exec test -e {} \; -print)"
         [ -z "$missing" ] || status="$(merge_plan_status "$status" UPDATE)"
         [ -z "$extra" ] || status="$(merge_plan_status "$status" EXPORT)"

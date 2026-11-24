@@ -252,12 +252,14 @@ for state in empty partial complete broken alias no_url apply_failure rollback_f
         test ! -e "$task_home/.agents/.skill-lock.json"
     fi
     if [ "$state" = apply_failure ]; then
-        if FAIL_APPLY_TARGET="$task_home/.claude/skills" \
+        # Fail after the Pi directory has been replaced by a link.
+        if FAIL_APPLY_TARGET="$task_home/.agents/docs" \
             FAIL_APPLY_MARKER="$task_dir/apply-failed" run_sync; then
             echo 'Failed apply passed' >&2
             exit 1
         fi
         rg -q 'apply failed' "$task_dir/output"
+        test ! -L "$task_home/.pi/agent/skills"
         for root in .agents/skills .claude/skills .config/opencode/skills .pi/agent/skills; do
             test -f "$task_home/$root/poteto-mode/preserve-me"
             rg -q '^version: original$' "$task_home/$root/poteto-mode/SKILL.md"
@@ -343,5 +345,13 @@ run_update
 [ "$(wc -l <"$ref_calls" | tr -d ' ')" = 2 ]
 SKILL_SOURCE_SHA=2222222 run_update
 [ "$(wc -l <"$update_calls" | tr -d ' ')" = 2 ]
+
+# External removal of a shared skill must not leave a per-skill link in Pi.
+rm -r "$update_home/.agents/skills/poteto-mode"
+if [ -L "$update_home/.pi/agent/skills/poteto-mode" ]; then
+    echo 'Removing a shared skill left a dangling link in Pi' >&2
+    exit 1
+fi
+test "$(readlink "$update_home/.pi/agent/skills")" = "$update_home/.agents/skills"
 
 echo '[INFO] Skill install smoke test passed'

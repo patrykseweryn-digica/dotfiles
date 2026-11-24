@@ -58,7 +58,8 @@ Preconditions: dependencies from SKILL.md; run from the checkout root.
 - **Stage and apply skills.** Run `bash scripts/smoke-skill-install.sh`.
   Require current content in every runtime, no live changes after staging or
   network failures, rollback after apply failures, and no new backup on an
-  unchanged repeated push.
+  unchanged repeated push. Deleting a skill from the shared directory must
+  remove its entry from Pi without leaving a broken link.
 - **Skill support docs.** Run `bash scripts/smoke-skill-docs.sh`. A skill
   linking `../../docs/<path>` must get that file in `~/.agents/docs`, with
   each runtime `docs` directory linked to it. Doctor reports a missing doc
