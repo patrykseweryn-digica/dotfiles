@@ -581,9 +581,17 @@ mv "${tmp_dir}/claude-plugins.saved" "$claude_plugins"
 [ -z "$(git -C "$checkout" status --porcelain --untracked-files=all)" ] ||
     fail "plugin provider check changed checkout"
 
+[ ! -s "$skill_test_log" ] ||
+    fail "export staged skills before approval"
+
+if run_export y "${tmp_dir}/failed-preflight.log" SKILL_STAGE_FAIL=true; then
+    fail "export accepted an unavailable skill source"
+fi
+[ -z "$(git -C "$checkout" status --porcelain --untracked-files=all)" ] ||
+    fail "failed skill preflight changed checkout"
 grep -E -- '--skill managed-skill new-managed --agent codex' \
     "$skill_test_log" >/dev/null ||
-    fail "export did not preflight every managed skill"
+    fail "approved export did not preflight every managed skill"
 find "$home_dir" -type f -exec cksum {} \; | sort \
     >"${tmp_dir}/live.apply-before"
 
@@ -696,6 +704,15 @@ cmp "${tmp_dir}/expected-changed" "${tmp_dir}/changed" ||
 find "$home_dir" -type f -exec cksum {} \; | sort >"${tmp_dir}/live.final"
 cmp "${tmp_dir}/live.apply-before" "${tmp_dir}/live.final" ||
     fail "approved export changed live state"
+
+git -C "$checkout" add -A
+git -C "$checkout" commit -qm 'fixture: exported state'
+: >"$skill_test_log"
+run_export n "${tmp_dir}/unchanged.log" SKILL_STAGE_FAIL=true ||
+    fail "unchanged export did not finish without approval"
+[ ! -s "$skill_test_log" ] || fail "unchanged export staged skills"
+[ -z "$(git -C "$checkout" status --porcelain --untracked-files=all)" ] ||
+    fail "unchanged export changed checkout"
 
 # Run the public selector from a terminal; stub only the fzf selection.
 cat >"${stub_dir}/fzf" <<'STUB'

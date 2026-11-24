@@ -22,13 +22,13 @@ enter the repository only through `export`.
 
 `just export` requires a clean checkout and builds one plan for allowlisted
 settings, normalized MCP, skills, plugin membership, and recognized tools.
-It validates every managed skill against current upstream and enforces plugin
-provider ownership before one confirmation. A removed skill stops export while
-its name remains in the current upstream source. A verified upstream removal
-allows the reviewed inventory change. Export never stages, commits, pushes, or
-changes runtime files; an
-apply failure rolls the checkout back. Environment values, HTTP headers,
-credentials, OAuth state, unsupported transports, and local paths stay local.
+It enforces plugin provider ownership before confirmation. A removed skill
+stops export while its name remains in the current upstream source.
+After confirmation, export validates every skill in a changed inventory
+against current upstream before writing. Export never stages, commits,
+pushes, or changes runtime files. If a write fails, export rolls the checkout
+back. Environment values, HTTP headers, credentials, OAuth state, unsupported
+transports, and local paths stay local.
 
 Use `just export skills` to record intentional changes to global skills, such
 as removals made with `npx skills remove -g`. Type to filter the `fzf` list.
@@ -43,7 +43,9 @@ remote skills, and plugins. A local addition (`EXPORT`) stops sync before any
 environment change and points to `just export`. The final result is `PASS`,
 `EXPORT`, or `FAIL`. Sync never exports, commits, or pushes.
 `SKIP` rows keep the final result at `PASS` and state why no action applies.
-Remote skills remain unpinned and follow current upstream.
+Remote skills remain unpinned and follow current upstream. Sync checks the
+upstream revisions in parallel. If the revisions and local skills have not
+changed since the last refresh, sync skips downloading skills.
 A skill can link a support doc as `../../docs/<path>`, for example the pstack
 Claude Code adapter. The skills CLI copies only skill folders, so sync
 downloads each linked doc from the skill's upstream package into

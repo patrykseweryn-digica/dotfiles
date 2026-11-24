@@ -58,6 +58,9 @@ for skill in "${skills[@]}"; do
     'Second Skill')
         folder=second-skill
         ;;
+    group-*)
+        folder=$skill
+        ;;
     *)
         echo "No matching skills found for: $skill" >&2
         exit 1
@@ -68,8 +71,16 @@ for skill in "${skills[@]}"; do
         > "$HOME/.agents/skills/$folder/SKILL.md"
     # The real CLI records the upstream path it resolved in the lock.
     if [ -n "${RESOLVED_SKILL_PATH:-}" ] && [ "$folder" = poteto-mode ]; then
+        [ -f "$SKILL_LOCK_LIVE" ] || echo '{"version": 3, "skills": {}}' >"$SKILL_LOCK_LIVE"
         jq --arg path "$RESOLVED_SKILL_PATH" \
             '.skills["poteto-mode"].skillPath = $path' \
+            "$SKILL_LOCK_LIVE" >"$SKILL_LOCK_LIVE.next"
+        mv "$SKILL_LOCK_LIVE.next" "$SKILL_LOCK_LIVE"
+    fi
+    if [ -n "${SHARED_LOCK_KEY:-}" ]; then
+        [ -f "$SKILL_LOCK_LIVE" ] || echo '{"version": 3, "skills": {}}' >"$SKILL_LOCK_LIVE"
+        jq --arg key "$SHARED_LOCK_KEY" --arg skill "$skill" \
+            '.skills[$key] = {source: $skill}' \
             "$SKILL_LOCK_LIVE" >"$SKILL_LOCK_LIVE.next"
         mv "$SKILL_LOCK_LIVE.next" "$SKILL_LOCK_LIVE"
     fi
@@ -105,6 +116,7 @@ cat > "$task_dir/bin/git" <<'STUB'
 set -eu
 if [ "${1:-}" = ls-remote ]; then
     printf '%s\n' "$*" >>"$SKILL_REF_LOG"
+    [ "$2" != "${MISSING_SKILL_SOURCE:-}" ] || exit 0
     printf '%s\t%s\n' "${SKILL_SOURCE_SHA:-1111111}" "${3:-HEAD}"
     exit 0
 fi
@@ -147,6 +159,41 @@ rg -qxF \
 rg -qxF \
     "add -g $tree/harness/pstack/claude-code --skill poteto-mode --agent codex -y --full-depth" \
     "$task_dir/preflight-calls"
+
+# More source groups than parallel lanes all stage and join.
+jq -n '{skills: ([range(1; 7)] | map({
+    key: "group-\(.)",
+    value: {ref: "main", skillPath: "pkg\(.)/skills/group-\(.)/SKILL.md",
+        source: "example/plugins", sourceType: "github",
+        sourceUrl: "https://github.com/example/plugins.git"}
+}) | from_entries)}' >"$task_dir/lanes-lock.json"
+env -u CODEX_HOME -u OPENCODE_CONFIG_DIR -u PI_CODING_AGENT_DIR \
+    -u PI_SKILLS_DIR HOME="$preflight_home" \
+    SKILL_LOCK_LIVE="$preflight_home/.agents/.skill-lock.json" \
+    SKILL_LOCK_REPO="$task_dir/lanes-lock.json" \
+    PATH="$task_dir/bin:$PATH" SKILLS_CLI="$task_dir/bin/skills" \
+    SKILL_TEST_LOG="$task_dir/lanes-calls" \
+    "$repo/sync-agents.sh" skills-preflight >"$task_dir/lanes-output" 2>&1 || {
+    cat "$task_dir/lanes-output" >&2
+    exit 1
+}
+[ "$(wc -l <"$task_dir/lanes-calls" | tr -d ' ')" = 6 ]
+test ! -e "$preflight_home/.agents"
+
+# Two source groups must not write one lock entry.
+if env -u CODEX_HOME -u OPENCODE_CONFIG_DIR -u PI_CODING_AGENT_DIR \
+    -u PI_SKILLS_DIR HOME="$preflight_home" \
+    SKILL_LOCK_LIVE="$preflight_home/.agents/.skill-lock.json" \
+    SKILL_LOCK_REPO="$task_dir/lock.json" \
+    PATH="$task_dir/bin:$PATH" SKILLS_CLI="$task_dir/bin/skills" \
+    SKILL_TEST_LOG="$task_dir/shared-calls" SHARED_LOCK_KEY=shared \
+    "$repo/sync-agents.sh" skills-preflight >"$task_dir/shared-output" 2>&1; then
+    echo 'Shared lock entry passed' >&2
+    exit 1
+fi
+rg -qF 'Skill lock entries staged by more than one source: shared' \
+    "$task_dir/shared-output"
+test ! -e "$preflight_home/.agents"
 
 multi_home="$task_dir/multi failure home"
 mkdir -p "$multi_home/.agents/skills/preserve"
@@ -351,7 +398,7 @@ run_update() {
     env -u CODEX_HOME -u OPENCODE_CONFIG_DIR -u PI_CODING_AGENT_DIR \
         -u PI_SKILLS_DIR HOME="$update_home" \
         SKILL_LOCK_LIVE="$update_home/.agents/.skill-lock.json" \
-        SKILL_LOCK_REPO="$task_dir/lock.json" \
+        SKILL_LOCK_REPO="${UPDATE_LOCK:-$task_dir/lock.json}" \
         SKILL_SOURCE_REFS="$update_refs" \
         PATH="$task_dir/bin:$PATH" SKILLS_CLI="$task_dir/bin/skills" \
         SKILL_TEST_LOG="$update_calls" SKILL_REF_LOG="$ref_calls" \
@@ -367,6 +414,22 @@ run_update
 [ "$(wc -l <"$ref_calls" | tr -d ' ')" = 2 ]
 SKILL_SOURCE_SHA=2222222 run_update
 [ "$(wc -l <"$update_calls" | tr -d ' ')" = 2 ]
+
+# One missing ref in a batch must not publish a partial cache or start staging.
+missing_source=https://github.com/example/missing.git
+jq --arg source "$missing_source" '
+    .skills["control-cli"] |= (.source = "example/missing" | .sourceUrl = $source)
+' "$task_dir/fixture-lock.json" >"$task_dir/two-sources.json"
+cp "$update_refs" "$task_dir/refs-before-failure.json"
+: >"$ref_calls"
+if UPDATE_LOCK="$task_dir/two-sources.json" MISSING_SKILL_SOURCE="$missing_source" run_update; then
+    echo 'Skills update accepted a missing ref' >&2
+    exit 1
+fi
+rg -qF "Skill source ref not found: $missing_source main" "$task_dir/update-output"
+[ "$(wc -l <"$ref_calls" | tr -d ' ')" = 2 ]
+[ "$(wc -l <"$update_calls" | tr -d ' ')" = 2 ]
+cmp "$task_dir/refs-before-failure.json" "$update_refs"
 
 # External removal of a shared skill must not leave a per-skill link in Pi.
 rm -r "$update_home/.agents/skills/poteto-mode"

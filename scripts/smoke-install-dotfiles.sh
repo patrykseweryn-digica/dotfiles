@@ -29,6 +29,7 @@ unset PI_CODING_AGENT_DIR PI_SETTINGS_FILE PI_SKILLS_DIR PI_MCP_CONFIG
 unset PI_SETTINGS_TEMPLATE PI_AGENTS_SOURCE SKILL_LOCK_LIVE SKILLS_CLI
 unset PLUGIN_MANIFEST MCP_SERVERS SKILL_LOCK_REPO
 unset HERDR_CONFIG_PATH
+export SKILL_FIXTURE_LOCK="${DOTFILES_DIR}/.agents/skill-lock.json"
 
 smoke_public_menu() {
     local actual expected
@@ -182,7 +183,7 @@ for skill in "${skills[@]}"; do
         .skills | to_entries[] |
         select((.value.installName // .key) == $name) |
         .key
-    ' "$SKILL_LOCK_LIVE")
+    ' "$SKILL_FIXTURE_LOCK")
     [ -n "$name" ]
     mkdir -p "$HOME/.agents/skills/$name"
     printf '%s\n' '---' "name: $skill" '---' \
@@ -445,7 +446,7 @@ for skill in "${skills[@]}"; do
         .skills | to_entries[] |
         select((.value.installName // .key) == $name) |
         .key
-    ' "$SKILL_LOCK_LIVE")
+    ' "$SKILL_FIXTURE_LOCK")
     [ -n "$name" ]
     mkdir -p "$HOME/.agents/skills/$name"
     printf '%s\n' '---' "name: $skill" '---' \
