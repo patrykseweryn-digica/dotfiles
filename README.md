@@ -81,8 +81,9 @@ Doctor compares the active runtime with mise's installed policy selection
 without using the network.
 
 `.agents/tool-versions.json` is the single inventory for core, system, and
-developer CLIs. Managed entries follow stable releases without stored version
-numbers. Mise installs and updates every portable core tool through
+developer CLIs. Existing entries follow stable releases; explicitly reviewed
+pins use `versionPolicy: "pinned"` with `version` for core mise tools.
+Mise installs and updates portable core tools through
 `scripts/core-tools.sh`. System-only entries retain package-manager names.
 Entries without a user-local source declare `requires: "sudo"`.
 Every entry declares its install group (see [Install groups](#install-groups)).
@@ -97,8 +98,8 @@ such as `zsh -lc` from agents, find mise tools through mise shims: install and
 sync keep a marked block at the end of `~/.zprofile`, after Homebrew, and
 leave other lines unchanged. Doctor reports `UPDATE shell` when the block is
 missing or a later line follows it.
-Developer entries use
-`channel: "latest"`; update resolves current releases without rewriting the
+Developer entries use `channel: "latest"` or an explicitly reviewed release
+number in `channel`. Update preserves declared pins without rewriting the
 inventory. npm CLI entries become independent mise tools, so Node upgrades do
 not hide them. Reports resolve npm `latest` and fail explicitly when the
 registry is unavailable.
@@ -120,6 +121,22 @@ checksums, installs into `~/.local/bin`, and does nothing when the release
 is current. Another `codex` on `PATH` stops the install, and doctor reports
 it. Sync removes a former mise npm Codex.
 Configuration application never resolves channels or updates tool versions.
+
+The digica-99 tool sync records explicit mise pins for ast-grep, typos,
+hyperfine, watchexec, and Vale. Use `ast-grep`, not its deprecated `sg` alias.
+The ast-grep npm entry approves `@ast-grep/cli` build scripts through
+`allow_builds`, so mise's package manager can run its native postinstall.
+
+Developer tools `rust-just`, `yt-dlp`, `cmakelang`, and `pylint` use uv.
+Their executables belong in `~/.local/bin`; Pylint is not a default check.
+Rust-just is the sole just channel, including CI.
+Remove any old mise just selection before applying this inventory elsewhere.
+Do not add a pipx yt-dlp or TensorFlow installation.
+Fallow uses the existing mise npm channel and declares all three executables.
+The gh-dash extension uses GitHub CLI's extension installer with a release pin.
+
+The [Vale template](config/vale/README.md) supplies a shared spelling
+configuration, Firstmate vocabulary, and pre-commit hook pattern.
 
 To add an npm CLI, add one entry to the manifest:
 

@@ -21,6 +21,27 @@ credentials, sessions, caches and Fast Mode state remain unmanaged.
 package presence, model overrides and theme/extension files.
 Changing a linked theme or extension changes its source in dotfiles.
 
+## Local tool preferences
+
+The model selector follows the read-only digica-99 snapshot from 2026-11-19.
+The default remains `openai-codex/gpt-5.6-sol`, as on that machine.
+The model selector remains separate from the startup default.
+Temporary credit routing and Fast Mode remain local.
+
+`defaultTools: ["+codemode"]` enables the batching tool alongside defaults.
+Subagents and the powerline footer install through the existing package list.
+
+Pi-lens configuration is live-only: dotfiles does not manage
+`~/.pi-lens/config.json`. Keep `{"fallow":{"enabled":true}}` there, merged
+with existing local preferences. Fallow's CLI installation is managed in
+`.agents/tool-versions.json`; enabling analysis does not install the CLI.
+This sync does not overwrite pi-lens settings.
+
+For Markdown checks, use the [Vale template](../vale/README.md).
+Pi-lens detects a repository's `.vale.ini` automatically.
+Codex, Claude, and Firstmate should run Vale on changed Markdown when
+`.vale.ini` exists. CI and pre-commit must share that configuration.
+
 ## Interface
 
 Rose Pine Moon's palette and token mapping live in

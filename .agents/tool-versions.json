@@ -114,21 +114,6 @@
     },
     {
       "commands": [
-        "just"
-      ],
-      "group": "core",
-      "name": "just",
-      "scope": "core",
-      "versionPolicy": "latest",
-      "zshCompletion": {
-        "args": [
-          "--completions",
-          "zsh"
-        ]
-      }
-    },
-    {
-      "commands": [
         "hadolint"
       ],
       "group": "core",
@@ -453,6 +438,127 @@
         "grok",
         "update"
       ]
+    },
+    {
+      "commands": [
+        "typos"
+      ],
+      "group": "core",
+      "mise": "aqua:crate-ci/typos",
+      "name": "typos",
+      "scope": "core",
+      "versionPolicy": "pinned",
+      "version": "1.52.2"
+    },
+    {
+      "commands": [
+        "hyperfine"
+      ],
+      "group": "core",
+      "mise": "aqua:sharkdp/hyperfine",
+      "name": "hyperfine",
+      "scope": "core",
+      "versionPolicy": "pinned",
+      "version": "2.0.0"
+    },
+    {
+      "commands": [
+        "watchexec"
+      ],
+      "group": "core",
+      "mise": "aqua:watchexec/watchexec",
+      "name": "watchexec",
+      "scope": "core",
+      "versionPolicy": "pinned",
+      "version": "2.8.0"
+    },
+    {
+      "commands": [
+        "vale"
+      ],
+      "group": "core",
+      "mise": "aqua:errata-ai/vale",
+      "name": "vale",
+      "scope": "core",
+      "versionPolicy": "pinned",
+      "version": "3.27.0"
+    },
+    {
+      "allow_builds": [
+        "@ast-grep/cli"
+      ],
+      "channel": "0.51.3",
+      "command": "ast-grep",
+      "group": "agents",
+      "installer": "npm",
+      "name": "ast-grep",
+      "package": "@ast-grep/cli"
+    },
+    {
+      "channel": "1.59.0",
+      "command": "just",
+      "group": "core",
+      "installer": "uv",
+      "name": "rust-just",
+      "package": "rust-just"
+    },
+    {
+      "channel": "2026.10.26",
+      "command": "yt-dlp",
+      "group": "agents",
+      "installer": "uv",
+      "name": "yt-dlp",
+      "package": "yt-dlp"
+    },
+    {
+      "channel": "0.6.13",
+      "command": "cmake-format",
+      "commands": [
+        "cmake-format",
+        "cmake-lint",
+        "cmake-annotate",
+        "cmake-genparsers",
+        "ctest-to"
+      ],
+      "group": "agents",
+      "installer": "uv",
+      "name": "cmakelang",
+      "package": "cmakelang"
+    },
+    {
+      "channel": "latest",
+      "command": "pylint",
+      "commands": [
+        "pylint",
+        "pylint-config",
+        "pyreverse",
+        "symilar"
+      ],
+      "group": "agents",
+      "installer": "uv",
+      "name": "pylint",
+      "package": "pylint"
+    },
+    {
+      "channel": "latest",
+      "command": "fallow",
+      "commands": [
+        "fallow",
+        "fallow-lsp",
+        "fallow-mcp"
+      ],
+      "group": "agents",
+      "installer": "npm",
+      "name": "fallow",
+      "package": "fallow"
+    },
+    {
+      "channel": "4.26.3",
+      "command": "gh-dash",
+      "group": "agents",
+      "installer": "gh-extension",
+      "name": "gh-dash",
+      "package": "dlvhdr/gh-dash"
     }
   ]
 }
