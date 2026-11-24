@@ -354,4 +354,141 @@ if [ -L "$update_home/.pi/agent/skills/poteto-mode" ]; then
 fi
 test "$(readlink "$update_home/.pi/agent/skills")" = "$update_home/.agents/skills"
 
+# Drive the public sync across a real Git fast-forward with installed skills.
+# Only unrelated plan/refresh categories and external skill downloads are stubbed.
+(
+    # shellcheck disable=SC2046
+    unset $(git -C "$repo" rev-parse --local-env-vars)
+    publisher="$task_dir/publisher"
+    client="$task_dir/client"
+    home="$task_dir/upgrade-home"
+    mkdir -p "$publisher/.agents" "$home"
+    git -C "$publisher" init -q -b master
+    git -C "$publisher" config user.name 'Smoke Test'
+    git -C "$publisher" config user.email smoke@example.invalid
+    ln -s "$repo/sync-agents.sh" "$publisher/sync-agents.sh"
+    ln -s "$repo/scripts" "$publisher/scripts"
+    ln -s "$repo/config" "$publisher/config"
+    for file in AGENTS.md mcp-servers.json plugin-manifest.json; do
+        ln -s "$repo/.agents/$file" "$publisher/.agents/$file"
+    done
+    lock='.agents/skill-lock.json'
+    jq '{skills: {"control-cli": .skills["control-cli"],
+                  "poteto-mode": .skills["poteto-mode"]}}' \
+        "$repo/$lock" >"$publisher/$lock"
+    git -C "$publisher" add .
+    git -C "$publisher" commit -qm 'test: manage two skills'
+    git clone -q "$publisher" "$client"
+
+    printf 'DOTFILES_GROUPS=core,agents\n' >"$task_dir/groups.env"
+    printf 'activate_node() { :; }\n' >"$task_dir/upgrade-install.sh"
+    printf '#!/bin/bash\nexit 0\n' >"$task_dir/upgrade-tools"
+    cat >"$task_dir/upgrade-plan" <<'STUB'
+#!/bin/bash
+set -eo pipefail
+"$DOTFILES_DIR/sync-agents.sh" --quiet state-plan 2>/dev/null |
+    awk -F '\t' '$2 == "skills"'
+STUB
+    cat >"$task_dir/upgrade-agents" <<'STUB'
+#!/bin/bash
+case "$1" in
+pi-packages-update | plugins-update) exit 0 ;;
+*) exec "$DOTFILES_DIR/sync-agents.sh" "$@" ;;
+esac
+STUB
+    chmod +x "$task_dir/upgrade-plan" "$task_dir/upgrade-agents" \
+        "$task_dir/upgrade-tools"
+
+    unset CODEX_HOME OPENCODE_CONFIG_DIR PI_CODING_AGENT_DIR PI_SKILLS_DIR \
+        SKILL_LOCK_REPO SKILL_LOCK_LIVE SKILL_SOURCE_REFS
+    export HOME="$home" PATH="$task_dir/bin:$PATH" DOTFILES_DIR="$client"
+    export DOTFILES_ENV_FILE="$task_dir/groups.env"
+    export SKILLS_CLI="$task_dir/bin/skills" SKILL_TEST_LOG="$task_dir/upgrade-calls"
+    export SKILL_REF_LOG="$task_dir/upgrade-refs" SKILL_SOURCE_SHA=1111111
+    export STATE_PLAN="$task_dir/upgrade-plan" SYNC_AGENTS="$task_dir/upgrade-agents"
+    export AGENT_TOOLS="$task_dir/upgrade-tools" CORE_TOOLS="$task_dir/upgrade-tools"
+    export INSTALL_SCRIPT="$task_dir/upgrade-install.sh"
+    unset UPDATE_SCRIPT
+    run_upgrade() {
+        just --justfile "$repo/justfile" sync >"$task_dir/upgrade.log" 2>&1
+    }
+    expect_upgrade() {
+        grep -F -- "$1" "$task_dir/upgrade.log" >/dev/null || {
+            cat "$task_dir/upgrade.log" >&2
+            echo "Missing sync result: $1" >&2
+            exit 1
+        }
+    }
+
+    "$client/sync-agents.sh" skills-update >"$task_dir/seed.log" 2>&1
+    test -f "$home/.agents/skills/control-cli/SKILL.md"
+    applied="$home/.agents/.dotfiles-applied-skill-lock.json"
+    refs="$home/.agents/.skill-source-refs.json"
+    live="$home/.agents/.skill-lock.json"
+    # Before this fix, only the hash from the last successful sync was tracked.
+    mv "$applied" "$task_dir/old-applied"
+    mv "$refs" "$task_dir/old-refs"
+    jq 'del(.skills["control-cli"])' "$publisher/$lock" >"$task_dir/next-lock"
+    cp "$task_dir/next-lock" "$publisher/$lock"
+    git -C "$publisher" commit -qam 'test: retire control-cli'
+
+    expect_export() {
+        if run_upgrade; then
+            echo 'Sync accepted unknown local skill state' >&2
+            exit 1
+        fi
+        expect_upgrade '[RESULT] EXPORT'
+        test -f "$home/.agents/skills/control-cli/SKILL.md"
+        test ! -s "$SKILL_TEST_LOG"
+    }
+    : >"$SKILL_TEST_LOG"
+    expect_export  # No trustworthy baseline yet, even after the pull.
+    cp "$task_dir/old-refs" "$refs"
+
+    local_skill="$home/.claude/skills/local-skill"
+    mkdir "$local_skill"
+    printf '%s\n' '# local skill' >"$local_skill/SKILL.md"
+    expect_export
+    test -f "$local_skill/SKILL.md"
+    rm -r "$local_skill"
+
+    # A local replacement by the same name is not the retired managed skill.
+    cp "$live" "$task_dir/live-before"
+    jq '.skills["control-cli"].sourceUrl = "https://github.com/example/replacement"' \
+        "$live" >"$task_dir/live-modified"
+    cp "$task_dir/live-modified" "$live"
+    expect_export
+    cmp "$task_dir/live-modified" "$live"
+    cp "$task_dir/live-before" "$live"
+
+    # A successful checkout update followed by a failed skill swap is retryable.
+    if FAIL_APPLY_TARGET="$applied" FAIL_APPLY_MARKER="$task_dir/upgrade-failed" run_upgrade; then
+        echo 'Failed skill swap passed sync' >&2
+        exit 1
+    fi
+    expect_upgrade '[RESULT] FAIL'
+    test -f "$task_dir/upgrade-failed"
+    test -f "$home/.agents/skills/control-cli/SKILL.md"
+    test ! -e "$applied"
+    cmp "$task_dir/old-refs" "$refs"
+    cmp "$task_dir/live-before" "$live"
+    cmp "$client/$lock" "$publisher/$lock"
+
+    run_upgrade || { cat "$task_dir/upgrade.log" >&2; exit 1; }
+    expect_upgrade '[RESULT] PASS'
+    for root in .agents/skills .claude/skills .config/opencode/skills .pi/agent/skills; do
+        test ! -e "$home/$root/control-cli"
+        test ! -L "$home/$root/control-cli"
+        test -f "$home/$root/poteto-mode/SKILL.md"
+    done
+
+    # Future upgrades do not depend on the old Git blob hash cache.
+    rm "$refs"
+    printf '{"skills":{}}\n' >"$publisher/$lock"
+    git -C "$publisher" commit -qam 'test: retire the last skill'
+    run_upgrade || { cat "$task_dir/upgrade.log" >&2; exit 1; }
+    expect_upgrade '[RESULT] PASS'
+    test ! -e "$home/.agents/skills/poteto-mode"
+)
+
 echo '[INFO] Skill install smoke test passed'

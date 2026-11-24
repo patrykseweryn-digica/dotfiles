@@ -232,6 +232,9 @@ only `SKIP` rows remain. `just disable` does not remove installed elements.
 `just sync` prints the plan, applies settings, MCP, managed links, and the
 Herdr hook, then refreshes inventory tools, Node, skills, and plugins.
 A failed fetch, an unreadable plan, or an `EXPORT` row stops sync first.
+For skills, sync uses the last applied inventory to distinguish repository
+removals from local additions. Without that inventory or a locally available
+Git copy recorded by an older sync, unknown skills still stop the run.
 
 Every network operation has a time limit (`scripts/operation.sh`). An expired
 limit stops the operation and all its child processes. Tool output goes to

@@ -42,6 +42,7 @@ CLAUDE_USER_CONFIG="${CLAUDE_USER_CONFIG:-${HOME}/.claude.json}"
 SKILL_LOCK_REPO="${SKILL_LOCK_REPO:-${DOTFILES_DIR}/.agents/skill-lock.json}"
 SKILL_LOCK_LIVE="${SKILL_LOCK_LIVE:-${HOME}/.agents/.skill-lock.json}"
 SKILL_SOURCE_REFS="${SKILL_SOURCE_REFS:-${HOME}/.agents/.skill-source-refs.json}"
+APPLIED_SKILL_LOCK="${AGENT_SKILLS_DIR%/*}/.dotfiles-applied-skill-lock.json"
 SKILLS_CLI="${SKILLS_CLI:-skills}"
 # The skills CLI owns these lock fields; the repository owns all others.
 SKILL_LOCK_RUNTIME_FIELDS='def runtime_fields:
@@ -2560,7 +2561,19 @@ apply_staged_skills() {
         echo "[ERROR] Failed to prepare staged live skill lock" >&2
         return 1
     }
+    normalize_skill_lock "$STAGED_SKILL_LOCK" \
+        >"${STAGED_SKILLS_ROOT}/applied-lock.json" || return 1
     if staged_skills_match_live "$candidates_root"; then
+        local applied_tmp
+        if ! cmp -s "${STAGED_SKILLS_ROOT}/applied-lock.json" "$APPLIED_SKILL_LOCK"; then
+            [ ! -d "$APPLIED_SKILL_LOCK" ] || return 1
+            applied_tmp="$(mktemp "${APPLIED_SKILL_LOCK}.XXXXXX")" || return 1
+            if ! cp "${STAGED_SKILLS_ROOT}/applied-lock.json" "$applied_tmp" ||
+                ! mv "$applied_tmp" "$APPLIED_SKILL_LOCK"; then
+                rm -f "$applied_tmp"
+                return 1
+            fi
+        fi
         log_info "Runtime skills already match current upstream"
         return 0
     fi
@@ -2582,6 +2595,7 @@ apply_staged_skills() {
         "$OPENCODE_DOCS_DIR"
         "$PI_DOCS_DIR"
         "$SKILL_LOCK_LIVE"
+        "$APPLIED_SKILL_LOCK"
     )
     local -a source_candidates=(
         "${candidates_root}/codex"
@@ -2593,9 +2607,10 @@ apply_staged_skills() {
         "${candidates_root}/docs-opencode"
         "${candidates_root}/docs-pi"
         "${STAGED_SKILLS_ROOT}/live-lock.json"
+        "${STAGED_SKILLS_ROOT}/applied-lock.json"
     )
     local -a labels=(codex claude opencode pi docs docs-claude docs-opencode
-        docs-pi skill-lock)
+        docs-pi skill-lock applied-lock)
     local -a candidates=()
     local index prepared
     for index in "${!source_candidates[@]}"; do
@@ -4067,45 +4082,93 @@ EOF
     emit_category_plan "$status" mcp MCP
 }
 
+read_applied_skill_lock() {
+    if [ -e "$APPLIED_SKILL_LOCK" ] || [ -L "$APPLIED_SKILL_LOCK" ]; then
+        normalize_skill_lock "$APPLIED_SKILL_LOCK"
+        return
+    fi
+
+    # Older syncs recorded the Git blob hash only after skills applied.
+    local hash lock
+    hash="$(jq -er '.lock | select(test("^[0-9a-f]{40}([0-9a-f]{24})?$"))' \
+        "$SKILL_SOURCE_REFS")" || return 1
+    lock="$(GIT_NO_LAZY_FETCH=1 git -C "$DOTFILES_DIR" cat-file blob "$hash")" || return 1
+    normalize_skill_lock /dev/stdin <<<"$lock"
+}
+
+is_retired_skill_entry() {
+    local root="$1" name="$2" changes="$3"
+    grep -Fxq -- $'retired\t'"$name" "$changes" || return 1
+    if [ "$root" = "$AGENT_SKILLS_DIR" ] ||
+        { [ "$root" = "$PI_SKILLS_DIR" ] && pi_skills_link_current; }; then
+        [ ! -L "$root/$name" ]
+    else
+        [ -L "$root/$name" ] &&
+            [ "$(readlink "$root/$name")" = "$AGENT_SKILLS_DIR/$name" ]
+    fi
+}
+
 cmd_skills_plan() {
-    local tmp_dir live_lock unmanaged repo_lock expected actual
-    local missing extra stale runtime root status=PASS
+    local tmp_dir live_lock unmanaged repo_lock applied changes expected actual
+    local root name status=PASS export_required=false
     tmp_dir="$(mktemp -d)"
     live_lock="${tmp_dir}/live-lock.json"
     unmanaged="${tmp_dir}/unmanaged.txt"
     repo_lock="${tmp_dir}/repo-lock.json"
+    applied="${tmp_dir}/applied.json"
+    changes="${tmp_dir}/changes.tsv"
     expected="${tmp_dir}/expected.txt"
     actual="${tmp_dir}/actual.txt"
 
-    if ! build_live_skill_inventory "$live_lock" "$unmanaged" ||
-        ! normalize_skill_lock "$SKILL_LOCK_REPO" >"$repo_lock"; then
+    if ! normalize_skill_lock "$SKILL_LOCK_REPO" >"$repo_lock"; then
         rm -rf "$tmp_dir"
-        emit_category_plan FAIL skills Skills
-        return 0
+        return 1
+    fi
+    if ! build_live_skill_inventory "$live_lock" "$unmanaged"; then
+        status=FAIL
+        printf '{"skills":{}}\n' >"$live_lock"
     fi
 
-    if jq -e --slurpfile repo "$repo_lock" '
-        .skills | to_entries | any(.[]; $repo[0].skills[.key] == null)
-    ' "$live_lock" >/dev/null; then
-        status=EXPORT
-    elif ! cmp -s "$repo_lock" "$live_lock"; then
+    # An unknown baseline must never authorize removal of a local skill.
+    read_applied_skill_lock >"$applied" 2>/dev/null ||
+        printf '{"skills":{}}\n' >"$applied"
+    if ! jq -r --slurpfile repo "$repo_lock" --slurpfile old "$applied" '
+        def origin: if . == null then null
+            else {source, sourceType, sourceUrl, skillPath, ref} end;
+        .skills | to_entries[] | .key as $name | (.value | origin) as $live |
+        ($repo[0].skills[$name] | origin) as $wanted |
+        select($wanted != $live) |
+        if ($old[0].skills[$name] | origin) != $live then ["local", $name]
+        elif $wanted == null then ["retired", $name]
+        else empty end | @tsv
+    ' "$live_lock" >"$changes"; then
+        rm -rf "$tmp_dir"
+        return 1
+    fi
+    if grep -q $'^local\t' "$changes"; then
+        export_required=true
+    fi
+    if [ "$status" = PASS ] &&
+        { ! cmp -s "$repo_lock" "$live_lock" || ! pi_skills_link_current; }; then
         status=UPDATE
     fi
-    pi_skills_link_current || status="$(merge_plan_status "$status" UPDATE)"
 
     write_expected_skill_names "$expected"
-    while IFS='|' read -r runtime root; do
+    while IFS='|' read -r _ root; do
         if ! write_live_skill_names "$root" "$actual"; then
             status=FAIL
             continue
         fi
-        missing="$(comm -23 "$expected" "$actual")"
-        extra="$(comm -13 "$expected" "$actual")"
-        stale="$(find -H "$root" -mindepth 1 -maxdepth 1 \
-            -type l ! -exec test -e {} \; -print)"
-        [ -z "$missing" ] || status="$(merge_plan_status "$status" UPDATE)"
-        [ -z "$extra" ] || status="$(merge_plan_status "$status" EXPORT)"
-        [ -z "$stale" ] || status=FAIL
+        if [ -n "$(comm -23 "$expected" "$actual")" ]; then
+            status="$(merge_plan_status "$status" UPDATE)"
+        fi
+        while IFS= read -r name; do
+            is_retired_skill_entry "$root" "$name" "$changes" || export_required=true
+        done < <(comm -13 "$expected" "$actual")
+        if [ -n "$(find -H "$root" -mindepth 1 -maxdepth 1 \
+            -type l ! -exec test -e {} \; -print)" ]; then
+            status=FAIL
+        fi
     done < <(skill_runtime_rows)
     local docs_status=0
     check_skill_docs 2>/dev/null || docs_status=$?
@@ -4116,6 +4179,7 @@ cmd_skills_plan() {
     esac
 
     rm -rf "$tmp_dir"
+    [ "$export_required" = false ] || status=EXPORT
     emit_category_plan "$status" skills Skills
 }
 

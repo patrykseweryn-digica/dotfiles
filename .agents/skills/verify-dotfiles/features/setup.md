@@ -59,7 +59,11 @@ Preconditions: dependencies from SKILL.md; run from the checkout root.
   Require current content in every runtime, no live changes after staging or
   network failures, rollback after apply failures, and no new backup on an
   unchanged repeated push. Deleting a skill from the shared directory must
-  remove its entry from Pi without leaving a broken link.
+  remove its entry from Pi without leaving a broken link. The script also
+  runs public `just sync` with a real Git fast-forward and installed skills.
+  Require repository removals to apply, unknown and locally replaced skills
+  to stop sync, and a failed swap to preserve the last applied inventory for
+  retry. The test stubs skill downloads and unrelated categories.
 - **Skill support docs.** Run `bash scripts/smoke-skill-docs.sh`. A skill
   linking `../../docs/<path>` must get that file in `~/.agents/docs`, with
   each runtime `docs` directory linked to it. Doctor reports a missing doc
