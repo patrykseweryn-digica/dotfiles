@@ -774,7 +774,9 @@ build_json_settings_candidate() {
         validate_pi_settings_template "$template" || return 1
     fi
 
-    jq -S --arg runtime "$runtime" --slurpfile managed "$template" '
+    jq -S -L "${DOTFILES_DIR}/scripts" --arg runtime "$runtime" \
+        --slurpfile managed "$template" '
+        include "claude-herdr-hook";
         def unpin_pi_package:
             if startswith("npm:") then
                 sub("@[^@/]+$"; "")
@@ -795,6 +797,7 @@ build_json_settings_candidate() {
                 else . end
             );
         (if $runtime == "claude" then
+            normalize_herdr_hook |
             .permissions.allow = ((.permissions.allow // []) |
                 map(select(
                     (startswith("mcp__") and endswith("__*")) | not
