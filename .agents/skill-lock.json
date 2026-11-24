@@ -78,13 +78,6 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/mattpocock/skills.git"
     },
-    "control-cli": {
-      "ref": "main",
-      "skillPath": "cursor-team-kit/skills/control-cli/SKILL.md",
-      "source": "cursor/plugins",
-      "sourceType": "github",
-      "sourceUrl": "https://github.com/cursor/plugins.git"
-    },
     "correct": {
       "ref": "main",
       "skillPath": "harness/pstack/claude-code/skills/correct/SKILL.md",
@@ -117,19 +110,6 @@
       "source": "humanlayer/skills",
       "sourceType": "github",
       "sourceUrl": "https://github.com/humanlayer/skills.git"
-    },
-    "deslop": {
-      "ref": "main",
-      "skillPath": "cursor-team-kit/skills/deslop/SKILL.md",
-      "source": "cursor/plugins",
-      "sourceType": "github",
-      "sourceUrl": "https://github.com/cursor/plugins.git"
-    },
-    "diagnose": {
-      "skillPath": "skills/diagnose/SKILL.md",
-      "source": "getagentseal/founder-playbook",
-      "sourceType": "github",
-      "sourceUrl": "https://github.com/getagentseal/founder-playbook.git"
     },
     "domain-modeling": {
       "skillPath": "skills/engineering/domain-modeling/SKILL.md",
@@ -166,20 +146,6 @@
       "source": "vercel-labs/skills",
       "sourceType": "github",
       "sourceUrl": "https://github.com/vercel-labs/skills.git"
-    },
-    "fix-ci": {
-      "ref": "main",
-      "skillPath": "cursor-team-kit/skills/fix-ci/SKILL.md",
-      "source": "cursor/plugins",
-      "sourceType": "github",
-      "sourceUrl": "https://github.com/cursor/plugins.git"
-    },
-    "fix-merge-conflicts": {
-      "ref": "main",
-      "skillPath": "cursor-team-kit/skills/fix-merge-conflicts/SKILL.md",
-      "source": "cursor/plugins",
-      "sourceType": "github",
-      "sourceUrl": "https://github.com/cursor/plugins.git"
     },
     "grill-me": {
       "skillPath": "skills/productivity/grill-me/SKILL.md",

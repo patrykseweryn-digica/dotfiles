@@ -6,11 +6,30 @@ task_dir="$(mktemp -d)"
 trap 'rm -rf "$task_dir"' EXIT
 mkdir -p "$task_dir/bin"
 real_git="$(command -v git)"
-jq '{skills: {
-    "control-cli": .skills["control-cli"],
-    "poteto-mode": .skills["poteto-mode"]
-}}' \
-    "$repo/.agents/skill-lock.json" > "$task_dir/lock.json"
+# Keep simulated upstream skills independent of the installed inventory.
+cat > "$task_dir/fixture-lock.json" <<'JSON'
+{
+  "skills": {
+    "control-cli": {
+      "ref": "main",
+      "skillPath": "team-kit/skills/control-cli/SKILL.md",
+      "source": "example/plugins",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/example/plugins.git"
+    },
+    "poteto-mode": {
+      "installName": "poteto-mode",
+      "ref": "main",
+      "runtimeName": "Poteto Mode",
+      "skillPath": "harness/pstack/claude-code/skills/poteto-mode/SKILL.md",
+      "source": "example/plugins",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/example/plugins.git"
+    }
+  }
+}
+JSON
+cp "$task_dir/fixture-lock.json" "$task_dir/lock.json"
 cat > "$task_dir/bin/skills" <<'STUB'
 #!/bin/bash
 set -eu
@@ -116,11 +135,14 @@ env -u CODEX_HOME -u OPENCODE_CONFIG_DIR -u PI_CODING_AGENT_DIR \
     PATH="$preflight_home/.local/share/mise/shims:$task_dir/bin:$PATH" \
     SKILLS_CLI=skills REAL_SKILLS="$task_dir/bin/skills" \
     SKILL_TEST_LOG="$task_dir/preflight-calls" \
-    "$repo/sync-agents.sh" skills-preflight >"$task_dir/preflight-output" 2>&1
+    "$repo/sync-agents.sh" skills-preflight >"$task_dir/preflight-output" 2>&1 || {
+    cat "$task_dir/preflight-output" >&2
+    exit 1
+}
 test ! -e "$preflight_home/.agents"
-tree='https://github.com/cursor/plugins/tree/main'
+tree='https://github.com/example/plugins/tree/main'
 rg -qxF \
-    "add -g $tree/cursor-team-kit --skill control-cli --agent codex -y --full-depth" \
+    "add -g $tree/team-kit --skill control-cli --agent codex -y --full-depth" \
     "$task_dir/preflight-calls"
 rg -qxF \
     "add -g $tree/harness/pstack/claude-code --skill poteto-mode --agent codex -y --full-depth" \
@@ -192,8 +214,8 @@ rg -q '^preserve me$' "$variant_home/.agents/skills/preserve/SKILL.md"
 test ! -e "$variant_home/.agents/.skill-lock.json"
 
 for state in empty partial complete broken alias no_url apply_failure rollback_failure backup_collision; do
-    jq '{skills: {"poteto-mode": .skills["poteto-mode"]}}' \
-        "$repo/.agents/skill-lock.json" > "$task_dir/lock.json"
+    jq 'del(.skills["control-cli"])' \
+        "$task_dir/fixture-lock.json" > "$task_dir/lock.json"
     if [ "$state" = no_url ]; then
         jq 'del(.skills["poteto-mode"].sourceUrl)' "$task_dir/lock.json" > "$task_dir/lock.next"
         mv "$task_dir/lock.next" "$task_dir/lock.json"
@@ -246,7 +268,7 @@ for state in empty partial complete broken alias no_url apply_failure rollback_f
     if [ "$state" = broken ]; then
         if FAIL_SKILL=true run_sync; then echo 'Failed download passed' >&2; exit 1; fi
         rg -q 'download interrupted' "$task_dir/output"
-        rg -q 'poteto-mode.*cursor/plugins' "$task_dir/output"
+        rg -q 'poteto-mode.*example/plugins' "$task_dir/output"
         test -L "$task_home/.agents/skills/poteto-mode"
         [ "$(readlink "$task_home/.agents/skills/poteto-mode")" = "$task_dir/missing" ]
         test ! -e "$task_home/.agents/.skill-lock.json"
@@ -373,9 +395,7 @@ test "$(readlink "$update_home/.pi/agent/skills")" = "$update_home/.agents/skill
         ln -s "$repo/.agents/$file" "$publisher/.agents/$file"
     done
     lock='.agents/skill-lock.json'
-    jq '{skills: {"control-cli": .skills["control-cli"],
-                  "poteto-mode": .skills["poteto-mode"]}}' \
-        "$repo/$lock" >"$publisher/$lock"
+    cp "$task_dir/fixture-lock.json" "$publisher/$lock"
     git -C "$publisher" add .
     git -C "$publisher" commit -qm 'test: manage two skills'
     git clone -q "$publisher" "$client"
