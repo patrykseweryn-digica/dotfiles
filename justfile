@@ -33,9 +33,10 @@ sync:
 update:
     ./scripts/update-local.sh
 
-# Export all portable live state after one confirmation.
-export:
-    "{{ sync_agents }}" export
+# Export portable live state, or select global skill changes with `export skills`.
+[positional-arguments]
+export *args:
+    "{{ sync_agents }}" export "$@"
 
 # Run deterministic repository checks.
 [private]

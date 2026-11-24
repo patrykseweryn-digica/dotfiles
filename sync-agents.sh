@@ -912,8 +912,12 @@ apply_export_candidates() {
 }
 
 cmd_export() {
+    if [ "$#" -eq 1 ] && [ "$1" = skills ]; then
+        cmd_export_skills
+        return
+    fi
     [ "$#" -eq 0 ] || {
-        echo "[ERROR] export takes no arguments" >&2
+        echo "Usage: $0 export [skills]" >&2
         return 1
     }
     require_clean_export_checkout || return 1
@@ -3330,6 +3334,134 @@ build_skill_export_candidate() {
     preflight_skill_candidate "$candidate_lock"
 }
 
+cmd_export_skills() (
+    require_clean_export_checkout || return 1
+    if [ ! -t 0 ] || [ ! -t 1 ]; then
+        echo '[ERROR] Skill export requires an interactive terminal' >&2
+        return 1
+    fi
+    command -v fzf >/dev/null || {
+        echo '[ERROR] fzf is required for interactive skill export' >&2
+        return 1
+    }
+
+    local root name path status=0 reply
+    root="$(mktemp -d)" || return 1
+    trap 'rm -rf "$root"' EXIT
+    cp "$SKILL_LOCK_REPO" "$root/base" || return 1
+    if [ ! -r "$AGENT_SKILLS_DIR" ] || [ ! -x "$AGENT_SKILLS_DIR" ]; then
+        echo "[ERROR] Cannot read global skill directory: $AGENT_SKILLS_DIR" >&2
+        return 1
+    fi
+    if ! jq -es 'length == 1 and (.[0].skills | type == "object" and
+        all(to_entries[]; (.key | test("^[a-zA-Z0-9][a-zA-Z0-9._-]*$")) and
+            (.value | type == "object" and
+                all(.source, .sourceType, .sourceUrl;
+                    type == "string" and length > 0))))' "$SKILL_LOCK_LIVE" >/dev/null; then
+        echo "[ERROR] Invalid live skill lock: $SKILL_LOCK_LIVE" >&2
+        return 1
+    fi
+    build_live_skill_inventory "$root/live" "$root/unmanaged" || return 1
+    if [ -s "$root/unmanaged" ]; then
+        echo '[WARN] Not exportable: local skills without an upstream source' >&2
+        sed 's/^/  - /' "$root/unmanaged" >&2
+    fi
+
+    # An installed directory without a usable entry is not a removal.
+    local listed
+    jq -rs '(.[0].skills + .[1].skills | keys[]) as $name |
+        [$name, (.[2].skills | has($name))] | @tsv' \
+        "$root/base" "$SKILL_LOCK_LIVE" "$root/live" >"$root/names" || return 1
+    while IFS=$'\t' read -r name listed; do
+        path="$AGENT_SKILLS_DIR/$name"
+        if { [ -e "$path" ] || [ -L "$path" ]; } &&
+            { [ ! -f "$path/SKILL.md" ] || [ ! -r "$path/SKILL.md" ] ||
+                [ "$listed" != true ]; }; then
+            printf '[ERROR] Incomplete local skill: %s\n' "$name" >&2
+            return 1
+        fi
+    done <"$root/names"
+
+    jq -n --slurpfile repo "$root/base" --slurpfile live "$root/live" '
+        def origin: {source, sourceType, sourceUrl};
+        $repo[0].skills as $old | $live[0].skills as $new |
+        [($old + $new | keys[]) as $name | $old[$name] as $before |
+            $new[$name] as $after |
+            if $before == null then {action: "ADD"}
+            elif $after == null then {action: "REMOVE"}
+            elif ($before | origin) != ($after | origin) then {action: "CHANGE SOURCE"}
+            else empty end |
+            . + {$name, $before, $after}]
+    ' >"$root/changes" || return 1
+    jq -r '
+        def source: .sourceUrl // .source // "unknown";
+        .[] | [.name, .action,
+            (if .action == "CHANGE SOURCE" then
+                ((.before | source) + " -> " + (.after | source))
+             else (.after // .before | source) end)] | @tsv
+    ' "$root/changes" >"$root/rows" || return 1
+    if [ ! -s "$root/rows" ]; then
+        log_info 'No global skill changes to export'
+        return 0
+    fi
+
+    # Default fzf accept returns the highlighted row if nothing was marked.
+    FZF_DEFAULT_OPTS='' FZF_DEFAULT_OPTS_FILE='' SHELL=/bin/sh \
+        fzf --multi --layout=reverse --delimiter=$'\t' \
+        --with-nth=2,1,3 --header='Type to filter | Tab: mark | Enter: review | Esc: cancel' \
+        --bind 'enter:transform:[ "${FZF_SELECT_COUNT:-0}" -gt 0 ] && echo accept' \
+        --bind 'double-click:ignore' \
+        <"$root/rows" >"$root/selected" || status=$?
+    case "$status" in
+    0) ;;
+    1 | 130) log_info 'Skill export cancelled; checkout unchanged'; return 0 ;;
+    *) echo '[ERROR] Skill selection failed' >&2; return 1 ;;
+    esac
+    [ -s "$root/selected" ] || return 0
+
+    cut -f 1 "$root/selected" >"$root/selected-names" || return 1
+    jq -e -S --slurpfile changes "$root/changes" --rawfile selected "$root/selected-names" '
+        def portable:
+            with_entries(select(.key as $key | ["source", "sourceType",
+                "sourceUrl", "skillPath", "ref", "installName", "runtimeName"] |
+                index($key) != null)) |
+            if .sourceType == "github" and
+                (.source | type == "string" and test("^[a-zA-Z0-9_][a-zA-Z0-9_.-]*/[a-zA-Z0-9_][a-zA-Z0-9_.-]*$")) and
+                ((.sourceUrl | sub("\\.git$"; "")) == ("https://github.com/" + .source)) and
+                (.installName == null or
+                    (.installName | type == "string" and test("^[a-zA-Z0-9][a-zA-Z0-9._-]*$"))) and
+                (.runtimeName == null or
+                    (.runtimeName | type == "string" and test("^[a-zA-Z0-9][a-zA-Z0-9 ._-]*$"))) and
+                all(.skillPath, .ref; . == null or
+                    (type == "string" and test("^[a-zA-Z0-9_.-]+(/[a-zA-Z0-9_.-]+)*$") and
+                        (split("/") | all(. != ".." and . != "."))))
+            then . else error("selected skill has an invalid GitHub source or path") end;
+        ($selected | split("\n") | map(select(length > 0))) as $names |
+        reduce ($changes[0][] | select(.name as $name | $names | index($name))) as $change
+            (. ; if $change.after == null then del(.skills[$change.name])
+                 else .skills[$change.name] = ($change.after | portable) end)
+    ' "$root/base" >"$root/candidate" || return 1
+
+    echo '[PLAN] Selected skill changes:'
+    diff -u "$root/base" "$root/candidate" || true
+    printf 'Apply selected skill changes to the checkout? [y/N] '
+    read -r reply || reply=''
+    case "$reply" in
+    y | Y | yes | YES) ;;
+    *) log_info 'Skill export cancelled; checkout unchanged'; return 0 ;;
+    esac
+    preflight_skill_candidate "$root/candidate" || return 1
+    require_clean_export_checkout || return 1
+    cmp -s "$root/base" "$SKILL_LOCK_REPO" || {
+        echo '[ERROR] Repository skill lock changed during export; retry' >&2
+        return 1
+    }
+    EXPORT_TARGETS=("$SKILL_LOCK_REPO")
+    EXPORT_CANDIDATES=("$root/candidate")
+    apply_export_candidates "$root" || return 1
+    log_info 'Exported selected skill changes to the checkout'
+)
+
 cmd_pull_skills() {
     [ "$#" -eq 0 ] || {
         echo "[ERROR] pull-skills takes no arguments" >&2
@@ -4259,7 +4391,7 @@ claude-settings-check)
     echo "  plugins-check    Check Codex and Claude against shared plugin manifest"
     echo "  plugins-export   Export Codex and Claude into shared plugin manifest"
     echo "  plugins-update   Update Codex marketplaces and installed Claude plugins"
-    echo "  export           Transactionally export portable live state"
+    echo "  export [skills]  Export portable live state or select global skill changes"
     echo "  codex-install    Link AGENTS.md and generate Codex config"
     echo "  codex-check      Exit 1 if Codex config is out of sync"
     echo "  codex-plugins-check"
