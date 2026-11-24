@@ -44,13 +44,15 @@ STUB
 cat >"$task_dir/bin/curl" <<'STUB'
 #!/bin/bash
 set -eu
-output="" url="" auth=false retry="" retry_max="" max_time=""
+output="" url="" auth=false retry="" retry_max="" max_time="" http1=false
 while [ "$#" -gt 0 ]; do
     case "$1" in
     -o) output="$2"; shift ;;
     --retry) retry="$2"; shift ;;
     --retry-max-time) retry_max="$2"; shift ;;
     --max-time) max_time="$2"; shift ;;
+    # curl 8.7 skips --retry for HTTP/2 429 responses.
+    --http1.1) http1=true ;;
     --connect-timeout | -w) shift ;;
     -H)
         case "$2" in
@@ -73,7 +75,7 @@ case "$url" in
 https://api.github.com/repos/*) ;;
 *) echo 'curl: (22) The requested URL returned error: 429' >&2; exit 22 ;;
 esac
-[ "$retry:$retry_max:$max_time" = '3:180:30' ] || exit 97
+[ "$retry:$retry_max:$max_time:$http1" = '3:180:30:true' ] || exit 97
 [ -z "${GITHUB_TOKEN:-}" ] || [ "$auth" = true ] || exit 96
 [ "${FAIL_DOC:-false}" = false ] || { echo 'HTTP 404' >&2; exit 22; }
 status="${DOC_HTTP_STATUS:-200}"

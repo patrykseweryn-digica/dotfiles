@@ -2205,7 +2205,9 @@ stage_skill_docs() {
     # The raw host can throttle while the contents API still serves the file.
     # GitHub asks clients to wait a minute or more after a secondary rate
     # limit, so the retry window must outlast its Retry-After delay.
-    local -a curl_args=(-fsS --retry 3 --retry-max-time 180
+    # curl 8.7 (macOS) reports HTTP/2 errors as exit 56 and then skips
+    # --retry for HTTP 429; HTTP/1.1 keeps 429 retryable.
+    local -a curl_args=(-fsS --http1.1 --retry 3 --retry-max-time 180
         --connect-timeout 10 --max-time 30
         -H 'Accept: application/vnd.github.raw+json')
     # URLs are built for api.github.com only; never follow token-bearing redirects.
