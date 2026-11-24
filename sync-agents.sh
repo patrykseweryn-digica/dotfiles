@@ -4,7 +4,6 @@ set -eu
 DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 AGENTS_FILE="${DOTFILES_DIR}/.agents/AGENTS.md"
 MCP_SERVERS="${MCP_SERVERS:-${DOTFILES_DIR}/.agents/mcp-servers.json}"
-SHARED_SKILLS_CUSTOM_DIR="${SHARED_SKILLS_CUSTOM_DIR:-${DOTFILES_DIR}/.agents/skills-custom}"
 CODEX_AGENTS_SOURCE="${DOTFILES_DIR}/config/codex/AGENTS.md"
 CLAUDE_AGENTS_SOURCE="${DOTFILES_DIR}/config/claude/CLAUDE.md"
 OPENCODE_AGENTS_SOURCE="${DOTFILES_DIR}/config/opencode/AGENTS.md"
@@ -154,31 +153,6 @@ link_file() {
     log_info "Linked $target_path -> $source_path"
 }
 
-link_custom_skills() {
-    local target_dir="$1"
-    local skill_dir skill_name skill_file
-
-    mkdir -p "$target_dir"
-
-    for skill_dir in "$SHARED_SKILLS_CUSTOM_DIR"/*/; do
-        [ -d "$skill_dir" ] || continue
-        skill_name="$(basename "$skill_dir")"
-        link_file "$skill_dir" "${target_dir}/${skill_name}"
-    done
-
-    for skill_file in "$SHARED_SKILLS_CUSTOM_DIR"/*.skill; do
-        [ -f "$skill_file" ] || continue
-        link_file "$skill_file" "${target_dir}/$(basename "$skill_file")"
-    done
-}
-
-cmd_custom_skills_install() {
-    local runtime root
-    while IFS='|' read -r runtime root; do
-        link_custom_skills "$root"
-    done < <(skill_runtime_rows)
-}
-
 normalize_skill_lock() {
     jq -e -S '
         select((.skills | type) == "object")
@@ -249,9 +223,11 @@ is_locked_skill() {
     return 1
 }
 
+# Every managed skill comes from an upstream lock entry. A live skill without
+# one has no source to install it from on another machine.
 build_live_skill_inventory() {
     local lock_target="$1"
-    local custom_target="$2"
+    local unmanaged_target="$2"
 
     [ -f "$SKILL_LOCK_LIVE" ] || {
         echo "[ERROR] Missing live skill lock: $SKILL_LOCK_LIVE" >&2
@@ -261,17 +237,12 @@ build_live_skill_inventory() {
         echo "[ERROR] Missing live skill directory: $AGENT_SKILLS_DIR" >&2
         return 1
     }
-    command -v rsync >/dev/null 2>&1 || {
-        echo "[ERROR] rsync is required for skill reconciliation" >&2
-        return 1
-    }
 
     normalize_live_skill_lock "$SKILL_LOCK_LIVE" "$lock_target" || {
         echo "[ERROR] Invalid live skill lock: $SKILL_LOCK_LIVE" >&2
         return 1
     }
-    rm -rf "$custom_target"
-    mkdir -p "$custom_target"
+    : >"$unmanaged_target" || return 1
 
     local skill_path skill_name
     for skill_path in "$AGENT_SKILLS_DIR"/*; do
@@ -283,33 +254,25 @@ build_live_skill_inventory() {
         fi
         is_locked_skill "$skill_name" && continue
 
-        if [ -d "$skill_path" ] && [ -f "${skill_path}/SKILL.md" ]; then
-            mkdir -p "${custom_target}/${skill_name}"
-            rsync -aL --delete \
-                --exclude '.git/' \
-                --exclude '__pycache__/' \
-                --exclude '*.pyc' \
-                --exclude '.DS_Store' \
-                "${skill_path}/" "${custom_target}/${skill_name}/"
-        elif [ -f "$skill_path" ] && [[ "$skill_name" == *.skill ]]; then
-            cp -L "$skill_path" "${custom_target}/${skill_name}"
+        if { [ -d "$skill_path" ] && [ -f "${skill_path}/SKILL.md" ]; } ||
+            { [ -f "$skill_path" ] && [[ "$skill_name" == *.skill ]]; }; then
+            echo "$skill_name" >>"$unmanaged_target"
         fi
     done
 }
 
-write_expected_skill_names() {
-    local target_file="$1"
-    local skill_path
+report_unmanaged_skills() {
+    local unmanaged_file="$1"
+    [ -s "$unmanaged_file" ] || return 0
+    echo "[ERROR] Live skills without an upstream source:" >&2
+    sed 's/^/  - /' "$unmanaged_file" >&2
+    echo "Publish each skill upstream and install it with" \
+        "'${SKILLS_CLI} add', or remove it." >&2
+    return 1
+}
 
-    {
-        jq -r '.skills | keys[]' "$SKILL_LOCK_REPO"
-        for skill_path in "$SHARED_SKILLS_CUSTOM_DIR"/*/; do
-            [ -d "$skill_path" ] && basename "$skill_path"
-        done
-        for skill_path in "$SHARED_SKILLS_CUSTOM_DIR"/*.skill; do
-            [ -f "$skill_path" ] && basename "$skill_path"
-        done
-    } | sort -u >"$target_file"
+write_expected_skill_names() {
+    jq -r '.skills | keys[]' "$SKILL_LOCK_REPO" | sort -u >"$1"
 }
 
 write_live_skill_names() {
@@ -331,150 +294,6 @@ write_live_skill_names() {
         fi
     done
     sort -u -o "$target_file" "$target_file"
-}
-
-is_requested_skill() {
-    local skill_name="$1"
-    shift
-
-    [ "$#" -gt 0 ] || return 0
-
-    local requested
-    for requested in "$@"; do
-        [ "$requested" = "$skill_name" ] && return 0
-    done
-
-    return 1
-}
-
-diff_custom_skills() {
-    diff \
-        -x '.git' \
-        -x '__pycache__' \
-        -x '*.pyc' \
-        -x '.DS_Store' \
-        "$@"
-}
-
-cmd_custom_skills_export() {
-    local check_only=false
-    local dry_run=false
-    local requested=()
-
-    while [ "$#" -gt 0 ]; do
-        case "$1" in
-        --check)
-            check_only=true
-            ;;
-        -n | --dry-run)
-            dry_run=true
-            ;;
-        --)
-            shift
-            break
-            ;;
-        --*)
-            echo "[ERROR] Unknown custom-skills-export flag: $1" >&2
-            return 1
-            ;;
-        *)
-            requested+=("$1")
-            ;;
-        esac
-        shift
-    done
-
-    while [ "$#" -gt 0 ]; do
-        requested+=("$1")
-        shift
-    done
-
-    [ -d "$AGENT_SKILLS_DIR" ] || {
-        log_info "No live agent skills dir: $AGENT_SKILLS_DIR"
-        return 0
-    }
-    [ "$check_only" = true ] || [ "$dry_run" = true ] || command -v rsync >/dev/null 2>&1 || {
-        echo "[ERROR] rsync is required for custom-skills-export" >&2
-        return 1
-    }
-
-    local found_count=0
-    local drift_count=0
-    local failed=false
-    local skill_dir skill_path skill_name target_dir action action_label
-
-    for skill_dir in "$AGENT_SKILLS_DIR"/*/; do
-        [ -d "$skill_dir" ] || continue
-        skill_path="${skill_dir%/}"
-        skill_name="$(basename "$skill_path")"
-
-        if [ "${#requested[@]}" -gt 0 ]; then
-            is_requested_skill "$skill_name" "${requested[@]}" || continue
-        fi
-        [ -f "${skill_path}/SKILL.md" ] || continue
-        [ ! -L "$skill_path" ] || continue
-        is_locked_skill "$skill_name" && continue
-
-        found_count=$((found_count + 1))
-        target_dir="${SHARED_SKILLS_CUSTOM_DIR}/${skill_name}"
-        action="same"
-
-        if [ -L "$target_dir" ]; then
-            echo "[ERROR] Refusing to overwrite symlink target: $target_dir" >&2
-            failed=true
-            continue
-        elif [ ! -e "$target_dir" ]; then
-            action="add"
-        elif ! diff_custom_skills -qr \
-            "$skill_path" "$target_dir" >/dev/null 2>&1; then
-            action="update"
-        fi
-
-        [ "$action" != "same" ] || {
-            log_info "Custom skill already in sync: $skill_name"
-            continue
-        }
-
-        drift_count=$((drift_count + 1))
-        if [ "$check_only" = true ]; then
-            echo "[ERROR] Custom skill drift: $skill_name ($action)" >&2
-            failed=true
-        elif [ "$dry_run" = true ]; then
-            echo "[INFO] Would ${action} custom skill: $skill_name"
-        else
-            mkdir -p "$target_dir"
-            rsync -a --delete \
-                --exclude '.git/' \
-                --exclude '__pycache__/' \
-                --exclude '*.pyc' \
-                --exclude '.DS_Store' \
-                "${skill_path}/" "${target_dir}/"
-            case "$action" in
-            add) action_label="Add" ;;
-            update) action_label="Update" ;;
-            *) action_label="$action" ;;
-            esac
-            log_info "$action_label custom skill: $skill_name"
-        fi
-    done
-
-    if [ "$found_count" -eq 0 ]; then
-        if [ "${#requested[@]}" -gt 0 ]; then
-            echo "[ERROR] No matching live custom skills found: ${requested[*]}" >&2
-            return 1
-        fi
-        log_info "No live custom skills to export"
-        return 0
-    fi
-
-    if [ "$failed" = true ]; then
-        [ "$check_only" = true ] && echo "Run: ./sync-agents.sh custom-skills-export" >&2
-        return 1
-    fi
-
-    if [ "$check_only" = true ] && [ "$drift_count" -eq 0 ]; then
-        log_info "Custom skills already in sync"
-    fi
 }
 
 normalize_mcp_inventory() {
@@ -1054,22 +873,13 @@ require_clean_export_checkout() {
 }
 
 rollback_export_targets() {
-    local backup_root="$1" failed=false index target type
+    local backup_root="$1" failed=false index target
     for index in "${!EXPORT_TARGETS[@]}"; do
         target="${EXPORT_TARGETS[$index]}"
-        type="${EXPORT_TYPES[$index]}"
         if [ -f "${backup_root}/${index}" ]; then
             cp -p "${backup_root}/${index}" "$target" || failed=true
-        elif [ -d "${backup_root}/${index}" ]; then
-            mkdir -p "$target" || failed=true
-            rsync -a --delete "${backup_root}/${index}/" "$target/" ||
-                failed=true
         else
-            if [ "$type" = directory ]; then
-                rm -rf "$target" || failed=true
-            else
-                rm -f "$target" || failed=true
-            fi
+            rm -f "$target" || failed=true
         fi
     done
     [ "$failed" = false ]
@@ -1078,7 +888,7 @@ rollback_export_targets() {
 apply_export_candidates() {
     local root="$1"
     local backup_root="${root}/backups"
-    local index target candidate type
+    local index target candidate
     mkdir -p "$backup_root" || return 1
     for index in "${!EXPORT_TARGETS[@]}"; do
         target="${EXPORT_TARGETS[$index]}"
@@ -1088,14 +898,11 @@ apply_export_candidates() {
     for index in "${!EXPORT_TARGETS[@]}"; do
         target="${EXPORT_TARGETS[$index]}"
         candidate="${EXPORT_CANDIDATES[$index]}"
-        type="${EXPORT_TYPES[$index]}"
         mkdir -p "$(dirname "$target")" || {
             rollback_export_targets "$backup_root" || true
             return 1
         }
-        if { [ "$type" = directory ] &&
-            ! rsync -a --delete "$candidate/" "$target/"; } ||
-            { [ "$type" = file ] && ! cp "$candidate" "$target"; }; then
+        if ! cp "$candidate" "$target"; then
             echo "[ERROR] Export apply failed; rolling back checkout" >&2
             rollback_export_targets "$backup_root" ||
                 echo "[ERROR] Export rollback incomplete" >&2
@@ -1116,7 +923,6 @@ cmd_export() {
     EXPORT_TARGETS=()
     EXPORT_CANDIDATES=()
     EXPORT_LABELS=()
-    EXPORT_TYPES=()
 
     candidate="${root}/codex-settings.toml"
     codex_toml import "$candidate" || { rm -rf "$root"; return 1; }
@@ -1128,7 +934,6 @@ cmd_export() {
         EXPORT_TARGETS+=("$CODEX_SETTINGS_TEMPLATE")
         EXPORT_CANDIDATES+=("$candidate")
         EXPORT_LABELS+=("Codex settings")
-        EXPORT_TYPES+=(file)
     fi
 
     while IFS='|' read -r label target candidate runtime live; do
@@ -1143,8 +948,7 @@ cmd_export() {
             EXPORT_TARGETS+=("$target")
             EXPORT_CANDIDATES+=("$candidate")
             EXPORT_LABELS+=("$label")
-            EXPORT_TYPES+=(file)
-        fi
+            fi
     done <<EOF
 Claude settings|$CLAUDE_TEMPLATE_FILE|${root}/claude.json|claude|$CLAUDE_SETTINGS_FILE
 OpenCode settings|$OPENCODE_TEMPLATE|${root}/opencode.json|opencode|$OPENCODE_CONFIG
@@ -1158,12 +962,10 @@ EOF
         EXPORT_TARGETS+=("$MCP_SERVERS")
         EXPORT_CANDIDATES+=("$candidate")
         EXPORT_LABELS+=("MCP inventory")
-        EXPORT_TYPES+=(file)
     fi
 
     local skill_lock="${root}/skill-lock.json"
-    local custom_skills="${root}/skills-custom"
-    build_skill_export_candidate "$skill_lock" "$custom_skills" || {
+    build_skill_export_candidate "$skill_lock" || {
         rm -rf "$root"
         return 1
     }
@@ -1171,15 +973,6 @@ EOF
         EXPORT_TARGETS+=("$SKILL_LOCK_REPO")
         EXPORT_CANDIDATES+=("$skill_lock")
         EXPORT_LABELS+=("Skill inventory")
-        EXPORT_TYPES+=(file)
-    fi
-    if ! diff_custom_skills -qr \
-        "$SHARED_SKILLS_CUSTOM_DIR" "$custom_skills" \
-        >/dev/null 2>&1; then
-        EXPORT_TARGETS+=("$SHARED_SKILLS_CUSTOM_DIR")
-        EXPORT_CANDIDATES+=("$custom_skills")
-        EXPORT_LABELS+=("Portable skills")
-        EXPORT_TYPES+=(directory)
     fi
 
     local plugin_candidate="${root}/plugin-manifest.json"
@@ -1195,7 +988,6 @@ EOF
         EXPORT_TARGETS+=("$PLUGIN_MANIFEST")
         EXPORT_CANDIDATES+=("$plugin_candidate")
         EXPORT_LABELS+=("Plugin membership")
-        EXPORT_TYPES+=(file)
     fi
 
     local tool_candidate="${root}/tool-versions.json"
@@ -1213,7 +1005,6 @@ EOF
         EXPORT_TARGETS+=("$TOOL_INVENTORY")
         EXPORT_CANDIDATES+=("$tool_candidate")
         EXPORT_LABELS+=("Tool inventory")
-        EXPORT_TYPES+=(file)
     fi
 
     if [ "${#EXPORT_TARGETS[@]}" -eq 0 ]; then
@@ -1225,13 +1016,8 @@ EOF
     echo "[INFO] Export plan"
     for index in "${!EXPORT_TARGETS[@]}"; do
         echo "[PLAN] ${EXPORT_LABELS[$index]}: ${EXPORT_TARGETS[$index]}"
-        if [ "${EXPORT_TYPES[$index]}" = directory ]; then
-            diff_custom_skills -ruN "${EXPORT_TARGETS[$index]}" \
-                "${EXPORT_CANDIDATES[$index]}" || true
-        else
-            diff -u "${EXPORT_TARGETS[$index]}" \
-                "${EXPORT_CANDIDATES[$index]}" || true
-        fi
+        diff -u "${EXPORT_TARGETS[$index]}" \
+            "${EXPORT_CANDIDATES[$index]}" || true
     done
     printf 'Apply this export plan? [y/N] '
     read -r reply || reply=""
@@ -2417,7 +2203,9 @@ stage_skill_docs() {
     local sources="${STAGED_SKILLS_ROOT}/doc-sources"
     local name path url existing target status
     # The raw host can throttle while the contents API still serves the file.
-    local -a curl_args=(-fsS --retry 3 --retry-max-time 60
+    # GitHub asks clients to wait a minute or more after a secondary rate
+    # limit, so the retry window must outlast its Retry-After delay.
+    local -a curl_args=(-fsS --retry 3 --retry-max-time 180
         --connect-timeout 10 --max-time 30
         -H 'Accept: application/vnd.github.raw+json')
     # URLs are built for api.github.com only; never follow token-bearing redirects.
@@ -2472,8 +2260,24 @@ check_skill_docs() {
     [ "$failed" = false ]
 }
 
+# The skills CLI and support doc downloads call the GitHub API. Without a
+# token they share the anonymous limit of 60 requests per hour, which one
+# skill sync exhausts. Reuse the GitHub CLI login when no token is set.
+ensure_github_token() {
+    [ -z "${GITHUB_TOKEN:-}" ] || return 0
+    if [ -n "${GH_TOKEN:-}" ]; then
+        export GITHUB_TOKEN="$GH_TOKEN"
+        return 0
+    fi
+    command -v gh >/dev/null 2>&1 || return 0
+    local token
+    token="$(gh auth token --hostname github.com 2>/dev/null)" || return 0
+    [ -z "$token" ] || export GITHUB_TOKEN="$token"
+}
+
 stage_locked_skills() {
     cleanup_staged_skills
+    ensure_github_token
     [ -f "$SKILL_LOCK_REPO" ] || {
         echo "[ERROR] Repo skill-lock missing: $SKILL_LOCK_REPO" >&2
         return 1
@@ -2652,25 +2456,12 @@ prepare_skill_runtime_candidates() {
             "$canonical_candidate/" || return 1
     fi
 
-    local skill_path skill_name
-    for skill_path in "$SHARED_SKILLS_CUSTOM_DIR"/*/ \
-        "$SHARED_SKILLS_CUSTOM_DIR"/*.skill; do
-        [ -e "$skill_path" ] || continue
-        skill_name="$(basename "$skill_path")"
-        if [ -e "${canonical_candidate}/${skill_name}" ] ||
-            [ -L "${canonical_candidate}/${skill_name}" ]; then
-            echo "[ERROR] Custom and upstream skill names collide: $skill_name" >&2
-            return 1
-        fi
-        ln -s "$skill_path" "${canonical_candidate}/${skill_name}" || return 1
-    done
-
     cp -a "${STAGED_SKILLS_ROOT}/docs" "${candidates_root}/docs" || return 1
     ln -s "$AGENT_DOCS_DIR" "${candidates_root}/docs-claude" || return 1
     ln -s "$AGENT_DOCS_DIR" "${candidates_root}/docs-opencode" || return 1
     ln -s "$AGENT_DOCS_DIR" "${candidates_root}/docs-pi" || return 1
 
-    local runtime candidate
+    local runtime candidate skill_path skill_name
     for runtime in claude opencode pi; do
         candidate="${candidates_root}/${runtime}"
         mkdir -p "$candidate" || return 1
@@ -3477,19 +3268,15 @@ verify_removed_upstream_skills() {
 }
 
 validate_skill_export_continuity() {
-    local candidate_lock="$1" candidate_custom="$2"
+    local candidate_lock="$1"
     local repo_names candidate_names missing changed
-    local repo_custom candidate_custom_names
     repo_names="$(mktemp)"
     candidate_names="$(mktemp)"
-    repo_custom="$(mktemp)"
-    candidate_custom_names="$(mktemp)"
     jq -r '.skills | keys[]' "$SKILL_LOCK_REPO" | sort -u >"$repo_names"
     jq -r '.skills | keys[]' "$candidate_lock" | sort -u >"$candidate_names"
     missing="$(comm -23 "$repo_names" "$candidate_names")"
+    rm -f "$repo_names" "$candidate_names"
     if [ -n "$missing" ] && ! verify_removed_upstream_skills "$missing"; then
-        rm -f "$repo_names" "$candidate_names" \
-            "$repo_custom" "$candidate_custom_names"
         return 1
     fi
 
@@ -3504,23 +3291,8 @@ validate_skill_export_continuity() {
     if [ -n "$changed" ]; then
         echo "[ERROR] Existing managed skill source changed:" >&2
         printf '%s\n' "$changed" | sed 's/^/  - /' >&2
-        rm -f "$repo_names" "$candidate_names" \
-            "$repo_custom" "$candidate_custom_names"
         return 1
     fi
-
-    write_custom_skill_names "$SHARED_SKILLS_CUSTOM_DIR" "$repo_custom"
-    write_custom_skill_names "$candidate_custom" "$candidate_custom_names"
-    missing="$(comm -23 "$repo_custom" "$candidate_custom_names")"
-    if [ -n "$missing" ]; then
-        echo "[ERROR] Removed or renamed portable skills:" >&2
-        printf '%s\n' "$missing" | sed 's/^/  - /' >&2
-        rm -f "$repo_names" "$candidate_names" \
-            "$repo_custom" "$candidate_custom_names"
-        return 1
-    fi
-    rm -f "$repo_names" "$candidate_names" \
-        "$repo_custom" "$candidate_custom_names"
 }
 
 preflight_skill_candidate() {
@@ -3531,9 +3303,13 @@ preflight_skill_candidate() {
 }
 
 build_skill_export_candidate() {
-    local candidate_lock="$1" candidate_custom="$2" tmp
-    build_live_skill_inventory "$candidate_lock" "$candidate_custom" ||
-        return 1
+    local candidate_lock="$1" unmanaged status=0
+    unmanaged="$(mktemp)" || return 1
+    build_live_skill_inventory "$candidate_lock" "$unmanaged" &&
+        report_unmanaged_skills "$unmanaged" || status=$?
+    rm -f "$unmanaged"
+    [ "$status" -eq 0 ] || return 1
+    local tmp
     # Live decides membership. For a skill that the repository already
     # tracks from the same source, the repository decides how to install it.
     tmp="$(mktemp)" || return 1
@@ -3548,8 +3324,7 @@ build_skill_export_candidate() {
         rm -f "$tmp"
         return 1
     }
-    validate_skill_export_continuity "$candidate_lock" "$candidate_custom" ||
-        return 1
+    validate_skill_export_continuity "$candidate_lock" || return 1
     preflight_skill_candidate "$candidate_lock"
 }
 
@@ -3559,41 +3334,26 @@ cmd_pull_skills() {
         return 1
     }
 
-    local candidate_dir candidate_lock candidate_custom changed=false reply
+    local candidate_dir candidate_lock reply
     candidate_dir="$(mktemp -d)"
     candidate_lock="${candidate_dir}/skill-lock.json"
-    candidate_custom="${candidate_dir}/skills-custom"
-    build_skill_export_candidate "$candidate_lock" "$candidate_custom" || {
+    build_skill_export_candidate "$candidate_lock" || {
         rm -rf "$candidate_dir"
         return 1
     }
 
-    if ! cmp -s "$SKILL_LOCK_REPO" "$candidate_lock"; then
-        diff -u "$SKILL_LOCK_REPO" "$candidate_lock" || true
-        changed=true
-    fi
-    if ! diff_custom_skills -qr \
-        "$SHARED_SKILLS_CUSTOM_DIR" "$candidate_custom" \
-        >/dev/null 2>&1; then
-        diff_custom_skills -ruN \
-            "$SHARED_SKILLS_CUSTOM_DIR" "$candidate_custom" || true
-        changed=true
-    fi
-
-    if [ "$changed" = false ]; then
+    if cmp -s "$SKILL_LOCK_REPO" "$candidate_lock"; then
         rm -rf "$candidate_dir"
         log_info "Shared skill inventory already matches live state"
         return 0
     fi
+    diff -u "$SKILL_LOCK_REPO" "$candidate_lock" || true
 
     printf 'Apply this skill inventory? [y/N] '
     read -r reply || reply=""
     case "$reply" in
     y | Y | yes | YES)
         cp "$candidate_lock" "$SKILL_LOCK_REPO"
-        mkdir -p "$SHARED_SKILLS_CUSTOM_DIR"
-        rsync -ac --delete \
-            "${candidate_custom}/" "$SHARED_SKILLS_CUSTOM_DIR/"
         rm -rf "$candidate_dir"
         log_info "Updated shared skill inventory from live state"
         ;;
@@ -3629,16 +3389,16 @@ prune_skill_dir() {
 }
 
 cmd_skills_check() {
-    local tmp_dir live_lock live_custom repo_lock expected actual
+    local tmp_dir live_lock unmanaged repo_lock expected actual
     local root runtime missing extra stale failed=false
     tmp_dir="$(mktemp -d)"
     live_lock="${tmp_dir}/live-lock.json"
-    live_custom="${tmp_dir}/live-custom"
+    unmanaged="${tmp_dir}/unmanaged.txt"
     repo_lock="${tmp_dir}/repo-lock.json"
     expected="${tmp_dir}/expected.txt"
     actual="${tmp_dir}/actual.txt"
 
-    build_live_skill_inventory "$live_lock" "$live_custom" || {
+    build_live_skill_inventory "$live_lock" "$unmanaged" || {
         rm -rf "$tmp_dir"
         return 1
     }
@@ -3653,14 +3413,7 @@ cmd_skills_check() {
         diff -u "$repo_lock" "$live_lock" >&2 || true
         failed=true
     fi
-    if ! diff_custom_skills -qr \
-        "$SHARED_SKILLS_CUSTOM_DIR" "$live_custom" \
-        >/dev/null 2>&1; then
-        echo "[ERROR] Live custom skills differ from repository intent" >&2
-        diff_custom_skills -ruN \
-            "$SHARED_SKILLS_CUSTOM_DIR" "$live_custom" >&2 || true
-        failed=true
-    fi
+    report_unmanaged_skills "$unmanaged" || failed=true
 
     write_expected_skill_names "$expected"
     while IFS='|' read -r runtime root; do
@@ -4171,32 +3924,17 @@ EOF
     emit_category_plan "$status" mcp MCP
 }
 
-write_custom_skill_names() {
-    local root="$1" target="$2" path
-
-    : >"$target"
-    [ -d "$root" ] || return 0
-    for path in "$root"/*/ "$root"/*.skill; do
-        [ -e "$path" ] || continue
-        basename "${path%/}" >>"$target"
-    done
-    sort -u -o "$target" "$target"
-}
-
 cmd_skills_plan() {
-    local tmp_dir live_lock live_custom repo_lock expected actual
-    local repo_custom live_custom_names missing extra stale name
-    local runtime root status=PASS
+    local tmp_dir live_lock unmanaged repo_lock expected actual
+    local missing extra stale runtime root status=PASS
     tmp_dir="$(mktemp -d)"
     live_lock="${tmp_dir}/live-lock.json"
-    live_custom="${tmp_dir}/live-custom"
+    unmanaged="${tmp_dir}/unmanaged.txt"
     repo_lock="${tmp_dir}/repo-lock.json"
     expected="${tmp_dir}/expected.txt"
     actual="${tmp_dir}/actual.txt"
-    repo_custom="${tmp_dir}/repo-custom.txt"
-    live_custom_names="${tmp_dir}/live-custom.txt"
 
-    if ! build_live_skill_inventory "$live_lock" "$live_custom" ||
+    if ! build_live_skill_inventory "$live_lock" "$unmanaged" ||
         ! normalize_skill_lock "$SKILL_LOCK_REPO" >"$repo_lock"; then
         rm -rf "$tmp_dir"
         emit_category_plan FAIL skills Skills
@@ -4210,21 +3948,6 @@ cmd_skills_plan() {
     elif ! cmp -s "$repo_lock" "$live_lock"; then
         status=UPDATE
     fi
-
-    write_custom_skill_names "$SHARED_SKILLS_CUSTOM_DIR" "$repo_custom"
-    write_custom_skill_names "$live_custom" "$live_custom_names"
-    missing="$(comm -23 "$repo_custom" "$live_custom_names")"
-    extra="$(comm -13 "$repo_custom" "$live_custom_names")"
-    [ -z "$missing" ] || status="$(merge_plan_status "$status" UPDATE)"
-    [ -z "$extra" ] || status="$(merge_plan_status "$status" EXPORT)"
-    while IFS= read -r name; do
-        [ -n "$name" ] || continue
-        if ! diff_custom_skills -qr \
-            "${SHARED_SKILLS_CUSTOM_DIR}/${name}" \
-            "${live_custom}/${name}" >/dev/null 2>&1; then
-            status="$(merge_plan_status "$status" EXPORT)"
-        fi
-    done < <(comm -12 "$repo_custom" "$live_custom_names")
 
     write_expected_skill_names "$expected"
     while IFS='|' read -r runtime root; do
@@ -4508,10 +4231,6 @@ claude-prune)
     shift
     cmd_claude_plugins_prune "$@"
     ;;
-custom-skills-export)
-    shift
-    cmd_custom_skills_export "$@"
-    ;;
 skills-export)
     cmd_lock_skills_export
     ;;
@@ -4554,8 +4273,6 @@ claude-settings-check)
     echo "  skills-update    Update global skills shared by Codex, Claude, Pi, and OpenCode"
     echo "  claude-export    Sync installed Claude plugins/marketplaces into manifest"
     echo "  claude-prune     Remove Claude plugins/marketplaces not listed in manifest"
-    echo "  custom-skills-export"
-    echo "                  Copy live custom skills from ~/.agents/skills into repo skills-custom"
     echo "  skills-export    Strip live skill-lock into repo after skills add/update"
     echo "  claude-settings-check"
     echo "                  Exit 1 if Claude settings differ from the template"

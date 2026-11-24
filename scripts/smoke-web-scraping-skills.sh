@@ -34,18 +34,17 @@ removed=(
     web-scraping-debug
 )
 
+# Former repository copies now track their upstream source.
 kept=(
-    ask-matt
-    last30days
-    design-control-loop
+    $'ask-matt\tmattpocock/skills'
+    $'last30days\tmvanhorn/last30days-skill'
+    $'design-control-loop\thumanlayer/skills'
 )
 
 personal_count=0
 while IFS=$'\t' read -r name path; do
     [ -n "$name" ] || continue
     personal_count=$((personal_count + 1))
-    [ ! -e "${DOTFILES_DIR}/.agents/skills-custom/${name}" ] ||
-        fail "personal skill still copied in skills-custom: ${name}"
     jq -e --arg name "$name" --arg path "$path" '
         .skills[$name] as $skill |
         $skill.source == "p-severin/skills" and
@@ -63,14 +62,17 @@ done <<<"$locked"
 for name in "${removed[@]}"; do
     jq -e --arg name "$name" '.skills[$name] | not' "$LOCK" >/dev/null ||
         fail "removed skill still locked: ${name}"
-    [ ! -e "${DOTFILES_DIR}/.agents/skills-custom/${name}" ] ||
-        fail "removed skill still copied: ${name}"
 done
 
-for name in "${kept[@]}"; do
-    [ -f "${DOTFILES_DIR}/.agents/skills-custom/${name}/SKILL.md" ] ||
-        fail "vendored skill missing: ${name}"
+for entry in "${kept[@]}"; do
+    IFS=$'\t' read -r name source <<<"$entry"
+    jq -e --arg name "$name" --arg source "$source" '
+        .skills[$name].source == $source
+    ' "$LOCK" >/dev/null || fail "upstream skill not locked: ${name}"
 done
+
+[ ! -e "${DOTFILES_DIR}/.agents/skills-custom" ] ||
+    fail "skills must come from upstream lock entries, not repository copies"
 
 [ -f "${DOTFILES_DIR}/.agents/skills/verify-dotfiles/SKILL.md" ] ||
     fail "verify-dotfiles missing"

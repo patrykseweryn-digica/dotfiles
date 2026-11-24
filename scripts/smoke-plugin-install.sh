@@ -86,7 +86,6 @@ printf '#!/bin/sh\nexit 0\n' > "$task_dir/stubs/pi"
 ln -s "$uv_bin" "$task_dir/stubs/uv"
 chmod +x "$task_dir/fixture/install.sh" "$task_dir/fixture/scripts/agent-tools.sh" "$task_dir/stubs/pi" "$task_dir/stubs/uname"
 printf '{"skills":{}}\n' > "$task_dir/skills.json"
-mkdir -p "$task_dir/custom"
 printf 'local MCP state\n' > "$task_dir/mcp-sentinel"
 export PI_MCP_CONFIG="$task_dir/mcp-sentinel"
 export PLUGIN_TEST_DIR="$task_dir" PLUGIN_TEST_REPO="$repo"
@@ -114,7 +113,6 @@ for platform in Linux-x86_64 Linux-arm64 Darwin-x86_64 Darwin-arm64; do
                 CODEX_CONFIG="$task_home/.codex/config.toml" \
                 SKILL_LOCK_LIVE="$task_home/.agents/.skill-lock.json" \
                 SKILL_LOCK_REPO="$task_dir/skills.json" \
-                SHARED_SKILLS_CUSTOM_DIR="$task_dir/custom" \
                 CODEX_PLUGIN_MANIFEST="$task_dir/manifest.json" \
                 CLAUDE_MANIFEST="$task_dir/manifest.json" \
                 PATH="$task_dir/stubs:/usr/bin:/bin" \

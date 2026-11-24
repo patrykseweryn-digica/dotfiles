@@ -45,7 +45,6 @@ export CLAUDE_MANIFEST="$PLUGIN_MANIFEST"
 export CODEX_PLUGIN_MANIFEST="$PLUGIN_MANIFEST"
 export SKILL_LOCK_REPO="${tmp_dir}/skills.json"
 export SKILL_LOCK_LIVE="${home_dir}/.agents/.skill-lock.json"
-export SHARED_SKILLS_CUSTOM_DIR="${tmp_dir}/custom-skills"
 export SKILLS_CLI="${stub_dir}/skills"
 export CODEX_MCP_STATE_FILE="${tmp_dir}/codex-mcp.json"
 
@@ -55,7 +54,7 @@ mkdir -p \
     "${home_dir}/.codex" \
     "${home_dir}/.config/opencode/skills" \
     "${home_dir}/.pi/agent/skills" \
-    "$stub_dir" "$SHARED_SKILLS_CUSTOM_DIR"
+    "$stub_dir"
 ln -s "$UV_BIN" "${stub_dir}/uv"
 cp "${DOTFILES_DIR}/config/claude/settings.json" "$CLAUDE_TEMPLATE_FILE"
 cp "${DOTFILES_DIR}/config/codex/settings.toml" "$CODEX_SETTINGS_TEMPLATE"
@@ -415,7 +414,7 @@ mkdir -p "${home_dir}/.agents/skills/local-skill"
 printf '%s\n' '# local' >"${home_dir}/.agents/skills/local-skill/SKILL.md"
 real_plan
 grep -E '^EXPORT[[:space:]]+skills[[:space:]]' \
-    "${tmp_dir}/real-plan" >/dev/null || fail "portable skill addition is not EXPORT"
+    "${tmp_dir}/real-plan" >/dev/null || fail "local skill addition is not EXPORT"
 rm -rf "${home_dir}/.agents/skills/local-skill"
 
 cat >"$CODEX_PLUGIN_LIST_FILE" <<'JSON'

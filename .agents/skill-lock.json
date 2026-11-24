@@ -41,6 +41,18 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/cursor/plugins.git"
     },
+    "ask-matt": {
+      "skillPath": "skills/engineering/ask-matt/SKILL.md",
+      "source": "mattpocock/skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/mattpocock/skills.git"
+    },
+    "autoreview": {
+      "skillPath": ".agents/skills/autoreview/SKILL.md",
+      "source": "openclaw/openclaw",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/openclaw/openclaw.git"
+    },
     "blast-radius": {
       "ref": "main",
       "skillPath": "harness/pstack/claude-code/skills/blast-radius/SKILL.md",
@@ -60,11 +72,29 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/steipete/agent-scripts.git"
     },
+    "build-iterated-agentic-loop": {
+      "skillPath": "plugins/build-iterated-agentic-loop/skills/build-iterated-agentic-loop/SKILL.md",
+      "source": "humanlayer/skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/humanlayer/skills.git"
+    },
     "building-pydantic-ai-agents": {
       "skillPath": "skills/building-pydantic-ai-agents/SKILL.md",
       "source": "pydantic/skills",
       "sourceType": "github",
       "sourceUrl": "https://github.com/pydantic/skills.git"
+    },
+    "caveman": {
+      "skillPath": "skills/caveman/SKILL.md",
+      "source": "JuliusBrussee/caveman",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/JuliusBrussee/caveman.git"
+    },
+    "cloudflare-registrar": {
+      "skillPath": "skills/cloudflare-registrar/SKILL.md",
+      "source": "steipete/agent-scripts",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/steipete/agent-scripts.git"
     },
     "code-review": {
       "skillPath": "skills/engineering/code-review/SKILL.md",
@@ -124,6 +154,12 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/getagentseal/founder-playbook.git"
     },
+    "design-control-loop": {
+      "skillPath": "plugins/design-control-loop/skills/design-control-loop/SKILL.md",
+      "source": "humanlayer/skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/humanlayer/skills.git"
+    },
     "deslop": {
       "ref": "main",
       "skillPath": "cursor-team-kit/skills/deslop/SKILL.md",
@@ -167,6 +203,12 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/emilkowalski/skills.git"
     },
+    "find-docs": {
+      "skillPath": "skills/find-docs/SKILL.md",
+      "source": "upstash/context7",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/upstash/context7.git"
+    },
     "find-skills": {
       "skillPath": "skills/find-skills/SKILL.md",
       "source": "vercel-labs/skills",
@@ -192,6 +234,12 @@
       "source": "getagentseal/founder-playbook",
       "sourceType": "github",
       "sourceUrl": "https://github.com/getagentseal/founder-playbook.git"
+    },
+    "git-guardrails-claude-code": {
+      "skillPath": "skills/misc/git-guardrails-claude-code/SKILL.md",
+      "source": "mattpocock/skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/mattpocock/skills.git"
     },
     "github-deep-review": {
       "skillPath": "skills/github-deep-review/SKILL.md",
@@ -253,6 +301,13 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/p-severin/skills.git"
     },
+    "how": {
+      "ref": "main",
+      "skillPath": "harness/pstack/claude-code/skills/how/SKILL.md",
+      "source": "cursor/plugins",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/cursor/plugins.git"
+    },
     "i-have-adhd": {
       "skillPath": "skills/i-have-adhd/SKILL.md",
       "source": "ayghri/i-have-adhd",
@@ -270,6 +325,12 @@
       "source": "shadcn/improve",
       "sourceType": "github",
       "sourceUrl": "https://github.com/shadcn/improve.git"
+    },
+    "improve-claude-md": {
+      "skillPath": "plugins/improve-claude-md/skills/improve-claude-md/SKILL.md",
+      "source": "humanlayer/skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/humanlayer/skills.git"
     },
     "improve-codebase-architecture": {
       "skillPath": "skills/engineering/improve-codebase-architecture/SKILL.md",
@@ -308,6 +369,12 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/kunchenguid/kun.git"
     },
+    "last30days": {
+      "skillPath": "skills/last30days/SKILL.md",
+      "source": "mvanhorn/last30days-skill",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/mvanhorn/last30days-skill.git"
+    },
     "lean-startup": {
       "skillPath": "skills/lean-startup/SKILL.md",
       "source": "getagentseal/founder-playbook",
@@ -345,6 +412,12 @@
       "source": "cursor/plugins",
       "sourceType": "github",
       "sourceUrl": "https://github.com/cursor/plugins.git"
+    },
+    "markdown-converter": {
+      "skillPath": "skills/markdown-converter/SKILL.md",
+      "source": "steipete/agent-scripts",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/steipete/agent-scripts.git"
     },
     "mlflow-analyzer": {
       "skillPath": "skills/engineering/mlflow-analyzer/SKILL.md",
@@ -424,6 +497,12 @@
       "source": "cursor/plugins",
       "sourceType": "github",
       "sourceUrl": "https://github.com/cursor/plugins.git"
+    },
+    "no-mistakes": {
+      "skillPath": "skills/no-mistakes/SKILL.md",
+      "source": "kunchenguid/no-mistakes",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/kunchenguid/no-mistakes.git"
     },
     "obsidian-notes": {
       "skillPath": "skills/productivity/obsidian-notes/SKILL.md",
@@ -658,6 +737,12 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/cursor/plugins.git"
     },
+    "scaffold-exercises": {
+      "skillPath": "skills/misc/scaffold-exercises/SKILL.md",
+      "source": "mattpocock/skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/mattpocock/skills.git"
+    },
     "scrapy-build": {
       "skillPath": "skills/scraping/scrapy-build/SKILL.md",
       "source": "p-severin/skills",
@@ -675,6 +760,13 @@
       "source": "mattpocock/skills",
       "sourceType": "github",
       "sourceUrl": "https://github.com/mattpocock/skills.git"
+    },
+    "setup-pstack": {
+      "ref": "main",
+      "skillPath": "harness/pstack/claude-code/skills/setup-pstack/SKILL.md",
+      "source": "cursor/plugins",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/cursor/plugins.git"
     },
     "show-me": {
       "skillPath": "plugins/show-me/skills/show-me/SKILL.md",
@@ -753,6 +845,13 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/cursor/plugins.git"
     },
+    "thermos": {
+      "ref": "main",
+      "skillPath": "thermos/skills/thermos/SKILL.md",
+      "source": "cursor/plugins",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/cursor/plugins.git"
+    },
     "to-questionnaire": {
       "skillPath": "skills/productivity/to-questionnaire/SKILL.md",
       "source": "mattpocock/skills",
@@ -782,6 +881,13 @@
       "source": "mattpocock/skills",
       "sourceType": "github",
       "sourceUrl": "https://github.com/mattpocock/skills.git"
+    },
+    "typescript-best-practices": {
+      "ref": "main",
+      "skillPath": "harness/pstack/claude-code/skills/typescript-best-practices/SKILL.md",
+      "source": "cursor/plugins",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/cursor/plugins.git"
     },
     "unslop": {
       "ref": "main",
@@ -855,6 +961,13 @@
     "what-did-i-get-done": {
       "ref": "main",
       "skillPath": "cursor-team-kit/skills/what-did-i-get-done/SKILL.md",
+      "source": "cursor/plugins",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/cursor/plugins.git"
+    },
+    "why": {
+      "ref": "main",
+      "skillPath": "harness/pstack/claude-code/skills/why/SKILL.md",
       "source": "cursor/plugins",
       "sourceType": "github",
       "sourceUrl": "https://github.com/cursor/plugins.git"

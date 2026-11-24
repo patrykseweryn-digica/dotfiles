@@ -12,7 +12,7 @@ fail() {
 
 task_dir="$(mktemp -d)"
 trap 'rm -rf "$task_dir"' EXIT
-mkdir -p "$task_dir/bin" "$task_dir/custom"
+mkdir -p "$task_dir/bin"
 # A fixture lock entry; the doc lives next to skills/ in its package.
 doc_url='https://api.github.com/repos/example/kit/contents/pack/docs/'
 doc_url="${doc_url}harness/claude-code.md?ref=main"
@@ -67,12 +67,13 @@ while [ "$#" -gt 0 ]; do
     shift
 done
 printf '%s\n' "$url" >>"$CURL_LOG"
+[ "$auth" = false ] || printf '%s\n' "$GITHUB_TOKEN" >>"$AUTH_LOG"
 # Reproduce the real host-specific failure; the API serves the same file.
 case "$url" in
 https://api.github.com/repos/*) ;;
 *) echo 'curl: (22) The requested URL returned error: 429' >&2; exit 22 ;;
 esac
-[ "$retry:$retry_max:$max_time" = '3:60:30' ] || exit 97
+[ "$retry:$retry_max:$max_time" = '3:180:30' ] || exit 97
 [ -z "${GITHUB_TOKEN:-}" ] || [ "$auth" = true ] || exit 96
 [ "${FAIL_DOC:-false}" = false ] || { echo 'HTTP 404' >&2; exit 22; }
 status="${DOC_HTTP_STATUS:-200}"
@@ -83,7 +84,14 @@ case "$url" in
 esac
 printf '%s' "$status"
 STUB
-chmod +x "$task_dir/bin/skills" "$task_dir/bin/curl"
+# The GitHub CLI login is the token source when no token is set.
+cat >"$task_dir/bin/gh" <<'STUB'
+#!/bin/bash
+[ "$*" = 'auth token --hostname github.com' ] || exit 2
+[ -n "${GH_STUB_TOKEN:-}" ] || { echo 'not logged in' >&2; exit 1; }
+printf '%s\n' "$GH_STUB_TOKEN"
+STUB
+chmod +x "$task_dir/bin/skills" "$task_dir/bin/curl" "$task_dir/bin/gh"
 
 home="$task_dir/fresh home"
 mkdir -p "$home"
@@ -93,10 +101,10 @@ run_sync_agents() {
         -u PI_SKILLS_DIR -u CLAUDE_SETTINGS_FILE HOME="$home" \
         SKILL_LOCK_LIVE="$home/.agents/.skill-lock.json" \
         SKILL_LOCK_REPO="$task_dir/lock.json" \
-        SHARED_SKILLS_CUSTOM_DIR="$task_dir/custom" \
         DOTFILES_ENV_FILE="$task_dir/all-groups.env" \
         PATH="$task_dir/bin:$PATH" SKILLS_CLI="$task_dir/bin/skills" \
-        CURL_LOG="$task_dir/curl.log" DOC_CONTENT="${DOC_CONTENT:-adapter v1}" \
+        CURL_LOG="$task_dir/curl.log" AUTH_LOG="$task_dir/auth.log" \
+        DOC_CONTENT="${DOC_CONTENT:-adapter v1}" \
         DOC_LINK_PATH="${DOC_LINK_PATH:-harness/claude-code.md}" \
         "$repo/sync-agents.sh" "$@" >"$task_dir/output" 2>&1
 }
@@ -123,6 +131,30 @@ for status in 401 403 404 429 302; do
     [ ! -e "$home/.agents" ] || fail "failed preflight changed the runtime"
 done
 echo "[INFO] preflight survives raw-host 429 without hiding API failures"
+
+# Without a token, downloads authenticate with GH_TOKEN or the gh login.
+check_token_source() {
+    local source="$1" expected="$2"
+    : >"$task_dir/auth.log"
+    run_sync_agents skills-preflight || {
+        cat "$task_dir/output" >&2
+        fail "preflight failed with a ${source} token"
+    }
+    grep -Fx "$expected" "$task_dir/auth.log" >/dev/null ||
+        fail "doc download did not authenticate with ${source}"
+    ! grep -F "$expected" "$task_dir/output" >/dev/null ||
+        fail "preflight printed the ${source} token"
+}
+(
+    unset GITHUB_TOKEN GH_TOKEN
+    GH_STUB_TOKEN='gh-login-token' check_token_source gh 'gh-login-token'
+    GH_TOKEN='gh-env-token' check_token_source GH_TOKEN 'gh-env-token'
+    : >"$task_dir/auth.log"
+    run_sync_agents skills-preflight ||
+        fail "preflight failed without any GitHub login"
+    [ ! -s "$task_dir/auth.log" ] || fail "doc download invented a token"
+)
+echo "[INFO] doc downloads reuse GH_TOKEN or the gh login"
 
 : >"$task_dir/curl.log"
 run_sync_agents push-skills || {

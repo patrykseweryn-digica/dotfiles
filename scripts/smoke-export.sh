@@ -30,7 +30,6 @@ mkdir -p \
     "${checkout}/config/opencode" \
     "${checkout}/config/pi" \
     "${checkout}/.agents" \
-    "${checkout}/.agents/skills-custom/existing-custom" \
     "${home_dir}/.codex" \
     "${home_dir}/.claude" \
     "${home_dir}/.claude/plugins" \
@@ -55,7 +54,6 @@ pi_mcp="${home_dir}/.agents/mcp.json"
 codex_mcp="${tmp_dir}/codex-mcp.json"
 skill_lock_repo="${checkout}/.agents/skill-lock.json"
 skill_lock_live="${home_dir}/.agents/.skill-lock.json"
-custom_skills="${checkout}/.agents/skills-custom"
 plugin_manifest="${checkout}/.agents/plugin-manifest.json"
 tool_manifest="${checkout}/.agents/tool-versions.json"
 tool_bin="${home_dir}/tool-bin"
@@ -98,8 +96,6 @@ cat >"$repo_mcp" <<'JSON'
 }
 JSON
 printf 'clean\n' >"${checkout}/marker"
-printf '%s\n' '---' 'name: existing-custom' '---' \
-    >"${custom_skills}/existing-custom/SKILL.md"
 
 cat >"$skill_lock_repo" <<'JSON'
 {
@@ -139,7 +135,7 @@ cat >"$skill_lock_live" <<'JSON'
   }
 }
 JSON
-for skill in managed-skill new-managed existing-custom new-custom; do
+for skill in managed-skill new-managed; do
     mkdir -p "${home_dir}/.agents/skills/${skill}"
     printf '%s\n' '---' "name: $skill" '---' \
         >"${home_dir}/.agents/skills/${skill}/SKILL.md"
@@ -377,8 +373,10 @@ if [ "$1" = clone ]; then
 fi
 exec "$REAL_GIT" "$@"
 STUB
+# The real GitHub CLI writes state into HOME; export must not change HOME.
+printf '#!/bin/sh\necho "not logged in" >&2\nexit 1\n' >"${stub_dir}/gh"
 chmod +x "${stub_dir}/codex" "${stub_dir}/cp" "${stub_dir}/skills" \
-    "${stub_dir}/git"
+    "${stub_dir}/git" "${stub_dir}/gh"
 
 git -C "$checkout" init -q
 git -C "$checkout" config user.name smoke
@@ -411,7 +409,6 @@ export PI_MCP_CONFIG="$pi_mcp"
 export MCP_SERVERS="$repo_mcp"
 export SKILL_LOCK_REPO="$skill_lock_repo"
 export SKILL_LOCK_LIVE="$skill_lock_live"
-export SHARED_SKILLS_CUSTOM_DIR="$custom_skills"
 export SKILLS_CLI="${stub_dir}/skills"
 export SKILL_TEST_LOG="$skill_test_log"
 export PLUGIN_MANIFEST="$plugin_manifest"
@@ -457,7 +454,7 @@ fi
 [ -z "$(git -C "$checkout" status --porcelain --untracked-files=all)" ] ||
     fail "cancelled export changed checkout"
 for label in 'Codex settings' 'Claude settings' 'OpenCode settings' \
-    'Pi settings' 'MCP inventory' 'Skill inventory' 'Portable skills' \
+    'Pi settings' 'MCP inventory' 'Skill inventory' \
     'Plugin membership' 'Tool inventory'; do
     grep -F "[PLAN] $label:" "${tmp_dir}/cancel.log" >/dev/null ||
         { cat "${tmp_dir}/cancel.log" >&2; fail "export plan omitted: $label"; }
@@ -523,6 +520,22 @@ mv "${tmp_dir}/managed-skill.saved" \
     "${home_dir}/.agents/skills/managed-skill"
 [ -z "$(git -C "$checkout" status --porcelain --untracked-files=all)" ] ||
     fail "removed skill check changed checkout"
+
+# A live skill without an upstream source has nowhere to be exported to.
+mkdir -p "${home_dir}/.agents/skills/local-only"
+printf '%s\n' '---' 'name: local-only' '---' \
+    >"${home_dir}/.agents/skills/local-only/SKILL.md"
+if run_export y "${tmp_dir}/unmanaged-skill.log"; then
+    fail "export accepted a skill without an upstream source"
+fi
+grep -F 'Live skills without an upstream source' \
+    "${tmp_dir}/unmanaged-skill.log" >/dev/null ||
+    fail "skill without an upstream source was not reported"
+grep -F -- '  - local-only' "${tmp_dir}/unmanaged-skill.log" >/dev/null ||
+    fail "skill without an upstream source was not named"
+rm -rf "${home_dir}/.agents/skills/local-only"
+[ -z "$(git -C "$checkout" status --porcelain --untracked-files=all)" ] ||
+    fail "unmanaged skill check changed checkout"
 
 # Export accepts a removal only when the name is absent from current upstream.
 mv "${home_dir}/.agents/skills/managed-skill" \
@@ -605,8 +618,6 @@ jq -e '
         "package/skills/managed-skill/SKILL.md" and
     (.skills | all(has("commit") | not))
 ' "$skill_lock_repo" >/dev/null || fail "managed skill export failed"
-[ -f "${custom_skills}/new-custom/SKILL.md" ] ||
-    fail "portable skill was not exported"
 jq -e '
     .plugins.keep == {claude: "keep@third", codex: "plugin_keep"} and
     .plugins["new-codex"].codex == "plugin_new" and
@@ -657,7 +668,6 @@ printf '%s\n' \
     .agents/mcp-servers.json \
     .agents/plugin-manifest.json \
     .agents/skill-lock.json \
-    .agents/skills-custom/new-custom/SKILL.md \
     .agents/tool-versions.json \
     config/claude/settings.json \
     config/codex/settings.toml \

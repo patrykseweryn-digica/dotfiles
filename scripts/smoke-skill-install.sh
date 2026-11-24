@@ -4,7 +4,7 @@ repo="$(cd "$(dirname "$0")/.." && pwd)"
 source "${repo}/scripts/host-tools.sh"
 task_dir="$(mktemp -d)"
 trap 'rm -rf "$task_dir"' EXIT
-mkdir -p "$task_dir/bin" "$task_dir/custom"
+mkdir -p "$task_dir/bin"
 real_git="$(command -v git)"
 jq '{skills: {
     "control-cli": .skills["control-cli"],
@@ -113,7 +113,6 @@ env -u CODEX_HOME -u OPENCODE_CONFIG_DIR -u PI_CODING_AGENT_DIR \
     -u PI_SKILLS_DIR HOME="$preflight_home" \
     SKILL_LOCK_LIVE="$preflight_home/.agents/.skill-lock.json" \
     SKILL_LOCK_REPO="$task_dir/lock.json" \
-    SHARED_SKILLS_CUSTOM_DIR="$task_dir/custom" \
     PATH="$preflight_home/.local/share/mise/shims:$task_dir/bin:$PATH" \
     SKILLS_CLI=skills REAL_SKILLS="$task_dir/bin/skills" \
     SKILL_TEST_LOG="$task_dir/preflight-calls" \
@@ -140,7 +139,6 @@ if env -u CODEX_HOME -u OPENCODE_CONFIG_DIR -u PI_CODING_AGENT_DIR \
     -u PI_SKILLS_DIR HOME="$multi_home" \
     SKILL_LOCK_LIVE="$multi_home/.agents/.skill-lock.json" \
     SKILL_LOCK_REPO="$task_dir/multi-lock.json" \
-    SHARED_SKILLS_CUSTOM_DIR="$task_dir/custom" \
     PATH="$task_dir/bin:$PATH" SKILLS_CLI="$task_dir/bin/skills" \
     SKILL_TEST_LOG="$task_dir/multi-calls" \
     "$repo/sync-agents.sh" push-skills >"$task_dir/multi-output" 2>&1; then
@@ -161,7 +159,6 @@ if env -u CODEX_HOME -u OPENCODE_CONFIG_DIR -u PI_CODING_AGENT_DIR \
     -u PI_SKILLS_DIR HOME="$extra_home" \
     SKILL_LOCK_LIVE="$extra_home/.agents/.skill-lock.json" \
     SKILL_LOCK_REPO="$task_dir/lock.json" \
-    SHARED_SKILLS_CUSTOM_DIR="$task_dir/custom" \
     PATH="$task_dir/bin:$PATH" SKILLS_CLI="$task_dir/bin/skills" \
     SKILL_TEST_LOG="$task_dir/extra-calls" INSTALL_EXTRA=true \
     "$repo/sync-agents.sh" push-skills >"$task_dir/extra-output" 2>&1; then
@@ -181,7 +178,6 @@ if env -u CODEX_HOME -u OPENCODE_CONFIG_DIR -u PI_CODING_AGENT_DIR \
     -u PI_SKILLS_DIR HOME="$variant_home" \
     SKILL_LOCK_LIVE="$variant_home/.agents/.skill-lock.json" \
     SKILL_LOCK_REPO="$task_dir/lock.json" \
-    SHARED_SKILLS_CUSTOM_DIR="$task_dir/custom" \
     PATH="$task_dir/bin:$PATH" SKILLS_CLI="$task_dir/bin/skills" \
     SKILL_TEST_LOG="$task_dir/variant-calls" \
     RESOLVED_SKILL_PATH="$other_path" \
@@ -231,10 +227,8 @@ for state in empty partial complete broken alias no_url apply_failure rollback_f
         done
     fi
     if [ "$state" = backup_collision ]; then
-        mkdir -p "$task_dir/custom/local-skill" "$task_dir/old-skill" \
-            "$task_home/.config/opencode/skills"
-        printf '%s\n' '---' 'name: local-skill' '---' > "$task_dir/custom/local-skill/SKILL.md"
-        cp "$task_dir/custom/local-skill/SKILL.md" "$task_dir/old-skill/SKILL.md"
+        mkdir -p "$task_dir/old-skill" "$task_home/.config/opencode/skills"
+        printf '%s\n' '---' 'name: local-skill' '---' > "$task_dir/old-skill/SKILL.md"
         ln -s "$task_dir/old-skill" "$task_home/.claude/skills/local-skill"
         ln -s "$task_home/.claude/skills/local-skill" "$task_home/.agents/skills/local-skill"
         ln -s "$task_home/.claude/skills/local-skill" "$task_home/.config/opencode/skills/local-skill"
@@ -246,7 +240,6 @@ for state in empty partial complete broken alias no_url apply_failure rollback_f
             -u PI_SKILLS_DIR HOME="$task_home" \
             SKILL_LOCK_LIVE="$task_home/.agents/.skill-lock.json" \
             SKILL_LOCK_REPO="$task_dir/lock.json" \
-            SHARED_SKILLS_CUSTOM_DIR="$task_dir/custom" \
             PATH="$task_dir/bin:$PATH" SKILLS_CLI="$task_dir/bin/skills" SKILL_TEST_LOG="$task_dir/calls" \
             "$repo/sync-agents.sh" push-skills > "$task_dir/output" 2>&1
     }
@@ -336,7 +329,6 @@ run_update() {
         SKILL_LOCK_LIVE="$update_home/.agents/.skill-lock.json" \
         SKILL_LOCK_REPO="$task_dir/lock.json" \
         SKILL_SOURCE_REFS="$update_refs" \
-        SHARED_SKILLS_CUSTOM_DIR="$task_dir/custom" \
         PATH="$task_dir/bin:$PATH" SKILLS_CLI="$task_dir/bin/skills" \
         SKILL_TEST_LOG="$update_calls" SKILL_REF_LOG="$ref_calls" \
         "$repo/sync-agents.sh" skills-update \

@@ -39,16 +39,19 @@ Remote skills remain unpinned and follow current upstream.
 A skill can link a support doc as `../../docs/<path>`, for example the pstack
 Claude Code adapter. The skills CLI copies only skill folders, so sync
 downloads each linked doc from the skill's upstream package into
-`~/.agents/docs`. Downloads use GitHub's contents API, with `GITHUB_TOKEN`
-when available, and at most three retries within a bounded fetch operation.
+`~/.agents/docs`. Downloads use GitHub's contents API with at most three
+retries within a bounded fetch operation. Skill staging authenticates with
+`GITHUB_TOKEN`, then `GH_TOKEN`, then the `gh` login; anonymous requests
+share a 60 per hour limit that one sync exhausts.
 Required document failures still stop staging before any runtime changes.
 `~/.claude/docs`, `~/.config/opencode/docs` and
 `~/.pi/agent/docs` link to it. A missing doc is a skills `UPDATE` in doctor.
 `~/.agents/skills` is the one shared skill set. Codex, Cursor and Grok Build
 read it directly; Claude Code, OpenCode and Pi read it through symlinks.
-Personal skills come from `p-severin/skills` through that same unpinned
-skills CLI install. `.agents/skills-custom` keeps only skills that stay
-in this repository.
+Every skill comes from an upstream lock entry through that same unpinned
+skills CLI install; personal skills live in `p-severin/skills`. The
+repository keeps no skill copies, except its own `verify-dotfiles`. Export and `skills-check` reject a live
+skill without an upstream source.
 pstack skills come from `harness/pstack/claude-code` in `cursor/plugins`:
 its adapter line applies only in Claude Code, so every harness can share it.
 Staging fails when the skills CLI resolves a skill from another upstream path

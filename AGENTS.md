@@ -23,8 +23,9 @@ Remote skills intentionally track current upstream. Do not pin them to commits
 or retain obsolete copies to keep installation green. Before changing live
 skill state, validate every inventory entry against current upstream; reconcile
 removed or renamed skills explicitly and fail before modifying runtimes.
-Personal skills live in `p-severin/skills` and install from
-`.agents/skill-lock.json`. Do not copy them into `.agents/skills-custom`.
+Every skill installs from an upstream entry in `.agents/skill-lock.json`.
+Personal skills live in `p-severin/skills`. Do not copy skills into this
+repository; only its own `verify-dotfiles` skill lives here.
 
 ## Verification
 
