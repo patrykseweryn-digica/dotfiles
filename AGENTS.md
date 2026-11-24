@@ -35,6 +35,13 @@ after changes and `just check` before commits. Compare live doctor failures
 with the baseline; investigate every new failure. Do not bypass failed hooks
 or claim Linux verification without a Linux run. Keep proof artifacts local.
 
+## Enforced skill rules
+
+| Rule | Enforcement |
+| --- | --- |
+| The lock owns skill names and paths. Do not duplicate its membership in tests. | `skills-preflight` checks each lock entry against current upstream in CI. |
+| Pi must not mirror individual shared skills. | `smoke-skill-install.sh` removes a shared skill and checks for stale Pi links. |
+
 ## Maintaining this file
 
 Keep this file for knowledge useful to almost every future agent session in this project.

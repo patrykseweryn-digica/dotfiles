@@ -32,7 +32,8 @@ credentials, OAuth state, unsupported transports, and local paths stay local.
 
 Use `just export skills` to record intentional changes to global skills, such
 as removals made with `npx skills remove -g`. Type to filter the `fzf` list.
-Mark changes with `Tab`, review them with `Enter`, or cancel with `Esc`.
+Mark one change with `Tab` or all matching changes with `Ctrl+A`.
+Clear the search to mark the entire list. Review with `Enter` or cancel with `Esc`.
 Unmarked skills keep their repository entries. The command checks the resulting
 inventory against current upstream before it writes only the repository lock.
 
@@ -54,7 +55,8 @@ Required document failures still stop staging before any runtime changes.
 `~/.claude/docs`, `~/.config/opencode/docs` and
 `~/.pi/agent/docs` link to it. A missing doc is a skills `UPDATE` in doctor.
 `~/.agents/skills` is the one shared skill set. Codex, Cursor and Grok Build
-read it directly; Claude Code, OpenCode and Pi read it through symlinks.
+read it directly. Claude Code and OpenCode use per-skill symlinks. Pi uses
+one symlink to the shared directory, so external removals leave no stale entries.
 Every skill comes from an upstream lock entry through that same unpinned
 skills CLI install; personal skills live in `p-severin/skills`. The
 repository keeps no skill copies, except its own `verify-dotfiles`. Export and `skills-check` reject a live
@@ -247,6 +249,9 @@ only `SKIP` rows remain. `just disable` does not remove installed elements.
 `just sync` prints the plan, applies settings, MCP, managed links, and the
 Herdr hook, then refreshes inventory tools, Node, skills, and plugins.
 A failed fetch, an unreadable plan, or an `EXPORT` row stops sync first.
+For skills, sync uses the last applied inventory to distinguish repository
+removals from local additions. Without that inventory or a locally available
+Git copy recorded by an older sync, unknown skills still stop the run.
 
 Every network operation has a time limit (`scripts/operation.sh`). An expired
 limit stops the operation and all its child processes. Tool output goes to

@@ -127,13 +127,6 @@ repos:
         entry: ./scripts/smoke-claude-plugin-sync.sh
         language: system
         pass_filenames: false
-      - id: web-scraping-skills-smoke
-        name: Web scraping skills smoke test
-        description: >-
-          Ensure skills come only from upstream lock entries
-        entry: ./scripts/smoke-web-scraping-skills.sh
-        language: system
-        pass_filenames: false
       - id: doctor-smoke
         name: Live machine doctor smoke test
         description: Ensure live drift checks stay outside commit-time hooks

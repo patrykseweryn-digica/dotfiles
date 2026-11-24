@@ -190,6 +190,20 @@ DOC_CONTENT='adapter v2' run_sync_agents push-skills ||
     fail "updated upstream support doc was not applied"
 echo "[INFO] repeat is unchanged and an upstream change is applied"
 
+# A complete legacy Pi mirror still needs migration.
+pi_skills="$home/.pi/agent/skills"
+rm -rf "$pi_skills"
+mkdir "$pi_skills"
+ln -s "$home/.agents/skills/maintain-verification-skill" "$pi_skills/"
+if run_sync_agents skills-check; then
+    fail "skills-check accepted a legacy Pi mirror"
+fi
+[ "$(skills_plan_status)" = UPDATE ] ||
+    fail "skills plan did not request migration of the Pi mirror"
+run_sync_agents push-skills || fail "push-skills did not migrate the Pi mirror"
+[ "$(readlink "$pi_skills")" = "$home/.agents/skills" ] ||
+    fail "Pi skills directory does not link to shared skills"
+
 # Doctor reports a missing doc as an update, offline.
 rm "$home/.claude/docs"
 : >"$task_dir/curl.log"

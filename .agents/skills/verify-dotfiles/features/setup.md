@@ -51,13 +51,20 @@ Preconditions: dependencies from SKILL.md; run from the checkout root.
   A live Herdr hook with an absolute path must export as one `$HOME` hook.
   It also drives `just export skills` in a terminal with a stubbed selector.
   Require unmarked and unrestorable skills to stay out of the export plan.
-  To check the real selector, use an isolated HOME and checkout with a known
-  difference. Search for a skill, press Enter without marking, then select
-  with Tab, review with Enter, and refuse the write. Verify Esc also cancels.
+  Check the real selector with several differences in an isolated HOME.
+  Press Enter without marking; require no review. Filter to a subset, mark
+  with Ctrl+A, and review with Enter. Require only matching changes.
+  Repeat without a filter; require all changes. Refuse the write both times.
+  Verify Tab still marks one change and Esc cancels.
 - **Stage and apply skills.** Run `bash scripts/smoke-skill-install.sh`.
   Require current content in every runtime, no live changes after staging or
   network failures, rollback after apply failures, and no new backup on an
-  unchanged repeated push.
+  unchanged repeated push. Deleting a skill from the shared directory must
+  remove its entry from Pi without leaving a broken link. The script also
+  runs public `just sync` with a real Git fast-forward and installed skills.
+  Require repository removals to apply, unknown and locally replaced skills
+  to stop sync, and a failed swap to preserve the last applied inventory for
+  retry. The test stubs skill downloads and unrelated categories.
 - **Skill support docs.** Run `bash scripts/smoke-skill-docs.sh`. A skill
   linking `../../docs/<path>` must get that file in `~/.agents/docs`, with
   each runtime `docs` directory linked to it. Doctor reports a missing doc
