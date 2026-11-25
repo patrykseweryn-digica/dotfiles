@@ -189,9 +189,11 @@ with `CLAUDE.md` linking to it for Claude. Shared skills are linked into
 `~/.pi/agent/skills/`.
 
 `config/codex/settings.toml` owns portable Codex settings; project trust,
-notices, and hook hashes stay local. Codex synchronization requires `uv`;
-its TOML parser dependency is pinned in `scripts/codex-toml.py`.
-Comparison uses TOML values, so formatting changes do not cause drift.
+notices, and hook hashes stay local. The Codex settings check uses `uv` to
+find an installed Python 3.11 or newer; it needs neither network access nor
+cached packages. Applying or exporting settings still uses the `tomlkit`
+dependency pinned in `scripts/codex-toml.py`. Comparison uses TOML values,
+so formatting changes do not cause drift.
 Pull imports only keys declared in the template, including nested keys.
 Declare a new portable setting there before importing its live value.
 Claude settings come from `config/claude/`. Missing required configuration

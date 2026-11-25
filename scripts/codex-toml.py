@@ -1,5 +1,5 @@
 # /// script
-# requires-python = ">=3.10"
+# requires-python = ">=3.11"
 # dependencies = ["tomlkit==0.13.2"]
 # ///
 """Codex settings: structural import, rendering and drift checks."""
@@ -11,19 +11,19 @@ import math
 import os
 import sys
 import tempfile
+from importlib import import_module
 from pathlib import Path
-
-import tomlkit
+from pprint import pformat
 
 START = "# dotfiles-managed-mcp-start"
 END = "# dotfiles-managed-mcp-end"
 MODEL_KEYS = ("model", "model_reasoning_effort")
 
 
-def read_toml(path):
+def read_toml(path, loads):
     try:
         text = path.read_text()
-        return text, tomlkit.loads(text).unwrap()
+        return text, loads(text)
     except (OSError, ValueError) as exc:
         raise ValueError(f"Cannot read TOML {path}: {exc}") from exc
 
@@ -61,7 +61,7 @@ def select(live, managed):
     }
 
 
-def render(live_text, live, managed, inventory):
+def plan_settings(live_text, live, managed, inventory, loads):
     result = merge(copy.deepcopy(live), managed)
     servers = result.setdefault("mcp_servers", {})
     if not isinstance(servers, dict):
@@ -74,7 +74,7 @@ def render(live_text, live, managed, inventory):
         if END not in lines[start + 1 :]:
             raise ValueError("Unclosed Codex managed MCP block")
         end = lines.index(END, start + 1)
-        old = tomlkit.loads("\n".join(lines[start + 1 : end])).unwrap()
+        old = loads("\n".join(lines[start + 1 : end]))
         for name in old.get("mcp_servers", {}):
             if name not in inventory:
                 servers.pop(name, None)
@@ -96,22 +96,23 @@ def render(live_text, live, managed, inventory):
         managed_servers[name] = merge(local, wanted)
     if not servers:
         result.pop("mcp_servers")
-    text = tomlkit.dumps(result)
+    return result, managed_servers
+
+
+def render(local, managed_servers, expected, loads, dumps):
+    text = dumps(local)
     if managed_servers:
         text += "\n" + START + "\n"
-        text += tomlkit.dumps({"mcp_servers": managed_servers})
+        text += dumps({"mcp_servers": managed_servers})
         text += END + "\n"
-    expected = copy.deepcopy(result)
-    if managed_servers:
-        expected.setdefault("mcp_servers", {}).update(managed_servers)
-    if not equal(tomlkit.loads(text).unwrap(), expected):
+    if not equal(loads(text), expected):
         raise ValueError("Codex TOML serialization changed the configuration")
-    return text, expected
+    return text
 
 
-def atomic_write(path, text):
+def atomic_write(path, text, loads):
     # Parse before creating or replacing anything at the destination.
-    tomlkit.loads(text)
+    loads(text)
     path = path.parent.resolve() / path.name
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, temporary = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
@@ -128,29 +129,7 @@ def atomic_write(path, text):
             os.unlink(temporary)
 
 
-def main():
-    action, source, template, mcp, *output = sys.argv[1:]
-    source, template = Path(source), Path(template)
-    template_text, managed = read_toml(template)
-    if action != "install" or source.exists():
-        live_text, live = read_toml(source)
-    else:
-        live_text, live = "", {}
-
-    if action == "import":
-        imported = select(live, managed)
-        text = template_text if equal(imported, managed) else tomlkit.dumps(imported)
-        atomic_write(Path(output[0]), text)
-        return 0
-
-    inventory = json.loads(Path(mcp).read_text())
-    text, expected = render(live_text, live, managed, inventory)
-    if action == "install":
-        if not source.exists() or not equal(live, expected):
-            atomic_write(source, text)
-        return 0
-    if action != "check":
-        raise ValueError(f"Unknown Codex TOML action: {action}")
+def check_settings(source, live, expected):
     for key in MODEL_KEYS:
         live.pop(key, None)
         expected.pop(key, None)
@@ -161,13 +140,57 @@ def main():
     print("Keep repository: ./sync-agents.sh codex-install", file=sys.stderr)
     sys.stderr.writelines(
         difflib.unified_diff(
-            tomlkit.dumps(live, sort_keys=True).splitlines(keepends=True),
-            tomlkit.dumps(expected, sort_keys=True).splitlines(keepends=True),
+            (pformat(live) + "\n").splitlines(keepends=True),
+            (pformat(expected) + "\n").splitlines(keepends=True),
             fromfile="live",
             tofile="repository",
         )
     )
     return 2
+
+
+def main():
+    action, source, template, mcp, *output = sys.argv[1:]
+    if action == "check":
+        try:
+            loads = import_module("tomllib").loads
+        except ImportError:
+            return 4  # The shell adapter reports the missing check environment.
+        dumps = None
+    else:
+        import tomlkit
+
+        def loads(text):
+            return tomlkit.loads(text).unwrap()
+
+        dumps = tomlkit.dumps
+
+    source, template = Path(source), Path(template)
+    template_text, managed = read_toml(template, loads)
+    if action != "install" or source.exists():
+        live_text, live = read_toml(source, loads)
+    else:
+        live_text, live = "", {}
+
+    if action == "import" and dumps is not None:
+        imported = select(live, managed)
+        text = template_text if equal(imported, managed) else dumps(imported)
+        atomic_write(Path(output[0]), text, loads)
+        return 0
+
+    inventory = json.loads(Path(mcp).read_text())
+    local, managed_servers = plan_settings(live_text, live, managed, inventory, loads)
+    expected = copy.deepcopy(local)
+    if managed_servers:
+        expected.setdefault("mcp_servers", {}).update(managed_servers)
+    if action == "install" and dumps is not None:
+        text = render(local, managed_servers, expected, loads, dumps)
+        if not source.exists() or not equal(live, expected):
+            atomic_write(source, text, loads)
+        return 0
+    if action == "check":
+        return check_settings(source, live, expected)
+    raise ValueError(f"Unknown Codex TOML action: {action}")
 
 
 if __name__ == "__main__":

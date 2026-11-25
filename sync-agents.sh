@@ -706,16 +706,10 @@ codex_toml() {
         echo "[ERROR] uv is required for Codex settings; run ./install.sh" >&2
         return 1
     }
-    if [ "$action" = check ]; then
-        uv run --quiet --offline --no-project --script \
-            "${DOTFILES_DIR}/scripts/codex-toml.py" \
-            "$action" "$CODEX_CONFIG" "$CODEX_SETTINGS_TEMPLATE" "$MCP_SERVERS" "$@"
-    else
-        operation_run "Codex settings" "$action with uv" fetch --stdout -- \
-            uv run --quiet --no-project --script \
-            "${DOTFILES_DIR}/scripts/codex-toml.py" \
-            "$action" "$CODEX_CONFIG" "$CODEX_SETTINGS_TEMPLATE" "$MCP_SERVERS" "$@"
-    fi
+    operation_run "Codex settings" "$action with uv" fetch --stdout -- \
+        uv run --quiet --no-project --script \
+        "${DOTFILES_DIR}/scripts/codex-toml.py" \
+        "$action" "$CODEX_CONFIG" "$CODEX_SETTINGS_TEMPLATE" "$MCP_SERVERS" "$@"
 }
 
 cmd_pull_codex_settings() {
@@ -1050,14 +1044,27 @@ cmd_codex_install() {
     link_file "$CODEX_AGENTS_SOURCE" "$CODEX_AGENTS_FILE"
 }
 
+CODEX_CHECK_ENV_ERROR='Codex settings check requires uv and a locally installed Python 3.11 or newer; run ./install.sh'
+
 cmd_codex_check() {
+    local python status=0
     [ -f "$CODEX_CONFIG" ] || {
         echo "[ERROR] Required Codex config missing: $CODEX_CONFIG" >&2
         echo "Run: ./sync-agents.sh codex-install" >&2
         return 1
     }
-    codex_toml check || return $?
-    log_info "Codex config in sync"
+    if python="$(uv python find --no-project --no-config --no-cache --offline \
+        --no-python-downloads '>=3.11' 2>/dev/null)"; then
+        "$python" -IB "${DOTFILES_DIR}/scripts/codex-toml.py" \
+            check "$CODEX_CONFIG" "$CODEX_SETTINGS_TEMPLATE" "$MCP_SERVERS" || status=$?
+    else
+        status=4
+    fi
+    case "$status" in
+    0) log_info "Codex config in sync" ;;
+    4 | 126 | 127) echo "[ERROR] $CODEX_CHECK_ENV_ERROR" >&2; return 4 ;;
+    *) return "$status" ;;
+    esac
 }
 
 foreign_marketplaces() {
@@ -4112,10 +4119,11 @@ plan_check() {
     shift 2
 
     "$@" >/dev/null 2>&1 || status=$?
-    case "$status" in
-    0) emit_state_plan PASS "$category" none "$label state matches repository intent" ;;
-    2) emit_state_plan UPDATE "$category" update "$label state needs repository state" ;;
-    3) emit_state_plan EXPORT "$category" export "$label state has portable local changes" ;;
+    case "$status:$category" in
+    0:*) emit_state_plan PASS "$category" none "$label state matches repository intent" ;;
+    2:*) emit_state_plan UPDATE "$category" update "$label state needs repository state" ;;
+    3:*) emit_state_plan EXPORT "$category" export "$label state has portable local changes" ;;
+    4:settings:codex) emit_state_plan FAIL "$category" update "$CODEX_CHECK_ENV_ERROR" ;;
     *) emit_state_plan FAIL "$category" update "$label state is missing, invalid, or unreadable" ;;
     esac
 }

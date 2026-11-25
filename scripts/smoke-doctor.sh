@@ -165,7 +165,7 @@ printf '#!/bin/bash\n' >"${home_dir}/.claude/hooks/herdr-agent-state.sh"
 run_doctor() {
     HOME="$home_dir" \
         PATH="${stub_dir}:${SMOKE_BASE_PATH}" \
-        SYNC_AGENTS="${stub_dir}/sync-agents" \
+        SYNC_AGENTS="${1:-${stub_dir}/sync-agents}" \
         AGENT_TOOLS="${stub_dir}/agent-tools" \
         CORE_TOOLS="${stub_dir}/core-tools" \
         NETWORK_LOG="$network_log" \
@@ -334,15 +334,27 @@ for component in codex opencode pi claude; do
 done
 sync_real push-mcp || fail "prepare MCP fixture"
 
+# Do not reuse the mutation cache for the real read-only checks.
+check_cache="${tmp_dir}/empty-uv-cache"
+mkdir "$check_cache"
 real_plan() {
     HOME="$home_dir" PATH="${stub_dir}:${SMOKE_BASE_PATH}" \
+        UV_CACHE_DIR="$check_cache" UV_OFFLINE=1 UV_PYTHON_DOWNLOADS=never \
         NETWORK_LOG="$network_log" \
         env -u CODEX_HOME "$DOTFILES_DIR/sync-agents.sh" --quiet state-plan \
         >"${tmp_dir}/real-plan" 2>"${tmp_dir}/real-plan.err"
 }
 
+machine_offline() {
+    UV_CACHE_DIR="$check_cache" UV_OFFLINE=1 UV_PYTHON_DOWNLOADS=never \
+        run_doctor "$DOTFILES_DIR/sync-agents.sh"
+}
+
 : >"$network_log"
 snapshot_state "${tmp_dir}/real-before"
+machine_offline || { cat "${tmp_dir}/doctor.log"; fail "offline machine check failed"; }
+grep -E '^\[PASS\] settings:codex:' "${tmp_dir}/doctor.log" ||
+    fail "offline machine did not pass matching Codex settings"
 real_plan || fail "real state plan failed"
 for category in settings:codex settings:claude settings:opencode mcp skills plugins; do
     grep -E "^PASS[[:space:]]+${category}[[:space:]]" \
@@ -351,7 +363,28 @@ done
 snapshot_state "${tmp_dir}/real-after"
 cmp "${tmp_dir}/real-before" "${tmp_dir}/real-after" ||
     fail "real state plan changed HOME or checkout"
+cp "$CODEX_CONFIG" "${tmp_dir}/codex.before"
+printf 'service_tier = "changed"\n' >"$CODEX_CONFIG"
+snapshot_state "${tmp_dir}/real-before"
+machine_offline || { cat "${tmp_dir}/doctor.log"; fail "offline machine rejected Codex drift"; }
+grep -E '^\[UPDATE\] settings:codex:' "${tmp_dir}/doctor.log" ||
+    fail "offline machine did not report Codex drift"
+real_plan
+grep -E '^UPDATE[[:space:]]+settings:codex[[:space:]]' "${tmp_dir}/real-plan" >/dev/null ||
+    fail "offline sync plan did not report Codex drift"
+
+# Constrain real uv discovery to a directory with no installed interpreters.
+if UV_MANAGED_PYTHON=1 UV_PYTHON_INSTALL_DIR="${tmp_dir}/no-python" machine_offline; then
+    fail "machine passed without a Codex check interpreter"
+fi
+grep -E '^\[FAIL\] settings:codex: .*Python 3\.11' "${tmp_dir}/doctor.log" ||
+    fail "machine did not report the missing Codex check interpreter"
+snapshot_state "${tmp_dir}/real-after"
+cmp "${tmp_dir}/real-before" "${tmp_dir}/real-after" ||
+    fail "offline Codex checks changed HOME or checkout"
+[ -z "$(ls -A "$check_cache")" ] || fail "offline Codex checks changed the uv cache"
 [ ! -s "$network_log" ] || fail "real state plan attempted network access"
+mv "${tmp_dir}/codex.before" "$CODEX_CONFIG"
 
 cat >"$MCP_SERVERS" <<'JSON'
 {"shared":{"type":"http","url":"https://repo.test/mcp"}}
