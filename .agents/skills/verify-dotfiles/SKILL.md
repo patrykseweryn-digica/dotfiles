@@ -12,8 +12,10 @@ listed for the affected features. Use existing checks, not a new runner.
 
 Run from the dotfiles checkout. There is no server or persistent test process.
 Required commands: bash, git, just, jq, node, npm, uv, pre-commit, zsh, rg.
-Smoke tests narrow PATH but link the host jq first and require jq 1.7 or
-newer; Ubuntu 22.04 `/usr/bin/jq` 1.6 fails. Install current jq with mise.
+Smoke tests narrow PATH to stubs, a scratch link to the host jq, and
+`/usr/bin:/bin`. The smoke tests require jq 1.7 or newer.
+Ubuntu 22.04 ships jq 1.6 in `/usr/bin`, so the version check fails there.
+If the check fails, install current jq with mise.
 Install development dependencies with:
 
 ```bash

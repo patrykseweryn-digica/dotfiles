@@ -47,7 +47,8 @@ Preconditions: dependencies from SKILL.md; run from the checkout root.
   on Linux also without `ps`. Both processes must stop. The report must name
   the element, operation, cause, exit code, tool output, next step, and log.
   A quick successful operation must not call `ps` or leave its watchdog
-  `sleep`. The script does not measure the per-operation overhead.
+  `sleep`. Spy scripts record `ps` calls and the `sleep` PID, so this case
+  needs no real `ps`. The script does not measure the per-operation overhead.
 - **Export once.** Run `bash scripts/smoke-export.sh`. It checks the clean-tree
   gate, one confirmation, settings allowlists, MCP conflict/privacy rejection,
   skill upstream/rename gates, plugin providers, recognized and unknown tools,
@@ -76,7 +77,7 @@ Preconditions: dependencies from SKILL.md; run from the checkout root.
   nothing. Staging rejects unsafe paths. Two packages may ship one doc;
   only different content fails. The test simulates downloads.
   Dangling and looping skill links must fail `skills-check`, which names
-  them, and set skills `FAIL` in the plan.
+  each link path without `find` error text, and set skills `FAIL` in the plan.
   For real upstream, run `skills-update` with a scratch HOME and a lock
   subset, then `skills-check` in that HOME.
 - **Upstream skill path.** `smoke-skill-install.sh` also covers a skill that
