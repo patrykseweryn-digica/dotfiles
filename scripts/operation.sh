@@ -194,8 +194,9 @@ operation_record_failure() {
 
 operation_run() {
     local element="$1" operation="$2" class="$3" keep_stdout=false
-    local optional=false limit log work output cleaned marker started
+    local optional=false limit log log_dir work output cleaned marker started
     local status=0 command_pid watchdog_pid stopped="" diagnosis cause next
+    local report=false
 
     shift 3
     while :; do
@@ -258,19 +259,31 @@ operation_run() {
         stopped=""
     fi
 
-    # The expansion only skips dirname on the common existing directory.
-    if [ -d "${log%/*}" ] || mkdir -p "$(dirname "$log")" 2>/dev/null; then
+    # A report needs the cleaned output twice; a success logs it directly.
+    if [ "$status" -ne 0 ] && [ "$optional" = false ]; then
+        report=true
+        operation_clean_output "$output" >"$cleaned" 2>/dev/null ||
+            : >"$cleaned"
+    fi
+    # Expansion instead of dirname saves a process per operation.
+    case "$log" in
+    */*) log_dir="${log%/*}/" ;;
+    *) log_dir=./ ;;
+    esac
+    if [ -d "$log_dir" ] || mkdir -p "$log_dir" 2>/dev/null; then
         {
             printf '==> %s %s: %s (exit %s, %s s)\n' \
                 "$(operation_timestamp)" "$element" "$operation" \
                 "$status" "$((SECONDS - started))"
-            operation_clean_output "$output"
+            if [ "$report" = true ]; then
+                cat "$cleaned"
+            else
+                operation_clean_output "$output"
+            fi
         } >>"$log" 2>/dev/null || true
     fi
 
-    if [ "$status" -ne 0 ] && [ "$optional" = false ]; then
-        operation_clean_output "$output" >"$cleaned" 2>/dev/null ||
-            : >"$cleaned"
+    if [ "$report" = true ]; then
         diagnosis="$(operation_cause "$status" "$cleaned" "$limit" \
             "$stopped" "$log")"
         cause="${diagnosis%%$'\t'*}"
