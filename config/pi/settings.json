@@ -1,8 +1,8 @@
 {
   "collapseChangelog": true,
-  "defaultModel": "gpt-5.6-sol",
+  "defaultModel": "gpt-6.2-sol",
   "defaultProvider": "openai-codex",
-  "defaultThinkingLevel": "xhigh",
+  "defaultThinkingLevel": "high",
   "defaultTools": [
     "+codemode"
   ],

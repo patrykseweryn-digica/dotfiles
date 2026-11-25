@@ -66,6 +66,6 @@ RUN --mount=type=secret,id=github_token,uid=1000,gid=1000,required=true \
         exit 1; \
     fi; \
     grep -Fx '[RESULT] PASS' "$HOME/second-sync.log"; \
-    just doctor; \
+    just machine; \
     test ! -e "$HOME/.ssh"
 

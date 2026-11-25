@@ -31,7 +31,7 @@ repository; only its own `verify-dotfiles` skill lives here.
 
 Before changes, applying config to a machine, or committing, use
 `.agents/skills/verify-dotfiles/SKILL.md`. Run its relevant feature recipes
-after changes and `just check` before commits. Compare live doctor failures
+after changes and `just test` before commits. Compare live machine failures
 with the baseline; investigate every new failure. Do not bypass failed hooks
 or claim Linux verification without a Linux run. Keep proof artifacts local.
 

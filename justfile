@@ -40,9 +40,9 @@ export *args:
 
 # Run deterministic repository checks.
 [private]
-check:
+test:
     prek run --all-files
 
 # Check this machine against repository intent.
-doctor:
+machine:
     ./scripts/doctor.sh

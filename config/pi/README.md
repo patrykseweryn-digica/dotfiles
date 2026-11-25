@@ -24,7 +24,7 @@ Changing a linked theme or extension changes its source in dotfiles.
 ## Local tool preferences
 
 The model selector follows the read-only digica-99 snapshot from 2026-11-19.
-The default remains `openai-codex/gpt-5.6-sol`, as on that machine.
+New sessions default to `openai-codex/gpt-6.2-sol` with `high` thinking.
 The model selector remains separate from the startup default.
 Temporary credit routing and Fast Mode remain local.
 
@@ -154,7 +154,7 @@ used for type/schema validation, not the CLI installation policy.
 npm --prefix config/pi ci --ignore-scripts
 npm --prefix config/pi run check
 npm --prefix config/pi test
-just check
+just test
 ```
 
 Pre-commit runs types, ESLint, Prettier and the deterministic Pi regression

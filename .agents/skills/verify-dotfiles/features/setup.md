@@ -104,7 +104,7 @@ Preconditions: dependencies from SKILL.md; run from the checkout root.
   `smoke-update-local.sh` covers its sync apply.
 - **Clean Linux install.** Build `.github/ci/clean-install.Dockerfile` on the
   native amd64 and arm64 CI runners. The image runs `install`, two `sync`
-  commands, and `doctor` as a user without sudo or SSH state.
+  commands, and `machine` as a user without sudo or SSH state.
   Use the build command in `.github/workflows/check.yml`; it requires Docker
   with BuildKit, network access, and the `github_token` build secret.
   The image excludes SSH and account-dependent remote Codex plugins.

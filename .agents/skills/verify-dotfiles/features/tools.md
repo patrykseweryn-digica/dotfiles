@@ -80,6 +80,6 @@ Preconditions: working host Node/npm; no live update needed for verification.
 
 - Moving latest can introduce upstream regressions; passed fixtures do not
   prove every external package release works. Check real CLI startup after
-  a requested live update and compare doctor results with the baseline.
+  a requested live update and compare machine results with the baseline.
 - Pi extension packages and dependency locks have a separate update policy.
 - A registry/network error is an incomplete check, not a missing tool.

@@ -1,8 +1,9 @@
 Host *
     AddKeysToAgent yes
 
+# Tailscale (MagicDNS)
 Host mypi
-    HostName 192.168.100.23
+    HostName raspberrypi.tail96fd1f.ts.net
     User pseweryn
     Port 22
     IdentityFile ~/.ssh/id_ed25519
@@ -16,7 +17,14 @@ Host mypi-public
     IdentitiesOnly yes
 
 Host dell-xps
-    HostName 192.168.18.3
+    HostName pseweryn-xps-13-9310.tail96fd1f.ts.net
+    User pseweryn
+    Port 22
+    IdentityFile ~/.ssh/id_ed25519
+    IdentitiesOnly yes
+
+Host macbook-ubuntu
+    HostName macbook-ubuntu-server.tail96fd1f.ts.net
     User pseweryn
     Port 22
     IdentityFile ~/.ssh/id_ed25519
