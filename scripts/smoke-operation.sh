@@ -139,17 +139,19 @@ grep -F "installer progress" "$DOTFILES_OPERATION_LOG" >/dev/null ||
     fail "tool stdout missing from log"
 
 # A quick success must not scan the process table or leave its watchdog.
+# The spies record calls; the sleep spy keeps its PID through exec. The
+# command bypasses the spy and lasts until the watchdog sleep has started.
+real_sleep="$(command -v sleep)"
 spy_bin="${tmp_dir}/spy-bin"
 mkdir -p "$spy_bin"
-printf '#!/bin/sh\necho "$*" >>"%s/ps-calls"\nexec %s "$@"\n' \
-    "$tmp_dir" "$(command -v ps)" >"${spy_bin}/ps"
-chmod +x "${spy_bin}/ps"
-DOTFILES_OPERATION_TIMEOUT=7357 run_case fast "${spy_bin}:${PATH}" \
-    "core tools" "check" query -- true
+printf '#!/bin/sh\necho "$*" >>"%s/ps-calls"\n' "$tmp_dir" >"${spy_bin}/ps"
+printf '#!/bin/sh\necho $$ >"%s/sleep.pid"\nexec %s "$@"\n' \
+    "$tmp_dir" "$real_sleep" >"${spy_bin}/sleep"
+chmod +x "${spy_bin}/ps" "${spy_bin}/sleep"
+run_case fast "${spy_bin}:${PATH}" "core tools" "check" query -- \
+    "$real_sleep" 0.3
 [ "$status" -eq 0 ] || fail "fast returned $status"
 [ ! -e "${tmp_dir}/ps-calls" ] || fail "successful operation listed processes"
-if ps -A -o args= | grep -qx 'sleep 7357'; then
-    fail "successful operation left its watchdog sleep"
-fi
+assert_stopped "${tmp_dir}/sleep.pid"
 
 echo "[INFO] operation smoke test passed"
