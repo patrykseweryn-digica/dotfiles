@@ -17,6 +17,7 @@ fail() {
 
 tmp_dir="$(mktemp -d)"
 trap 'rm -rf "$tmp_dir"' EXIT
+set_smoke_base_path "$tmp_dir"
 
 home_dir="${tmp_dir}/home"
 stub_dir="${tmp_dir}/stubs"
@@ -131,7 +132,7 @@ export OPENCODE_CONFIG_DIR
 export OPENCODE_CONFIG="$opencode_config"
 export PI_MCP_CONFIG="$pi_mcp"
 export MCP_SERVERS="$repo_mcp"
-export PATH="${stub_dir}:${HOST_JQ_DIR}:/usr/bin:/bin"
+export PATH="${stub_dir}:${SMOKE_BASE_PATH}"
 
 cp "$repo_mcp" "${tmp_dir}/before-cancel.json"
 if printf 'n\n' | "$SYNC" --quiet pull-mcp \

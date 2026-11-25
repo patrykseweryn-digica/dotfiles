@@ -4,6 +4,7 @@ repo="$(cd "$(dirname "$0")/.." && pwd)"
 source "${repo}/scripts/host-tools.sh"
 task_dir="$(mktemp -d)"
 trap 'rm -rf "$task_dir"' EXIT
+set_smoke_base_path "$task_dir"
 # The machine group setting must not change fixture results.
 export DOTFILES_ENV_FILE="${task_dir}/all-groups.env"
 printf 'DOTFILES_GROUPS=core,agents,desktop\n' >"$DOTFILES_ENV_FILE"
@@ -122,7 +123,7 @@ for test_case in 'Linux-x86_64 empty' 'Linux-x86_64 partial' \
             SKILL_LOCK_REPO="$task_dir/skills.json" \
             CODEX_PLUGIN_MANIFEST="$task_dir/manifest.json" \
             CLAUDE_MANIFEST="$task_dir/manifest.json" \
-            PATH="$task_dir/stubs:${HOST_JQ_DIR}:/usr/bin:/bin" \
+            PATH="$task_dir/stubs:${SMOKE_BASE_PATH}" \
             "$just_bin" --justfile "$task_dir/fixture/justfile" install \
             > "$task_dir/output" 2>&1
     }

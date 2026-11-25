@@ -11,22 +11,20 @@ if [ -x "$host_tools_mise" ] &&
 fi
 unset host_tools_mise host_tools_bins
 
-# Tests narrow PATH to stubs and /usr/bin:/bin. Ubuntu 22.04 ships jq 1.6 there,
-# about ten times slower per call. HOST_JQ_DIR holds only the host jq; put it
-# before /usr/bin. It lives in the real HOME cache and is reused across runs.
-HOST_JQ_DIR="${XDG_CACHE_HOME:-${HOME}/.cache}/dotfiles/smoke-jq"
-export HOST_JQ_DIR
-host_tools_jq="$(command -v jq 2>/dev/null || true)"
-if [ -n "$host_tools_jq" ] && [ "$(readlink "${HOST_JQ_DIR}/jq" 2>/dev/null)" != "$host_tools_jq" ]; then
-    mkdir -p "$HOST_JQ_DIR"
-    # Rename replaces the link atomically for checks running in other worktrees.
-    ln -sf "$host_tools_jq" "${HOST_JQ_DIR}/jq.$$"
-    mv -f "${HOST_JQ_DIR}/jq.$$" "${HOST_JQ_DIR}/jq"
-fi
-host_tools_jq_version="$(PATH="${HOST_JQ_DIR}:/usr/bin:/bin" jq --version 2>/dev/null || true)"
-host_tools_jq_version="${host_tools_jq_version#jq-}"
-if [ "$(printf '1.7\n%s\n' "$host_tools_jq_version" | sort -V | head -n 1)" != 1.7 ]; then
-    echo "[ERROR] smoke tests need jq 1.7 or newer in narrowed PATH; found '${host_tools_jq_version}'" >&2
-    exit 1
-fi
-unset host_tools_jq host_tools_jq_version
+# Tests narrow PATH to stubs and SMOKE_BASE_PATH. Ubuntu 22.04 ships jq 1.6 in
+# /usr/bin, about ten times slower per call. Call this after creating the test
+# scratch directory: it links only the host jq there, before /usr/bin:/bin.
+set_smoke_base_path() {
+    local jq_dir="$1/host-jq" jq_bin version
+    jq_bin="$(command -v jq 2>/dev/null || true)"
+    mkdir -p "$jq_dir"
+    [ -z "$jq_bin" ] || ln -sf "$jq_bin" "${jq_dir}/jq"
+    SMOKE_BASE_PATH="${jq_dir}:/usr/bin:/bin"
+    export SMOKE_BASE_PATH
+    version="$(PATH="$SMOKE_BASE_PATH" jq --version 2>/dev/null || true)"
+    version="${version#jq-}"
+    if [ "$(printf '1.7\n%s\n' "$version" | sort -V | head -n 1)" != 1.7 ]; then
+        echo "[ERROR] smoke tests need jq 1.7 or newer in narrowed PATH; found '${version}'" >&2
+        exit 1
+    fi
+}

@@ -55,6 +55,7 @@ fi
 
 tmp_dir="$(mktemp -d)"
 trap 'rm -rf "$tmp_dir"' EXIT
+set_smoke_base_path "$tmp_dir"
 # The machine group setting must not change fixture results.
 export DOTFILES_ENV_FILE="${tmp_dir}/all-groups.env"
 printf 'DOTFILES_GROUPS=core,agents,desktop\n' >"$DOTFILES_ENV_FILE"
@@ -114,7 +115,7 @@ printf 'uv %s\n' "$*" >>"$MISE_LOG"
 exit "${UV_EXIT_CODE:-0}"
 STUB
 chmod +x "$home_dir/.local/bin/uv"
-export PATH="$home_dir/.local/bin:${HOST_JQ_DIR}:/usr/bin:/bin"
+export PATH="$home_dir/.local/bin:${SMOKE_BASE_PATH}"
 tool_list=$(jq -r '.tools[] | select(.scope == "core") | (.mise // .name)' \
     "$INVENTORY" | paste -sd ' ' -)
 tool_count=$(jq '[.tools[] | select(.scope == "core")] | length' "$INVENTORY")
@@ -312,7 +313,7 @@ grep -Fx 'sudo apt-get install -y xclip' "$system_log" >/dev/null ||
     fail "sudo-aware install omitted xclip"
 grep -Fx 'sudo apt-get install -y gnupg' "$system_log" >/dev/null ||
     fail "sudo-aware install omitted gnupg"
-PATH="$system_bin:${HOST_JQ_DIR}:/usr/bin:/bin" assert_xclip_plan Linux arm64 false \
+PATH="$system_bin:${SMOKE_BASE_PATH}" assert_xclip_plan Linux arm64 false \
     $'PASS\ttools\tnone\txclip is available'
 
 # Homebrew needs no sudo; Linux package managers do.
@@ -326,13 +327,13 @@ STUB
 chmod +x "$system_bin/brew"
 gnupg_plan() {
     TOOL_INVENTORY="$brew_fixture" CORE_TOOLS_OS="$1" CORE_TOOLS_ARCH=arm64 \
-        CORE_TOOLS_HAS_SUDO=false PATH="$system_bin:${HOST_JQ_DIR}:/usr/bin:/bin" \
+        CORE_TOOLS_HAS_SUDO=false PATH="$system_bin:${SMOKE_BASE_PATH}" \
         "$CORE_TOOLS" plan | awk -F '\t' '$4 ~ /^gnupg / { print $1 "\t" $4 }'
 }
 [ "$(gnupg_plan Darwin)" = "$(printf 'FAIL\tgnupg is missing')" ] ||
     fail "macOS plan skipped gnupg without sudo"
 [ "$(TOOL_INVENTORY="$brew_fixture" CORE_TOOLS_OS=Darwin CORE_TOOLS_ARCH=arm64 \
-    PATH="${HOST_JQ_DIR}:/usr/bin:/bin" "$CORE_TOOLS" plan |
+    PATH="${SMOKE_BASE_PATH}" "$CORE_TOOLS" plan |
     awk -F '\t' '$4 ~ /^gnupg / { print $1 "\t" $4 }')" = \
     "$(printf 'SKIP\tgnupg requires brew on darwin-arm64')" ] ||
     fail "macOS plan without Homebrew did not skip gnupg"

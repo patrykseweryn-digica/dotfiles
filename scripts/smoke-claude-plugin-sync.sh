@@ -14,6 +14,7 @@ cleanup() {
     rm -rf "$tmp_dir"
 }
 trap cleanup EXIT
+set_smoke_base_path "$tmp_dir"
 
 home_dir="${tmp_dir}/home"
 manifest="${tmp_dir}/plugin-manifest.json"
@@ -209,7 +210,7 @@ STUB
 chmod +x "${stub_dir}/codex" "${stub_dir}/claude"
 : > "$update_log"
 
-export PATH="${stub_dir}:${HOST_JQ_DIR}:/usr/bin:/bin"
+export PATH="${stub_dir}:${SMOKE_BASE_PATH}"
 export PLUGIN_UPDATE_LOG="$update_log"
 
 "$DOTFILES_DIR/sync-agents.sh" --quiet push-plugins \

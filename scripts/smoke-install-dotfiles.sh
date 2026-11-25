@@ -13,8 +13,9 @@ fail() {
     exit 1
 }
 
-JQ_BIN="$(command -v jq 2>/dev/null || true)"
-[ -n "$JQ_BIN" ] || fail "jq is required"
+smoke_base_dir="$(mktemp -d)"
+trap 'rm -rf "$smoke_base_dir"' EXIT
+set_smoke_base_path "$smoke_base_dir"
 UV_BIN="$(command -v uv)"
 JUST_BIN="$(command -v just)"
 export UV_CACHE_DIR="${UV_CACHE_DIR:-$(uv cache dir)}"
@@ -157,7 +158,6 @@ smoke_tmux_plugins_install_after_setup_dotfiles() {
     tmux_log="${tmp_dir}/tmux.log"
 
     mkdir -p "${home_dir}/.tmux/plugins/tpm/bin" "$stub_dir"
-    ln -s "$JQ_BIN" "${stub_dir}/jq"
     ln -s "$UV_BIN" "${stub_dir}/uv"
     : >"$npx_log"
     : >"$tmux_log"
@@ -206,7 +206,7 @@ STUB
 
     (
         export HOME="$home_dir"
-        export PATH="${stub_dir}:${HOST_JQ_DIR}:/usr/bin:/bin"
+        export PATH="${stub_dir}:${SMOKE_BASE_PATH}"
         export EMAIL="test@example.com"
         export WORK_EMAIL="work@example.com"
         export EDITOR="vim"
@@ -339,7 +339,7 @@ printf '%s\n' "$*" >>"$PI_TEST_LOG"
 STUB
     chmod +x "${bin_dir}/pi"
 
-    HOME="$home_dir" PATH="${bin_dir}:${HOST_JQ_DIR}:/usr/bin:/bin" \
+    HOME="$home_dir" PATH="${bin_dir}:${SMOKE_BASE_PATH}" \
         PI_CODING_AGENT_DIR="${home_dir}/.pi/agent" \
         PI_SETTINGS_TEMPLATE="$template" PI_TEST_LOG="$log_file" \
         "$DOTFILES_DIR/sync-agents.sh" --quiet pi-packages-update
@@ -375,7 +375,6 @@ run_case() {
 
     mkdir -p "$home_dir" "$stub_dir"
     printf 'local zsh drift\n' >"${home_dir}/.zshrc"
-    ln -s "$JQ_BIN" "${stub_dir}/jq"
     ln -s "$UV_BIN" "${stub_dir}/uv"
     : >"$npx_log"
     : >"$pi_log"
@@ -465,7 +464,7 @@ STUB
 
     (
         export HOME="$home_dir"
-        export PATH="${stub_dir}:${HOST_JQ_DIR}:/usr/bin:/bin"
+        export PATH="${stub_dir}:${SMOKE_BASE_PATH}"
         export EMAIL="test@example.com"
         export WORK_EMAIL="work@example.com"
         export EDITOR="vim"
@@ -602,7 +601,7 @@ YAML
             "${home_dir}/.pi/agent/$resource" || fail "missing Pi $resource"
     done
     cp "${home_dir}/.pi/agent/settings.json" "${tmp_dir}/pi-settings.before"
-    HOME="$home_dir" PATH="${stub_dir}:${HOST_JQ_DIR}:/usr/bin:/bin" PI_LOG="$pi_log" \
+    HOME="$home_dir" PATH="${stub_dir}:${SMOKE_BASE_PATH}" PI_LOG="$pi_log" \
         "${DOTFILES_DIR}/sync-agents.sh" pi-install >/dev/null
     cmp "${tmp_dir}/pi-settings.before" \
         "${home_dir}/.pi/agent/settings.json" ||

@@ -7,6 +7,7 @@ repo="$(cd "$(dirname "$0")/.." && pwd)"
 source "${repo}/scripts/host-tools.sh"
 task_dir="$(mktemp -d)"
 trap 'rm -rf "$task_dir"' EXIT
+set_smoke_base_path "$task_dir"
 
 fail() {
     echo "[ERROR] $*" >&2
@@ -82,7 +83,7 @@ use_home() {
     export HOME BIN_DIR
     : >"$CODEX_LOG"
 }
-base_path="$task_dir/stubs:${HOST_JQ_DIR}:/usr/bin:/bin"
+base_path="$task_dir/stubs:${SMOKE_BASE_PATH}"
 brew_path="$task_dir/brew/bin"
 export TEST_OS=Linux
 
