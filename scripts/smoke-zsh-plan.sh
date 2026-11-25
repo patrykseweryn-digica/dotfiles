@@ -25,6 +25,7 @@ cleanup() {
     rm -rf "$tmp_dir"
 }
 trap cleanup EXIT
+set_smoke_base_path "$tmp_dir"
 
 stub_dir="${tmp_dir}/stubs"
 bin_dir="${tmp_dir}/bin"
@@ -97,7 +98,7 @@ chmod +x "${stub_dir}/brew" "${stub_dir}/sudo" "${stub_dir}/curl" "${stub_dir}/m
     BIN_DIR="$bin_dir"
     # shellcheck disable=SC2034
     OPT_DIR="$opt_dir"
-    PATH="${bin_dir}:${stub_dir}:/usr/bin:/bin"
+    PATH="${bin_dir}:${stub_dir}:${SMOKE_BASE_PATH}"
 
     install_zsh >/dev/null
 

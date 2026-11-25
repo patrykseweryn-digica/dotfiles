@@ -6,7 +6,6 @@ on:
     branches: [master]
     paths-ignore:
       - "docs/**"
-      - "plans/**"
       - "**/*.md"
   schedule:
     - cron: "17 5 * * 1"
@@ -37,7 +36,7 @@ jobs:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           persist-credentials: false
-      - name: Run clean Ubuntu install, sync, and doctor
+      - name: Run clean Ubuntu install, sync, and machine
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: >-
@@ -49,7 +48,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: ${{ fromJSON(case(github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch', '["ubuntu-latest", "macos-latest"]', '["ubuntu-latest"]')) }}
+        os: >-
+          ${{ fromJSON(case(github.event_name == 'pull_request' ||
+            github.event_name == 'workflow_dispatch',
+            '["ubuntu-latest", "macos-latest"]', '["ubuntu-latest"]')) }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 15
     steps:
@@ -69,15 +71,20 @@ jobs:
       - name: Install existing check tools
         run: |
           if [ "$RUNNER_OS" = Linux ]; then
-            sudo apt-get -o Acquire::Retries=5 -o APT::Update::Error-Mode=any update
-            sudo apt-get -o Acquire::Retries=5 install -y jq just ripgrep zsh
+            sudo apt-get -o Acquire::Retries=5 -o APT::Update::Error-Mode=any \
+              update
+            sudo apt-get -o Acquire::Retries=5 install -y jq ripgrep zsh
           else
-            brew install jq just ripgrep zsh pipx
+            brew install jq ripgrep zsh pipx
           fi
           pipx install uv
           export PATH="$HOME/.local/bin:$PATH"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
           uv tool install pre-commit
+          just_version=$(jq -r '.tools[] |
+            select(.package == "rust-just") | .channel' \
+            .agents/tool-versions.json)
+          uv tool install "rust-just==$just_version"
           curl -fsSL https://herdr.dev/install.sh \
             -o "$RUNNER_TEMP/herdr-install.sh"
           sh "$RUNNER_TEMP/herdr-install.sh"
@@ -88,7 +95,7 @@ jobs:
             sudo chmod -v go-w "$directory"
           done < <(zsh -fc 'autoload -Uz compaudit; compaudit' || true)
       - name: Check repository
-        run: just check
+        run: just test
 
   upstream-skills:
     runs-on: ubuntu-latest
@@ -109,7 +116,8 @@ jobs:
           check-latest: true
       - name: Install skill preflight tools
         run: |
-          sudo apt-get -o Acquire::Retries=5 -o APT::Update::Error-Mode=any update
+          sudo apt-get -o Acquire::Retries=5 -o APT::Update::Error-Mode=any \
+            update
           sudo apt-get -o Acquire::Retries=5 install -y jq
           npm install --global skills@latest
       - name: Resolve current upstream skills

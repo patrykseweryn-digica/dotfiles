@@ -69,6 +69,7 @@ jq -e '
         "defaultModel",
         "defaultProvider",
         "defaultThinkingLevel",
+        "defaultTools",
         "hideThinkingBlock",
         "enabledModels",
         "theme",
@@ -99,12 +100,12 @@ jq -e '
 [ -L config/claude/skill-lock.json ] || fail "Claude skill lock adapter must be a symlink"
 [ "$(readlink config/claude/skill-lock.json)" = "../../.agents/skill-lock.json" ] || fail "Claude skill lock adapter points at wrong target"
 
-[ -L config/claude/skills-custom ] || fail "Claude custom skills adapter must be a symlink"
-[ "$(readlink config/claude/skills-custom)" = "../../.agents/skills-custom" ] || fail "Claude custom skills adapter points at wrong target"
+[ ! -e .agents/skills-custom ] && [ ! -L config/claude/skills-custom ] ||
+    fail "skills must come from upstream lock entries, not repository copies"
 
 if git ls-files '.agents/skills/*' ':!.agents/skills/verify-dotfiles/**' | grep -q .; then
     git ls-files '.agents/skills/*' ':!.agents/skills/verify-dotfiles/**' >&2
-    fail ".agents/skills must stay runtime-only; track lock/custom skills instead"
+    fail ".agents/skills must stay runtime-only; track skills in the lock instead"
 fi
 
 if git ls-files 'skills-lock.json' | grep -q .; then

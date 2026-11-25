@@ -17,15 +17,17 @@ fail() {
 }
 
 jq -e 'all(.tools[] | select((.scope // "agent") == "agent");
-  .channel == "latest" and (has("version") | not))' \
+  (.channel | test("^(latest|[0-9]+[.][0-9]+[.][0-9]+)$")) and
+  (has("version") | not))' \
   "$DOTFILES_DIR/.agents/tool-versions.json" >/dev/null ||
-  fail "agent tools must follow latest without version pins"
+  fail "agent tools must declare a valid release channel"
 jq -e '[.tools[] | select(.command == "codex") | .installer] ==
   ["codex-native"]' "$DOTFILES_DIR/.agents/tool-versions.json" >/dev/null ||
   fail "Codex must use OpenAI's native installer on every platform"
 
 tmp_dir="$(mktemp -d)"
 trap 'rm -rf "$tmp_dir"' EXIT
+set_smoke_base_path "$tmp_dir"
 # The machine group setting must not change fixture results.
 export DOTFILES_ENV_FILE="${tmp_dir}/all-groups.env"
 printf 'DOTFILES_GROUPS=core,agents,desktop\n' >"$DOTFILES_ENV_FILE"
@@ -221,7 +223,7 @@ export MISE_LOG="$mise_log"
 export NATIVE_LOG="$native_log"
 export REAL_JQ
 export VERSION_MARKER="${tmp_dir}/version-called"
-export PATH="${stub_dir}:/usr/bin:/bin"
+export PATH="${stub_dir}:${SMOKE_BASE_PATH}"
 
 plan="$("$AGENT_TOOLS" plan)"
 [ ! -e "$VERSION_MARKER" ] || fail "tool plan executed a CLI"
@@ -573,7 +575,7 @@ fi
 [ ! -s "$native_log" ] || fail "partial native installer ran"
 
 # A new npm declaration must install and update through mise.
-export PATH="$HOME/.local/share/mise/npm-tools/bin:${stub_dir}:${REAL_NODE_BIN}:/usr/bin:/bin"
+export PATH="$HOME/.local/share/mise/npm-tools/bin:${stub_dir}:${REAL_NODE_BIN}:${SMOKE_BASE_PATH}"
 cat >"$manifest" <<'JSON'
 {"tools":[{"name":"Fixture","command":"dotfiles-fixture",
  "package":"dotfiles-fixture","installer":"npm","channel":"latest",
@@ -638,5 +640,94 @@ fi
 grep -F "another install is on PATH: $foreign_dir/codex" \
   "${tmp_dir}/foreign-codex.log" >/dev/null ||
   fail "install did not name the foreign Codex"
+
+# Tool-sync channels run through public install, update, report and check.
+jq '{tools: [.tools[] | select(.installer == "uv" or
+  .installer == "gh-extension" or .package == "@ast-grep/cli" or
+  .package == "fallow")]}' "$DOTFILES_DIR/.agents/tool-versions.json" \
+  >"$manifest"
+export CHANNEL_LOG="$tmp_dir/channels.log"
+cat >"$stub_dir/uv" <<'STUB'
+#!/bin/bash
+set -eu
+printf 'uv %s\n' "$*" >>"$CHANNEL_LOG"
+[ "${UV_FAIL:-false}" = false ] || exit 29
+spec="${!#}"
+package="${spec%%==*}"
+while IFS=$'\t' read -r command_name version; do
+    [ "$version" != latest ] || version=4.1.4
+    printf '#!/bin/sh\necho %s\n' "$version" >"$HOME/.local/bin/$command_name"
+    chmod +x "$HOME/.local/bin/$command_name"
+done < <("$REAL_JQ" -r --arg package "$package" '
+  .tools[] | select(.package == $package) |
+  .channel as $version | (.commands // [.command])[] |
+  [., $version] | @tsv' "$AGENT_TOOL_VERSIONS")
+STUB
+cat >"$stub_dir/gh" <<'STUB'
+#!/bin/bash
+set -eu
+case "$*" in
+'dash --version')
+    [ -f "$HOME/dash-installed" ] || exit 1
+    printf 'gh-dash version dev\nmodule version: v4.26.3\n'
+    ;;
+'extension install dlvhdr/gh-dash --pin v4.26.3 --force')
+    printf 'gh %s\n' "$*" >>"$CHANNEL_LOG"
+    [ "${GH_EXTENSION_FAIL:-false}" = false ] || exit 30
+    touch "$HOME/dash-installed"
+    ;;
+*) exit 31 ;;
+esac
+STUB
+chmod +x "$stub_dir/uv" "$stub_dir/gh"
+export PATH="$HOME/.local/bin:$PATH"
+if "$AGENT_TOOLS" check >"$tmp_dir/channels-missing.log"; then
+  fail "missing tool-sync tools passed their check"
+fi
+LATEST_VERSION=0.51.3 "$AGENT_TOOLS" install
+"$AGENT_TOOLS" check
+"$AGENT_TOOLS" report >"$tmp_dir/channels-report.log"
+grep -F 'gh-dash' "$tmp_dir/channels-report.log" >/dev/null ||
+  fail "report omitted the GitHub extension"
+grep -Fx 'uv tool install rust-just==1.59.0' "$CHANNEL_LOG" >/dev/null ||
+  fail "just did not use the pinned uv channel"
+grep -Fx 'uv tool install yt-dlp==2026.10.26' "$CHANNEL_LOG" >/dev/null ||
+  fail "yt-dlp did not use the pinned uv channel"
+grep -Fx 'uv tool install cmakelang==0.6.13' "$CHANNEL_LOG" >/dev/null ||
+  fail "cmakelang did not use the pinned uv channel"
+grep -Fx 'uv tool install pylint' "$CHANNEL_LOG" >/dev/null ||
+  fail "pylint did not use uv"
+grep -Fx 'gh extension install dlvhdr/gh-dash --pin v4.26.3 --force' \
+  "$CHANNEL_LOG" >/dev/null || fail "gh-dash did not use its release pin"
+grep -Fx '"npm:@ast-grep/cli" = { version = "0.51.3", allow_builds = ["@ast-grep/cli"] }' \
+  "$mise_config" >/dev/null || fail "ast-grep native postinstall is not approved"
+for command_name in cmake-format cmake-lint cmake-annotate \
+  cmake-genparsers ctest-to pylint; do
+  command -v "$command_name" >/dev/null || fail "$command_name was not installed"
+done
+cp "$manifest" "$manifest.before"
+: >"$CHANNEL_LOG"
+LATEST_VERSION=0.51.3 "$AGENT_TOOLS" install
+if grep -q '^gh ' "$CHANNEL_LOG"; then
+  fail "current gh-dash was reinstalled"
+fi
+LATEST_VERSION=0.51.3 "$AGENT_TOOLS" update
+grep -Fx 'uv tool install --upgrade rust-just==1.59.0' "$CHANNEL_LOG" \
+  >/dev/null || fail "update did not preserve the uv release pin"
+cmp "$manifest" "$manifest.before" || fail "channel update rewrote inventory"
+if UV_FAIL=true "$AGENT_TOOLS" install >"$tmp_dir/uv-failure.log" 2>&1; then
+  fail "uv install failure was ignored"
+fi
+rm "$HOME/dash-installed"
+if GH_EXTENSION_FAIL=true "$AGENT_TOOLS" install \
+  >"$tmp_dir/gh-extension-failure.log" 2>&1; then
+  fail "GitHub extension failure was ignored"
+fi
+jq '(.tools[] | select(.installer == "gh-extension")).channel = "latest"' \
+  "$manifest" >"$tmp_dir/unpinned-extension.json"
+if AGENT_TOOL_VERSIONS="$tmp_dir/unpinned-extension.json" \
+  "$AGENT_TOOLS" plan >/dev/null 2>&1; then
+  fail "extension installer accepted an unsupported latest pin"
+fi
 
 echo "[INFO] agent tools smoke test passed"

@@ -8,6 +8,7 @@ JUST_BIN="$(command -v just)"
 UV_BIN="$(command -v uv)"
 export UV_CACHE_DIR="${UV_CACHE_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/uv}"
 export UV_PYTHON_INSTALL_DIR="${UV_PYTHON_INSTALL_DIR:-$("$UV_BIN" python dir)}"
+unset XDG_CONFIG_HOME
 
 fail() {
     echo "[ERROR] $*" >&2
@@ -16,6 +17,7 @@ fail() {
 
 tmp_dir="$(mktemp -d)"
 trap 'rm -rf "$tmp_dir"' EXIT
+set_smoke_base_path "$tmp_dir"
 # The machine group setting must not change fixture results.
 export DOTFILES_ENV_FILE="${tmp_dir}/all-groups.env"
 printf 'DOTFILES_GROUPS=core,agents,desktop\n' >"$DOTFILES_ENV_FILE"
@@ -45,7 +47,6 @@ export CLAUDE_MANIFEST="$PLUGIN_MANIFEST"
 export CODEX_PLUGIN_MANIFEST="$PLUGIN_MANIFEST"
 export SKILL_LOCK_REPO="${tmp_dir}/skills.json"
 export SKILL_LOCK_LIVE="${home_dir}/.agents/.skill-lock.json"
-export SHARED_SKILLS_CUSTOM_DIR="${tmp_dir}/custom-skills"
 export SKILLS_CLI="${stub_dir}/skills"
 export CODEX_MCP_STATE_FILE="${tmp_dir}/codex-mcp.json"
 
@@ -54,8 +55,9 @@ mkdir -p \
     "${home_dir}/.claude/skills" \
     "${home_dir}/.codex" \
     "${home_dir}/.config/opencode/skills" \
-    "${home_dir}/.pi/agent/skills" \
-    "$stub_dir" "$SHARED_SKILLS_CUSTOM_DIR"
+    "$PI_CODING_AGENT_DIR" \
+    "$stub_dir"
+ln -s "${home_dir}/.agents/skills" "$PI_SKILLS_DIR"
 ln -s "$UV_BIN" "${stub_dir}/uv"
 cp "${DOTFILES_DIR}/config/claude/settings.json" "$CLAUDE_TEMPLATE_FILE"
 cp "${DOTFILES_DIR}/config/codex/settings.toml" "$CODEX_SETTINGS_TEMPLATE"
@@ -162,7 +164,7 @@ printf '#!/bin/bash\n' >"${home_dir}/.claude/hooks/herdr-agent-state.sh"
 
 run_doctor() {
     HOME="$home_dir" \
-        PATH="${stub_dir}:/usr/bin:/bin" \
+        PATH="${stub_dir}:${SMOKE_BASE_PATH}" \
         SYNC_AGENTS="${stub_dir}/sync-agents" \
         AGENT_TOOLS="${stub_dir}/agent-tools" \
         CORE_TOOLS="${stub_dir}/core-tools" \
@@ -174,7 +176,7 @@ run_doctor() {
         NODE_TEST_VERSION="${NODE_TEST_VERSION:-}" \
         TOOL_DRIFT="${TOOL_DRIFT:-false}" \
         env -u CODEX_HOME DOTFILES_DIR="$DOTFILES_DIR" \
-        "$JUST_BIN" --justfile "${DOTFILES_DIR}/justfile" doctor \
+        "$JUST_BIN" --justfile "${DOTFILES_DIR}/justfile" machine \
         >"${tmp_dir}/doctor.log" 2>&1
 }
 
@@ -319,7 +321,7 @@ chmod +x "${stub_dir}/codex"
 printf '[]\n' >"$CODEX_MCP_STATE_FILE"
 
 sync_real() {
-    HOME="$home_dir" PATH="${stub_dir}:/usr/bin:/bin" \
+    HOME="$home_dir" PATH="${stub_dir}:${SMOKE_BASE_PATH}" \
         env -u CODEX_HOME "$DOTFILES_DIR/sync-agents.sh" "$@" \
         >"${tmp_dir}/sync.log" 2>&1
 }
@@ -333,7 +335,7 @@ done
 sync_real push-mcp || fail "prepare MCP fixture"
 
 real_plan() {
-    HOME="$home_dir" PATH="${stub_dir}:/usr/bin:/bin" \
+    HOME="$home_dir" PATH="${stub_dir}:${SMOKE_BASE_PATH}" \
         NETWORK_LOG="$network_log" \
         env -u CODEX_HOME "$DOTFILES_DIR/sync-agents.sh" --quiet state-plan \
         >"${tmp_dir}/real-plan" 2>"${tmp_dir}/real-plan.err"
@@ -415,7 +417,7 @@ mkdir -p "${home_dir}/.agents/skills/local-skill"
 printf '%s\n' '# local' >"${home_dir}/.agents/skills/local-skill/SKILL.md"
 real_plan
 grep -E '^EXPORT[[:space:]]+skills[[:space:]]' \
-    "${tmp_dir}/real-plan" >/dev/null || fail "portable skill addition is not EXPORT"
+    "${tmp_dir}/real-plan" >/dev/null || fail "local skill addition is not EXPORT"
 rm -rf "${home_dir}/.agents/skills/local-skill"
 
 cat >"$CODEX_PLUGIN_LIST_FILE" <<'JSON'

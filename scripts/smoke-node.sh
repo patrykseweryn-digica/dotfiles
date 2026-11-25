@@ -12,6 +12,7 @@ fail() {
 
 scratch=$(mktemp -d)
 trap 'rm -rf "$scratch"' EXIT
+set_smoke_base_path "$scratch"
 mkdir -p "$scratch/stubs"
 
 cat >"$scratch/mise" <<'STUB'
@@ -95,7 +96,7 @@ export NODE_TEST_MISE="$scratch/mise"
 export NODE_TEST_LOG="$scratch/actions.log"
 export NODE_TEST_LTS=26.13.0
 export EXPECTED_POLICY_FILE="$NODE_POLICY_FILE"
-export PATH="$scratch/stubs:/usr/bin:/bin"
+export PATH="$scratch/stubs:${SMOKE_BASE_PATH}"
 : >"$NODE_TEST_LOG"
 
 install_fixture_node() {

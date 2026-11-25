@@ -90,7 +90,8 @@ repos:
         name: Public install lifecycle smoke test
         description: >-
           Verify fresh, partial, converged, retry, and repeated install states
-          on the Linux/macOS matrix with external adapters stubbed
+          on Linux x86_64, plus a fresh install per other Linux/macOS fixture,
+          with external adapters stubbed
         entry: bash scripts/smoke-plugin-install.sh
         language: system
         pass_filenames: false
@@ -125,13 +126,6 @@ repos:
         name: Claude plugin sync smoke test
         description: Ensure Claude plugin update and export stay symmetric
         entry: ./scripts/smoke-claude-plugin-sync.sh
-        language: system
-        pass_filenames: false
-      - id: web-scraping-skills-smoke
-        name: Web scraping skills smoke test
-        description: >-
-          Ensure moved personal skills stay in the lock, not skills-custom
-        entry: ./scripts/smoke-web-scraping-skills.sh
         language: system
         pass_filenames: false
       - id: doctor-smoke

@@ -4,13 +4,32 @@ repo="$(cd "$(dirname "$0")/.." && pwd)"
 source "${repo}/scripts/host-tools.sh"
 task_dir="$(mktemp -d)"
 trap 'rm -rf "$task_dir"' EXIT
-mkdir -p "$task_dir/bin" "$task_dir/custom"
+mkdir -p "$task_dir/bin"
 real_git="$(command -v git)"
-jq '{skills: {
-    "control-cli": .skills["control-cli"],
-    "poteto-mode": .skills["poteto-mode"]
-}}' \
-    "$repo/.agents/skill-lock.json" > "$task_dir/lock.json"
+# Keep simulated upstream skills independent of the installed inventory.
+cat > "$task_dir/fixture-lock.json" <<'JSON'
+{
+  "skills": {
+    "control-cli": {
+      "ref": "main",
+      "skillPath": "team-kit/skills/control-cli/SKILL.md",
+      "source": "example/plugins",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/example/plugins.git"
+    },
+    "poteto-mode": {
+      "installName": "poteto-mode",
+      "ref": "main",
+      "runtimeName": "Poteto Mode",
+      "skillPath": "harness/pstack/claude-code/skills/poteto-mode/SKILL.md",
+      "source": "example/plugins",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/example/plugins.git"
+    }
+  }
+}
+JSON
+cp "$task_dir/fixture-lock.json" "$task_dir/lock.json"
 cat > "$task_dir/bin/skills" <<'STUB'
 #!/bin/bash
 set -eu
@@ -39,6 +58,9 @@ for skill in "${skills[@]}"; do
     'Second Skill')
         folder=second-skill
         ;;
+    group-*)
+        folder=$skill
+        ;;
     *)
         echo "No matching skills found for: $skill" >&2
         exit 1
@@ -49,8 +71,16 @@ for skill in "${skills[@]}"; do
         > "$HOME/.agents/skills/$folder/SKILL.md"
     # The real CLI records the upstream path it resolved in the lock.
     if [ -n "${RESOLVED_SKILL_PATH:-}" ] && [ "$folder" = poteto-mode ]; then
+        [ -f "$SKILL_LOCK_LIVE" ] || echo '{"version": 3, "skills": {}}' >"$SKILL_LOCK_LIVE"
         jq --arg path "$RESOLVED_SKILL_PATH" \
             '.skills["poteto-mode"].skillPath = $path' \
+            "$SKILL_LOCK_LIVE" >"$SKILL_LOCK_LIVE.next"
+        mv "$SKILL_LOCK_LIVE.next" "$SKILL_LOCK_LIVE"
+    fi
+    if [ -n "${SHARED_LOCK_KEY:-}" ]; then
+        [ -f "$SKILL_LOCK_LIVE" ] || echo '{"version": 3, "skills": {}}' >"$SKILL_LOCK_LIVE"
+        jq --arg key "$SHARED_LOCK_KEY" --arg skill "$skill" \
+            '.skills[$key] = {source: $skill}' \
             "$SKILL_LOCK_LIVE" >"$SKILL_LOCK_LIVE.next"
         mv "$SKILL_LOCK_LIVE.next" "$SKILL_LOCK_LIVE"
     fi
@@ -86,6 +116,7 @@ cat > "$task_dir/bin/git" <<'STUB'
 set -eu
 if [ "${1:-}" = ls-remote ]; then
     printf '%s\n' "$*" >>"$SKILL_REF_LOG"
+    [ "$2" != "${MISSING_SKILL_SOURCE:-}" ] || exit 0
     printf '%s\t%s\n' "${SKILL_SOURCE_SHA:-1111111}" "${3:-HEAD}"
     exit 0
 fi
@@ -113,19 +144,56 @@ env -u CODEX_HOME -u OPENCODE_CONFIG_DIR -u PI_CODING_AGENT_DIR \
     -u PI_SKILLS_DIR HOME="$preflight_home" \
     SKILL_LOCK_LIVE="$preflight_home/.agents/.skill-lock.json" \
     SKILL_LOCK_REPO="$task_dir/lock.json" \
-    SHARED_SKILLS_CUSTOM_DIR="$task_dir/custom" \
     PATH="$preflight_home/.local/share/mise/shims:$task_dir/bin:$PATH" \
     SKILLS_CLI=skills REAL_SKILLS="$task_dir/bin/skills" \
     SKILL_TEST_LOG="$task_dir/preflight-calls" \
-    "$repo/sync-agents.sh" skills-preflight >"$task_dir/preflight-output" 2>&1
+    "$repo/sync-agents.sh" skills-preflight >"$task_dir/preflight-output" 2>&1 || {
+    cat "$task_dir/preflight-output" >&2
+    exit 1
+}
 test ! -e "$preflight_home/.agents"
-tree='https://github.com/cursor/plugins/tree/main'
+tree='https://github.com/example/plugins/tree/main'
 rg -qxF \
-    "add -g $tree/cursor-team-kit --skill control-cli --agent codex -y --full-depth" \
+    "add -g $tree/team-kit --skill control-cli --agent codex -y --full-depth" \
     "$task_dir/preflight-calls"
 rg -qxF \
     "add -g $tree/harness/pstack/claude-code --skill poteto-mode --agent codex -y --full-depth" \
     "$task_dir/preflight-calls"
+
+# More source groups than parallel lanes all stage and join.
+jq -n '{skills: ([range(1; 7)] | map({
+    key: "group-\(.)",
+    value: {ref: "main", skillPath: "pkg\(.)/skills/group-\(.)/SKILL.md",
+        source: "example/plugins", sourceType: "github",
+        sourceUrl: "https://github.com/example/plugins.git"}
+}) | from_entries)}' >"$task_dir/lanes-lock.json"
+env -u CODEX_HOME -u OPENCODE_CONFIG_DIR -u PI_CODING_AGENT_DIR \
+    -u PI_SKILLS_DIR HOME="$preflight_home" \
+    SKILL_LOCK_LIVE="$preflight_home/.agents/.skill-lock.json" \
+    SKILL_LOCK_REPO="$task_dir/lanes-lock.json" \
+    PATH="$task_dir/bin:$PATH" SKILLS_CLI="$task_dir/bin/skills" \
+    SKILL_TEST_LOG="$task_dir/lanes-calls" \
+    "$repo/sync-agents.sh" skills-preflight >"$task_dir/lanes-output" 2>&1 || {
+    cat "$task_dir/lanes-output" >&2
+    exit 1
+}
+[ "$(wc -l <"$task_dir/lanes-calls" | tr -d ' ')" = 6 ]
+test ! -e "$preflight_home/.agents"
+
+# Two source groups must not write one lock entry.
+if env -u CODEX_HOME -u OPENCODE_CONFIG_DIR -u PI_CODING_AGENT_DIR \
+    -u PI_SKILLS_DIR HOME="$preflight_home" \
+    SKILL_LOCK_LIVE="$preflight_home/.agents/.skill-lock.json" \
+    SKILL_LOCK_REPO="$task_dir/lock.json" \
+    PATH="$task_dir/bin:$PATH" SKILLS_CLI="$task_dir/bin/skills" \
+    SKILL_TEST_LOG="$task_dir/shared-calls" SHARED_LOCK_KEY=shared \
+    "$repo/sync-agents.sh" skills-preflight >"$task_dir/shared-output" 2>&1; then
+    echo 'Shared lock entry passed' >&2
+    exit 1
+fi
+rg -qF 'Skill lock entries staged by more than one source: shared' \
+    "$task_dir/shared-output"
+test ! -e "$preflight_home/.agents"
 
 multi_home="$task_dir/multi failure home"
 mkdir -p "$multi_home/.agents/skills/preserve"
@@ -140,7 +208,6 @@ if env -u CODEX_HOME -u OPENCODE_CONFIG_DIR -u PI_CODING_AGENT_DIR \
     -u PI_SKILLS_DIR HOME="$multi_home" \
     SKILL_LOCK_LIVE="$multi_home/.agents/.skill-lock.json" \
     SKILL_LOCK_REPO="$task_dir/multi-lock.json" \
-    SHARED_SKILLS_CUSTOM_DIR="$task_dir/custom" \
     PATH="$task_dir/bin:$PATH" SKILLS_CLI="$task_dir/bin/skills" \
     SKILL_TEST_LOG="$task_dir/multi-calls" \
     "$repo/sync-agents.sh" push-skills >"$task_dir/multi-output" 2>&1; then
@@ -161,7 +228,6 @@ if env -u CODEX_HOME -u OPENCODE_CONFIG_DIR -u PI_CODING_AGENT_DIR \
     -u PI_SKILLS_DIR HOME="$extra_home" \
     SKILL_LOCK_LIVE="$extra_home/.agents/.skill-lock.json" \
     SKILL_LOCK_REPO="$task_dir/lock.json" \
-    SHARED_SKILLS_CUSTOM_DIR="$task_dir/custom" \
     PATH="$task_dir/bin:$PATH" SKILLS_CLI="$task_dir/bin/skills" \
     SKILL_TEST_LOG="$task_dir/extra-calls" INSTALL_EXTRA=true \
     "$repo/sync-agents.sh" push-skills >"$task_dir/extra-output" 2>&1; then
@@ -181,7 +247,6 @@ if env -u CODEX_HOME -u OPENCODE_CONFIG_DIR -u PI_CODING_AGENT_DIR \
     -u PI_SKILLS_DIR HOME="$variant_home" \
     SKILL_LOCK_LIVE="$variant_home/.agents/.skill-lock.json" \
     SKILL_LOCK_REPO="$task_dir/lock.json" \
-    SHARED_SKILLS_CUSTOM_DIR="$task_dir/custom" \
     PATH="$task_dir/bin:$PATH" SKILLS_CLI="$task_dir/bin/skills" \
     SKILL_TEST_LOG="$task_dir/variant-calls" \
     RESOLVED_SKILL_PATH="$other_path" \
@@ -196,8 +261,8 @@ rg -q '^preserve me$' "$variant_home/.agents/skills/preserve/SKILL.md"
 test ! -e "$variant_home/.agents/.skill-lock.json"
 
 for state in empty partial complete broken alias no_url apply_failure rollback_failure backup_collision; do
-    jq '{skills: {"poteto-mode": .skills["poteto-mode"]}}' \
-        "$repo/.agents/skill-lock.json" > "$task_dir/lock.json"
+    jq 'del(.skills["control-cli"])' \
+        "$task_dir/fixture-lock.json" > "$task_dir/lock.json"
     if [ "$state" = no_url ]; then
         jq 'del(.skills["poteto-mode"].sourceUrl)' "$task_dir/lock.json" > "$task_dir/lock.next"
         mv "$task_dir/lock.next" "$task_dir/lock.json"
@@ -231,10 +296,8 @@ for state in empty partial complete broken alias no_url apply_failure rollback_f
         done
     fi
     if [ "$state" = backup_collision ]; then
-        mkdir -p "$task_dir/custom/local-skill" "$task_dir/old-skill" \
-            "$task_home/.config/opencode/skills"
-        printf '%s\n' '---' 'name: local-skill' '---' > "$task_dir/custom/local-skill/SKILL.md"
-        cp "$task_dir/custom/local-skill/SKILL.md" "$task_dir/old-skill/SKILL.md"
+        mkdir -p "$task_dir/old-skill" "$task_home/.config/opencode/skills"
+        printf '%s\n' '---' 'name: local-skill' '---' > "$task_dir/old-skill/SKILL.md"
         ln -s "$task_dir/old-skill" "$task_home/.claude/skills/local-skill"
         ln -s "$task_home/.claude/skills/local-skill" "$task_home/.agents/skills/local-skill"
         ln -s "$task_home/.claude/skills/local-skill" "$task_home/.config/opencode/skills/local-skill"
@@ -246,25 +309,26 @@ for state in empty partial complete broken alias no_url apply_failure rollback_f
             -u PI_SKILLS_DIR HOME="$task_home" \
             SKILL_LOCK_LIVE="$task_home/.agents/.skill-lock.json" \
             SKILL_LOCK_REPO="$task_dir/lock.json" \
-            SHARED_SKILLS_CUSTOM_DIR="$task_dir/custom" \
             PATH="$task_dir/bin:$PATH" SKILLS_CLI="$task_dir/bin/skills" SKILL_TEST_LOG="$task_dir/calls" \
             "$repo/sync-agents.sh" push-skills > "$task_dir/output" 2>&1
     }
     if [ "$state" = broken ]; then
         if FAIL_SKILL=true run_sync; then echo 'Failed download passed' >&2; exit 1; fi
         rg -q 'download interrupted' "$task_dir/output"
-        rg -q 'poteto-mode.*cursor/plugins' "$task_dir/output"
+        rg -q 'poteto-mode.*example/plugins' "$task_dir/output"
         test -L "$task_home/.agents/skills/poteto-mode"
         [ "$(readlink "$task_home/.agents/skills/poteto-mode")" = "$task_dir/missing" ]
         test ! -e "$task_home/.agents/.skill-lock.json"
     fi
     if [ "$state" = apply_failure ]; then
-        if FAIL_APPLY_TARGET="$task_home/.claude/skills" \
+        # Fail after the Pi directory has been replaced by a link.
+        if FAIL_APPLY_TARGET="$task_home/.agents/docs" \
             FAIL_APPLY_MARKER="$task_dir/apply-failed" run_sync; then
             echo 'Failed apply passed' >&2
             exit 1
         fi
         rg -q 'apply failed' "$task_dir/output"
+        test ! -L "$task_home/.pi/agent/skills"
         for root in .agents/skills .claude/skills .config/opencode/skills .pi/agent/skills; do
             test -f "$task_home/$root/poteto-mode/preserve-me"
             rg -q '^version: original$' "$task_home/$root/poteto-mode/SKILL.md"
@@ -334,9 +398,8 @@ run_update() {
     env -u CODEX_HOME -u OPENCODE_CONFIG_DIR -u PI_CODING_AGENT_DIR \
         -u PI_SKILLS_DIR HOME="$update_home" \
         SKILL_LOCK_LIVE="$update_home/.agents/.skill-lock.json" \
-        SKILL_LOCK_REPO="$task_dir/lock.json" \
+        SKILL_LOCK_REPO="${UPDATE_LOCK:-$task_dir/lock.json}" \
         SKILL_SOURCE_REFS="$update_refs" \
-        SHARED_SKILLS_CUSTOM_DIR="$task_dir/custom" \
         PATH="$task_dir/bin:$PATH" SKILLS_CLI="$task_dir/bin/skills" \
         SKILL_TEST_LOG="$update_calls" SKILL_REF_LOG="$ref_calls" \
         "$repo/sync-agents.sh" skills-update \
@@ -351,5 +414,164 @@ run_update
 [ "$(wc -l <"$ref_calls" | tr -d ' ')" = 2 ]
 SKILL_SOURCE_SHA=2222222 run_update
 [ "$(wc -l <"$update_calls" | tr -d ' ')" = 2 ]
+
+# One missing ref in a batch must not publish a partial cache or start staging.
+missing_source=https://github.com/example/missing.git
+jq --arg source "$missing_source" '
+    .skills["control-cli"] |= (.source = "example/missing" | .sourceUrl = $source)
+' "$task_dir/fixture-lock.json" >"$task_dir/two-sources.json"
+cp "$update_refs" "$task_dir/refs-before-failure.json"
+: >"$ref_calls"
+if UPDATE_LOCK="$task_dir/two-sources.json" MISSING_SKILL_SOURCE="$missing_source" run_update; then
+    echo 'Skills update accepted a missing ref' >&2
+    exit 1
+fi
+rg -qF "Skill source ref not found: $missing_source main" "$task_dir/update-output"
+[ "$(wc -l <"$ref_calls" | tr -d ' ')" = 2 ]
+[ "$(wc -l <"$update_calls" | tr -d ' ')" = 2 ]
+cmp "$task_dir/refs-before-failure.json" "$update_refs"
+
+# External removal of a shared skill must not leave a per-skill link in Pi.
+rm -r "$update_home/.agents/skills/poteto-mode"
+if [ -L "$update_home/.pi/agent/skills/poteto-mode" ]; then
+    echo 'Removing a shared skill left a dangling link in Pi' >&2
+    exit 1
+fi
+test "$(readlink "$update_home/.pi/agent/skills")" = "$update_home/.agents/skills"
+
+# Drive the public sync across a real Git fast-forward with installed skills.
+# Only unrelated plan/refresh categories and external skill downloads are stubbed.
+(
+    # shellcheck disable=SC2046
+    unset $(git -C "$repo" rev-parse --local-env-vars)
+    publisher="$task_dir/publisher"
+    client="$task_dir/client"
+    home="$task_dir/upgrade-home"
+    mkdir -p "$publisher/.agents" "$home"
+    git -C "$publisher" init -q -b master
+    git -C "$publisher" config user.name 'Smoke Test'
+    git -C "$publisher" config user.email smoke@example.invalid
+    ln -s "$repo/sync-agents.sh" "$publisher/sync-agents.sh"
+    ln -s "$repo/scripts" "$publisher/scripts"
+    ln -s "$repo/config" "$publisher/config"
+    for file in AGENTS.md mcp-servers.json plugin-manifest.json; do
+        ln -s "$repo/.agents/$file" "$publisher/.agents/$file"
+    done
+    lock='.agents/skill-lock.json'
+    cp "$task_dir/fixture-lock.json" "$publisher/$lock"
+    git -C "$publisher" add .
+    git -C "$publisher" commit -qm 'test: manage two skills'
+    git clone -q "$publisher" "$client"
+
+    printf 'DOTFILES_GROUPS=core,agents\n' >"$task_dir/groups.env"
+    printf 'activate_node() { :; }\n' >"$task_dir/upgrade-install.sh"
+    printf '#!/bin/bash\nexit 0\n' >"$task_dir/upgrade-tools"
+    cat >"$task_dir/upgrade-plan" <<'STUB'
+#!/bin/bash
+set -eo pipefail
+"$DOTFILES_DIR/sync-agents.sh" --quiet state-plan 2>/dev/null |
+    awk -F '\t' '$2 == "skills"'
+STUB
+    cat >"$task_dir/upgrade-agents" <<'STUB'
+#!/bin/bash
+case "$1" in
+pi-packages-update | plugins-update) exit 0 ;;
+*) exec "$DOTFILES_DIR/sync-agents.sh" "$@" ;;
+esac
+STUB
+    chmod +x "$task_dir/upgrade-plan" "$task_dir/upgrade-agents" \
+        "$task_dir/upgrade-tools"
+
+    unset CODEX_HOME OPENCODE_CONFIG_DIR PI_CODING_AGENT_DIR PI_SKILLS_DIR \
+        SKILL_LOCK_REPO SKILL_LOCK_LIVE SKILL_SOURCE_REFS
+    export HOME="$home" PATH="$task_dir/bin:$PATH" DOTFILES_DIR="$client"
+    export DOTFILES_ENV_FILE="$task_dir/groups.env"
+    export SKILLS_CLI="$task_dir/bin/skills" SKILL_TEST_LOG="$task_dir/upgrade-calls"
+    export SKILL_REF_LOG="$task_dir/upgrade-refs" SKILL_SOURCE_SHA=1111111
+    export STATE_PLAN="$task_dir/upgrade-plan" SYNC_AGENTS="$task_dir/upgrade-agents"
+    export AGENT_TOOLS="$task_dir/upgrade-tools" CORE_TOOLS="$task_dir/upgrade-tools"
+    export INSTALL_SCRIPT="$task_dir/upgrade-install.sh"
+    unset UPDATE_SCRIPT
+    run_upgrade() {
+        just --justfile "$repo/justfile" sync >"$task_dir/upgrade.log" 2>&1
+    }
+    expect_upgrade() {
+        grep -F -- "$1" "$task_dir/upgrade.log" >/dev/null || {
+            cat "$task_dir/upgrade.log" >&2
+            echo "Missing sync result: $1" >&2
+            exit 1
+        }
+    }
+
+    "$client/sync-agents.sh" skills-update >"$task_dir/seed.log" 2>&1
+    test -f "$home/.agents/skills/control-cli/SKILL.md"
+    applied="$home/.agents/.dotfiles-applied-skill-lock.json"
+    refs="$home/.agents/.skill-source-refs.json"
+    live="$home/.agents/.skill-lock.json"
+    # Before this fix, only the hash from the last successful sync was tracked.
+    mv "$applied" "$task_dir/old-applied"
+    mv "$refs" "$task_dir/old-refs"
+    jq 'del(.skills["control-cli"])' "$publisher/$lock" >"$task_dir/next-lock"
+    cp "$task_dir/next-lock" "$publisher/$lock"
+    git -C "$publisher" commit -qam 'test: retire control-cli'
+
+    expect_export() {
+        if run_upgrade; then
+            echo 'Sync accepted unknown local skill state' >&2
+            exit 1
+        fi
+        expect_upgrade '[RESULT] EXPORT'
+        test -f "$home/.agents/skills/control-cli/SKILL.md"
+        test ! -s "$SKILL_TEST_LOG"
+    }
+    : >"$SKILL_TEST_LOG"
+    expect_export  # No trustworthy baseline yet, even after the pull.
+    cp "$task_dir/old-refs" "$refs"
+
+    local_skill="$home/.claude/skills/local-skill"
+    mkdir "$local_skill"
+    printf '%s\n' '# local skill' >"$local_skill/SKILL.md"
+    expect_export
+    test -f "$local_skill/SKILL.md"
+    rm -r "$local_skill"
+
+    # A local replacement by the same name is not the retired managed skill.
+    cp "$live" "$task_dir/live-before"
+    jq '.skills["control-cli"].sourceUrl = "https://github.com/example/replacement"' \
+        "$live" >"$task_dir/live-modified"
+    cp "$task_dir/live-modified" "$live"
+    expect_export
+    cmp "$task_dir/live-modified" "$live"
+    cp "$task_dir/live-before" "$live"
+
+    # A successful checkout update followed by a failed skill swap is retryable.
+    if FAIL_APPLY_TARGET="$applied" FAIL_APPLY_MARKER="$task_dir/upgrade-failed" run_upgrade; then
+        echo 'Failed skill swap passed sync' >&2
+        exit 1
+    fi
+    expect_upgrade '[RESULT] FAIL'
+    test -f "$task_dir/upgrade-failed"
+    test -f "$home/.agents/skills/control-cli/SKILL.md"
+    test ! -e "$applied"
+    cmp "$task_dir/old-refs" "$refs"
+    cmp "$task_dir/live-before" "$live"
+    cmp "$client/$lock" "$publisher/$lock"
+
+    run_upgrade || { cat "$task_dir/upgrade.log" >&2; exit 1; }
+    expect_upgrade '[RESULT] PASS'
+    for root in .agents/skills .claude/skills .config/opencode/skills .pi/agent/skills; do
+        test ! -e "$home/$root/control-cli"
+        test ! -L "$home/$root/control-cli"
+        test -f "$home/$root/poteto-mode/SKILL.md"
+    done
+
+    # Future upgrades do not depend on the old Git blob hash cache.
+    rm "$refs"
+    printf '{"skills":{}}\n' >"$publisher/$lock"
+    git -C "$publisher" commit -qam 'test: retire the last skill'
+    run_upgrade || { cat "$task_dir/upgrade.log" >&2; exit 1; }
+    expect_upgrade '[RESULT] PASS'
+    test ! -e "$home/.agents/skills/poteto-mode"
+)
 
 echo '[INFO] Skill install smoke test passed'

@@ -15,12 +15,6 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/getagentseal/founder-playbook.git"
     },
-    "anki-flashcards": {
-      "skillPath": "skills/learning/anki-flashcards/SKILL.md",
-      "source": "p-severin/skills",
-      "sourceType": "github",
-      "sourceUrl": "https://github.com/p-severin/skills.git"
-    },
     "apple-design": {
       "skillPath": "skills/apple-design/SKILL.md",
       "source": "emilkowalski/skills",
@@ -41,6 +35,12 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/cursor/plugins.git"
     },
+    "ask-matt": {
+      "skillPath": "skills/engineering/ask-matt/SKILL.md",
+      "source": "mattpocock/skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/mattpocock/skills.git"
+    },
     "blast-radius": {
       "ref": "main",
       "skillPath": "harness/pstack/claude-code/skills/blast-radius/SKILL.md",
@@ -48,23 +48,35 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/cursor/plugins.git"
     },
-    "blue-ocean-strategy": {
-      "skillPath": "skills/blue-ocean-strategy/SKILL.md",
-      "source": "getagentseal/founder-playbook",
-      "sourceType": "github",
-      "sourceUrl": "https://github.com/getagentseal/founder-playbook.git"
-    },
     "browser-use": {
       "skillPath": "skills/browser-use/SKILL.md",
       "source": "steipete/agent-scripts",
       "sourceType": "github",
       "sourceUrl": "https://github.com/steipete/agent-scripts.git"
     },
+    "build-iterated-agentic-loop": {
+      "skillPath": "plugins/build-iterated-agentic-loop/skills/build-iterated-agentic-loop/SKILL.md",
+      "source": "humanlayer/skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/humanlayer/skills.git"
+    },
     "building-pydantic-ai-agents": {
       "skillPath": "skills/building-pydantic-ai-agents/SKILL.md",
       "source": "pydantic/skills",
       "sourceType": "github",
       "sourceUrl": "https://github.com/pydantic/skills.git"
+    },
+    "chief-of-staff": {
+      "skillPath": "skills/in-progress/chief-of-staff/SKILL.md",
+      "source": "mattpocock/skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/mattpocock/skills.git"
+    },
+    "cloudflare-registrar": {
+      "skillPath": "skills/cloudflare-registrar/SKILL.md",
+      "source": "steipete/agent-scripts",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/steipete/agent-scripts.git"
     },
     "code-review": {
       "skillPath": "skills/engineering/code-review/SKILL.md",
@@ -78,25 +90,12 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/mattpocock/skills.git"
     },
-    "control-cli": {
-      "ref": "main",
-      "skillPath": "cursor-team-kit/skills/control-cli/SKILL.md",
-      "source": "cursor/plugins",
-      "sourceType": "github",
-      "sourceUrl": "https://github.com/cursor/plugins.git"
-    },
     "correct": {
       "ref": "main",
       "skillPath": "harness/pstack/claude-code/skills/correct/SKILL.md",
       "source": "cursor/plugins",
       "sourceType": "github",
       "sourceUrl": "https://github.com/cursor/plugins.git"
-    },
-    "crawlee-build": {
-      "skillPath": "skills/scraping/crawlee-build/SKILL.md",
-      "source": "p-severin/skills",
-      "sourceType": "github",
-      "sourceUrl": "https://github.com/p-severin/skills.git"
     },
     "create-cli": {
       "skillPath": "skills/create-cli/SKILL.md",
@@ -118,24 +117,11 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/cursor/plugins.git"
     },
-    "crossing-the-chasm": {
-      "skillPath": "skills/crossing-the-chasm/SKILL.md",
-      "source": "getagentseal/founder-playbook",
+    "design-control-loop": {
+      "skillPath": "plugins/design-control-loop/skills/design-control-loop/SKILL.md",
+      "source": "humanlayer/skills",
       "sourceType": "github",
-      "sourceUrl": "https://github.com/getagentseal/founder-playbook.git"
-    },
-    "deslop": {
-      "ref": "main",
-      "skillPath": "cursor-team-kit/skills/deslop/SKILL.md",
-      "source": "cursor/plugins",
-      "sourceType": "github",
-      "sourceUrl": "https://github.com/cursor/plugins.git"
-    },
-    "diagnose": {
-      "skillPath": "skills/diagnose/SKILL.md",
-      "source": "getagentseal/founder-playbook",
-      "sourceType": "github",
-      "sourceUrl": "https://github.com/getagentseal/founder-playbook.git"
+      "sourceUrl": "https://github.com/humanlayer/skills.git"
     },
     "diagnosing-bugs": {
       "skillPath": "skills/engineering/diagnosing-bugs/SKILL.md",
@@ -167,37 +153,17 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/emilkowalski/skills.git"
     },
+    "find-docs": {
+      "skillPath": "skills/find-docs/SKILL.md",
+      "source": "upstash/context7",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/upstash/context7.git"
+    },
     "find-skills": {
       "skillPath": "skills/find-skills/SKILL.md",
       "source": "vercel-labs/skills",
       "sourceType": "github",
       "sourceUrl": "https://github.com/vercel-labs/skills.git"
-    },
-    "fix-ci": {
-      "ref": "main",
-      "skillPath": "cursor-team-kit/skills/fix-ci/SKILL.md",
-      "source": "cursor/plugins",
-      "sourceType": "github",
-      "sourceUrl": "https://github.com/cursor/plugins.git"
-    },
-    "fix-merge-conflicts": {
-      "ref": "main",
-      "skillPath": "cursor-team-kit/skills/fix-merge-conflicts/SKILL.md",
-      "source": "cursor/plugins",
-      "sourceType": "github",
-      "sourceUrl": "https://github.com/cursor/plugins.git"
-    },
-    "four-steps": {
-      "skillPath": "skills/four-steps/SKILL.md",
-      "source": "getagentseal/founder-playbook",
-      "sourceType": "github",
-      "sourceUrl": "https://github.com/getagentseal/founder-playbook.git"
-    },
-    "github-deep-review": {
-      "skillPath": "skills/github-deep-review/SKILL.md",
-      "source": "steipete/agent-scripts",
-      "sourceType": "github",
-      "sourceUrl": "https://github.com/steipete/agent-scripts.git"
     },
     "grill-me": {
       "skillPath": "skills/productivity/grill-me/SKILL.md",
@@ -217,47 +183,11 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/mattpocock/skills.git"
     },
-    "gws-calendar": {
-      "skillPath": "skills/gws-calendar/SKILL.md",
-      "source": "googleworkspace/cli",
-      "sourceType": "github",
-      "sourceUrl": "https://github.com/googleworkspace/cli.git"
-    },
-    "gws-drive": {
-      "skillPath": "skills/gws-drive/SKILL.md",
-      "source": "googleworkspace/cli",
-      "sourceType": "github",
-      "sourceUrl": "https://github.com/googleworkspace/cli.git"
-    },
-    "gws-gmail": {
-      "skillPath": "skills/gws-gmail/SKILL.md",
-      "source": "googleworkspace/cli",
-      "sourceType": "github",
-      "sourceUrl": "https://github.com/googleworkspace/cli.git"
-    },
-    "handoff": {
-      "skillPath": "skills/productivity/handoff/SKILL.md",
-      "source": "mattpocock/skills",
-      "sourceType": "github",
-      "sourceUrl": "https://github.com/mattpocock/skills.git"
-    },
     "headless": {
       "skillPath": "skills/headless/SKILL.md",
       "source": "kunchenguid/headless",
       "sourceType": "github",
       "sourceUrl": "https://github.com/kunchenguid/headless.git"
-    },
-    "hook-setup": {
-      "skillPath": "skills/engineering/hook-setup/SKILL.md",
-      "source": "p-severin/skills",
-      "sourceType": "github",
-      "sourceUrl": "https://github.com/p-severin/skills.git"
-    },
-    "i-have-adhd": {
-      "skillPath": "skills/i-have-adhd/SKILL.md",
-      "source": "ayghri/i-have-adhd",
-      "sourceType": "github",
-      "sourceUrl": "https://github.com/ayghri/i-have-adhd.git"
     },
     "implement": {
       "skillPath": "skills/engineering/implement/SKILL.md",
@@ -265,11 +195,17 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/mattpocock/skills.git"
     },
-    "improve": {
-      "skillPath": "skills/improve/SKILL.md",
-      "source": "shadcn/improve",
+    "implement-spec": {
+      "skillPath": "skills/engineering/implement-spec/SKILL.md",
+      "source": "mattpocock/skills",
       "sourceType": "github",
-      "sourceUrl": "https://github.com/shadcn/improve.git"
+      "sourceUrl": "https://github.com/mattpocock/skills.git"
+    },
+    "improve-claude-md": {
+      "skillPath": "plugins/improve-claude-md/skills/improve-claude-md/SKILL.md",
+      "source": "humanlayer/skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/humanlayer/skills.git"
     },
     "improve-codebase-architecture": {
       "skillPath": "skills/engineering/improve-codebase-architecture/SKILL.md",
@@ -284,18 +220,6 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/cursor/plugins.git"
     },
-    "influence": {
-      "skillPath": "skills/influence/SKILL.md",
-      "source": "getagentseal/founder-playbook",
-      "sourceType": "github",
-      "sourceUrl": "https://github.com/getagentseal/founder-playbook.git"
-    },
-    "install-anti-slop": {
-      "skillPath": "skills/install-anti-slop/SKILL.md",
-      "source": "dmmulroy/anti-slop",
-      "sourceType": "github",
-      "sourceUrl": "https://github.com/dmmulroy/anti-slop.git"
-    },
     "kolbs-reflection": {
       "skillPath": "skills/learning/kolbs-reflection/SKILL.md",
       "source": "p-severin/skills",
@@ -308,11 +232,11 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/kunchenguid/kun.git"
     },
-    "lean-startup": {
-      "skillPath": "skills/lean-startup/SKILL.md",
-      "source": "getagentseal/founder-playbook",
+    "last30days": {
+      "skillPath": "skills/last30days/SKILL.md",
+      "source": "mvanhorn/last30days-skill",
       "sourceType": "github",
-      "sourceUrl": "https://github.com/getagentseal/founder-playbook.git"
+      "sourceUrl": "https://github.com/mvanhorn/last30days-skill.git"
     },
     "logfire-instrumentation": {
       "skillPath": "skills/logfire-instrumentation/SKILL.md",
@@ -326,11 +250,11 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/pydantic/skills.git"
     },
-    "made-to-stick": {
-      "skillPath": "skills/made-to-stick/SKILL.md",
-      "source": "getagentseal/founder-playbook",
+    "loop-me": {
+      "skillPath": "skills/in-progress/loop-me/SKILL.md",
+      "source": "mattpocock/skills",
       "sourceType": "github",
-      "sourceUrl": "https://github.com/getagentseal/founder-playbook.git"
+      "sourceUrl": "https://github.com/mattpocock/skills.git"
     },
     "maintain-formal-verification-skill": {
       "ref": "main",
@@ -345,12 +269,6 @@
       "source": "cursor/plugins",
       "sourceType": "github",
       "sourceUrl": "https://github.com/cursor/plugins.git"
-    },
-    "mlflow-analyzer": {
-      "skillPath": "skills/engineering/mlflow-analyzer/SKILL.md",
-      "source": "p-severin/skills",
-      "sourceType": "github",
-      "sourceUrl": "https://github.com/p-severin/skills.git"
     },
     "mlflow-docs": {
       "skillPath": "mlflow-docs/SKILL.md",
@@ -406,12 +324,6 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/getagentseal/founder-playbook.git"
     },
-    "monetizing-innovation": {
-      "skillPath": "skills/monetizing-innovation/SKILL.md",
-      "source": "getagentseal/founder-playbook",
-      "sourceType": "github",
-      "sourceUrl": "https://github.com/getagentseal/founder-playbook.git"
-    },
     "money-models": {
       "skillPath": "skills/money-models/SKILL.md",
       "source": "getagentseal/founder-playbook",
@@ -425,17 +337,11 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/cursor/plugins.git"
     },
-    "obsidian-notes": {
-      "skillPath": "skills/productivity/obsidian-notes/SKILL.md",
-      "source": "p-severin/skills",
+    "no-mistakes": {
+      "skillPath": "skills/no-mistakes/SKILL.md",
+      "source": "kunchenguid/no-mistakes",
       "sourceType": "github",
-      "sourceUrl": "https://github.com/p-severin/skills.git"
-    },
-    "obviously-awesome": {
-      "skillPath": "skills/obviously-awesome/SKILL.md",
-      "source": "getagentseal/founder-playbook",
-      "sourceType": "github",
-      "sourceUrl": "https://github.com/getagentseal/founder-playbook.git"
+      "sourceUrl": "https://github.com/kunchenguid/no-mistakes.git"
     },
     "pick-ui-library": {
       "skillPath": "skills/pick-ui-library/SKILL.md",
@@ -464,6 +370,12 @@
       "source": "cursor/plugins",
       "sourceType": "github",
       "sourceUrl": "https://github.com/cursor/plugins.git"
+    },
+    "pr": {
+      "skillPath": "skills/engineering/pr/SKILL.md",
+      "source": "mattpocock/skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/mattpocock/skills.git"
     },
     "principle-attack-the-premise": {
       "ref": "main",
@@ -633,12 +545,6 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/cursor/plugins.git"
     },
-    "project-statement": {
-      "skillPath": "skills/engineering/project-statement/SKILL.md",
-      "source": "p-severin/skills",
-      "sourceType": "github",
-      "sourceUrl": "https://github.com/p-severin/skills.git"
-    },
     "prototype": {
       "skillPath": "skills/engineering/prototype/SKILL.md",
       "source": "mattpocock/skills",
@@ -651,12 +557,11 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/mattpocock/skills.git"
     },
-    "review-and-ship": {
-      "ref": "main",
-      "skillPath": "cursor-team-kit/skills/review-and-ship/SKILL.md",
-      "source": "cursor/plugins",
+    "retro": {
+      "skillPath": "skills/engineering/retro/SKILL.md",
+      "source": "mattpocock/skills",
       "sourceType": "github",
-      "sourceUrl": "https://github.com/cursor/plugins.git"
+      "sourceUrl": "https://github.com/mattpocock/skills.git"
     },
     "scrapy-build": {
       "skillPath": "skills/scraping/scrapy-build/SKILL.md",
@@ -672,6 +577,25 @@
     },
     "setup-matt-pocock-skills": {
       "skillPath": "skills/engineering/setup-matt-pocock-skills/SKILL.md",
+      "source": "mattpocock/skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/mattpocock/skills.git"
+    },
+    "setup-pre-commit": {
+      "skillPath": "skills/misc/setup-pre-commit/SKILL.md",
+      "source": "mattpocock/skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/mattpocock/skills.git"
+    },
+    "setup-pstack": {
+      "ref": "main",
+      "skillPath": "harness/pstack/claude-code/skills/setup-pstack/SKILL.md",
+      "source": "cursor/plugins",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/cursor/plugins.git"
+    },
+    "setup-ts-deep-modules": {
+      "skillPath": "skills/in-progress/setup-ts-deep-modules/SKILL.md",
       "source": "mattpocock/skills",
       "sourceType": "github",
       "sourceUrl": "https://github.com/mattpocock/skills.git"
@@ -701,11 +625,11 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/steipete/agent-scripts.git"
     },
-    "spin-selling": {
-      "skillPath": "skills/spin-selling/SKILL.md",
-      "source": "getagentseal/founder-playbook",
+    "software-factory": {
+      "skillPath": "skills/in-progress/software-factory/SKILL.md",
+      "source": "mattpocock/skills",
       "sourceType": "github",
-      "sourceUrl": "https://github.com/getagentseal/founder-playbook.git"
+      "sourceUrl": "https://github.com/mattpocock/skills.git"
     },
     "ssh-doctor": {
       "skillPath": "skills/ssh-doctor/SKILL.md",
@@ -720,12 +644,6 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/cursor/plugins.git"
     },
-    "storybrand": {
-      "skillPath": "skills/storybrand/SKILL.md",
-      "source": "getagentseal/founder-playbook",
-      "sourceType": "github",
-      "sourceUrl": "https://github.com/getagentseal/founder-playbook.git"
-    },
     "swarm": {
       "ref": "main",
       "skillPath": "harness/pstack/claude-code/skills/swarm/SKILL.md",
@@ -738,20 +656,6 @@
       "source": "mattpocock/skills",
       "sourceType": "github",
       "sourceUrl": "https://github.com/mattpocock/skills.git"
-    },
-    "teach": {
-      "ref": "main",
-      "skillPath": "harness/pstack/claude-code/skills/teach/SKILL.md",
-      "source": "cursor/plugins",
-      "sourceType": "github",
-      "sourceUrl": "https://github.com/cursor/plugins.git"
-    },
-    "thermo-nuclear-code-quality-review": {
-      "ref": "main",
-      "skillPath": "cursor-team-kit/skills/thermo-nuclear-code-quality-review/SKILL.md",
-      "source": "cursor/plugins",
-      "sourceType": "github",
-      "sourceUrl": "https://github.com/cursor/plugins.git"
     },
     "to-questionnaire": {
       "skillPath": "skills/productivity/to-questionnaire/SKILL.md",
@@ -771,28 +675,22 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/mattpocock/skills.git"
     },
-    "traction": {
-      "skillPath": "skills/traction/SKILL.md",
-      "source": "getagentseal/founder-playbook",
-      "sourceType": "github",
-      "sourceUrl": "https://github.com/getagentseal/founder-playbook.git"
-    },
     "triage": {
       "skillPath": "skills/engineering/triage/SKILL.md",
       "source": "mattpocock/skills",
       "sourceType": "github",
       "sourceUrl": "https://github.com/mattpocock/skills.git"
     },
-    "unslop": {
+    "typescript-best-practices": {
       "ref": "main",
-      "skillPath": "harness/pstack/claude-code/skills/unslop/SKILL.md",
+      "skillPath": "harness/pstack/claude-code/skills/typescript-best-practices/SKILL.md",
       "source": "cursor/plugins",
       "sourceType": "github",
       "sourceUrl": "https://github.com/cursor/plugins.git"
     },
-    "verify-this": {
+    "unslop": {
       "ref": "main",
-      "skillPath": "cursor-team-kit/skills/verify-this/SKILL.md",
+      "skillPath": "harness/pstack/claude-code/skills/unslop/SKILL.md",
       "source": "cursor/plugins",
       "sourceType": "github",
       "sourceUrl": "https://github.com/cursor/plugins.git"
@@ -802,12 +700,6 @@
       "source": "kunchenguid/vision",
       "sourceType": "github",
       "sourceUrl": "https://github.com/kunchenguid/vision.git"
-    },
-    "wait-what": {
-      "skillPath": "skills/productivity/wait-what/SKILL.md",
-      "source": "mattpocock/skills",
-      "sourceType": "github",
-      "sourceUrl": "https://github.com/mattpocock/skills.git"
     },
     "wayfinder": {
       "skillPath": "skills/engineering/wayfinder/SKILL.md",
@@ -845,31 +737,12 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/p-severin/skills.git"
     },
-    "weekly-review": {
+    "why": {
       "ref": "main",
-      "skillPath": "cursor-team-kit/skills/weekly-review/SKILL.md",
+      "skillPath": "harness/pstack/claude-code/skills/why/SKILL.md",
       "source": "cursor/plugins",
       "sourceType": "github",
       "sourceUrl": "https://github.com/cursor/plugins.git"
-    },
-    "what-did-i-get-done": {
-      "ref": "main",
-      "skillPath": "cursor-team-kit/skills/what-did-i-get-done/SKILL.md",
-      "source": "cursor/plugins",
-      "sourceType": "github",
-      "sourceUrl": "https://github.com/cursor/plugins.git"
-    },
-    "wizard": {
-      "skillPath": "skills/engineering/wizard/SKILL.md",
-      "source": "mattpocock/skills",
-      "sourceType": "github",
-      "sourceUrl": "https://github.com/mattpocock/skills.git"
-    },
-    "write-digica-readme": {
-      "skillPath": "skills/engineering/write-digica-readme/SKILL.md",
-      "source": "p-severin/skills",
-      "sourceType": "github",
-      "sourceUrl": "https://github.com/p-severin/skills.git"
     },
     "writing-for-agents": {
       "skillPath": "skills/productivity/writing-for-agents/SKILL.md",

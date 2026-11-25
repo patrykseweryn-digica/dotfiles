@@ -4,6 +4,7 @@ repo="$(cd "$(dirname "$0")/.." && pwd)"
 source "${repo}/scripts/host-tools.sh"
 task_dir="$(mktemp -d)"
 trap 'rm -rf "$task_dir"' EXIT
+set_smoke_base_path "$task_dir"
 # The machine group setting must not change fixture results.
 export DOTFILES_ENV_FILE="${task_dir}/all-groups.env"
 printf 'DOTFILES_GROUPS=core,agents,desktop\n' >"$DOTFILES_ENV_FILE"
@@ -86,57 +87,61 @@ printf '#!/bin/sh\nexit 0\n' > "$task_dir/stubs/pi"
 ln -s "$uv_bin" "$task_dir/stubs/uv"
 chmod +x "$task_dir/fixture/install.sh" "$task_dir/fixture/scripts/agent-tools.sh" "$task_dir/stubs/pi" "$task_dir/stubs/uname"
 printf '{"skills":{}}\n' > "$task_dir/skills.json"
-mkdir -p "$task_dir/custom"
 printf 'local MCP state\n' > "$task_dir/mcp-sentinel"
 export PI_MCP_CONFIG="$task_dir/mcp-sentinel"
 export PLUGIN_TEST_DIR="$task_dir" PLUGIN_TEST_REPO="$repo"
-for platform in Linux-x86_64 Linux-arm64 Darwin-x86_64 Darwin-arm64; do
+# All states and a repeat run on one platform; uname only differs elsewhere.
+for test_case in 'Linux-x86_64 empty' 'Linux-x86_64 partial' \
+    'Linux-x86_64 complete' 'Linux-x86_64 retry' \
+    'Linux-arm64 empty' 'Darwin-x86_64 empty' 'Darwin-arm64 empty'; do
+    platform="${test_case% *}"
+    state="${test_case#* }"
     TEST_OS="${platform%-*}"
     TEST_ARCH="${platform#*-}"
     export TEST_OS TEST_ARCH
-    for state in empty partial complete retry; do
-        task_home="$task_dir/$platform $state home"
-        mkdir -p "$task_home/.codex"
-        printf '{"installed":[]}\n' > "$task_home/.codex/plugins.json"
-        printf '{"marketplaces":[]}\n' > "$task_home/.codex/marketplaces.json"
-        if [ "$state" = partial ] || [ "$state" = complete ]; then
-            printf '{"installed":[{"pluginId":"required@official","installed":true,"enabled":%s,"marketplaceSource":{"sourceType":"git"}},{"pluginId":"extra@extra","installed":true,"enabled":true,"marketplaceSource":{"sourceType":"git"}}]}\n' \
-                "$([ "$state" = complete ] && echo true || echo false)" > "$task_home/.codex/plugins.json"
-        fi
-        run_install() {
-            env -u CODEX_PLUGIN_LIST_FILE -u CODEX_MARKETPLACE_LIST_FILE \
-                -u OPENCODE_CONFIG_DIR -u OPENCODE_CONFIG \
-                -u PI_MCP_CONFIG \
-                -u PI_CODING_AGENT_DIR -u PI_SKILLS_DIR -u PI_SETTINGS_FILE \
-                -u CLAUDE_SETTINGS_FILE -u CLAUDE_USER_CONFIG \
-                HOME="$task_home" CODEX_HOME="$task_home/.codex" \
-                CODEX_REMOTE_PLUGIN_CACHE="$task_home/.codex/remote" \
-                CODEX_CONFIG="$task_home/.codex/config.toml" \
-                SKILL_LOCK_LIVE="$task_home/.agents/.skill-lock.json" \
-                SKILL_LOCK_REPO="$task_dir/skills.json" \
-                SHARED_SKILLS_CUSTOM_DIR="$task_dir/custom" \
-                CODEX_PLUGIN_MANIFEST="$task_dir/manifest.json" \
-                CLAUDE_MANIFEST="$task_dir/manifest.json" \
-                PATH="$task_dir/stubs:/usr/bin:/bin" \
-                "$just_bin" --justfile "$task_dir/fixture/justfile" install \
-                > "$task_dir/output" 2>&1
-        }
-        if [ "$state" = retry ]; then
-            if FAIL_PLUGIN=true run_install; then echo 'Failed install passed' >&2; exit 1; fi
-            rg -q 'required@official' "$task_dir/output"
-            rg -q 'download interrupted' "$task_dir/output"
-        fi
-        for _ in 1 2; do
-            run_install || { cat "$task_dir/output" >&2; exit 1; }
-            jq -e '.installed | any(.[]; .pluginId == "required@official" and .enabled)' \
-                "$task_home/.codex/plugins.json" >/dev/null
-        done
-        if [ "$state" = partial ] || [ "$state" = complete ]; then
-            jq -e '.installed | any(.[]; .pluginId == "extra@extra")' "$task_home/.codex/plugins.json" >/dev/null
-        fi
-        [ "$(rg -c '^plugin add required@official$' "$task_home/.codex/calls" || true)" = \
-            "$([ "$state" = complete ] && echo '' || { [ "$state" = retry ] && echo 2 || echo 1; })" ]
+    runs='1 2'
+    [ "$platform" = Linux-x86_64 ] || runs=1
+    task_home="$task_dir/$platform $state home"
+    mkdir -p "$task_home/.codex"
+    printf '{"installed":[]}\n' > "$task_home/.codex/plugins.json"
+    printf '{"marketplaces":[]}\n' > "$task_home/.codex/marketplaces.json"
+    if [ "$state" = partial ] || [ "$state" = complete ]; then
+        printf '{"installed":[{"pluginId":"required@official","installed":true,"enabled":%s,"marketplaceSource":{"sourceType":"git"}},{"pluginId":"extra@extra","installed":true,"enabled":true,"marketplaceSource":{"sourceType":"git"}}]}\n' \
+            "$([ "$state" = complete ] && echo true || echo false)" > "$task_home/.codex/plugins.json"
+    fi
+    run_install() {
+        env -u XDG_CONFIG_HOME \
+            -u CODEX_PLUGIN_LIST_FILE -u CODEX_MARKETPLACE_LIST_FILE \
+            -u OPENCODE_CONFIG_DIR -u OPENCODE_CONFIG \
+            -u PI_MCP_CONFIG \
+            -u PI_CODING_AGENT_DIR -u PI_SKILLS_DIR -u PI_SETTINGS_FILE \
+            -u CLAUDE_SETTINGS_FILE -u CLAUDE_USER_CONFIG \
+            HOME="$task_home" CODEX_HOME="$task_home/.codex" \
+            CODEX_REMOTE_PLUGIN_CACHE="$task_home/.codex/remote" \
+            CODEX_CONFIG="$task_home/.codex/config.toml" \
+            SKILL_LOCK_LIVE="$task_home/.agents/.skill-lock.json" \
+            SKILL_LOCK_REPO="$task_dir/skills.json" \
+            CODEX_PLUGIN_MANIFEST="$task_dir/manifest.json" \
+            CLAUDE_MANIFEST="$task_dir/manifest.json" \
+            PATH="$task_dir/stubs:${SMOKE_BASE_PATH}" \
+            "$just_bin" --justfile "$task_dir/fixture/justfile" install \
+            > "$task_dir/output" 2>&1
+    }
+    if [ "$state" = retry ]; then
+        if FAIL_PLUGIN=true run_install; then echo 'Failed install passed' >&2; exit 1; fi
+        rg -q 'required@official' "$task_dir/output"
+        rg -q 'download interrupted' "$task_dir/output"
+    fi
+    for _ in $runs; do
+        run_install || { cat "$task_dir/output" >&2; exit 1; }
+        jq -e '.installed | any(.[]; .pluginId == "required@official" and .enabled)' \
+            "$task_home/.codex/plugins.json" >/dev/null
     done
+    if [ "$state" = partial ] || [ "$state" = complete ]; then
+        jq -e '.installed | any(.[]; .pluginId == "extra@extra")' "$task_home/.codex/plugins.json" >/dev/null
+    fi
+    [ "$(rg -c '^plugin add required@official$' "$task_home/.codex/calls" || true)" = \
+        "$([ "$state" = complete ] && echo '' || { [ "$state" = retry ] && echo 2 || echo 1; })" ]
 done
 [ "$(cat "$task_dir/mcp-sentinel")" = 'local MCP state' ]
 echo '[INFO] Full install plugin smoke test passed (external installers simulated)'

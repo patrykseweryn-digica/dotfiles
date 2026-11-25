@@ -10,8 +10,9 @@ details unless you are debugging them.
 ```bash
 just sync     # daily pull, local convergence, and managed updates
 just install  # prepare or repair a machine
-just export   # review and save portable local additions
-just doctor   # inspect local state offline and without writes
+just export         # review and save portable local additions
+just export skills  # choose global skill changes to save in the repository
+just machine   # inspect local state offline and without writes
 ```
 
 ## Sync direction
@@ -21,13 +22,20 @@ enter the repository only through `export`.
 
 `just export` requires a clean checkout and builds one plan for allowlisted
 settings, normalized MCP, skills, plugin membership, and recognized tools.
-It validates every managed skill against current upstream and enforces plugin
-provider ownership before one confirmation. A removed skill stops export while
-its name remains in the current upstream source. A verified upstream removal
-allows the reviewed inventory change. Export never stages, commits, pushes, or
-changes runtime files; an
-apply failure rolls the checkout back. Environment values, HTTP headers,
-credentials, OAuth state, unsupported transports, and local paths stay local.
+It enforces plugin provider ownership before confirmation. A removed skill
+stops export while its name remains in the current upstream source.
+After confirmation, export validates every skill in a changed inventory
+against current upstream before writing. Export never stages, commits,
+pushes, or changes runtime files. If a write fails, export rolls the checkout
+back. Environment values, HTTP headers, credentials, OAuth state, unsupported
+transports, and local paths stay local.
+
+Use `just export skills` to record intentional changes to global skills, such
+as removals made with `npx skills remove -g`. Type to filter the `fzf` list.
+Mark one change with `Tab` or all matching changes with `Ctrl+A`.
+Clear the search to mark the entire list. Review with `Enter` or cancel with `Esc`.
+Unmarked skills keep their repository entries. The command checks the resulting
+inventory against current upstream before it writes only the repository lock.
 
 `just sync` requires a clean checkout. It fetches upstream, fast-forwards,
 applies repository settings and membership, then refreshes managed tools,
@@ -35,20 +43,26 @@ remote skills, and plugins. A local addition (`EXPORT`) stops sync before any
 environment change and points to `just export`. The final result is `PASS`,
 `EXPORT`, or `FAIL`. Sync never exports, commits, or pushes.
 `SKIP` rows keep the final result at `PASS` and state why no action applies.
-Remote skills remain unpinned and follow current upstream.
+Remote skills remain unpinned and follow current upstream. Sync checks the
+upstream revisions in parallel. If the revisions and local skills have not
+changed since the last refresh, sync skips downloading skills.
 A skill can link a support doc as `../../docs/<path>`, for example the pstack
 Claude Code adapter. The skills CLI copies only skill folders, so sync
 downloads each linked doc from the skill's upstream package into
-`~/.agents/docs`. Downloads use GitHub's contents API, with `GITHUB_TOKEN`
-when available, and at most three retries within a bounded fetch operation.
+`~/.agents/docs`. Downloads use GitHub's contents API with at most three
+retries within a bounded fetch operation. Skill staging authenticates with
+`GITHUB_TOKEN`, then `GH_TOKEN`, then the `gh` login; anonymous requests
+share a 60 per hour limit that one sync exhausts.
 Required document failures still stop staging before any runtime changes.
 `~/.claude/docs`, `~/.config/opencode/docs` and
-`~/.pi/agent/docs` link to it. A missing doc is a skills `UPDATE` in doctor.
+`~/.pi/agent/docs` link to it. A missing doc is a skills `UPDATE` in machine.
 `~/.agents/skills` is the one shared skill set. Codex, Cursor and Grok Build
-read it directly; Claude Code, OpenCode and Pi read it through symlinks.
-Personal skills come from `p-severin/skills` through that same unpinned
-skills CLI install. `.agents/skills-custom` keeps only skills that stay
-in this repository.
+read it directly. Claude Code and OpenCode use per-skill symlinks. Pi uses
+one symlink to the shared directory, so external removals leave no stale entries.
+Every skill comes from an upstream lock entry through that same unpinned
+skills CLI install; personal skills live in `p-severin/skills`. The
+repository keeps no skill copies, except its own `verify-dotfiles`. Export and `skills-check` reject a live
+skill without an upstream source.
 pstack skills come from `harness/pstack/claude-code` in `cursor/plugins`:
 its adapter line applies only in Claude Code, so every harness can share it.
 Staging fails when the skills CLI resolves a skill from another upstream path
@@ -78,8 +92,9 @@ Doctor compares the active runtime with mise's installed policy selection
 without using the network.
 
 `.agents/tool-versions.json` is the single inventory for core, system, and
-developer CLIs. Managed entries follow stable releases without stored version
-numbers. Mise installs and updates every portable core tool through
+developer CLIs. Existing entries follow stable releases; explicitly reviewed
+pins use `versionPolicy: "pinned"` with `version` for core mise tools.
+Mise installs and updates portable core tools through
 `scripts/core-tools.sh`. System-only entries retain package-manager names.
 Entries without a user-local source declare `requires: "sudo"`.
 Every entry declares its install group (see [Install groups](#install-groups)).
@@ -94,8 +109,8 @@ such as `zsh -lc` from agents, find mise tools through mise shims: install and
 sync keep a marked block at the end of `~/.zprofile`, after Homebrew, and
 leave other lines unchanged. Doctor reports `UPDATE shell` when the block is
 missing or a later line follows it.
-Developer entries use
-`channel: "latest"`; update resolves current releases without rewriting the
+Developer entries use `channel: "latest"` or an explicitly reviewed release
+number in `channel`. Update preserves declared pins without rewriting the
 inventory. npm CLI entries become independent mise tools, so Node upgrades do
 not hide them. Reports resolve npm `latest` and fail explicitly when the
 registry is unavailable.
@@ -114,9 +129,25 @@ Codex follows the best channel of each platform at latest. macOS uses the
 Homebrew cask (`brew install` or `brew upgrade --cask codex`). Linux uses
 OpenAI's official installer (`chatgpt.com/codex/install.sh`). It verifies
 checksums, installs into `~/.local/bin`, and does nothing when the release
-is current. Another `codex` on `PATH` stops the install, and doctor reports
+is current. Another `codex` on `PATH` stops the install, and machine reports
 it. Sync removes a former mise npm Codex.
 Configuration application never resolves channels or updates tool versions.
+
+The digica-99 tool sync records explicit mise pins for ast-grep, typos,
+hyperfine, watchexec, and Vale. Use `ast-grep`, not its deprecated `sg` alias.
+The ast-grep npm entry approves `@ast-grep/cli` build scripts through
+`allow_builds`, so mise's package manager can run its native postinstall.
+
+Developer tools `rust-just`, `yt-dlp`, `cmakelang`, and `pylint` use uv.
+Their executables belong in `~/.local/bin`; Pylint is not a default check.
+Rust-just is the sole just channel, including CI.
+Remove any old mise just selection before applying this inventory elsewhere.
+Do not add a pipx yt-dlp or TensorFlow installation.
+Fallow uses the existing mise npm channel and declares all three executables.
+The gh-dash extension uses GitHub CLI's extension installer with a release pin.
+
+The [Vale template](config/vale/README.md) supplies a shared spelling
+configuration, Firstmate vocabulary, and pre-commit hook pattern.
 
 To add an npm CLI, add one entry to the manifest:
 
@@ -164,7 +195,7 @@ Comparison uses TOML values, so formatting changes do not cause drift.
 Pull imports only keys declared in the template, including nested keys.
 Declare a new portable setting there before importing its live value.
 Claude settings come from `config/claude/`. Missing required configuration
-causes `just doctor` to fail and print the corresponding install command.
+causes `just machine` to fail and print the corresponding install command.
 
 ## Installation and synchronization
 
@@ -187,7 +218,7 @@ install and update only elements of the selected groups.
 
 | Group | Contents |
 |---|---|
-| `core` | zsh, Oh My Zsh, CLI tools (gh, shellcheck, gnupg), Git, SSH, managed links, Bitwarden CLI |
+| `core` | zsh, Oh My Zsh, CLI tools (gh, shellcheck, gnupg), Git, SSH, managed links |
 | `agents` | Node, pnpm, agent CLIs and settings, MCP, skills, plugins, AXI |
 | `desktop` | fonts, Ghostty and VS Code config, terminal colors, macOS apps (Brewfile casks) |
 
@@ -203,23 +234,26 @@ just disable desktop  # stop installing and updating desktop
 The commands write `DOTFILES_GROUPS` in `.env`, for example
 `DOTFILES_GROUPS=core,agents`. `core` is required and cannot be disabled.
 An unknown group or a list without `core` stops `install`, `sync` and
-`doctor` before any change and names the valid groups.
+`machine` before any change and names the valid groups.
 
 A machine set up before `core` became the default keeps its other groups
 installed. When managed links of an unselected group remain, `sync` and
-`doctor` print one row for each group:
+`machine` print one row for each group:
 `[SKIP] groups: Group agents is installed but not selected; ...
 Run: just enable agents`.
 
 Each element declares its group: tools in `.agents/tool-versions.json`, links
 in `config/managed-links.tsv`, and install steps and sync phases in their
 scripts. The plan reports an element of an unselected group as
-`SKIP ... skipped: group <name> is not selected`. `sync` and `doctor` pass when
+`SKIP ... skipped: group <name> is not selected`. `sync` and `machine` pass when
 only `SKIP` rows remain. `just disable` does not remove installed elements.
 
 `just sync` prints the plan, applies settings, MCP, managed links, and the
 Herdr hook, then refreshes inventory tools, Node, skills, and plugins.
 A failed fetch, an unreadable plan, or an `EXPORT` row stops sync first.
+For skills, sync uses the last applied inventory to distinguish repository
+removals from local additions. Without that inventory or a locally available
+Git copy recorded by an older sync, unknown skills still stop the run.
 
 Every network operation has a time limit (`scripts/operation.sh`). An expired
 limit stops the operation and all its child processes. Tool output goes to
@@ -255,20 +289,20 @@ is reported as SKIP.
 
 Use [.agents/skills/verify-dotfiles/SKILL.md](.agents/skills/verify-dotfiles/SKILL.md)
 before changing or applying dotfiles and before commits. It reuses the existing
-isolated-HOME install/sync smoke tests and `just check`, then compares the
-read-only live `just doctor` result with the baseline. Doctor prints bounded
+isolated-HOME install/sync smoke tests and `just test`, then compares the
+read-only live `just machine` result with the baseline. Machine prints bounded
 diagnostics rather than raw config diffs, which may contain credentials.
 Evidence stays under ignored `.agent-runs/verify-dotfiles/`.
 Pull requests and a manual run check the repository on macOS and Linux.
 Pushes to master and the Monday 05:17 UTC schedule check Linux only.
-Native amd64 and arm64 jobs run `install`, two `sync` commands, and `doctor`
+Native amd64 and arm64 jobs run `install`, two `sync` commands, and `machine`
 in a clean Ubuntu image as a user without sudo. Those jobs run on pull
 requests, the Monday schedule, and a manual run. A push to master does not
 run them. Accountless CI skips only remote Codex plugins because their
 installation requires OAuth. CI mounts a read-only GitHub token only during
 `sync`. Docker does not copy the token into the image. A separate job resolves
 every current upstream skill when the workflow runs. A push that only changes
-docs, plans, or Markdown does not start the workflow.
+docs or Markdown does not start the workflow.
 A local macOS run alone proves only macOS execution and the simulated Linux
 cases.
 Commit hooks run repository tests; live drift remains a separate check because
@@ -379,8 +413,8 @@ publication.
 - New machine: `just install`.
 - Daily synchronization: `just sync`.
 - `EXPORT` result: `just export`.
-- Diagnostics: `just doctor`.
+- Diagnostics: `just machine`.
 
-CI and repository development use the hidden `just check` maintenance recipe.
+CI and repository development use the hidden `just test` maintenance recipe.
 Category-specific operations remain internal script subcommands for
 implementation and tests.

@@ -18,13 +18,13 @@ fail() {
 }
 
 JUST_BIN="$(command -v just)"
-JQ_BIN="$(command -v jq)"
 tmp_dir="$(mktemp -d)"
 trap 'rm -rf "$tmp_dir"' EXIT
+set_smoke_base_path "$tmp_dir"
 stub_dir="${tmp_dir}/stubs"
 calls="${tmp_dir}/calls.log"
 mkdir -p "$stub_dir" "${tmp_dir}/fixture"
-ln -s "$JQ_BIN" "${stub_dir}/jq"
+ln -s "$JUST_BIN" "${stub_dir}/just"
 : >"$calls"
 
 # Network clients must never run; each call is recorded as a failure.
@@ -84,7 +84,7 @@ chmod +x "${tmp_dir}/fixture/install.sh"
 run_install() {
     local case_name="$1"
     HOME="${tmp_dir}/${case_name}-home" \
-        PATH="${stub_dir}:/usr/bin:/bin" \
+        PATH="${stub_dir}:${SMOKE_BASE_PATH}" \
         CALLS_LOG="$calls" GROUPS_CASE="$case_name" \
         GROUPS_TEST_REPO="$DOTFILES_DIR" \
         DOTFILES_ENV_FILE="${tmp_dir}/${case_name}.env" \
@@ -228,13 +228,13 @@ chmod +x "${stub_dir}/core-tools" "${stub_dir}/sync-agents" \
 run_doctor() {
     local case_name="$1" home_case="${2:-$1}"
     HOME="${tmp_dir}/${home_case}-home" \
-        PATH="${stub_dir}:/usr/bin:/bin" \
+        PATH="${stub_dir}:${SMOKE_BASE_PATH}" \
         CALLS_LOG="$calls" GROUPS_CASE="$case_name" \
         DOTFILES_ENV_FILE="${tmp_dir}/${case_name}.env" \
         CORE_TOOLS="${stub_dir}/core-tools" \
         SYNC_AGENTS="${stub_dir}/sync-agents" \
         AGENT_TOOLS="${stub_dir}/agent-tools" \
-        "$JUST_BIN" --justfile "${DOTFILES_DIR}/justfile" doctor \
+        "$JUST_BIN" --justfile "${DOTFILES_DIR}/justfile" machine \
         >"${tmp_dir}/doctor.log" 2>&1
 }
 
@@ -326,7 +326,7 @@ git -C "$publisher" push --quiet
 run_sync() {
     local case_name="$1" repo_dir="$DOTFILES_DIR"
     HOME="${tmp_dir}/${case_name}-home" \
-        PATH="${stub_dir}:/usr/bin:/bin" \
+        PATH="${stub_dir}:${SMOKE_BASE_PATH}" \
         CALLS_LOG="$calls" GROUPS_CASE="$case_name" \
         DOTFILES_DIR="$checkout" \
         DOTFILES_ENV_FILE="${tmp_dir}/${case_name}.env" \
@@ -401,7 +401,7 @@ group_env="${tmp_dir}/group-command.env"
 
 run_group_command() {
     HOME="${tmp_dir}/core-home" \
-        PATH="${stub_dir}:/usr/bin:/bin" \
+        PATH="${stub_dir}:${SMOKE_BASE_PATH}" \
         CALLS_LOG="$calls" GROUPS_CASE=command \
         GROUPS_TEST_REPO="$DOTFILES_DIR" \
         DOTFILES_ENV_FILE="$group_env" \

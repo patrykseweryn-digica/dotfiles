@@ -14,6 +14,7 @@ cleanup() {
     rm -rf "$tmp_dir"
 }
 trap cleanup EXIT
+set_smoke_base_path "$tmp_dir"
 
 manifest="${tmp_dir}/plugin-manifest.json"
 cache="${tmp_dir}/cache"
@@ -101,7 +102,7 @@ jq -e '
     fail "Codex plugin check failed after export"
 }
 
-if HOME="${tmp_dir}/missing-home" PATH="/usr/bin:/bin" \
+if HOME="${tmp_dir}/missing-home" PATH="${SMOKE_BASE_PATH}" \
     CODEX_REMOTE_PLUGIN_CACHE="${tmp_dir}/missing-cache" \
     CODEX_PLUGIN_LIST_FILE='' CODEX_MARKETPLACE_LIST_FILE='' \
     "$DOTFILES_DIR/sync-agents.sh" --quiet codex-plugins-check \
@@ -114,7 +115,7 @@ grep -F 'Required Codex marketplace plugin state missing' "$sync_log" >/dev/null
     fail "Codex plugin check skipped missing marketplace state"
 
 if ! HOME="${tmp_dir}/remote-only-home" \
-    PATH="/usr/bin:/bin" \
+    PATH="${SMOKE_BASE_PATH}" \
     PLUGIN_MANIFEST="$manifest" \
     CODEX_PLUGIN_LIST_FILE='' \
     CODEX_MARKETPLACE_LIST_FILE='' \
@@ -129,7 +130,7 @@ cat > "${stub_dir}/codex" <<'STUB'
 exit 97
 STUB
 chmod +x "${stub_dir}/codex"
-export PATH="${stub_dir}:/usr/bin:/bin"
+export PATH="${stub_dir}:${SMOKE_BASE_PATH}"
 export CODEX_REMOTE_PLUGIN_CACHE="${tmp_dir}/missing-cache"
 cp "$manifest" "${tmp_dir}/fresh-codex-before.json"
 HOME="${tmp_dir}/fresh-home" CODEX_HOME="${tmp_dir}/fresh-home/.codex" \
@@ -217,7 +218,7 @@ for present in true false; do
         mv "$plugin_list.next" "$plugin_list"
     fi
     for _ in 1 2; do
-        HOME="$tmp_dir/pull-home" PATH="/usr/bin:/bin" \
+        HOME="$tmp_dir/pull-home" PATH="${SMOKE_BASE_PATH}" \
             PLUGIN_MANIFEST="$manifest" \
             "$DOTFILES_DIR/sync-agents.sh" --quiet pull-plugins \
             > "$sync_log" 2>&1 || { cat "$sync_log" >&2; fail "Portable pull failed"; }

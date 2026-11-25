@@ -55,7 +55,7 @@ run_ssh_install() {
 
     (
         export HOME="$home_dir"
-        export PATH="${STUB_DIR}:/usr/bin:/bin"
+        export PATH="${STUB_DIR}:${SMOKE_BASE_PATH}"
         export SSH_LOG="$log_file"
         export DOTFILES_SSH_CONFIG_MODE="$mode"
         "${DOTFILES_DIR}/ssh.sh" "test@example.com" "work@example.com" > "${log_file}.out" 2>&1
@@ -91,6 +91,7 @@ cleanup() {
     rm -rf "$tmp_dir"
 }
 trap cleanup EXIT
+set_smoke_base_path "$tmp_dir"
 
 STUB_DIR="${tmp_dir}/stubs"
 mkdir -p "$STUB_DIR"

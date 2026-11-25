@@ -21,6 +21,33 @@ credentials, sessions, caches and Fast Mode state remain unmanaged.
 package presence, model overrides and theme/extension files.
 Changing a linked theme or extension changes its source in dotfiles.
 
+## Local tool preferences
+
+The model selector follows the read-only digica-99 snapshot from 2026-11-19.
+New sessions default to `openai-codex/gpt-6.2-sol` with `high` thinking.
+The model selector remains separate from the startup default.
+Temporary credit routing and Fast Mode remain local.
+
+`defaultTools: ["+codemode"]` enables the batching tool alongside defaults.
+Subagents and the powerline footer install through the existing package list.
+`billion-context.json` tells Pi sync to keep `pi-subagents` as the only
+subagent extension. Sync disables `acp_delegate` in the default Billion
+Context JSON file under `${XDG_CONFIG_HOME:-$HOME/.config}/billion-context/`.
+Sync preserves other JSON settings. It does not edit JSON with comments or
+alternate files selected through `BILI_CONFIG_FILE`.
+Restart Pi and start a new session after applying the change.
+
+Pi-lens configuration is live-only: dotfiles does not manage
+`~/.pi-lens/config.json`. Keep `{"fallow":{"enabled":true}}` there, merged
+with existing local preferences. Fallow's CLI installation is managed in
+`.agents/tool-versions.json`; enabling analysis does not install the CLI.
+This sync does not overwrite pi-lens settings.
+
+For Markdown checks, use the [Vale template](../vale/README.md).
+Pi-lens detects a repository's `.vale.ini` automatically.
+Codex, Claude, and Firstmate should run Vale on changed Markdown when
+`.vale.ini` exists. CI and pre-commit must share that configuration.
+
 ## Interface
 
 Rose Pine Moon's palette and token mapping live in
@@ -127,7 +154,7 @@ used for type/schema validation, not the CLI installation policy.
 npm --prefix config/pi ci --ignore-scripts
 npm --prefix config/pi run check
 npm --prefix config/pi test
-just check
+just test
 ```
 
 Pre-commit runs types, ESLint, Prettier and the deterministic Pi regression

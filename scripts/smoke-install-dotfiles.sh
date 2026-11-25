@@ -13,22 +13,24 @@ fail() {
     exit 1
 }
 
-JQ_BIN="$(command -v jq 2>/dev/null || true)"
-[ -n "$JQ_BIN" ] || fail "jq is required"
+smoke_base_dir="$(mktemp -d)"
+trap 'rm -rf "$smoke_base_dir"' EXIT
+set_smoke_base_path "$smoke_base_dir"
 UV_BIN="$(command -v uv)"
 JUST_BIN="$(command -v just)"
 export UV_CACHE_DIR="${UV_CACHE_DIR:-$(uv cache dir)}"
 export UV_PYTHON_INSTALL_DIR="${UV_PYTHON_INSTALL_DIR:-$(uv python dir)}"
 # Runtime overrides must never escape the temporary HOME used by each case.
-unset DOTFILES_FIRSTMATE_HOME
+unset XDG_CONFIG_HOME DOTFILES_FIRSTMATE_HOME
 unset CODEX_HOME CODEX_CONFIG CODEX_SETTINGS_TEMPLATE CODEX_PLUGIN_MANIFEST
 unset CODEX_REMOTE_PLUGIN_CACHE CODEX_PLUGIN_LIST_FILE CODEX_MARKETPLACE_LIST_FILE
 unset CLAUDE_SETTINGS_FILE CLAUDE_USER_CONFIG CLAUDE_TEMPLATE_FILE CLAUDE_MANIFEST
 unset OPENCODE_CONFIG_DIR OPENCODE_CONFIG
 unset PI_CODING_AGENT_DIR PI_SETTINGS_FILE PI_SKILLS_DIR PI_MCP_CONFIG
 unset PI_SETTINGS_TEMPLATE PI_AGENTS_SOURCE SKILL_LOCK_LIVE SKILLS_CLI
-unset PLUGIN_MANIFEST MCP_SERVERS SKILL_LOCK_REPO SHARED_SKILLS_CUSTOM_DIR
+unset PLUGIN_MANIFEST MCP_SERVERS SKILL_LOCK_REPO
 unset HERDR_CONFIG_PATH
+export SKILL_FIXTURE_LOCK="${DOTFILES_DIR}/.agents/skill-lock.json"
 
 smoke_public_menu() {
     local actual expected
@@ -36,7 +38,7 @@ smoke_public_menu() {
     expected="$(mktemp)"
     "$JUST_BIN" --justfile "${DOTFILES_DIR}/justfile" --summary |
         tr ' ' '\n' | sort >"$actual"
-    printf '%s\n' disable doctor enable export groups install sync >"$expected"
+    printf '%s\n' disable enable export groups install machine sync >"$expected"
     cmp "$expected" "$actual" ||
         fail "public menu is not the daily and install group commands"
     rm -f "$actual" "$expected"
@@ -156,7 +158,6 @@ smoke_tmux_plugins_install_after_setup_dotfiles() {
     tmux_log="${tmp_dir}/tmux.log"
 
     mkdir -p "${home_dir}/.tmux/plugins/tpm/bin" "$stub_dir"
-    ln -s "$JQ_BIN" "${stub_dir}/jq"
     ln -s "$UV_BIN" "${stub_dir}/uv"
     : >"$npx_log"
     : >"$tmux_log"
@@ -182,7 +183,7 @@ for skill in "${skills[@]}"; do
         .skills | to_entries[] |
         select((.value.installName // .key) == $name) |
         .key
-    ' "$SKILL_LOCK_LIVE")
+    ' "$SKILL_FIXTURE_LOCK")
     [ -n "$name" ]
     mkdir -p "$HOME/.agents/skills/$name"
     printf '%s\n' '---' "name: $skill" '---' \
@@ -205,7 +206,7 @@ STUB
 
     (
         export HOME="$home_dir"
-        export PATH="${stub_dir}:/usr/bin:/bin"
+        export PATH="${stub_dir}:${SMOKE_BASE_PATH}"
         export EMAIL="test@example.com"
         export WORK_EMAIL="work@example.com"
         export EDITOR="vim"
@@ -338,7 +339,7 @@ printf '%s\n' "$*" >>"$PI_TEST_LOG"
 STUB
     chmod +x "${bin_dir}/pi"
 
-    HOME="$home_dir" PATH="${bin_dir}:/usr/bin:/bin" \
+    HOME="$home_dir" PATH="${bin_dir}:${SMOKE_BASE_PATH}" \
         PI_CODING_AGENT_DIR="${home_dir}/.pi/agent" \
         PI_SETTINGS_TEMPLATE="$template" PI_TEST_LOG="$log_file" \
         "$DOTFILES_DIR/sync-agents.sh" --quiet pi-packages-update
@@ -374,7 +375,6 @@ run_case() {
 
     mkdir -p "$home_dir" "$stub_dir"
     printf 'local zsh drift\n' >"${home_dir}/.zshrc"
-    ln -s "$JQ_BIN" "${stub_dir}/jq"
     ln -s "$UV_BIN" "${stub_dir}/uv"
     : >"$npx_log"
     : >"$pi_log"
@@ -445,7 +445,7 @@ for skill in "${skills[@]}"; do
         .skills | to_entries[] |
         select((.value.installName // .key) == $name) |
         .key
-    ' "$SKILL_LOCK_LIVE")
+    ' "$SKILL_FIXTURE_LOCK")
     [ -n "$name" ]
     mkdir -p "$HOME/.agents/skills/$name"
     printf '%s\n' '---' "name: $skill" '---' \
@@ -464,7 +464,7 @@ STUB
 
     (
         export HOME="$home_dir"
-        export PATH="${stub_dir}:/usr/bin:/bin"
+        export PATH="${stub_dir}:${SMOKE_BASE_PATH}"
         export EMAIL="test@example.com"
         export WORK_EMAIL="work@example.com"
         export EDITOR="vim"
@@ -601,7 +601,7 @@ YAML
             "${home_dir}/.pi/agent/$resource" || fail "missing Pi $resource"
     done
     cp "${home_dir}/.pi/agent/settings.json" "${tmp_dir}/pi-settings.before"
-    HOME="$home_dir" PATH="${stub_dir}:/usr/bin:/bin" PI_LOG="$pi_log" \
+    HOME="$home_dir" PATH="${stub_dir}:${SMOKE_BASE_PATH}" PI_LOG="$pi_log" \
         "${DOTFILES_DIR}/sync-agents.sh" pi-install >/dev/null
     cmp "${tmp_dir}/pi-settings.before" \
         "${home_dir}/.pi/agent/settings.json" ||

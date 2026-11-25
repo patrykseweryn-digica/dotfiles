@@ -12,7 +12,7 @@ fail() {
 
 task_dir="$(mktemp -d)"
 trap 'rm -rf "$task_dir"' EXIT
-mkdir -p "$task_dir/bin" "$task_dir/custom"
+mkdir -p "$task_dir/bin"
 # A fixture lock entry; the doc lives next to skills/ in its package.
 doc_url='https://api.github.com/repos/example/kit/contents/pack/docs/'
 doc_url="${doc_url}harness/claude-code.md?ref=main"
@@ -44,13 +44,15 @@ STUB
 cat >"$task_dir/bin/curl" <<'STUB'
 #!/bin/bash
 set -eu
-output="" url="" auth=false retry="" retry_max="" max_time=""
+output="" url="" auth=false retry="" retry_max="" max_time="" http1=false
 while [ "$#" -gt 0 ]; do
     case "$1" in
     -o) output="$2"; shift ;;
     --retry) retry="$2"; shift ;;
     --retry-max-time) retry_max="$2"; shift ;;
     --max-time) max_time="$2"; shift ;;
+    # curl 8.7 skips --retry for HTTP/2 429 responses.
+    --http1.1) http1=true ;;
     --connect-timeout | -w) shift ;;
     -H)
         case "$2" in
@@ -67,12 +69,13 @@ while [ "$#" -gt 0 ]; do
     shift
 done
 printf '%s\n' "$url" >>"$CURL_LOG"
+[ "$auth" = false ] || printf '%s\n' "$GITHUB_TOKEN" >>"$AUTH_LOG"
 # Reproduce the real host-specific failure; the API serves the same file.
 case "$url" in
 https://api.github.com/repos/*) ;;
 *) echo 'curl: (22) The requested URL returned error: 429' >&2; exit 22 ;;
 esac
-[ "$retry:$retry_max:$max_time" = '3:60:30' ] || exit 97
+[ "$retry:$retry_max:$max_time:$http1" = '3:180:30:true' ] || exit 97
 [ -z "${GITHUB_TOKEN:-}" ] || [ "$auth" = true ] || exit 96
 [ "${FAIL_DOC:-false}" = false ] || { echo 'HTTP 404' >&2; exit 22; }
 status="${DOC_HTTP_STATUS:-200}"
@@ -83,7 +86,14 @@ case "$url" in
 esac
 printf '%s' "$status"
 STUB
-chmod +x "$task_dir/bin/skills" "$task_dir/bin/curl"
+# The GitHub CLI login is the token source when no token is set.
+cat >"$task_dir/bin/gh" <<'STUB'
+#!/bin/bash
+[ "$*" = 'auth token --hostname github.com' ] || exit 2
+[ -n "${GH_STUB_TOKEN:-}" ] || { echo 'not logged in' >&2; exit 1; }
+printf '%s\n' "$GH_STUB_TOKEN"
+STUB
+chmod +x "$task_dir/bin/skills" "$task_dir/bin/curl" "$task_dir/bin/gh"
 
 home="$task_dir/fresh home"
 mkdir -p "$home"
@@ -93,10 +103,10 @@ run_sync_agents() {
         -u PI_SKILLS_DIR -u CLAUDE_SETTINGS_FILE HOME="$home" \
         SKILL_LOCK_LIVE="$home/.agents/.skill-lock.json" \
         SKILL_LOCK_REPO="$task_dir/lock.json" \
-        SHARED_SKILLS_CUSTOM_DIR="$task_dir/custom" \
         DOTFILES_ENV_FILE="$task_dir/all-groups.env" \
         PATH="$task_dir/bin:$PATH" SKILLS_CLI="$task_dir/bin/skills" \
-        CURL_LOG="$task_dir/curl.log" DOC_CONTENT="${DOC_CONTENT:-adapter v1}" \
+        CURL_LOG="$task_dir/curl.log" AUTH_LOG="$task_dir/auth.log" \
+        DOC_CONTENT="${DOC_CONTENT:-adapter v1}" \
         DOC_LINK_PATH="${DOC_LINK_PATH:-harness/claude-code.md}" \
         "$repo/sync-agents.sh" "$@" >"$task_dir/output" 2>&1
 }
@@ -124,6 +134,30 @@ for status in 401 403 404 429 302; do
 done
 echo "[INFO] preflight survives raw-host 429 without hiding API failures"
 
+# Without a token, downloads authenticate with GH_TOKEN or the gh login.
+check_token_source() {
+    local source="$1" expected="$2"
+    : >"$task_dir/auth.log"
+    run_sync_agents skills-preflight || {
+        cat "$task_dir/output" >&2
+        fail "preflight failed with a ${source} token"
+    }
+    grep -Fx "$expected" "$task_dir/auth.log" >/dev/null ||
+        fail "doc download did not authenticate with ${source}"
+    ! grep -F "$expected" "$task_dir/output" >/dev/null ||
+        fail "preflight printed the ${source} token"
+}
+(
+    unset GITHUB_TOKEN GH_TOKEN
+    GH_STUB_TOKEN='gh-login-token' check_token_source gh 'gh-login-token'
+    GH_TOKEN='gh-env-token' check_token_source GH_TOKEN 'gh-env-token'
+    : >"$task_dir/auth.log"
+    run_sync_agents skills-preflight ||
+        fail "preflight failed without any GitHub login"
+    [ ! -s "$task_dir/auth.log" ] || fail "doc download invented a token"
+)
+echo "[INFO] doc downloads reuse GH_TOKEN or the gh login"
+
 : >"$task_dir/curl.log"
 run_sync_agents push-skills || {
     cat "$task_dir/output" >&2
@@ -146,6 +180,27 @@ run_sync_agents skills-check || fail "skills-check rejected installed docs"
 [ "$(skills_plan_status)" = PASS ] || fail "skills plan rejected installed docs"
 echo "[INFO] fresh install provides support docs in every runtime"
 
+# Dangling and looping skill links both count as stale.
+for stale in dangling looping; do
+    if [ "$stale" = dangling ]; then
+        ln -s "$home/missing" "$home/.agents/skills/$stale"
+    else
+        ln -s "$stale" "$home/.agents/skills/$stale"
+    fi
+    if run_sync_agents skills-check; then
+        fail "skills-check accepted a $stale skill link"
+    fi
+    grep -Fx "  - $home/.agents/skills/$stale" "$task_dir/output" >/dev/null ||
+        fail "skills-check did not name the $stale skill link"
+    if grep -F 'find:' "$task_dir/output" >/dev/null; then
+        fail "skills-check printed find errors for a $stale skill link"
+    fi
+    [ "$(skills_plan_status)" = FAIL ] ||
+        fail "skills plan accepted a $stale skill link"
+    rm "$home/.agents/skills/$stale"
+done
+echo "[INFO] stale skill links fail the check and the plan"
+
 backups_before="$(find "$home/.dotfiles-backup" -mindepth 1 -maxdepth 1 | wc -l)"
 run_sync_agents push-skills || fail "repeated push-skills failed"
 [ "$(find "$home/.dotfiles-backup" -mindepth 1 -maxdepth 1 | wc -l)" = \
@@ -155,6 +210,20 @@ DOC_CONTENT='adapter v2' run_sync_agents push-skills ||
 [ "$(cat "$home/.agents/docs/harness/claude-code.md")" = 'adapter v2' ] ||
     fail "updated upstream support doc was not applied"
 echo "[INFO] repeat is unchanged and an upstream change is applied"
+
+# A complete legacy Pi mirror still needs migration.
+pi_skills="$home/.pi/agent/skills"
+rm -rf "$pi_skills"
+mkdir "$pi_skills"
+ln -s "$home/.agents/skills/maintain-verification-skill" "$pi_skills/"
+if run_sync_agents skills-check; then
+    fail "skills-check accepted a legacy Pi mirror"
+fi
+[ "$(skills_plan_status)" = UPDATE ] ||
+    fail "skills plan did not request migration of the Pi mirror"
+run_sync_agents push-skills || fail "push-skills did not migrate the Pi mirror"
+[ "$(readlink "$pi_skills")" = "$home/.agents/skills" ] ||
+    fail "Pi skills directory does not link to shared skills"
 
 # Doctor reports a missing doc as an update, offline.
 rm "$home/.claude/docs"

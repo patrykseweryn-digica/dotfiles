@@ -13,7 +13,7 @@ fail() {
 
 jq -e '
     all(.tools[] | select(.scope == "core");
-        .versionPolicy == "latest" and
+        (.versionPolicy == "latest" or .versionPolicy == "pinned") and
         (has("github") | not) and
         (has("packages") | not) and
         (has("adapter") | not)) and
@@ -25,6 +25,7 @@ jq -e '
     def tool($name): .tools[] | select(.name == $name);
     (tool("gh") | .scope == "core" and .group == "core") and
     (tool("shellcheck") | .scope == "core" and .group == "core") and
+    (tool("rust-just") | .group == "core" and .installer == "uv") and
     (tool("pnpm") | .scope == "core" and .group == "agents") and
     (tool("gnupg") | .group == "core" and .commands == ["gpg"] and
         .packages.brew == "gnupg" and .packages.apt == "gnupg")
@@ -38,8 +39,6 @@ jq -e '
     def args($name): tool($name).zshCompletion.args;
     args("gh") == ["completion", "-s", "zsh"] and
     args("pnpm") == ["completion", "zsh"] and
-    args("bitwarden") == ["completion", "--shell", "zsh"] and
-    args("just") == ["--completions", "zsh"] and
     args("ripgrep") == ["--generate", "complete-zsh"] and
     args("fd") == ["--gen-completions", "zsh"] and
     args("delta") == ["--generate-completion", "zsh"] and
@@ -56,6 +55,7 @@ fi
 
 tmp_dir="$(mktemp -d)"
 trap 'rm -rf "$tmp_dir"' EXIT
+set_smoke_base_path "$tmp_dir"
 # The machine group setting must not change fixture results.
 export DOTFILES_ENV_FILE="${tmp_dir}/all-groups.env"
 printf 'DOTFILES_GROUPS=core,agents,desktop\n' >"$DOTFILES_ENV_FILE"
@@ -109,7 +109,13 @@ chmod +x "$home_dir/.local/bin/mise"
 export HOME="$home_dir"
 export MISE_BIN="$home_dir/.local/bin/mise"
 export MISE_LOG="$mise_log"
-export PATH="/usr/bin:/bin"
+cat >"$home_dir/.local/bin/uv" <<'STUB'
+#!/bin/bash
+printf 'uv %s\n' "$*" >>"$MISE_LOG"
+exit "${UV_EXIT_CODE:-0}"
+STUB
+chmod +x "$home_dir/.local/bin/uv"
+export PATH="$home_dir/.local/bin:${SMOKE_BASE_PATH}"
 tool_list=$(jq -r '.tools[] | select(.scope == "core") | (.mise // .name)' \
     "$INVENTORY" | paste -sd ' ' -)
 tool_count=$(jq '[.tools[] | select(.scope == "core")] | length' "$INVENTORY")
@@ -149,12 +155,24 @@ for target in Darwin:arm64 Linux:x86_64 Linux:arm64; do
         MISE_CORE_TOOLS_FILE="$config" "$CORE_TOOLS" install
     grep -F -- "--cd $HOME install $tool_list" "$mise_log" >/dev/null ||
         fail "install did not use the common mise path for $target"
-    [ "$(grep -c ' = "latest"$' "$config")" -eq "$tool_count" ] ||
+    grep -Fx 'uv tool install rust-just==1.59.0' "$mise_log" >/dev/null ||
+        fail "core install omitted pinned just through uv for $target"
+    [ "$(grep -c ' = "' "$config")" -eq "$tool_count" ] ||
         fail "generated mise config omitted tools for $target"
     grep -F '[tools]' "$config" >/dev/null ||
         fail "generated mise config has no tools table"
     grep -F '"aqua:neovim/neovim" = "latest"' "$config" >/dev/null ||
         fail "generated mise config omitted the declared backend"
+    for entry in 'aqua:crate-ci/typos 1.52.2' \
+        'aqua:sharkdp/hyperfine 2.0.0' 'aqua:watchexec/watchexec 2.8.0' \
+        'aqua:errata-ai/vale 3.27.0'; do
+        read -r source version <<<"$entry"
+        grep -Fx "\"$source\" = \"$version\"" "$config" >/dev/null ||
+            fail "generated config lost the $source pin"
+    done
+    if grep -E '^"just" = ' "$config"; then
+        fail "just must use uv, not mise"
+    fi
     # The aqua zipapp lacks dependencies for the host python3, e.g. 3.10.
     grep -Fx '"pypi:pre-commit" = "latest"' "$config" >/dev/null ||
         fail "pre-commit does not install as a Python package"
@@ -287,7 +305,7 @@ STUB
 chmod +x "$system_bin/apt-get" "$system_bin/sudo"
 : >"$system_log"
 TOOL_INVENTORY="$brew_fixture" \
-    PATH="$system_bin:/usr/bin:/bin" SYSTEM_BIN="$system_bin" \
+    PATH="$system_bin:$PATH" SYSTEM_BIN="$system_bin" \
     SYSTEM_LOG="$system_log" \
     CORE_TOOLS_OS=Linux CORE_TOOLS_ARCH=arm64 \
     CORE_TOOLS_HAS_SUDO=true "$CORE_TOOLS" install >/dev/null
@@ -295,7 +313,7 @@ grep -Fx 'sudo apt-get install -y xclip' "$system_log" >/dev/null ||
     fail "sudo-aware install omitted xclip"
 grep -Fx 'sudo apt-get install -y gnupg' "$system_log" >/dev/null ||
     fail "sudo-aware install omitted gnupg"
-PATH="$system_bin:/usr/bin:/bin" assert_xclip_plan Linux arm64 false \
+PATH="$system_bin:${SMOKE_BASE_PATH}" assert_xclip_plan Linux arm64 false \
     $'PASS\ttools\tnone\txclip is available'
 
 # Homebrew needs no sudo; Linux package managers do.
@@ -309,13 +327,13 @@ STUB
 chmod +x "$system_bin/brew"
 gnupg_plan() {
     TOOL_INVENTORY="$brew_fixture" CORE_TOOLS_OS="$1" CORE_TOOLS_ARCH=arm64 \
-        CORE_TOOLS_HAS_SUDO=false PATH="$system_bin:/usr/bin:/bin" \
+        CORE_TOOLS_HAS_SUDO=false PATH="$system_bin:${SMOKE_BASE_PATH}" \
         "$CORE_TOOLS" plan | awk -F '\t' '$4 ~ /^gnupg / { print $1 "\t" $4 }'
 }
 [ "$(gnupg_plan Darwin)" = "$(printf 'FAIL\tgnupg is missing')" ] ||
     fail "macOS plan skipped gnupg without sudo"
 [ "$(TOOL_INVENTORY="$brew_fixture" CORE_TOOLS_OS=Darwin CORE_TOOLS_ARCH=arm64 \
-    PATH=/usr/bin:/bin "$CORE_TOOLS" plan |
+    PATH="${SMOKE_BASE_PATH}" "$CORE_TOOLS" plan |
     awk -F '\t' '$4 ~ /^gnupg / { print $1 "\t" $4 }')" = \
     "$(printf 'SKIP\tgnupg requires brew on darwin-arm64')" ] ||
     fail "macOS plan without Homebrew did not skip gnupg"
@@ -323,7 +341,7 @@ gnupg_plan() {
     "$(printf 'SKIP\tgnupg requires sudo on linux-arm64')" ] ||
     fail "Linux plan did not require sudo for gnupg"
 : >"$system_log"
-TOOL_INVENTORY="$brew_fixture" PATH="$system_bin:/usr/bin:/bin" \
+TOOL_INVENTORY="$brew_fixture" PATH="$system_bin:$PATH" \
     SYSTEM_BIN="$system_bin" SYSTEM_LOG="$system_log" \
     CORE_TOOLS_OS=Darwin CORE_TOOLS_ARCH=arm64 \
     CORE_TOOLS_HAS_SUDO=false "$CORE_TOOLS" install >/dev/null
@@ -374,8 +392,8 @@ DOTFILES_ENV_FILE="$tmp_dir/core.env" TOOL_INVENTORY="$grouped" \
 grep -Fx $'SKIP\ttools\tnone\tdemo-viewer skipped: group desktop is not selected' \
     "$tmp_dir/grouped-plan" >/dev/null ||
     fail "core-only plan did not skip a desktop tool by group"
-grep -F $'bitwarden is available through mise' "$tmp_dir/grouped-plan" \
-    >/dev/null || fail "core-only plan omitted Bitwarden CLI"
+grep -F $'gh is available through mise' "$tmp_dir/grouped-plan" \
+    >/dev/null || fail "core-only plan omitted gh"
 : >"$mise_log"
 DOTFILES_ENV_FILE="$tmp_dir/core.env" TOOL_INVENTORY="$grouped" \
     CORE_TOOLS_OS=Linux CORE_TOOLS_ARCH=arm64 CORE_TOOLS_HAS_SUDO=false \
@@ -385,8 +403,19 @@ DOTFILES_ENV_FILE="$tmp_dir/core.env" TOOL_INVENTORY="$grouped" \
 if grep -F demo-viewer "$mise_log" "$tmp_dir/grouped.toml"; then
     fail "core-only install provisioned a desktop tool"
 fi
-grep -Fx '"aqua:bitwarden/clients" = "latest"' "$tmp_dir/grouped.toml" \
-    >/dev/null || fail "core-only install omitted native Bitwarden CLI"
+grep -Fx '"gh" = "latest"' "$tmp_dir/grouped.toml" \
+    >/dev/null || fail "core-only install omitted gh"
+grep -Fx 'uv tool install rust-just==1.59.0' "$mise_log" >/dev/null ||
+    fail "core-only install omitted pinned just through uv"
+: >"$mise_log"
+DOTFILES_ENV_FILE="$tmp_dir/core.env" TOOL_INVENTORY="$grouped" \
+    CORE_TOOLS_OS=Linux CORE_TOOLS_ARCH=x86_64 CORE_TOOLS_HAS_SUDO=false \
+    "$CORE_TOOLS" update >/dev/null
+grep -Fx 'uv tool install rust-just==1.59.0' "$mise_log" >/dev/null ||
+    fail "core-only update omitted pinned just through uv"
+if UV_EXIT_CODE=29 "$CORE_TOOLS" install >"$tmp_dir/uv-failure" 2>&1; then
+    fail "core install ignored a failed just install"
+fi
 [ -f "$tmp_dir/core-zfunc/_gh" ] && [ ! -e "$tmp_dir/core-zfunc/_pnpm" ] ||
     fail "core-only install did not limit completions to selected groups"
 TOOL_INVENTORY="$grouped" \

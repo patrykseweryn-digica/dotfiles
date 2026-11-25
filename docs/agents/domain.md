@@ -25,7 +25,7 @@ Surface conflicts with existing ADRs explicitly.
 - `NOT RUN`: Sync result for a phase whose prerequisite phase failed. The row
   states the failed prerequisite. The sync result is `FAIL`.
 - `SKIP`: Plan result for an intentionally omitted action. The row states the
-  reason. `SKIP` does not fail doctor or sync.
+  reason. `SKIP` does not fail machine or sync.
 - `STEPS_COMMANDS`: Codex coding mode. It shows concrete commands and
   technical tool actions.
 - `STEPS_PROSE`: Work mode. It uses general prose and hides some command

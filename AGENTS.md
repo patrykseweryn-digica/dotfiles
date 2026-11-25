@@ -23,16 +23,24 @@ Remote skills intentionally track current upstream. Do not pin them to commits
 or retain obsolete copies to keep installation green. Before changing live
 skill state, validate every inventory entry against current upstream; reconcile
 removed or renamed skills explicitly and fail before modifying runtimes.
-Personal skills live in `p-severin/skills` and install from
-`.agents/skill-lock.json`. Do not copy them into `.agents/skills-custom`.
+Every skill installs from an upstream entry in `.agents/skill-lock.json`.
+Personal skills live in `p-severin/skills`. Do not copy skills into this
+repository; only its own `verify-dotfiles` skill lives here.
 
 ## Verification
 
 Before changes, applying config to a machine, or committing, use
 `.agents/skills/verify-dotfiles/SKILL.md`. Run its relevant feature recipes
-after changes and `just check` before commits. Compare live doctor failures
+after changes and `just test` before commits. Compare live machine failures
 with the baseline; investigate every new failure. Do not bypass failed hooks
 or claim Linux verification without a Linux run. Keep proof artifacts local.
+
+## Enforced skill rules
+
+| Rule | Enforcement |
+| --- | --- |
+| The lock owns skill names and paths. Do not duplicate its membership in tests. | `skills-preflight` checks each lock entry against current upstream in CI. |
+| Pi must not mirror individual shared skills. | `smoke-skill-install.sh` removes a shared skill and checks for stale Pi links. |
 
 ## Maintaining this file
 

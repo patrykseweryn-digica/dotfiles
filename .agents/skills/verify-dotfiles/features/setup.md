@@ -10,7 +10,8 @@ Install or apply dotfiles while preserving runtime credentials and sessions.
   managed MCP state plus independent settings/link/hook categories, and checks
   the final state without removing export-required MCP additions.
 - `export` prepares settings, MCP, skills, plugins, and recognized tools in one
-  transaction.
+  transaction. `export skills` lets the user select global skill additions,
+  removals, and source changes without changing installed skills.
 - `portable-shell` starts Zsh on simulated macOS/Linux layouts.
 - `groups` limits install and sync to selected groups ([groups](groups.md)).
 
@@ -20,6 +21,7 @@ Install or apply dotfiles while preserving runtime credentials and sessions.
 - `just sync` for a fast-forward pull and controlled local/upstream updates.
   The checkout must be clean.
 - `just export` for one confirmed portable export into a clean checkout.
+- `just export skills` for a searchable list of global skill changes.
 
 ## Driving it with Bash smoke scripts
 
@@ -28,7 +30,9 @@ Preconditions: dependencies from SKILL.md; run from the checkout root.
 - **Install and repeat.** Run `bash scripts/smoke-install-dotfiles.sh` and
   `bash scripts/smoke-plugin-install.sh`. They drive install helpers with an
   isolated HOME through fresh, partial, converged, failed and repeated states
-  on the platform matrix. External installers are stubbed.
+  on the platform matrix. The plugin smoke runs every state on Linux x86_64
+  and one fresh install on each other uname fixture. External installers
+  are stubbed.
 - **Plan and update.** Run `bash scripts/smoke-update-local.sh`. It drives
   public `just sync` in an isolated HOME and checkout. A stalled fetch and a
   local addition stop sync before changes. A stalled operation stops with its
@@ -42,20 +46,38 @@ Preconditions: dependencies from SKILL.md; run from the checkout root.
   command with a child process under a 1 s limit, without GNU `timeout`, and
   on Linux also without `ps`. Both processes must stop. The report must name
   the element, operation, cause, exit code, tool output, next step, and log.
+  A quick successful operation must not call `ps` or leave its watchdog
+  `sleep`. Spy scripts record `ps` calls and the `sleep` PID, so this case
+  needs no real `ps`. The script does not measure the per-operation overhead.
 - **Export once.** Run `bash scripts/smoke-export.sh`. It checks the clean-tree
   gate, one confirmation, settings allowlists, MCP conflict/privacy rejection,
   skill upstream/rename gates, plugin providers, recognized and unknown tools,
   rollback, and absence of staging, commits, pushes, or live mutations.
+  A live Herdr hook with an absolute path must export as one `$HOME` hook.
+  It also drives `just export skills` in a terminal with a stubbed selector.
+  Require unmarked and unrestorable skills to stay out of the export plan.
+  Check the real selector with several differences in an isolated HOME.
+  Press Enter without marking; require no review. Filter to a subset, mark
+  with Ctrl+A, and review with Enter. Require only matching changes.
+  Repeat without a filter; require all changes. Refuse the write both times.
+  Verify Tab still marks one change and Esc cancels.
 - **Stage and apply skills.** Run `bash scripts/smoke-skill-install.sh`.
   Require current content in every runtime, no live changes after staging or
   network failures, rollback after apply failures, and no new backup on an
-  unchanged repeated push.
+  unchanged repeated push. Deleting a skill from the shared directory must
+  remove its entry from Pi without leaving a broken link. The script also
+  runs public `just sync` with a real Git fast-forward and installed skills.
+  Require repository removals to apply, unknown and locally replaced skills
+  to stop sync, and a failed swap to preserve the last applied inventory for
+  retry. The test stubs skill downloads and unrelated categories.
 - **Skill support docs.** Run `bash scripts/smoke-skill-docs.sh`. A skill
   linking `../../docs/<path>` must get that file in `~/.agents/docs`, with
   each runtime `docs` directory linked to it. Doctor reports a missing doc
   as skills `UPDATE` without network access. A failed download changes
   nothing. Staging rejects unsafe paths. Two packages may ship one doc;
   only different content fails. The test simulates downloads.
+  Dangling and looping skill links must fail `skills-check`, which names
+  each link path without `find` error text, and set skills `FAIL` in the plan.
   For real upstream, run `skills-update` with a scratch HOME and a lock
   subset, then `skills-check` in that HOME.
 - **Upstream skill path.** `smoke-skill-install.sh` also covers a skill that
@@ -80,7 +102,7 @@ Preconditions: dependencies from SKILL.md; run from the checkout root.
   `smoke-update-local.sh` covers its sync apply.
 - **Clean Linux install.** Build `.github/ci/clean-install.Dockerfile` on the
   native amd64 and arm64 CI runners. The image runs `install`, two `sync`
-  commands, and `doctor` as a user without sudo or SSH state.
+  commands, and `machine` as a user without sudo or SSH state.
   Use the build command in `.github/workflows/check.yml`; it requires Docker
   with BuildKit, network access, and the `github_token` build secret.
   The image excludes SSH and account-dependent remote Codex plugins.
