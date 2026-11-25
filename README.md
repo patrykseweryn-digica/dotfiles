@@ -305,7 +305,8 @@ every current upstream skill when the workflow runs. A push that only changes
 docs, plans, or Markdown does not start the workflow.
 A local macOS run alone proves only macOS execution and the simulated Linux
 cases.
-Commit hooks run repository tests; live drift remains a separate check because
+prek runs the repository tests as commit hooks, independent hooks in parallel.
+Live drift remains a separate check because
 it depends on the machine's tools, credentials and installed configuration.
 
 ### Firstmate crew dispatch

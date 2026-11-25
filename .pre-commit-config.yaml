@@ -1,3 +1,5 @@
+# prek runs hooks with the same priority concurrently. No hook changes files
+# or shares state with another; give such a hook its own priority.
 repos:
   - repo: https://github.com/shellcheck-py/shellcheck-py
     rev: v0.10.0.1
@@ -5,6 +7,9 @@ repos:
       - id: shellcheck
         args: ["--severity=warning"]
         exclude: '^\.(p10k\.zsh|zshrc)$'
+        # Without --external-sources, file batches give the same result.
+        require_serial: false
+        priority: 0
   - repo: local
     hooks:
       - id: tool-plan-smoke
@@ -13,6 +18,7 @@ repos:
         entry: ./scripts/smoke-tool-plan.sh
         language: system
         pass_filenames: false
+        priority: 0
       - id: zsh-plan-smoke
         name: Zsh install plan smoke test
         description: >-
@@ -21,6 +27,7 @@ repos:
         entry: ./scripts/smoke-zsh-plan.sh
         language: system
         pass_filenames: false
+        priority: 0
       - id: zshrc-startup-smoke
         name: Zshrc startup smoke test
         description: >-
@@ -29,6 +36,7 @@ repos:
         entry: ./scripts/smoke-zshrc-startup.sh
         language: system
         pass_filenames: false
+        priority: 0
       - id: agent-repo-layout-smoke
         name: Agent repo layout smoke test
         description: >-
@@ -36,6 +44,7 @@ repos:
         entry: ./scripts/smoke-agent-repo-layout.sh
         language: system
         pass_filenames: false
+        priority: 0
       - id: install-dotfiles-smoke
         name: Install dotfiles smoke test
         description: >-
@@ -44,26 +53,31 @@ repos:
         entry: ./scripts/smoke-install-dotfiles.sh
         language: system
         pass_filenames: false
+        priority: 0
       - id: firstmate-config-smoke
         name: Firstmate dispatch setup smoke test
         entry: bash scripts/smoke-firstmate-config.sh
         language: system
         pass_filenames: false
+        priority: 0
       - id: git-sync-smoke
         name: Dotfiles dual-remote Git sync smoke test
         entry: bash scripts/smoke-git-sync.sh
         language: system
         pass_filenames: false
+        priority: 0
       - id: node-smoke
         name: Node LTS bootstrap smoke test
         entry: bash scripts/smoke-node.sh
         language: system
         pass_filenames: false
+        priority: 0
       - id: herdr-hook-smoke
         name: Portable Herdr hook smoke test
         entry: bash scripts/smoke-herdr-hook.sh
         language: system
         pass_filenames: false
+        priority: 0
       - id: ssh-config-smoke
         name: SSH config smoke test
         description: >-
@@ -72,6 +86,7 @@ repos:
         entry: ./scripts/smoke-ssh-config.sh
         language: system
         pass_filenames: false
+        priority: 0
       - id: macos-apps-smoke
         name: macOS apps smoke test
         description: >-
@@ -80,12 +95,14 @@ repos:
         entry: ./scripts/smoke-macos-apps.sh
         language: system
         pass_filenames: false
+        priority: 0
       - id: codex-plugin-sync-smoke
         name: Codex plugin sync smoke test
         description: Ensure Codex remote plugin drift and export stay symmetric
         entry: ./scripts/smoke-codex-plugin-sync.sh
         language: system
         pass_filenames: false
+        priority: 0
       - id: plugin-install-smoke
         name: Public install lifecycle smoke test
         description: >-
@@ -95,11 +112,13 @@ repos:
         entry: bash scripts/smoke-plugin-install.sh
         language: system
         pass_filenames: false
+        priority: 0
       - id: skill-install-smoke
         name: Required skill installation smoke test
         entry: bash scripts/smoke-skill-install.sh
         language: system
         pass_filenames: false
+        priority: 0
       - id: skill-docs-smoke
         name: Skill support docs smoke test
         description: >-
@@ -107,33 +126,39 @@ repos:
         entry: bash scripts/smoke-skill-docs.sh
         language: system
         pass_filenames: false
+        priority: 0
       - id: treehouse-smoke
         name: Treehouse release installation smoke test
         entry: bash scripts/smoke-treehouse.sh
         language: system
         pass_filenames: false
+        priority: 0
       - id: codex-native-smoke
         name: Codex native installer smoke test
         entry: bash scripts/smoke-codex-native.sh
         language: system
         pass_filenames: false
+        priority: 0
       - id: codex-settings-smoke
         name: Codex TOML settings smoke test
         entry: uv run --no-project --script scripts/smoke-codex-settings.py
         language: system
         pass_filenames: false
+        priority: 0
       - id: claude-plugin-sync-smoke
         name: Claude plugin sync smoke test
         description: Ensure Claude plugin update and export stay symmetric
         entry: ./scripts/smoke-claude-plugin-sync.sh
         language: system
         pass_filenames: false
+        priority: 0
       - id: doctor-smoke
         name: Live machine doctor smoke test
         description: Ensure live drift checks stay outside commit-time hooks
         entry: ./scripts/smoke-doctor.sh
         language: system
         pass_filenames: false
+        priority: 0
       - id: operation-smoke
         name: Bounded external operation smoke test
         description: >-
@@ -141,12 +166,14 @@ repos:
         entry: bash scripts/smoke-operation.sh
         language: system
         pass_filenames: false
+        priority: 0
       - id: local-update-smoke
         name: Local state update smoke test
         description: Verify planned partial updates and idempotent convergence
         entry: ./scripts/smoke-update-local.sh
         language: system
         pass_filenames: false
+        priority: 0
       - id: install-groups-smoke
         name: Install groups smoke test
         description: >-
@@ -154,18 +181,21 @@ repos:
         entry: bash scripts/smoke-groups.sh
         language: system
         pass_filenames: false
+        priority: 0
       - id: transactional-export-smoke
         name: Transactional export smoke test
         description: Verify one-plan portable checkout export
         entry: ./scripts/smoke-export.sh
         language: system
         pass_filenames: false
+        priority: 0
       - id: agent-sync-interface-smoke
         name: Agent sync interface smoke test
         description: Verify symmetric sync commands and normalized MCP behavior
         entry: ./scripts/smoke-agent-sync-interface.sh
         language: system
         pass_filenames: false
+        priority: 0
       - id: pi-config-check
         name: Pi types, lint and regression tests
         entry: >-
@@ -173,9 +203,11 @@ repos:
           npm --prefix config/pi test'
         language: system
         pass_filenames: false
+        priority: 0
       - id: agent-tools-smoke
         name: Agent tools smoke test
         description: Verify agent tool version policy
         entry: ./scripts/smoke-agent-tools.sh
         language: system
         pass_filenames: false
+        priority: 0

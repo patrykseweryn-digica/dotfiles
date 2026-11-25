@@ -222,6 +222,15 @@
     },
     {
       "commands": [
+        "prek"
+      ],
+      "group": "core",
+      "name": "prek",
+      "scope": "core",
+      "versionPolicy": "latest"
+    },
+    {
+      "commands": [
         "gh"
       ],
       "group": "core",

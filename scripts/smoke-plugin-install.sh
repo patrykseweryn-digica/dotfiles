@@ -67,7 +67,7 @@ install_fonts() { :; }
 install_terminal_colors() { :; }
 install_macos_apps() { :; }
 install_tmux_plugins() { :; }
-pre-commit() { return 1; }
+prek() { return 1; }
 install_node() {
     mkdir -p "$HOME/.local/share/mise/node/bin"
     printf '#!/bin/sh\necho fixture-node\n' \

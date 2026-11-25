@@ -59,7 +59,7 @@ and covered by regression tests.
 
 ## Regression checks and limits
 
-Pre-commit includes focused tests for portable pull/check, skill installation,
+The prek hooks include focused tests for portable pull/check, skill installation,
 Treehouse download/retry, and the full `just install` plugin flow. The latter
 uses real repository control flow with external installers and Codex transport
 simulated. Cases include missing CLI, empty/partial/complete plugin state,

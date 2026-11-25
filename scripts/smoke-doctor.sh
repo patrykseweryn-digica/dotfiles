@@ -436,7 +436,7 @@ grep -E '^EXPORT[[:space:]]+plugins[[:space:]]' \
 if grep -Eq \
     'agent-plugin-check|claude-settings-check|mcp-config-check' \
     "${DOTFILES_DIR}/.pre-commit-config.yaml"; then
-    fail "pre-commit still contains live machine checks"
+    fail "prek hooks still contain live machine checks"
 fi
 
 echo "[INFO] doctor smoke test passed"

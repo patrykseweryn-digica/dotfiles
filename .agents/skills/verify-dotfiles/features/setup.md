@@ -32,7 +32,9 @@ Preconditions: dependencies from SKILL.md; run from the checkout root.
   isolated HOME through fresh, partial, converged, failed and repeated states
   on the platform matrix. The plugin smoke runs every state on Linux x86_64
   and one fresh install on each other uname fixture. External installers
-  are stubbed.
+  are stubbed. The install smoke also runs real prek in a fixture checkout:
+  the old pre-commit Git hook must disappear, and a custom hook must stay
+  as prek's legacy hook. It needs prek on PATH.
 - **Plan and update.** Run `bash scripts/smoke-update-local.sh`. It drives
   public `just sync` in an isolated HOME and checkout. A stalled fetch and a
   local addition stop sync before changes. A stalled operation stops with its

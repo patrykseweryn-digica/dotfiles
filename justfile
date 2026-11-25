@@ -41,7 +41,7 @@ export *args:
 # Run deterministic repository checks.
 [private]
 check:
-    pre-commit run --all-files
+    prek run --all-files
 
 # Check this machine against repository intent.
 doctor:

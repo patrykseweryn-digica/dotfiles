@@ -176,6 +176,8 @@ for target in Darwin:arm64 Linux:x86_64 Linux:arm64; do
     # The aqua zipapp lacks dependencies for the host python3, e.g. 3.10.
     grep -Fx '"pypi:pre-commit" = "latest"' "$config" >/dev/null ||
         fail "pre-commit does not install as a Python package"
+    grep -Fx '"prek" = "latest"' "$config" >/dev/null ||
+        fail "core install omitted prek for the repository Git hook"
     for command_name in $completion_commands; do
         [ "$(cat "$completion_dir/_${command_name}")" = \
             "#compdef ${command_name} v1" ] ||

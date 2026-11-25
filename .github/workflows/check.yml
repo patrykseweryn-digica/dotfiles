@@ -77,7 +77,7 @@ jobs:
           pipx install uv
           export PATH="$HOME/.local/bin:$PATH"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-          uv tool install pre-commit
+          uv tool install prek
           just_version=$(jq -r '.tools[] |
             select(.package == "rust-just") | .channel' \
             .agents/tool-versions.json)

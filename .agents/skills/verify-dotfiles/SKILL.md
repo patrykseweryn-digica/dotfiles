@@ -11,7 +11,7 @@ listed for the affected features. Use existing checks, not a new runner.
 ## Launch
 
 Run from the dotfiles checkout. There is no server or persistent test process.
-Required commands: bash, git, just, jq, node, npm, uv, pre-commit, zsh, rg.
+Required commands: bash, git, just, jq, node, npm, uv, prek, zsh, rg.
 Smoke tests narrow PATH to stubs, a scratch link to the host jq, and
 `/usr/bin:/bin`. The smoke tests require jq 1.7 or newer.
 Ubuntu 22.04 ships jq 1.6 in `/usr/bin`, so the version check fails there.
@@ -57,7 +57,8 @@ just doctor >"$proof/doctor-after.log" 2>&1
 ```
 
 Record both exit codes.
-Commit-time pre-commit hooks remain mandatory.
+`just check` runs every prek hook; hooks with one `priority` run in
+parallel. Commit-time prek hooks remain mandatory.
 Do not disable hooks or force a commit through a new failure. With existing
 live drift, state exactly what passed and which checks still fail. Before
 applying configuration, compare both sides and back up valuable local state.
