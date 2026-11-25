@@ -3,6 +3,8 @@ config/claude/skills/
 config/pi/node_modules/
 docs/*
 !docs/agents/
+!docs/architecture.json
+!docs/architecture.svg
 .env
 .claude/
 .agent-runs/

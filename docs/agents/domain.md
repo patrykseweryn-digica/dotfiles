@@ -3,6 +3,7 @@
 Layout: single-context.
 
 Before domain exploration:
+
 - Read CONTEXT.md at the repository root if present.
 - Read relevant ADRs under docs/adr/ if present.
 - If absent, proceed silently; create domain docs only when resolving
@@ -13,8 +14,13 @@ Surface conflicts with existing ADRs explicitly.
 
 ## Vocabulary
 
+- `Agent harness`: A program that connects a model to tools and manages an agent
+  session. Claude Code, Codex, and Pi are harnesses, not runtimes.
 - `CI runner`: Temporary machine assigned by the CI platform to execute a job.
   `queued` means no matching machine is available and the job has not started.
+- `desktop`: Optional install group for graphical settings on Linux and macOS,
+  such as fonts and editor configuration. The vision treats macOS application
+  installation as a separate choice; the current installer still bundles it.
 - `K3s`: Lightweight Kubernetes distribution that manages containerized
   applications across one or more Linux computers.
 - `mise shim`: Small file in `~/.local/share/mise/shims` with the name of a

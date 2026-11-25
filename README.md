@@ -411,6 +411,19 @@ publication.
   The plugin manifest covers Claude membership plus Codex remote and
   marketplace plugins.
 
+## Architecture map
+
+The [SVG](docs/architecture.svg) shows how declarations, modules, and platforms
+connect. The [JSON graph](docs/architecture.json) lists the corresponding
+commands, inventories, and install groups.
+
+Both files describe the current checkout, not the target [vision](STRATEGY.md).
+The generator reads known declarations and shell entry points, not local `.env`
+files or live machines. It does not resolve arbitrary shell calls.
+
+After changing an architecture input, run `just architecture` to regenerate both
+files. `just test` and CI reject stale output.
+
 ## Rule of thumb
 
 - New machine: `just install`.

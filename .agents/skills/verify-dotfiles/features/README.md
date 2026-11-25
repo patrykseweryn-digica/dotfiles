@@ -7,6 +7,8 @@ Run the affected recipes after each change; `just test` runs them all.
 - [Tool inventory and updates](tools.md): latest tools without repo rewrites.
 - [Machine check](machine.md): live drift, safe diagnostics and read-only checks.
 - [Install groups](groups.md): per-machine core, agents and desktop selection.
+- Architecture map: run `just architecture`, then
+  `prek run architecture-map --all-files` to check both generated files.
 
 Record the feature, command, platform, exit code and observable result.
 A simulated installer is not proof of a successful external download.

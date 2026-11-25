@@ -1,0 +1,637 @@
+{
+  "platforms": [
+    "Linux",
+    "macOS"
+  ],
+  "install_groups": [
+    "core",
+    "agents",
+    "desktop"
+  ],
+  "commands": {
+    "install": [
+      "install.sh"
+    ],
+    "sync": [
+      "scripts/sync-local.sh"
+    ],
+    "machine": [
+      "scripts/doctor.sh"
+    ],
+    "export": [
+      "sync-agents.sh"
+    ],
+    "groups": [
+      "scripts/groups.sh"
+    ],
+    "enable": [
+      "scripts/groups.sh",
+      "install.sh"
+    ],
+    "disable": [
+      "scripts/groups.sh"
+    ]
+  },
+  "script_references": [
+    {
+      "from": "install.sh",
+      "to": "scripts/agent-tools.sh"
+    },
+    {
+      "from": "install.sh",
+      "to": "scripts/managed-links.sh"
+    },
+    {
+      "from": "install.sh",
+      "to": "ssh.sh"
+    },
+    {
+      "from": "install.sh",
+      "to": "sync-agents.sh"
+    },
+    {
+      "from": "scripts/agent-tools.sh",
+      "to": "bootstrap.d/05-tools.sh"
+    },
+    {
+      "from": "scripts/agent-tools.sh",
+      "to": "bootstrap.d/07-node.sh"
+    },
+    {
+      "from": "scripts/agent-tools.sh",
+      "to": "install.sh"
+    },
+    {
+      "from": "scripts/agent-tools.sh",
+      "to": "scripts/groups.sh"
+    },
+    {
+      "from": "scripts/agent-tools.sh",
+      "to": "scripts/operation.sh"
+    },
+    {
+      "from": "bootstrap.d/05-tools.sh",
+      "to": "install.sh"
+    },
+    {
+      "from": "bootstrap.d/05-tools.sh",
+      "to": "scripts/core-tools.sh"
+    },
+    {
+      "from": "bootstrap.d/07-node.sh",
+      "to": "scripts/operation.sh"
+    },
+    {
+      "from": "scripts/core-tools.sh",
+      "to": "bootstrap.d/07-node.sh"
+    },
+    {
+      "from": "scripts/core-tools.sh",
+      "to": "scripts/groups.sh"
+    },
+    {
+      "from": "scripts/core-tools.sh",
+      "to": "scripts/operation.sh"
+    },
+    {
+      "from": "scripts/doctor.sh",
+      "to": "scripts/state-plan.sh"
+    },
+    {
+      "from": "scripts/managed-links.sh",
+      "to": "scripts/groups.sh"
+    },
+    {
+      "from": "scripts/state-plan.sh",
+      "to": "bootstrap.d/02-zsh.sh"
+    },
+    {
+      "from": "scripts/state-plan.sh",
+      "to": "bootstrap.d/07-node.sh"
+    },
+    {
+      "from": "scripts/state-plan.sh",
+      "to": "scripts/agent-tools.sh"
+    },
+    {
+      "from": "scripts/state-plan.sh",
+      "to": "scripts/core-tools.sh"
+    },
+    {
+      "from": "scripts/state-plan.sh",
+      "to": "scripts/managed-links.sh"
+    },
+    {
+      "from": "scripts/state-plan.sh",
+      "to": "sync-agents.sh"
+    },
+    {
+      "from": "scripts/sync-local.sh",
+      "to": "scripts/groups.sh"
+    },
+    {
+      "from": "scripts/sync-local.sh",
+      "to": "scripts/operation.sh"
+    },
+    {
+      "from": "scripts/sync-local.sh",
+      "to": "scripts/update-local.sh"
+    },
+    {
+      "from": "scripts/update-local.sh",
+      "to": "install.sh"
+    },
+    {
+      "from": "scripts/update-local.sh",
+      "to": "scripts/agent-tools.sh"
+    },
+    {
+      "from": "scripts/update-local.sh",
+      "to": "scripts/core-tools.sh"
+    },
+    {
+      "from": "scripts/update-local.sh",
+      "to": "scripts/groups.sh"
+    },
+    {
+      "from": "scripts/update-local.sh",
+      "to": "scripts/operation.sh"
+    },
+    {
+      "from": "scripts/update-local.sh",
+      "to": "scripts/state-plan.sh"
+    },
+    {
+      "from": "scripts/update-local.sh",
+      "to": "sync-agents.sh"
+    },
+    {
+      "from": "sync-agents.sh",
+      "to": "install.sh"
+    },
+    {
+      "from": "sync-agents.sh",
+      "to": "scripts/agent-tools.sh"
+    },
+    {
+      "from": "sync-agents.sh",
+      "to": "scripts/groups.sh"
+    },
+    {
+      "from": "sync-agents.sh",
+      "to": "scripts/operation.sh"
+    }
+  ],
+  "modules": [
+    {
+      "id": "tools",
+      "label": "Tools",
+      "sources": [
+        ".agents/tool-versions.json",
+        "config/mise/config.toml"
+      ],
+      "target": [
+        "Linux",
+        "macOS"
+      ],
+      "inventory": {
+        "tools_by_group": {
+          "agents": 27,
+          "core": 26
+        },
+        "tools": [
+          {
+            "name": "Backpass",
+            "group": "agents"
+          },
+          {
+            "name": "Chrome DevTools AXI",
+            "group": "agents"
+          },
+          {
+            "name": "Claude Code",
+            "group": "agents"
+          },
+          {
+            "name": "Codex",
+            "group": "agents"
+          },
+          {
+            "name": "Cursor CLI",
+            "group": "agents"
+          },
+          {
+            "name": "GitHub AXI",
+            "group": "agents"
+          },
+          {
+            "name": "Grok Build",
+            "group": "agents"
+          },
+          {
+            "name": "Herdr",
+            "group": "agents"
+          },
+          {
+            "name": "Lavish AXI",
+            "group": "agents"
+          },
+          {
+            "name": "OpenCode",
+            "group": "agents"
+          },
+          {
+            "name": "Pi",
+            "group": "agents"
+          },
+          {
+            "name": "Quota AXI",
+            "group": "agents"
+          },
+          {
+            "name": "Skill manager",
+            "group": "agents"
+          },
+          {
+            "name": "Summarize",
+            "group": "agents"
+          },
+          {
+            "name": "Tasks AXI",
+            "group": "agents"
+          },
+          {
+            "name": "Treehouse",
+            "group": "agents"
+          },
+          {
+            "name": "TypeScript language server",
+            "group": "agents"
+          },
+          {
+            "name": "acpx",
+            "group": "agents"
+          },
+          {
+            "name": "ast-grep",
+            "group": "agents"
+          },
+          {
+            "name": "bat",
+            "group": "core"
+          },
+          {
+            "name": "cmakelang",
+            "group": "agents"
+          },
+          {
+            "name": "delta",
+            "group": "core"
+          },
+          {
+            "name": "eza",
+            "group": "core"
+          },
+          {
+            "name": "fallow",
+            "group": "agents"
+          },
+          {
+            "name": "fd",
+            "group": "core"
+          },
+          {
+            "name": "fzf",
+            "group": "core"
+          },
+          {
+            "name": "gh",
+            "group": "core"
+          },
+          {
+            "name": "gh-dash",
+            "group": "agents"
+          },
+          {
+            "name": "git-lfs",
+            "group": "core"
+          },
+          {
+            "name": "gnhf",
+            "group": "agents"
+          },
+          {
+            "name": "gnupg",
+            "group": "core"
+          },
+          {
+            "name": "hadolint",
+            "group": "core"
+          },
+          {
+            "name": "hyperfine",
+            "group": "core"
+          },
+          {
+            "name": "jq",
+            "group": "core"
+          },
+          {
+            "name": "lazygit",
+            "group": "core"
+          },
+          {
+            "name": "neovim",
+            "group": "core"
+          },
+          {
+            "name": "no-mistakes",
+            "group": "agents"
+          },
+          {
+            "name": "pnpm",
+            "group": "agents"
+          },
+          {
+            "name": "pre-commit",
+            "group": "core"
+          },
+          {
+            "name": "prek",
+            "group": "core"
+          },
+          {
+            "name": "pylint",
+            "group": "agents"
+          },
+          {
+            "name": "ripgrep",
+            "group": "core"
+          },
+          {
+            "name": "rust-just",
+            "group": "core"
+          },
+          {
+            "name": "shellcheck",
+            "group": "core"
+          },
+          {
+            "name": "shfmt",
+            "group": "core"
+          },
+          {
+            "name": "tealdeer",
+            "group": "core"
+          },
+          {
+            "name": "tmux",
+            "group": "core"
+          },
+          {
+            "name": "typos",
+            "group": "core"
+          },
+          {
+            "name": "vale",
+            "group": "core"
+          },
+          {
+            "name": "watchexec",
+            "group": "core"
+          },
+          {
+            "name": "xclip",
+            "group": "core"
+          },
+          {
+            "name": "yt-dlp",
+            "group": "agents"
+          },
+          {
+            "name": "zoxide",
+            "group": "core"
+          }
+        ],
+        "node": {
+          "policy": "lts",
+          "install_group": "agents",
+          "installer": "mise"
+        }
+      }
+    },
+    {
+      "id": "harnesses",
+      "label": "Agent harnesses",
+      "sources": [
+        ".agents/skill-lock.json",
+        ".agents/mcp-servers.json",
+        ".agents/plugin-manifest.json"
+      ],
+      "target": [
+        "Linux",
+        "macOS"
+      ],
+      "inventory": {
+        "shared_skill_consumers": [
+          "Codex",
+          "Claude Code",
+          "OpenCode",
+          "Pi"
+        ],
+        "skills_by_source": {
+          "GoogleChrome/modern-web-guidance": 1,
+          "cursor/plugins": 43,
+          "emilkowalski/skills": 4,
+          "fallow-rs/fallow-skills": 1,
+          "getagentseal/founder-playbook": 4,
+          "humanlayer/skills": 4,
+          "kunchenguid/headless": 1,
+          "kunchenguid/kun": 1,
+          "kunchenguid/no-mistakes": 1,
+          "kunchenguid/vision": 1,
+          "mattpocock/skills": 28,
+          "mlflow/skills": 7,
+          "mvanhorn/last30days-skill": 1,
+          "p-severin/skills": 10,
+          "pydantic/skills": 3,
+          "steipete/agent-scripts": 5,
+          "upstash/context7": 1,
+          "vercel-labs/skills": 1
+        },
+        "skill_count": 117,
+        "mcp_servers": [
+          "chrome-devtools",
+          "cloudflare",
+          "exa",
+          "garmin",
+          "garmin-givemydata",
+          "logfire",
+          "obsidian",
+          "openaiDeveloperDocs",
+          "playwright",
+          "sequential-thinking",
+          "telegram",
+          "todoist"
+        ],
+        "plugins_by_harness": {
+          "claude": 23,
+          "codex": 14
+        }
+      }
+    },
+    {
+      "id": "graphical-settings",
+      "label": "Graphical settings",
+      "sources": [
+        "config/managed-links.tsv",
+        "bootstrap.d/06-fonts.sh",
+        "bootstrap.d/08-terminal.sh"
+      ],
+      "target": [
+        "Linux",
+        "macOS"
+      ],
+      "install_group": "desktop",
+      "inventory": {
+        "managed_sources": [
+          "config/Code/keybindings.json",
+          "config/Code/settings.json",
+          "config/ghostty/config.ghostty"
+        ]
+      }
+    },
+    {
+      "id": "graphical-apps",
+      "label": "Graphical applications",
+      "sources": [
+        "Brewfile",
+        "config/Code/extensions.txt"
+      ],
+      "target": [
+        "macOS"
+      ],
+      "install_group": "desktop",
+      "inventory": {
+        "homebrew_casks": [
+          "brave-browser",
+          "cmux",
+          "codexbar",
+          "docker",
+          "ghostty",
+          "google-chrome",
+          "obsidian",
+          "qmk-toolbox",
+          "rectangle",
+          "slack",
+          "spotify",
+          "telegram",
+          "todoist",
+          "visual-studio-code"
+        ],
+        "vscode_extensions": [
+          "adamviola.parquet-explorer",
+          "akamud.vscode-theme-onedark",
+          "andyyaldoo.vscode-json",
+          "anthropic.claude-code",
+          "azemoh.one-monokai",
+          "bierner.color-info",
+          "bierner.markdown-mermaid",
+          "bpruitt-goddard.mermaid-markdown-syntax-highlighting",
+          "bradlc.vscode-tailwindcss",
+          "charliermarsh.ruff",
+          "christian-kohler.npm-intellisense",
+          "christian-kohler.path-intellisense",
+          "chuckjonas.duckdb",
+          "ckolkman.vscode-postgres",
+          "cstrap.python-snippets",
+          "davidanson.vscode-markdownlint",
+          "dbaeumer.vscode-eslint",
+          "doggy8088.quicktype-refresh",
+          "donjayamanne.githistory",
+          "dotjoshjohnson.xml",
+          "eamodio.gitlens",
+          "eriklynd.json-tools",
+          "esbenp.prettier-vscode",
+          "fabiospampinato.vscode-todo-plus",
+          "formulahendry.auto-rename-tag",
+          "freecodecamp.freecodecamp-dark-vscode-theme",
+          "gitbybit.gitbybit",
+          "github.remotehub",
+          "github.vscode-github-actions",
+          "github.vscode-pull-request-github",
+          "google.colab",
+          "grapecity.gc-excelviewer",
+          "jamief.vscode-ssh-config-enhanced",
+          "janisdd.vscode-edit-csv",
+          "jebbs.markdown-extended",
+          "johnpapa.vscode-peacock",
+          "kisstkondoros.vscode-gutter-preview",
+          "liviuschera.noctis",
+          "marp-team.marp-vscode",
+          "mechatroner.rainbow-csv",
+          "mhutchie.git-graph",
+          "ms-azuretools.vscode-containers",
+          "ms-azuretools.vscode-docker",
+          "ms-python.black-formatter",
+          "ms-python.debugpy",
+          "ms-python.python",
+          "ms-python.vscode-pylance",
+          "ms-python.vscode-python-envs",
+          "ms-toolsai.jupyter",
+          "ms-toolsai.jupyter-keymap",
+          "ms-toolsai.jupyter-renderers",
+          "ms-toolsai.vscode-jupyter-cell-tags",
+          "ms-toolsai.vscode-jupyter-slideshow",
+          "ms-vscode-remote.remote-containers",
+          "ms-vscode-remote.remote-ssh",
+          "ms-vscode-remote.remote-ssh-edit",
+          "ms-vscode-remote.remote-wsl",
+          "ms-vscode-remote.vscode-remote-extensionpack",
+          "ms-vscode.azure-repos",
+          "ms-vscode.makefile-tools",
+          "ms-vscode.remote-explorer",
+          "ms-vscode.remote-repositories",
+          "ms-vscode.remote-server",
+          "ms-vscode.vscode-serial-monitor",
+          "ms-vscode.vscode-speech",
+          "njpwerner.autodocstring",
+          "openai.chatgpt",
+          "percy.vscode-numpy-viewer",
+          "quicktype.quicktype",
+          "qwtel.sqlite-viewer",
+          "rangav.vscode-thunder-client",
+          "redhat.vscode-yaml",
+          "richie5um2.vscode-sort-json",
+          "ritwickdey.liveserver",
+          "rodrigovallades.es7-react-js-snippets",
+          "sburg.vscode-javascript-booster",
+          "shardulm94.trailing-spaces",
+          "tamasfe.even-better-toml",
+          "tomoki1207.pdf",
+          "vscode-ext.sync-rsync",
+          "vscode-icons-team.vscode-icons",
+          "waderyan.gitblame",
+          "wallabyjs.quokka-vscode",
+          "wayou.vscode-todo-highlight",
+          "yutengjing.vscode-classic-experience",
+          "yzane.markdown-pdf",
+          "yzhang.markdown-all-in-one",
+          "zyte.web-scraping"
+        ]
+      }
+    }
+  ],
+  "module_dependencies": [
+    {
+      "from": "harnesses",
+      "to": "tools",
+      "via": "Node",
+      "source": "scripts/agent-tools.sh"
+    }
+  ],
+  "unresolved": [
+    "Local group selection and command overrides",
+    "Dynamic shell calls and dependency availability on live machines"
+  ]
+}

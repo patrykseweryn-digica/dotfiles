@@ -12,6 +12,13 @@ repos:
         priority: 0
   - repo: local
     hooks:
+      - id: architecture-map
+        name: Generated architecture map is current
+        entry: python3 scripts/build-architecture.py --check
+        language: system
+        pass_filenames: false
+        always_run: true
+        priority: 0
       - id: tool-plan-smoke
         name: Tool install plan smoke test
         description: Ensure Linux/macOS CLI tool install planning stays portable

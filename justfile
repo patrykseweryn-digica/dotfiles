@@ -38,6 +38,11 @@ update:
 export *args:
     "{{ sync_agents }}" export "$@"
 
+# Regenerate the architecture SVG and JSON from repository sources.
+[private]
+architecture:
+    python3 scripts/build-architecture.py
+
 # Run deterministic repository checks.
 [private]
 test:
