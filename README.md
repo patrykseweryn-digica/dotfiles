@@ -302,7 +302,7 @@ run them. Accountless CI skips only remote Codex plugins because their
 installation requires OAuth. CI mounts a read-only GitHub token only during
 `sync`. Docker does not copy the token into the image. A separate job resolves
 every current upstream skill when the workflow runs. A push that only changes
-docs, plans, or Markdown does not start the workflow.
+docs or Markdown does not start the workflow.
 A local macOS run alone proves only macOS execution and the simulated Linux
 cases.
 Commit hooks run repository tests; live drift remains a separate check because
