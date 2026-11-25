@@ -1,5 +1,37 @@
 #!/bin/bash
-set -eu
+set -Eeu
+on_error() {
+    local status=$?
+    echo "[ERROR] Skill install smoke failed at line ${BASH_LINENO[0]} (exit ${status}): ${BASH_COMMAND}" >&2
+    exit "$status"
+}
+trap on_error ERR
+
+merge_log() {
+    local log="$1" dir="${1}.d" part
+    [ -d "$dir" ] || return 0
+    for part in "$dir"/call.*; do
+        [ -f "$part" ] || continue
+        cat "$part" >>"$log"
+    done
+    rm -rf "$dir"
+}
+
+reset_log() {
+    rm -rf "${1}.d"
+    : >"$1"
+}
+
+fail_log() {
+    local log="$1" label="$2"
+    if [ -s "$log" ]; then
+        cat "$log" >&2
+    else
+        echo "[ERROR] ${label} failed and wrote no output" >&2
+    fi
+    exit 1
+}
+
 repo="$(cd "$(dirname "$0")/.." && pwd)"
 source "${repo}/scripts/host-tools.sh"
 task_dir="$(mktemp -d)"
@@ -33,7 +65,9 @@ cp "$task_dir/fixture-lock.json" "$task_dir/lock.json"
 cat > "$task_dir/bin/skills" <<'STUB'
 #!/bin/bash
 set -eu
-printf '%s\n' "$*" >> "$SKILL_TEST_LOG"
+mkdir -p "${SKILL_TEST_LOG}.d"
+call_file="$(mktemp "${SKILL_TEST_LOG}.d/call.XXXXXX")"
+printf '%s\n' "$*" >"$call_file"
 [ "${FAIL_SKILL:-false}" = false ] || { echo 'download interrupted' >&2; exit 1; }
 skills=()
 collect=false
@@ -115,7 +149,9 @@ cat > "$task_dir/bin/git" <<'STUB'
 #!/bin/bash
 set -eu
 if [ "${1:-}" = ls-remote ]; then
-    printf '%s\n' "$*" >>"$SKILL_REF_LOG"
+    mkdir -p "${SKILL_REF_LOG}.d"
+    ref_file="$(mktemp "${SKILL_REF_LOG}.d/call.XXXXXX")"
+    printf '%s\n' "$*" >"$ref_file"
     [ "$2" != "${MISSING_SKILL_SOURCE:-}" ] || exit 0
     printf '%s\t%s\n' "${SKILL_SOURCE_SHA:-1111111}" "${3:-HEAD}"
     exit 0
@@ -147,12 +183,11 @@ env -u CODEX_HOME -u OPENCODE_CONFIG_DIR -u PI_CODING_AGENT_DIR \
     PATH="$preflight_home/.local/share/mise/shims:$task_dir/bin:$PATH" \
     SKILLS_CLI=skills REAL_SKILLS="$task_dir/bin/skills" \
     SKILL_TEST_LOG="$task_dir/preflight-calls" \
-    "$repo/sync-agents.sh" skills-preflight >"$task_dir/preflight-output" 2>&1 || {
-    cat "$task_dir/preflight-output" >&2
-    exit 1
-}
+    "$repo/sync-agents.sh" skills-preflight >"$task_dir/preflight-output" 2>&1 ||
+    fail_log "$task_dir/preflight-output" "skills-preflight"
 test ! -e "$preflight_home/.agents"
 tree='https://github.com/example/plugins/tree/main'
+merge_log "$task_dir/preflight-calls"
 rg -qxF \
     "add -g $tree/team-kit --skill control-cli --agent codex -y --full-depth" \
     "$task_dir/preflight-calls"
@@ -173,14 +208,17 @@ env -u CODEX_HOME -u OPENCODE_CONFIG_DIR -u PI_CODING_AGENT_DIR \
     SKILL_LOCK_REPO="$task_dir/lanes-lock.json" \
     PATH="$task_dir/bin:$PATH" SKILLS_CLI="$task_dir/bin/skills" \
     SKILL_TEST_LOG="$task_dir/lanes-calls" \
-    "$repo/sync-agents.sh" skills-preflight >"$task_dir/lanes-output" 2>&1 || {
-    cat "$task_dir/lanes-output" >&2
+    "$repo/sync-agents.sh" skills-preflight >"$task_dir/lanes-output" 2>&1 ||
+    fail_log "$task_dir/lanes-output" "skill lanes"
+merge_log "$task_dir/lanes-calls"
+lane_count="$(wc -l <"$task_dir/lanes-calls" | tr -d ' ')"
+[ "$lane_count" = 6 ] || {
+    echo "[ERROR] Parallel skill lanes recorded ${lane_count} calls, want 6" >&2
+    cat "$task_dir/lanes-calls" >&2
     exit 1
 }
-[ "$(wc -l <"$task_dir/lanes-calls" | tr -d ' ')" = 6 ]
 test ! -e "$preflight_home/.agents"
 
-# Two source groups must not write one lock entry.
 if env -u CODEX_HOME -u OPENCODE_CONFIG_DIR -u PI_CODING_AGENT_DIR \
     -u PI_SKILLS_DIR HOME="$preflight_home" \
     SKILL_LOCK_LIVE="$preflight_home/.agents/.skill-lock.json" \
@@ -214,10 +252,19 @@ if env -u CODEX_HOME -u OPENCODE_CONFIG_DIR -u PI_CODING_AGENT_DIR \
     echo 'Missing second skill passed' >&2
     exit 1
 fi
-rg -q 'No matching skills found for: Missing Skill' "$task_dir/multi-output"
+merge_log "$task_dir/multi-calls"
+rg -q 'No matching skills found for: Missing Skill' "$task_dir/multi-output" || {
+    echo "[ERROR] Missing skill did not fail with the CLI message" >&2
+    cat "$task_dir/multi-output" >&2
+    exit 1
+}
 rg -q -- \
     '--skill poteto-mode Missing Skill --agent codex -y --full-depth' \
-    "$task_dir/multi-calls"
+    "$task_dir/multi-calls" || {
+    echo "[ERROR] Missing skill was not requested with the installed skill" >&2
+    cat "$task_dir/multi-calls" >&2
+    exit 1
+}
 rg -q '^preserve me$' "$multi_home/.agents/skills/preserve/SKILL.md"
 test ! -e "$multi_home/.agents/.skill-lock.json"
 
@@ -234,7 +281,11 @@ if env -u CODEX_HOME -u OPENCODE_CONFIG_DIR -u PI_CODING_AGENT_DIR \
     echo 'Unexpected staged skill passed' >&2
     exit 1
 fi
-rg -q 'Staged skill inventory differs' "$task_dir/extra-output"
+rg -q 'Staged skill inventory differs' "$task_dir/extra-output" || {
+    echo "[ERROR] Unexpected staged skill did not fail the inventory check" >&2
+    cat "$task_dir/extra-output" >&2
+    exit 1
+}
 rg -q '^preserve me$' "$extra_home/.agents/skills/preserve/SKILL.md"
 test ! -e "$extra_home/.agents/.skill-lock.json"
 
@@ -256,7 +307,11 @@ if env -u CODEX_HOME -u OPENCODE_CONFIG_DIR -u PI_CODING_AGENT_DIR \
 fi
 expected_path="$(jq -r '.skills["poteto-mode"].skillPath' "$task_dir/lock.json")"
 rg -qF "Skill poteto-mode resolved from $other_path; inventory expects $expected_path" \
-    "$task_dir/variant-output"
+    "$task_dir/variant-output" || {
+    echo "[ERROR] Skill from another upstream path was not rejected" >&2
+    cat "$task_dir/variant-output" >&2
+    exit 1
+}
 rg -q '^preserve me$' "$variant_home/.agents/skills/preserve/SKILL.md"
 test ! -e "$variant_home/.agents/.skill-lock.json"
 
@@ -352,9 +407,11 @@ for state in empty partial complete broken alias no_url apply_failure rollback_f
     fi
     backup_count=""
     for run in 1 2; do
-        run_sync || { cat "$task_dir/output" >&2; exit 1; }
+        run_sync || fail_log "$task_dir/output" "push-skills"
         if rg -q '^diff: .*No such file or directory' "$task_dir/output"; then
-            fail "skill comparison exposed a missing-path warning"
+            echo "[ERROR] Skill comparison exposed a missing-path warning" >&2
+            cat "$task_dir/output" >&2
+            exit 1
         fi
         for root in .agents/skills .claude/skills .config/opencode/skills .pi/agent/skills; do
             test -r "$task_home/$root/poteto-mode/SKILL.md"
@@ -366,20 +423,23 @@ for state in empty partial complete broken alias no_url apply_failure rollback_f
         if [ "$run" = 1 ]; then
             backup_count="$current_backup_count"
         else
-            [ "$current_backup_count" = "$backup_count" ]
+            [ "$current_backup_count" = "$backup_count" ] || {
+                echo "[ERROR] Skill backup count for ${state} changed from ${backup_count} to ${current_backup_count}" >&2
+                exit 1
+            }
         fi
     done
     if [ "$state" = complete ]; then
         live_lock="$task_home/.agents/.skill-lock.json"
         jq '.skills["poteto-mode"].pluginName = "pstack"' "$live_lock" > "$live_lock.next"
         mv "$live_lock.next" "$live_lock"
-        run_sync || { cat "$task_dir/output" >&2; exit 1; }
+        run_sync || fail_log "$task_dir/output" "push-skills"
         jq -e '.skills["poteto-mode"].pluginName == "pstack"' "$live_lock" >/dev/null
         # A source field removed from the repository must leave the live lock.
         jq '.skills["poteto-mode"].subpath = "old/path"' "$live_lock" \
             > "$live_lock.next"
         mv "$live_lock.next" "$live_lock"
-        run_sync || { cat "$task_dir/output" >&2; exit 1; }
+        run_sync || fail_log "$task_dir/output" "push-skills"
         jq -e '.skills["poteto-mode"] |
             (has("subpath") | not) and .pluginName == "pstack"' \
             "$live_lock" >/dev/null || {
@@ -408,25 +468,35 @@ run_update() {
 run_update
 rg -q '^name: Poteto Mode$' "$update_home/.agents/skills/poteto-mode/SKILL.md"
 rg -q '^version: current$' "$update_home/.agents/skills/poteto-mode/SKILL.md"
+merge_log "$update_calls"
+merge_log "$ref_calls"
 [ "$(wc -l <"$update_calls" | tr -d ' ')" = 1 ]
 run_update
+merge_log "$update_calls"
+merge_log "$ref_calls"
 [ "$(wc -l <"$update_calls" | tr -d ' ')" = 1 ]
 [ "$(wc -l <"$ref_calls" | tr -d ' ')" = 2 ]
 SKILL_SOURCE_SHA=2222222 run_update
+merge_log "$update_calls"
 [ "$(wc -l <"$update_calls" | tr -d ' ')" = 2 ]
 
-# One missing ref in a batch must not publish a partial cache or start staging.
 missing_source=https://github.com/example/missing.git
 jq --arg source "$missing_source" '
     .skills["control-cli"] |= (.source = "example/missing" | .sourceUrl = $source)
 ' "$task_dir/fixture-lock.json" >"$task_dir/two-sources.json"
 cp "$update_refs" "$task_dir/refs-before-failure.json"
-: >"$ref_calls"
+reset_log "$ref_calls"
 if UPDATE_LOCK="$task_dir/two-sources.json" MISSING_SKILL_SOURCE="$missing_source" run_update; then
     echo 'Skills update accepted a missing ref' >&2
     exit 1
 fi
-rg -qF "Skill source ref not found: $missing_source main" "$task_dir/update-output"
+rg -qF "Skill source ref not found: $missing_source main" "$task_dir/update-output" || {
+    echo "[ERROR] Skills update accepted a batch with a missing ref" >&2
+    cat "$task_dir/update-output" >&2
+    exit 1
+}
+merge_log "$ref_calls"
+merge_log "$update_calls"
 [ "$(wc -l <"$ref_calls" | tr -d ' ')" = 2 ]
 [ "$(wc -l <"$update_calls" | tr -d ' ')" = 2 ]
 cmp "$task_dir/refs-before-failure.json" "$update_refs"
@@ -522,10 +592,11 @@ STUB
         fi
         expect_upgrade '[RESULT] EXPORT'
         test -f "$home/.agents/skills/control-cli/SKILL.md"
+        merge_log "$SKILL_TEST_LOG"
         test ! -s "$SKILL_TEST_LOG"
     }
-    : >"$SKILL_TEST_LOG"
-    expect_export  # No trustworthy baseline yet, even after the pull.
+    reset_log "$SKILL_TEST_LOG"
+    expect_export
     cp "$task_dir/old-refs" "$refs"
 
     local_skill="$home/.claude/skills/local-skill"
@@ -557,7 +628,7 @@ STUB
     cmp "$task_dir/live-before" "$live"
     cmp "$client/$lock" "$publisher/$lock"
 
-    run_upgrade || { cat "$task_dir/upgrade.log" >&2; exit 1; }
+    run_upgrade || fail_log "$task_dir/upgrade.log" "sync"
     expect_upgrade '[RESULT] PASS'
     for root in .agents/skills .claude/skills .config/opencode/skills .pi/agent/skills; do
         test ! -e "$home/$root/control-cli"
@@ -569,7 +640,7 @@ STUB
     rm "$refs"
     printf '{"skills":{}}\n' >"$publisher/$lock"
     git -C "$publisher" commit -qam 'test: retire the last skill'
-    run_upgrade || { cat "$task_dir/upgrade.log" >&2; exit 1; }
+    run_upgrade || fail_log "$task_dir/upgrade.log" "sync"
     expect_upgrade '[RESULT] PASS'
     test ! -e "$home/.agents/skills/poteto-mode"
 )

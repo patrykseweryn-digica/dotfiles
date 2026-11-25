@@ -2340,6 +2340,7 @@ stage_locked_skills() {
     STAGED_SKILLS_HOME="${STAGED_SKILLS_ROOT}/home"
     STAGED_SKILL_LOCK="${STAGED_SKILLS_HOME}/.agents/.skill-lock.json"
     mkdir -p "${STAGED_SKILLS_HOME}/.agents/skills" || {
+        echo "[ERROR] Failed to create staged skills directory" >&2
         cleanup_staged_skills
         return 1
     }
@@ -2348,7 +2349,7 @@ stage_locked_skills() {
     local skills_cli resolved_skills_cli
     local runtime_name skill_file
     local groups_root="${STAGED_SKILLS_ROOT}/groups" group_count=0
-    local group_dir group_skills lane pid lane_pids="" index duplicates
+    local group_dir group_skills lane pid lane_pids="" lane_status index duplicates
     local failed=false
     groups=$(jq -c '
         def install_source:
@@ -2408,6 +2409,7 @@ stage_locked_skills() {
         group_count=$((group_count + 1))
         { mkdir -p "${groups_root}/${group_count}" &&
             printf '%s\n' "$group" >"${groups_root}/${group_count}/group.json"; } || {
+            echo "[ERROR] Failed to record skill source group ${group_count}" >&2
             cleanup_staged_skills
             return 1
         }
@@ -2429,14 +2431,22 @@ stage_locked_skills() {
                 fi
                 index=$((index + 1))
             done
-        ) &
+        ) >"${groups_root}/lane.${lane}.out" 2>&1 &
         lane_pids="${lane_pids} $!"
     done
     for pid in $lane_pids; do
-        wait "$pid" || failed=true
+        lane_status=0
+        wait "$pid" || lane_status=$?
+        if [ "$lane_status" -ne 0 ]; then
+            echo "[ERROR] Skill staging lane ${pid} exited ${lane_status}" >&2
+            failed=true
+        fi
+    done
+    for lane in 1 2 3 4; do
+        [ -f "${groups_root}/lane.${lane}.out" ] || continue
+        cat "${groups_root}/lane.${lane}.out" >&2
     done
 
-    # Join validated groups in inventory order.
     : >"${STAGED_SKILLS_ROOT}/group-locks"
     index=1
     while [ "$failed" = false ] && [ "$index" -le "$group_count" ]; do
@@ -2494,10 +2504,13 @@ stage_locked_skills() {
     fi
     if [ "$failed" = false ]; then
         jq -s '{skills: (map(.skills // {}) | add // {})}' \
-            "${STAGED_SKILLS_ROOT}/group-locks" >"$STAGED_SKILL_LOCK" ||
+            "${STAGED_SKILLS_ROOT}/group-locks" >"$STAGED_SKILL_LOCK" || {
+            echo "[ERROR] Failed to merge staged skill locks" >&2
             failed=true
+        }
     fi
     if [ "$failed" = true ]; then
+        echo "[ERROR] Skill staging failed" >&2
         cleanup_staged_skills
         return 1
     fi
@@ -3262,7 +3275,8 @@ resolve_skill_source_refs() (
             IFS=$'\t' read -r source_url ref || break
             [ -n "$source_url" ] || break
             output="$root/$#"
-            resolve_skill_source_ref "$source_url" "$ref" >"$output" &
+            resolve_skill_source_ref "$source_url" "$ref" \
+                >"$output" 2>"${output}.err" &
             pids+=("$!")
             set -- "$@" "$output"
         done
@@ -3271,7 +3285,14 @@ resolve_skill_source_refs() (
         for pid in "${pids[@]}"; do
             wait "$pid" || failed=true
         done
-        [ "$failed" = false ] || return 1
+        if [ "$failed" = true ]; then
+            echo "[ERROR] Skill source ref resolution failed" >&2
+            for ref_err in "$root"/*.err; do
+                [ -f "$ref_err" ] || continue
+                cat "$ref_err" >&2
+            done
+            return 1
+        fi
     done <<<"$rows"
 
     lock_hash="$(git hash-object "$SKILL_LOCK_REPO")" || return 1

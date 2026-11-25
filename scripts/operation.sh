@@ -217,8 +217,12 @@ operation_run() {
         return 2
     }
     log="$(operation_log_path)"
-    work="$(mktemp -d "${TMPDIR:-/tmp}/dotfiles-operation.XXXXXX")" || return 1
+    work="$(mktemp -d "${TMPDIR:-/tmp}/dotfiles-operation.XXXXXX")" || {
+        echo "[ERROR] ${element}: failed to create an operation directory" >&2
+        return 1
+    }
     if ! mkfifo "$work/cancel"; then
+        echo "[ERROR] ${element}: failed to create an operation channel" >&2
         rm -rf "$work"
         return 1
     fi
@@ -246,9 +250,9 @@ operation_run() {
 
         { wait "$command_pid"; } 2>/dev/null || status=$?
         printf '\n' >&9
-        # Wait for any timeout cleanup before reading the marker.
         { wait "$watchdog_pid"; } 2>/dev/null || true
     } 9<>"$work/cancel" || {
+        echo "[ERROR] ${element}: ${operation} failed before the command finished" >&2
         rm -rf "$work"
         return 1
     }
