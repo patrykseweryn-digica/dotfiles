@@ -180,6 +180,24 @@ run_sync_agents skills-check || fail "skills-check rejected installed docs"
 [ "$(skills_plan_status)" = PASS ] || fail "skills plan rejected installed docs"
 echo "[INFO] fresh install provides support docs in every runtime"
 
+# Dangling and looping skill links both count as stale.
+for stale in dangling looping; do
+    if [ "$stale" = dangling ]; then
+        ln -s "$home/missing" "$home/.agents/skills/$stale"
+    else
+        ln -s "$stale" "$home/.agents/skills/$stale"
+    fi
+    if run_sync_agents skills-check; then
+        fail "skills-check accepted a $stale skill link"
+    fi
+    grep -F "$home/.agents/skills/$stale" "$task_dir/output" >/dev/null ||
+        fail "skills-check did not name the $stale skill link"
+    [ "$(skills_plan_status)" = FAIL ] ||
+        fail "skills plan accepted a $stale skill link"
+    rm "$home/.agents/skills/$stale"
+done
+echo "[INFO] stale skill links fail the check and the plan"
+
 backups_before="$(find "$home/.dotfiles-backup" -mindepth 1 -maxdepth 1 | wc -l)"
 run_sync_agents push-skills || fail "repeated push-skills failed"
 [ "$(find "$home/.dotfiles-backup" -mindepth 1 -maxdepth 1 | wc -l)" = \

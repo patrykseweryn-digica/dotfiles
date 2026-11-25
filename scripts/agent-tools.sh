@@ -281,15 +281,14 @@ single_command_npm_link() {
 
 build_tool_export_candidate() {
     local output="$1" report="$2"
-    local directory path command_name package report_unknown
+    local directory path command_name package report_unknown npm_bin
     local commands packages additions addition_array rendered
-    commands="$(mktemp)"
-    packages="$(mktemp)"
     additions="$(mktemp)"
     addition_array="$(mktemp)"
     rendered="$(mktemp)"
-    declared_commands | sort -u >"$commands"
-    declared_npm_packages | sort -u >"$packages"
+    # Newline-delimited names, matched in memory instead of a grep per file.
+    commands=$'\n'"$(declared_commands | sort -u)"$'\n'
+    packages=$'\n'"$(declared_npm_packages | sort -u)"$'\n'
     : >"$additions"
     : >"$report"
 
@@ -300,17 +299,23 @@ build_tool_export_candidate() {
             [[ "$directory" == "$HOME"/* ]]; then
             report_unknown=true
         fi
+        # Working npm links resolve to ../lib/node_modules; skip readlink elsewhere.
+        npm_bin=false
+        [ ! -d "$directory/../lib/node_modules" ] || npm_bin=true
         for path in "$directory"/*; do
             [ -x "$path" ] || continue
             command_name="${path##*/}"
             [[ "$command_name" =~ ^[a-zA-Z0-9][a-zA-Z0-9._-]*$ ]] ||
                 continue
             case "$command_name" in node | npm | npx | corepack) continue ;; esac
-            grep -Fxq "$command_name" "$commands" && continue
+            case "$commands" in *$'\n'"$command_name"$'\n'*) continue ;; esac
 
-            package="$(npm_link_identity "$path" || true)"
-            if [ -n "$package" ] && grep -Fxq "$package" "$packages"; then
-                continue
+            package=""
+            if [ "$npm_bin" = true ] && [ -L "$path" ]; then
+                package="$(npm_link_identity "$path" || true)"
+            fi
+            if [ -n "$package" ]; then
+                case "$packages" in *$'\n'"$package"$'\n'*) continue ;; esac
             fi
             if [ -n "$package" ] &&
                 [[ "$package" =~ ^(@[a-z0-9._-]+/)?[a-z0-9][a-z0-9._-]*$ ]] &&
@@ -320,8 +325,8 @@ build_tool_export_candidate() {
                     {channel: "latest", command: $command, group: "agents",
                      installer: "npm", name: $name, package: $name}
                 ' >>"$additions"
-                printf '%s\n' "$command_name" >>"$commands"
-                printf '%s\n' "$package" >>"$packages"
+                commands+="$command_name"$'\n'
+                packages+="$package"$'\n'
             elif [ "$report_unknown" = true ]; then
                 printf '%s\n' "$command_name" >>"$report"
             fi
@@ -336,13 +341,12 @@ build_tool_export_candidate() {
     VERSIONS_FILE="$rendered"
     if ! validate_manifest; then
         VERSIONS_FILE="$previous_versions"
-        rm -f "$commands" "$packages" "$additions" \
-            "$addition_array" "$rendered"
+        rm -f "$additions" "$addition_array" "$rendered"
         return 1
     fi
     VERSIONS_FILE="$previous_versions"
     mv "$rendered" "$output"
-    rm -f "$commands" "$packages" "$additions" "$addition_array"
+    rm -f "$additions" "$addition_array"
 }
 
 installed_version() {

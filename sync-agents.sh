@@ -3679,7 +3679,8 @@ cmd_skills_check() {
 
         missing="$(comm -23 "$expected" "$actual")"
         extra="$(comm -13 "$expected" "$actual")"
-        stale="$(find -H "$root" -mindepth 1 -maxdepth 1 -type l ! -exec test -e {} \; -print)"
+        # find -L lists dangling links and reports looping links on stderr.
+        stale="$(find -L "$root" -mindepth 1 -maxdepth 1 -type l 2>&1 || true)"
         if [ -n "$missing" ]; then
             echo "[ERROR] ${runtime} missing skills:" >&2
             echo "$missing" | sed 's/^/  - /' >&2
@@ -4296,8 +4297,7 @@ cmd_skills_plan() {
         while IFS= read -r name; do
             is_retired_skill_entry "$root" "$name" "$changes" || export_required=true
         done < <(comm -13 "$expected" "$actual")
-        if [ -n "$(find -H "$root" -mindepth 1 -maxdepth 1 \
-            -type l ! -exec test -e {} \; -print)" ]; then
+        if [ -n "$(find -L "$root" -mindepth 1 -maxdepth 1 -type l 2>&1)" ]; then
             status=FAIL
         fi
     done < <(skill_runtime_rows)

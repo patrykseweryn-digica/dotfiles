@@ -73,6 +73,8 @@ Preconditions: dependencies from SKILL.md; run from the checkout root.
   as skills `UPDATE` without network access. A failed download changes
   nothing. Staging rejects unsafe paths. Two packages may ship one doc;
   only different content fails. The test simulates downloads.
+  Dangling and looping skill links must fail `skills-check`, which names
+  them, and set skills `FAIL` in the plan.
   For real upstream, run `skills-update` with a scratch HOME and a lock
   subset, then `skills-check` in that HOME.
 - **Upstream skill path.** `smoke-skill-install.sh` also covers a skill that
