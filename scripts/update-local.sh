@@ -132,7 +132,7 @@ fi
 
 if ! "$STATE_PLAN" all >"$plan_file"; then
     echo "[ERROR] Could not build local update plan" >&2
-    echo "Run: just doctor to see which check failed" >&2
+    echo "Run: just machine to see which check failed" >&2
     echo "[RESULT] FAIL"
     exit 1
 fi

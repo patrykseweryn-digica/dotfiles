@@ -234,7 +234,7 @@ run_doctor() {
         CORE_TOOLS="${stub_dir}/core-tools" \
         SYNC_AGENTS="${stub_dir}/sync-agents" \
         AGENT_TOOLS="${stub_dir}/agent-tools" \
-        "$JUST_BIN" --justfile "${DOTFILES_DIR}/justfile" doctor \
+        "$JUST_BIN" --justfile "${DOTFILES_DIR}/justfile" machine \
         >"${tmp_dir}/doctor.log" 2>&1
 }
 

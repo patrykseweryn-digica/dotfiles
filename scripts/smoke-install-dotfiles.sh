@@ -38,7 +38,7 @@ smoke_public_menu() {
     expected="$(mktemp)"
     "$JUST_BIN" --justfile "${DOTFILES_DIR}/justfile" --summary |
         tr ' ' '\n' | sort >"$actual"
-    printf '%s\n' disable doctor enable export groups install sync >"$expected"
+    printf '%s\n' disable enable export groups install machine sync >"$expected"
     cmp "$expected" "$actual" ||
         fail "public menu is not the daily and install group commands"
     rm -f "$actual" "$expected"

@@ -34,12 +34,12 @@ in Bash with `set -o pipefail`; a successful tee must not hide a failed check.
 The smoke scripts create and remove their own disposable HOME directories.
 Never run full setup against the user's HOME just to test it.
 
-## Doctor
+## Machine check
 
 Before changes or machine setup, run the read-only live check:
 
 ```bash
-just doctor >"$proof/doctor-before.log" 2>&1
+just machine >"$proof/machine-before.log" 2>&1
 ```
 
 Record its exit code even when nonzero. Existing drift is a baseline to
@@ -52,8 +52,8 @@ block uv caches or network, rerun with the required access; do not weaken tests.
 For every change, run relevant feature recipes, then before a commit:
 
 ```bash
-just check 2>&1 | tee "$proof/check.log"
-just doctor >"$proof/doctor-after.log" 2>&1
+just test 2>&1 | tee "$proof/test.log"
+just machine >"$proof/machine-after.log" 2>&1
 ```
 
 Record both exit codes.
@@ -74,7 +74,7 @@ bash scripts/smoke-export.sh
 bash scripts/smoke-groups.sh
 ```
 
-These tests invoke `just install`, `just sync`, `just doctor`, and
+These tests invoke `just install`, `just sync`, `just machine`, and
 `just export` with disposable HOME directories and checkouts. Never substitute
 a live update or export for this proof.
 
@@ -90,7 +90,7 @@ inventory, and tests failures. It does not install real npm packages or prove
 their compatibility with a new Node release.
 The sync tests check credentials/session preservation and repeated setup.
 
-Record doctor failures before and after; investigate new failures. For changed
+Record machine failures before and after; investigate new failures. For changed
 live-check code, checksum the affected live config before and after with
 `cksum` and compare, without copying file contents. Tests on macOS include
 simulated Linux scenarios. Claim actual Linux execution only after the Linux

@@ -12,7 +12,7 @@ just sync     # daily pull, local convergence, and managed updates
 just install  # prepare or repair a machine
 just export         # review and save portable local additions
 just export skills  # choose global skill changes to save in the repository
-just doctor   # inspect local state offline and without writes
+just machine   # inspect local state offline and without writes
 ```
 
 ## Sync direction
@@ -55,7 +55,7 @@ retries within a bounded fetch operation. Skill staging authenticates with
 share a 60 per hour limit that one sync exhausts.
 Required document failures still stop staging before any runtime changes.
 `~/.claude/docs`, `~/.config/opencode/docs` and
-`~/.pi/agent/docs` link to it. A missing doc is a skills `UPDATE` in doctor.
+`~/.pi/agent/docs` link to it. A missing doc is a skills `UPDATE` in machine.
 `~/.agents/skills` is the one shared skill set. Codex, Cursor and Grok Build
 read it directly. Claude Code and OpenCode use per-skill symlinks. Pi uses
 one symlink to the shared directory, so external removals leave no stale entries.
@@ -129,7 +129,7 @@ Codex follows the best channel of each platform at latest. macOS uses the
 Homebrew cask (`brew install` or `brew upgrade --cask codex`). Linux uses
 OpenAI's official installer (`chatgpt.com/codex/install.sh`). It verifies
 checksums, installs into `~/.local/bin`, and does nothing when the release
-is current. Another `codex` on `PATH` stops the install, and doctor reports
+is current. Another `codex` on `PATH` stops the install, and machine reports
 it. Sync removes a former mise npm Codex.
 Configuration application never resolves channels or updates tool versions.
 
@@ -195,7 +195,7 @@ Comparison uses TOML values, so formatting changes do not cause drift.
 Pull imports only keys declared in the template, including nested keys.
 Declare a new portable setting there before importing its live value.
 Claude settings come from `config/claude/`. Missing required configuration
-causes `just doctor` to fail and print the corresponding install command.
+causes `just machine` to fail and print the corresponding install command.
 
 ## Installation and synchronization
 
@@ -234,18 +234,18 @@ just disable desktop  # stop installing and updating desktop
 The commands write `DOTFILES_GROUPS` in `.env`, for example
 `DOTFILES_GROUPS=core,agents`. `core` is required and cannot be disabled.
 An unknown group or a list without `core` stops `install`, `sync` and
-`doctor` before any change and names the valid groups.
+`machine` before any change and names the valid groups.
 
 A machine set up before `core` became the default keeps its other groups
 installed. When managed links of an unselected group remain, `sync` and
-`doctor` print one row for each group:
+`machine` print one row for each group:
 `[SKIP] groups: Group agents is installed but not selected; ...
 Run: just enable agents`.
 
 Each element declares its group: tools in `.agents/tool-versions.json`, links
 in `config/managed-links.tsv`, and install steps and sync phases in their
 scripts. The plan reports an element of an unselected group as
-`SKIP ... skipped: group <name> is not selected`. `sync` and `doctor` pass when
+`SKIP ... skipped: group <name> is not selected`. `sync` and `machine` pass when
 only `SKIP` rows remain. `just disable` does not remove installed elements.
 
 `just sync` prints the plan, applies settings, MCP, managed links, and the
@@ -289,13 +289,13 @@ is reported as SKIP.
 
 Use [.agents/skills/verify-dotfiles/SKILL.md](.agents/skills/verify-dotfiles/SKILL.md)
 before changing or applying dotfiles and before commits. It reuses the existing
-isolated-HOME install/sync smoke tests and `just check`, then compares the
-read-only live `just doctor` result with the baseline. Doctor prints bounded
+isolated-HOME install/sync smoke tests and `just test`, then compares the
+read-only live `just machine` result with the baseline. Machine prints bounded
 diagnostics rather than raw config diffs, which may contain credentials.
 Evidence stays under ignored `.agent-runs/verify-dotfiles/`.
 Pull requests and a manual run check the repository on macOS and Linux.
 Pushes to master and the Monday 05:17 UTC schedule check Linux only.
-Native amd64 and arm64 jobs run `install`, two `sync` commands, and `doctor`
+Native amd64 and arm64 jobs run `install`, two `sync` commands, and `machine`
 in a clean Ubuntu image as a user without sudo. Those jobs run on pull
 requests, the Monday schedule, and a manual run. A push to master does not
 run them. Accountless CI skips only remote Codex plugins because their
@@ -413,8 +413,8 @@ publication.
 - New machine: `just install`.
 - Daily synchronization: `just sync`.
 - `EXPORT` result: `just export`.
-- Diagnostics: `just doctor`.
+- Diagnostics: `just machine`.
 
-CI and repository development use the hidden `just check` maintenance recipe.
+CI and repository development use the hidden `just test` maintenance recipe.
 Category-specific operations remain internal script subcommands for
 implementation and tests.

@@ -176,7 +176,7 @@ run_doctor() {
         NODE_TEST_VERSION="${NODE_TEST_VERSION:-}" \
         TOOL_DRIFT="${TOOL_DRIFT:-false}" \
         env -u CODEX_HOME DOTFILES_DIR="$DOTFILES_DIR" \
-        "$JUST_BIN" --justfile "${DOTFILES_DIR}/justfile" doctor \
+        "$JUST_BIN" --justfile "${DOTFILES_DIR}/justfile" machine \
         >"${tmp_dir}/doctor.log" 2>&1
 }
 

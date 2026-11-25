@@ -154,7 +154,7 @@ used for type/schema validation, not the CLI installation policy.
 npm --prefix config/pi ci --ignore-scripts
 npm --prefix config/pi run check
 npm --prefix config/pi test
-just check
+just test
 ```
 
 Pre-commit runs types, ESLint, Prettier and the deterministic Pi regression

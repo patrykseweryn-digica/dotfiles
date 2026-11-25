@@ -76,7 +76,7 @@ presence is covered by fixtures. Native macOS and ARM64 execution remain
 unverified. Remote connectors on a new account may still require interactive
 installation and OAuth; no account cache is copied.
 
-The follow-up `just doctor` run exposed local additions, stale links and
+The follow-up `just machine` run exposed local additions, stale links and
 `pluginName` metadata differences. With user approval, seven local skills and
 the Telegram MCP definition were imported and synchronized. Runtime-only
 `pluginName` metadata no longer causes a false inventory mismatch. Broken
@@ -88,7 +88,7 @@ existing backup symlink modified the source directory and created a link
 cycle. Both installers now use unique backup directories. A regression
 reproduces the cross-runtime link chain with a fixed clock.
 
-The subsequent real `just doctor` run passed all checks.
+The subsequent real `just machine` run passed all checks.
 
 Sources: [Treehouse installer](https://kunchenguid.github.io/treehouse/install.sh),
 [release assets](https://github.com/kunchenguid/treehouse/releases/tag/v2.3.0),
