@@ -131,7 +131,7 @@ export OPENCODE_CONFIG_DIR
 export OPENCODE_CONFIG="$opencode_config"
 export PI_MCP_CONFIG="$pi_mcp"
 export MCP_SERVERS="$repo_mcp"
-export PATH="${stub_dir}:/usr/bin:/bin"
+export PATH="${stub_dir}:${HOST_JQ_DIR}:/usr/bin:/bin"
 
 cp "$repo_mcp" "${tmp_dir}/before-cancel.json"
 if printf 'n\n' | "$SYNC" --quiet pull-mcp \

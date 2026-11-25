@@ -163,7 +163,7 @@ printf '#!/bin/bash\n' >"${home_dir}/.claude/hooks/herdr-agent-state.sh"
 
 run_doctor() {
     HOME="$home_dir" \
-        PATH="${stub_dir}:/usr/bin:/bin" \
+        PATH="${stub_dir}:${HOST_JQ_DIR}:/usr/bin:/bin" \
         SYNC_AGENTS="${stub_dir}/sync-agents" \
         AGENT_TOOLS="${stub_dir}/agent-tools" \
         CORE_TOOLS="${stub_dir}/core-tools" \
@@ -320,7 +320,7 @@ chmod +x "${stub_dir}/codex"
 printf '[]\n' >"$CODEX_MCP_STATE_FILE"
 
 sync_real() {
-    HOME="$home_dir" PATH="${stub_dir}:/usr/bin:/bin" \
+    HOME="$home_dir" PATH="${stub_dir}:${HOST_JQ_DIR}:/usr/bin:/bin" \
         env -u CODEX_HOME "$DOTFILES_DIR/sync-agents.sh" "$@" \
         >"${tmp_dir}/sync.log" 2>&1
 }
@@ -334,7 +334,7 @@ done
 sync_real push-mcp || fail "prepare MCP fixture"
 
 real_plan() {
-    HOME="$home_dir" PATH="${stub_dir}:/usr/bin:/bin" \
+    HOME="$home_dir" PATH="${stub_dir}:${HOST_JQ_DIR}:/usr/bin:/bin" \
         NETWORK_LOG="$network_log" \
         env -u CODEX_HOME "$DOTFILES_DIR/sync-agents.sh" --quiet state-plan \
         >"${tmp_dir}/real-plan" 2>"${tmp_dir}/real-plan.err"

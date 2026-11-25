@@ -95,7 +95,7 @@ export NODE_TEST_MISE="$scratch/mise"
 export NODE_TEST_LOG="$scratch/actions.log"
 export NODE_TEST_LTS=26.13.0
 export EXPECTED_POLICY_FILE="$NODE_POLICY_FILE"
-export PATH="$scratch/stubs:/usr/bin:/bin"
+export PATH="$scratch/stubs:${HOST_JQ_DIR}:/usr/bin:/bin"
 : >"$NODE_TEST_LOG"
 
 install_fixture_node() {

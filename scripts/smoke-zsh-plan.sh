@@ -97,7 +97,7 @@ chmod +x "${stub_dir}/brew" "${stub_dir}/sudo" "${stub_dir}/curl" "${stub_dir}/m
     BIN_DIR="$bin_dir"
     # shellcheck disable=SC2034
     OPT_DIR="$opt_dir"
-    PATH="${bin_dir}:${stub_dir}:/usr/bin:/bin"
+    PATH="${bin_dir}:${stub_dir}:${HOST_JQ_DIR}:/usr/bin:/bin"
 
     install_zsh >/dev/null
 

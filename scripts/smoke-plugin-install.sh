@@ -116,7 +116,7 @@ for platform in Linux-x86_64 Linux-arm64 Darwin-x86_64 Darwin-arm64; do
                 SKILL_LOCK_REPO="$task_dir/skills.json" \
                 CODEX_PLUGIN_MANIFEST="$task_dir/manifest.json" \
                 CLAUDE_MANIFEST="$task_dir/manifest.json" \
-                PATH="$task_dir/stubs:/usr/bin:/bin" \
+                PATH="$task_dir/stubs:${HOST_JQ_DIR}:/usr/bin:/bin" \
                 "$just_bin" --justfile "$task_dir/fixture/justfile" install \
                 > "$task_dir/output" 2>&1
         }

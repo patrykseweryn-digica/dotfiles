@@ -209,7 +209,7 @@ STUB
 chmod +x "${stub_dir}/codex" "${stub_dir}/claude"
 : > "$update_log"
 
-export PATH="${stub_dir}:/usr/bin:/bin"
+export PATH="${stub_dir}:${HOST_JQ_DIR}:/usr/bin:/bin"
 export PLUGIN_UPDATE_LOG="$update_log"
 
 "$DOTFILES_DIR/sync-agents.sh" --quiet push-plugins \

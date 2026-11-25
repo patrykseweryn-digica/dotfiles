@@ -206,7 +206,7 @@ STUB
 
     (
         export HOME="$home_dir"
-        export PATH="${stub_dir}:/usr/bin:/bin"
+        export PATH="${stub_dir}:${HOST_JQ_DIR}:/usr/bin:/bin"
         export EMAIL="test@example.com"
         export WORK_EMAIL="work@example.com"
         export EDITOR="vim"
@@ -339,7 +339,7 @@ printf '%s\n' "$*" >>"$PI_TEST_LOG"
 STUB
     chmod +x "${bin_dir}/pi"
 
-    HOME="$home_dir" PATH="${bin_dir}:/usr/bin:/bin" \
+    HOME="$home_dir" PATH="${bin_dir}:${HOST_JQ_DIR}:/usr/bin:/bin" \
         PI_CODING_AGENT_DIR="${home_dir}/.pi/agent" \
         PI_SETTINGS_TEMPLATE="$template" PI_TEST_LOG="$log_file" \
         "$DOTFILES_DIR/sync-agents.sh" --quiet pi-packages-update
@@ -465,7 +465,7 @@ STUB
 
     (
         export HOME="$home_dir"
-        export PATH="${stub_dir}:/usr/bin:/bin"
+        export PATH="${stub_dir}:${HOST_JQ_DIR}:/usr/bin:/bin"
         export EMAIL="test@example.com"
         export WORK_EMAIL="work@example.com"
         export EDITOR="vim"
@@ -602,7 +602,7 @@ YAML
             "${home_dir}/.pi/agent/$resource" || fail "missing Pi $resource"
     done
     cp "${home_dir}/.pi/agent/settings.json" "${tmp_dir}/pi-settings.before"
-    HOME="$home_dir" PATH="${stub_dir}:/usr/bin:/bin" PI_LOG="$pi_log" \
+    HOME="$home_dir" PATH="${stub_dir}:${HOST_JQ_DIR}:/usr/bin:/bin" PI_LOG="$pi_log" \
         "${DOTFILES_DIR}/sync-agents.sh" pi-install >/dev/null
     cmp "${tmp_dir}/pi-settings.before" \
         "${home_dir}/.pi/agent/settings.json" ||

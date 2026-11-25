@@ -222,7 +222,7 @@ export MISE_LOG="$mise_log"
 export NATIVE_LOG="$native_log"
 export REAL_JQ
 export VERSION_MARKER="${tmp_dir}/version-called"
-export PATH="${stub_dir}:/usr/bin:/bin"
+export PATH="${stub_dir}:${HOST_JQ_DIR}:/usr/bin:/bin"
 
 plan="$("$AGENT_TOOLS" plan)"
 [ ! -e "$VERSION_MARKER" ] || fail "tool plan executed a CLI"
@@ -574,7 +574,7 @@ fi
 [ ! -s "$native_log" ] || fail "partial native installer ran"
 
 # A new npm declaration must install and update through mise.
-export PATH="$HOME/.local/share/mise/npm-tools/bin:${stub_dir}:${REAL_NODE_BIN}:/usr/bin:/bin"
+export PATH="$HOME/.local/share/mise/npm-tools/bin:${stub_dir}:${REAL_NODE_BIN}:${HOST_JQ_DIR}:/usr/bin:/bin"
 cat >"$manifest" <<'JSON'
 {"tools":[{"name":"Fixture","command":"dotfiles-fixture",
  "package":"dotfiles-fixture","installer":"npm","channel":"latest",

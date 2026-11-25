@@ -82,7 +82,7 @@ use_home() {
     export HOME BIN_DIR
     : >"$CODEX_LOG"
 }
-base_path="$task_dir/stubs:/usr/bin:/bin"
+base_path="$task_dir/stubs:${HOST_JQ_DIR}:/usr/bin:/bin"
 brew_path="$task_dir/brew/bin"
 export TEST_OS=Linux
 

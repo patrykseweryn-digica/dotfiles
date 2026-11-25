@@ -85,7 +85,7 @@ chmod +x "${tmp_dir}/fixture/install.sh"
 run_install() {
     local case_name="$1"
     HOME="${tmp_dir}/${case_name}-home" \
-        PATH="${stub_dir}:/usr/bin:/bin" \
+        PATH="${stub_dir}:${HOST_JQ_DIR}:/usr/bin:/bin" \
         CALLS_LOG="$calls" GROUPS_CASE="$case_name" \
         GROUPS_TEST_REPO="$DOTFILES_DIR" \
         DOTFILES_ENV_FILE="${tmp_dir}/${case_name}.env" \
@@ -229,7 +229,7 @@ chmod +x "${stub_dir}/core-tools" "${stub_dir}/sync-agents" \
 run_doctor() {
     local case_name="$1" home_case="${2:-$1}"
     HOME="${tmp_dir}/${home_case}-home" \
-        PATH="${stub_dir}:/usr/bin:/bin" \
+        PATH="${stub_dir}:${HOST_JQ_DIR}:/usr/bin:/bin" \
         CALLS_LOG="$calls" GROUPS_CASE="$case_name" \
         DOTFILES_ENV_FILE="${tmp_dir}/${case_name}.env" \
         CORE_TOOLS="${stub_dir}/core-tools" \
@@ -327,7 +327,7 @@ git -C "$publisher" push --quiet
 run_sync() {
     local case_name="$1" repo_dir="$DOTFILES_DIR"
     HOME="${tmp_dir}/${case_name}-home" \
-        PATH="${stub_dir}:/usr/bin:/bin" \
+        PATH="${stub_dir}:${HOST_JQ_DIR}:/usr/bin:/bin" \
         CALLS_LOG="$calls" GROUPS_CASE="$case_name" \
         DOTFILES_DIR="$checkout" \
         DOTFILES_ENV_FILE="${tmp_dir}/${case_name}.env" \
@@ -402,7 +402,7 @@ group_env="${tmp_dir}/group-command.env"
 
 run_group_command() {
     HOME="${tmp_dir}/core-home" \
-        PATH="${stub_dir}:/usr/bin:/bin" \
+        PATH="${stub_dir}:${HOST_JQ_DIR}:/usr/bin:/bin" \
         CALLS_LOG="$calls" GROUPS_CASE=command \
         GROUPS_TEST_REPO="$DOTFILES_DIR" \
         DOTFILES_ENV_FILE="$group_env" \
