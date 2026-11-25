@@ -26,7 +26,7 @@ operation_sync_log_path() {
 
 # Other commands, such as export, must not write to HOME.
 operation_log_path() {
-    printf '%s\n' "${DOTFILES_OPERATION_LOG:-${TMPDIR:-/tmp}/dotfiles-operations-$(id -u).log}"
+    printf '%s\n' "${DOTFILES_OPERATION_LOG:-${TMPDIR:-/tmp}/dotfiles-operations-${EUID}.log}"
 }
 
 operation_limit() {
@@ -168,6 +168,15 @@ operation_cause() {
     fi
 }
 
+# Bash 3.2 lacks printf %(...)T.
+operation_timestamp() {
+    if [ "${BASH_VERSINFO[0]}" -ge 5 ]; then
+        printf '%(%Y-%m-%dT%H:%M:%S)T' -1
+    else
+        date '+%Y-%m-%dT%H:%M:%S'
+    fi
+}
+
 operation_one_line() {
     printf '%s' "$1" | tr '\t\n' '  '
 }
@@ -186,7 +195,7 @@ operation_record_failure() {
 operation_run() {
     local element="$1" operation="$2" class="$3" keep_stdout=false
     local optional=false limit log work output cleaned marker started
-    local status=0 command_pid watchdog_pid pid stopped="" diagnosis cause next
+    local status=0 command_pid watchdog_pid stopped="" diagnosis cause next
 
     shift 3
     while :; do
@@ -220,20 +229,27 @@ operation_run() {
     fi
     command_pid=$!
     (
-        sleep "$limit"
+        # Cancellation kills the sleep itself, so success needs no process scan.
+        # The flag covers TERM arriving before $! is saved.
+        cancelled=false
+        sleep_pid=""
+        trap 'cancelled=true; [ -z "$sleep_pid" ] || kill "$sleep_pid" 2>/dev/null' TERM
+        sleep "$limit" &
+        sleep_pid=$!
+        [ "$cancelled" = true ] && kill "$sleep_pid" 2>/dev/null
+        wait "$sleep_pid"
         # A started stop must finish; cancellation cannot leave frozen processes.
         trap '' TERM
+        [ "$cancelled" = false ] || exit 0
         operation_stop_tree "$command_pid" >"$marker"
     ) >/dev/null 2>&1 </dev/null &
     watchdog_pid=$!
 
     { wait "$command_pid"; } 2>/dev/null || status=$?
     # Cancel the watchdog first, so its result cannot change afterwards.
-    for pid in $(operation_descendants "$watchdog_pid"); do
-        kill -TERM "$pid" 2>/dev/null || true
-    done
+    kill -TERM "$watchdog_pid" 2>/dev/null || true
     { wait "$watchdog_pid"; } 2>/dev/null || true
-    stopped="$(cat "$marker" 2>/dev/null || true)"
+    [ ! -s "$marker" ] || read -r stopped <"$marker" || true
     # Zero stopped processes means the command finished before the limit.
     if [ -n "$stopped" ] && [ "$stopped" -gt 0 ]; then
         { wait "$command_pid"; } 2>/dev/null || true
@@ -242,17 +258,19 @@ operation_run() {
         stopped=""
     fi
 
-    operation_clean_output "$output" >"$cleaned" 2>/dev/null || : >"$cleaned"
-    if mkdir -p "$(dirname "$log")" 2>/dev/null; then
+    # The expansion only skips dirname on the common existing directory.
+    if [ -d "${log%/*}" ] || mkdir -p "$(dirname "$log")" 2>/dev/null; then
         {
             printf '==> %s %s: %s (exit %s, %s s)\n' \
-                "$(date '+%Y-%m-%dT%H:%M:%S')" "$element" "$operation" \
+                "$(operation_timestamp)" "$element" "$operation" \
                 "$status" "$((SECONDS - started))"
-            cat "$cleaned"
+            operation_clean_output "$output"
         } >>"$log" 2>/dev/null || true
     fi
 
     if [ "$status" -ne 0 ] && [ "$optional" = false ]; then
+        operation_clean_output "$output" >"$cleaned" 2>/dev/null ||
+            : >"$cleaned"
         diagnosis="$(operation_cause "$status" "$cleaned" "$limit" \
             "$stopped" "$log")"
         cause="${diagnosis%%$'\t'*}"
