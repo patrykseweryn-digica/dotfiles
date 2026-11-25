@@ -190,8 +190,11 @@ for stale in dangling looping; do
     if run_sync_agents skills-check; then
         fail "skills-check accepted a $stale skill link"
     fi
-    grep -F "$home/.agents/skills/$stale" "$task_dir/output" >/dev/null ||
+    grep -Fx "  - $home/.agents/skills/$stale" "$task_dir/output" >/dev/null ||
         fail "skills-check did not name the $stale skill link"
+    if grep -F 'find:' "$task_dir/output" >/dev/null; then
+        fail "skills-check printed find errors for a $stale skill link"
+    fi
     [ "$(skills_plan_status)" = FAIL ] ||
         fail "skills plan accepted a $stale skill link"
     rm "$home/.agents/skills/$stale"

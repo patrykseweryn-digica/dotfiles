@@ -277,6 +277,15 @@ write_live_skill_names() {
     done | sort -u >"$target_file"
 }
 
+# Print dangling and looping links in a skill root. The test builtin needs no
+# process per link; find errors stay on stderr and do not count as stale links.
+list_stale_skill_links() {
+    local link
+    while IFS= read -r link; do
+        [ -e "$link" ] || printf '%s\n' "$link"
+    done < <(find -H "$1" -mindepth 1 -maxdepth 1 -type l)
+}
+
 normalize_mcp_inventory() {
     jq -S '
         with_entries(
@@ -3679,8 +3688,7 @@ cmd_skills_check() {
 
         missing="$(comm -23 "$expected" "$actual")"
         extra="$(comm -13 "$expected" "$actual")"
-        # find -L lists dangling links and reports looping links on stderr.
-        stale="$(find -L "$root" -mindepth 1 -maxdepth 1 -type l 2>&1 || true)"
+        stale="$(list_stale_skill_links "$root")"
         if [ -n "$missing" ]; then
             echo "[ERROR] ${runtime} missing skills:" >&2
             echo "$missing" | sed 's/^/  - /' >&2
@@ -4297,7 +4305,7 @@ cmd_skills_plan() {
         while IFS= read -r name; do
             is_retired_skill_entry "$root" "$name" "$changes" || export_required=true
         done < <(comm -13 "$expected" "$actual")
-        if [ -n "$(find -L "$root" -mindepth 1 -maxdepth 1 -type l 2>&1)" ]; then
+        if [ -n "$(list_stale_skill_links "$root")" ]; then
             status=FAIL
         fi
     done < <(skill_runtime_rows)
