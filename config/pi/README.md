@@ -24,7 +24,7 @@ Changing a linked theme or extension changes its source in dotfiles.
 ## Local tool preferences
 
 The model selector follows the read-only digica-99 snapshot from 2026-11-19.
-The default remains `openai-codex/gpt-5.6-sol`, as on that machine.
+New sessions default to `openai-codex/gpt-6.2-sol` with `high` thinking.
 The model selector remains separate from the startup default.
 Temporary credit routing and Fast Mode remain local.
 
