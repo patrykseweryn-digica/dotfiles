@@ -90,7 +90,8 @@ repos:
         name: Public install lifecycle smoke test
         description: >-
           Verify fresh, partial, converged, retry, and repeated install states
-          on the Linux/macOS matrix with external adapters stubbed
+          on Linux x86_64, plus a fresh install per other Linux/macOS fixture,
+          with external adapters stubbed
         entry: bash scripts/smoke-plugin-install.sh
         language: system
         pass_filenames: false
