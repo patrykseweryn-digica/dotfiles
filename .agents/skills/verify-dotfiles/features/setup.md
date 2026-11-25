@@ -48,9 +48,9 @@ Preconditions: dependencies from SKILL.md; run from the checkout root.
   command with a child process under a 1 s limit, without GNU `timeout`, and
   on Linux also without `ps`. Both processes must stop. The report must name
   the element, operation, cause, exit code, tool output, next step, and log.
-  A quick successful operation must not call `ps` or leave its watchdog
-  `sleep`. Spy scripts record `ps` calls and the `sleep` PID, so this case
-  needs no real `ps`. The script does not measure the per-operation overhead.
+  A quick successful operation must not call `ps` or leave a watchdog
+  `sleep`. Concurrent quick operations must return before the timeout.
+  Run this case on macOS CI to cover the system Bash 3.2.
 - **Export once.** Run `bash scripts/smoke-export.sh`. It checks the clean-tree
   gate, one confirmation, settings allowlists, MCP conflict/privacy rejection,
   skill upstream/rename gates, plugin providers, recognized and unknown tools,

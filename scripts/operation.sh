@@ -218,38 +218,40 @@ operation_run() {
     }
     log="$(operation_log_path)"
     work="$(mktemp -d "${TMPDIR:-/tmp}/dotfiles-operation.XXXXXX")" || return 1
+    if ! mkfifo "$work/cancel"; then
+        rm -rf "$work"
+        return 1
+    fi
     output="${work}/output"
     cleaned="${work}/cleaned"
     marker="${work}/timed-out"
     started=$SECONDS
 
-    if [ "$keep_stdout" = true ]; then
-        "$@" 2>"$output" </dev/null &
-    else
-        "$@" >"$output" 2>&1 </dev/null &
-    fi
-    command_pid=$!
-    (
-        # Cancellation kills the sleep itself, so success needs no process scan.
-        # The flag covers TERM arriving before $! is saved.
-        cancelled=false
-        sleep_pid=""
-        trap 'cancelled=true; [ -z "$sleep_pid" ] || kill "$sleep_pid" 2>/dev/null' TERM
-        sleep "$limit" &
-        sleep_pid=$!
-        [ "$cancelled" = true ] && kill "$sleep_pid" 2>/dev/null
-        wait "$sleep_pid"
-        # A started stop must finish; cancellation cannot leave frozen processes.
-        trap '' TERM
-        [ "$cancelled" = false ] || exit 0
-        operation_stop_tree "$command_pid" >"$marker"
-    ) >/dev/null 2>&1 </dev/null &
-    watchdog_pid=$!
+    {
+        if [ "$keep_stdout" = true ]; then
+            "$@" 2>"$output" </dev/null 9>&- &
+        else
+            "$@" >"$output" 2>&1 </dev/null 9>&- &
+        fi
+        command_pid=$!
+        (
+            # A buffered byte cancels read even if Bash 3.2 has not started
+            # the watchdog. This needs neither a signal trap nor a child sleep.
+            if IFS= read -r -t "$limit" _ <&9; then
+                exit 0
+            fi
+            operation_stop_tree "$command_pid" 9>&- >"$marker"
+        ) >/dev/null 2>&1 </dev/null &
+        watchdog_pid=$!
 
-    { wait "$command_pid"; } 2>/dev/null || status=$?
-    # Cancel the watchdog first, so its result cannot change afterwards.
-    kill -TERM "$watchdog_pid" 2>/dev/null || true
-    { wait "$watchdog_pid"; } 2>/dev/null || true
+        { wait "$command_pid"; } 2>/dev/null || status=$?
+        printf '\n' >&9
+        # Wait for any timeout cleanup before reading the marker.
+        { wait "$watchdog_pid"; } 2>/dev/null || true
+    } 9<>"$work/cancel" || {
+        rm -rf "$work"
+        return 1
+    }
     [ ! -s "$marker" ] || read -r stopped <"$marker" || true
     # Zero stopped processes means the command finished before the limit.
     if [ -n "$stopped" ] && [ "$stopped" -gt 0 ]; then

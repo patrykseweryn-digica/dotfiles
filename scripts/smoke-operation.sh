@@ -91,7 +91,7 @@ hang_case hang "${fake_bin}:${PATH}"
 if [ -r /proc/self/stat ]; then
     no_ps_bin="${tmp_dir}/no-ps-bin"
     mkdir -p "$no_ps_bin"
-    for command_name in bash sh sleep cat mktemp awk tail sed rm tr \
+    for command_name in bash sh sleep cat mktemp mkfifo awk tail sed rm tr \
         mkdir wc date grep dirname; do
         ln -s "$(command -v "$command_name")" "${no_ps_bin}/${command_name}"
     done
@@ -139,19 +139,42 @@ grep -F "installer progress" "$DOTFILES_OPERATION_LOG" >/dev/null ||
     fail "tool stdout missing from log"
 
 # A quick success must not scan the process table or leave its watchdog.
-# The spies record calls; the sleep spy keeps its PID through exec. The
-# command bypasses the spy and lasts until the watchdog sleep has started.
+# The sleep spy keeps its PID through exec. Extend a watchdog sleep so a
+# leaked process cannot disappear while operation_run writes its log.
 real_sleep="$(command -v sleep)"
 spy_bin="${tmp_dir}/spy-bin"
 mkdir -p "$spy_bin"
 printf '#!/bin/sh\necho "$*" >>"%s/ps-calls"\n' "$tmp_dir" >"${spy_bin}/ps"
-printf '#!/bin/sh\necho $$ >"%s/sleep.pid"\nexec %s "$@"\n' \
+printf '#!/bin/sh\necho $$ >"%s/sleep.pid"\nexec %s 300\n' \
     "$tmp_dir" "$real_sleep" >"${spy_bin}/sleep"
 chmod +x "${spy_bin}/ps" "${spy_bin}/sleep"
 run_case fast "${spy_bin}:${PATH}" "core tools" "check" query -- \
     "$real_sleep" 0.3
 [ "$status" -eq 0 ] || fail "fast returned $status"
 [ ! -e "${tmp_dir}/ps-calls" ] || fail "successful operation listed processes"
-assert_stopped "${tmp_dir}/sleep.pid"
+if [ -s "${tmp_dir}/sleep.pid" ]; then
+    assert_stopped "${tmp_dir}/sleep.pid"
+fi
+
+# Bash 3.2 (macOS) could delay or lose the TERM that cancels the watchdog of a
+# quick success, so the operation waited for its whole limit. Concurrent
+# calls, as under prek, widen that window.
+burst_started=$SECONDS
+burst_pids=()
+for _ in 1 2 3 4; do
+    DOTFILES_OPERATION_TIMEOUT=10 bash -c '
+        set -eu
+        source "$1"
+        for ((i = 0; i < 25; i++)); do
+            operation_run "core tools" check query -- true
+        done
+    ' operation-smoke "$OPERATION_LIB" &
+    burst_pids+=("$!")
+done
+for pid in "${burst_pids[@]}"; do
+    wait "$pid" || fail "a quick operation failed"
+done
+[ $((SECONDS - burst_started)) -lt 10 ] ||
+    fail "a quick success waited for its time limit"
 
 echo "[INFO] operation smoke test passed"
