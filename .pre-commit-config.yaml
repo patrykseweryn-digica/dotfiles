@@ -1,10 +1,14 @@
 # prek runs hooks with the same priority concurrently. No hook changes files
 # or shares state with another; give such a hook its own priority.
+# Fixture dependency coverage is checked by scripts/smoke-hook-filters.py.
+# Repo-wide checks opt into deleted paths without passing them as arguments.
+minimum_prek_version: '0.5.4' # First release with include_deleted.
 repos:
   - repo: https://github.com/shellcheck-py/shellcheck-py
     rev: v0.10.0.1
     hooks:
       - id: shellcheck
+        files: '^(?!docs/|.*\.md$)'
         args: ["--severity=warning"]
         exclude: '^\.(p10k\.zsh|zshrc)$'
         # Without --external-sources, file batches give the same result.
@@ -17,16 +21,26 @@ repos:
         entry: python3 scripts/build-architecture.py --check
         language: system
         pass_filenames: false
+        # Check for missing or stale artifacts regardless of staged paths.
         always_run: true
         priority: 0
       - id: tool-plan-smoke
+        files: >-
+          (?x)^(?:Brewfile|\.agents/tool-versions\.json|
+          bootstrap\.d/[^/]*\.sh|config/mise/config\.toml|
+          scripts/(?:core-tools\.sh|groups\.sh|host-tools\.sh|operation\.sh|
+          smoke-tool-plan\.sh))$
         name: Tool install plan smoke test
         description: Ensure Linux/macOS CLI tool install planning stays portable
         entry: ./scripts/smoke-tool-plan.sh
         language: system
         pass_filenames: false
+        include_deleted: true
         priority: 0
       - id: zsh-plan-smoke
+        files: >-
+          (?x)^(?:bootstrap\.d/(?:00-utils\.sh|02-zsh\.sh)|
+          scripts/(?:host-tools\.sh|smoke-zsh-plan\.sh))$
         name: Zsh install plan smoke test
         description: >-
           Ensure zsh install picks Homebrew before source fallback
@@ -34,8 +48,10 @@ repos:
         entry: ./scripts/smoke-zsh-plan.sh
         language: system
         pass_filenames: false
+        include_deleted: true
         priority: 0
       - id: zshrc-startup-smoke
+        files: '^(?:\.zshrc|scripts/smoke-zshrc-startup\.sh)$'
         name: Zshrc startup smoke test
         description: >-
           Ensure .zshrc can be sourced on a fresh machine without noisy
@@ -43,16 +59,49 @@ repos:
         entry: ./scripts/smoke-zshrc-startup.sh
         language: system
         pass_filenames: false
+        include_deleted: true
         priority: 0
       - id: agent-repo-layout-smoke
+        files: >-
+          (?x)^(?:(?:AGENTS\.md|CLAUDE\.md)|\.agents/(?:AGENTS\.md|
+          mcp-servers\.json|plugin-manifest\.json|skill-lock\.json|
+          skills/.+|skills-custom(?:/.+)?)|skills-lock\.json(?:/.+)?|
+          bin/committer|config/claude/(?:CLAUDE\.md|claude-manifest\.json|
+          mcp-servers\.json|settings\.local\.json|skill-lock\.json|skills-custom)|
+          config/codex/(?:AGENTS\.md|plugin-manifest\.json|settings\.toml)|
+          config/opencode/AGENTS\.md|config/pi/(?:AGENTS\.md|settings\.json)|
+          scripts/(?:committer|smoke-agent-repo-layout\.sh))$
+        types: [] # Include the tracked symlink inputs.
         name: Agent repo layout smoke test
         description: >-
           Ensure shared agent files stay canonical and tracked symlinks resolve
         entry: ./scripts/smoke-agent-repo-layout.sh
         language: system
         pass_filenames: false
+        include_deleted: true
         priority: 0
       - id: install-dotfiles-smoke
+        files: >-
+          (?x)^(?:(?:\.aliases|\.p10k\.zsh|\.tmux\.conf|\.vimrc|\.zshrc|
+          install\.sh|justfile|pythonrc\.py|sync-agents\.sh)|
+          \.agents/(?:AGENTS\.md|mcp-servers\.json|plugin-manifest\.json|
+          skill-lock\.json)|bin/[^/]*|bootstrap\.d/[^/]*\.sh|
+          config/managed-links\.tsv|config/Code/(?:keybindings\.json|
+          settings\.json)|config/claude/(?:CLAUDE\.md|settings\.json|
+          settings\.local\.json|statusline-command\.sh)|
+          config/claude/agents/.+|config/claude/output-styles/.+|
+          config/codex/(?:AGENTS\.md|settings\.toml)|
+          config/firstmate/crew-dispatch\.json|config/gh/config\.yml|
+          config/ghostty/config\.ghostty|config/git/.+|
+          config/herdr/config\.toml|config/nvim/.+|
+          config/opencode/(?:AGENTS\.md|opencode\.json)|config/pi/(?:AGENTS\.md|
+          billion-context\.json|models\.json|settings\.json)|
+          config/pi/extensions/[^/]*|config/pi/themes/[^/]*|config/ruff/.+|
+          config/summarize/config\.json|scripts/(?:claude-herdr-hook\.jq|
+          codex-toml\.py|committer|groups\.sh|herdr-config\.py|host-tools\.sh|
+          managed-links\.sh|no-mistakes-config\.py|operation\.sh|
+          smoke-install-dotfiles\.sh))$
+        types: [] # Include the tracked symlink inputs.
         name: Install dotfiles smoke test
         description: >-
           Ensure setup_dotfiles links Linux/macOS targets and agent adapters
@@ -60,32 +109,55 @@ repos:
         entry: ./scripts/smoke-install-dotfiles.sh
         language: system
         pass_filenames: false
+        include_deleted: true
         priority: 0
       - id: firstmate-config-smoke
+        files: >-
+          (?x)^(?:install\.sh|bootstrap\.d/[^/]*\.sh|
+          config/firstmate/crew-dispatch\.json|scripts/(?:groups\.sh|
+          host-tools\.sh|managed-links\.sh|operation\.sh|
+          smoke-firstmate-config\.sh))$
         name: Firstmate dispatch setup smoke test
         entry: bash scripts/smoke-firstmate-config.sh
         language: system
         pass_filenames: false
+        include_deleted: true
         priority: 0
       - id: git-sync-smoke
+        files: >-
+          (?x)^(?:install\.sh|bootstrap\.d/[^/]*\.sh|scripts/(?:groups\.sh|
+          host-tools\.sh|managed-links\.sh|operation\.sh|smoke-git-sync\.sh))$
         name: Dotfiles dual-remote Git sync smoke test
         entry: bash scripts/smoke-git-sync.sh
         language: system
         pass_filenames: false
+        include_deleted: true
         priority: 0
       - id: node-smoke
+        files: >-
+          (?x)^(?:bootstrap\.d/07-node\.sh|config/mise/config\.toml|
+          scripts/(?:host-tools\.sh|operation\.sh|smoke-node\.sh))$
         name: Node LTS bootstrap smoke test
         entry: bash scripts/smoke-node.sh
         language: system
         pass_filenames: false
+        include_deleted: true
         priority: 0
       - id: herdr-hook-smoke
+        files: >-
+          (?x)^(?:bootstrap\.d/05-tools\.sh|config/claude/settings\.json|
+          scripts/(?:claude-herdr-hook\.jq|host-tools\.sh|
+          smoke-herdr-hook\.sh))$
         name: Portable Herdr hook smoke test
         entry: bash scripts/smoke-herdr-hook.sh
         language: system
         pass_filenames: false
+        include_deleted: true
         priority: 0
       - id: ssh-config-smoke
+        files: >-
+          (?x)^(?:ssh\.sh|config/ssh/config|scripts/(?:host-tools\.sh|
+          smoke-ssh-config\.sh))$
         name: SSH config smoke test
         description: >-
           Ensure ssh setup preserves existing config unless replacement
@@ -93,8 +165,12 @@ repos:
         entry: ./scripts/smoke-ssh-config.sh
         language: system
         pass_filenames: false
+        include_deleted: true
         priority: 0
       - id: macos-apps-smoke
+        files: >-
+          (?x)^(?:Brewfile|bootstrap\.d/10-macos-apps\.sh|
+          config/Code/extensions\.txt|scripts/smoke-macos-apps\.sh)$
         name: macOS apps smoke test
         description: >-
           Ensure macOS Brewfile, VS Code extensions, and Rectangle defaults
@@ -102,15 +178,36 @@ repos:
         entry: ./scripts/smoke-macos-apps.sh
         language: system
         pass_filenames: false
+        include_deleted: true
         priority: 0
       - id: codex-plugin-sync-smoke
+        files: >-
+          (?x)^(?:\.agents/AGENTS\.md|config/(?:claude/CLAUDE\.md|(?:codex|opencode|pi)/AGENTS\.md)|
+          \.agents/mcp-servers\.json|config/(?:codex/settings\.toml|opencode/opencode\.json|pi/settings\.json)|
+          sync-agents\.sh|\.agents/plugin-manifest\.json|
+          scripts/(?:groups\.sh|host-tools\.sh|operation\.sh|
+          smoke-codex-plugin-sync\.sh))$
+        types: [] # Include the tracked symlink inputs.
         name: Codex plugin sync smoke test
         description: Ensure Codex remote plugin drift and export stay symmetric
         entry: ./scripts/smoke-codex-plugin-sync.sh
         language: system
         pass_filenames: false
+        include_deleted: true
         priority: 0
       - id: plugin-install-smoke
+        files: >-
+          (?x)^(?:(?:install\.sh|justfile|sync-agents\.sh)|
+          \.agents/(?:AGENTS\.md|mcp-servers\.json|plugin-manifest\.json)|
+          bootstrap\.d/[^/]*\.sh|config/claude/(?:CLAUDE\.md|settings\.json)|
+          config/codex/(?:AGENTS\.md|settings\.toml)|
+          config/opencode/(?:AGENTS\.md|opencode\.json)|config/pi/(?:AGENTS\.md|
+          billion-context\.json|models\.json|settings\.json)|
+          config/pi/extensions/[^/]*|config/pi/themes/[^/]*|
+          scripts/(?:claude-herdr-hook\.jq|codex-toml\.py|groups\.sh|
+          host-tools\.sh|managed-links\.sh|operation\.sh|
+          smoke-plugin-install\.sh))$
+        types: [] # Include the tracked symlink inputs.
         name: Public install lifecycle smoke test
         description: >-
           Verify fresh, partial, converged, retry, and repeated install states
@@ -119,102 +216,229 @@ repos:
         entry: bash scripts/smoke-plugin-install.sh
         language: system
         pass_filenames: false
+        include_deleted: true
         priority: 0
       - id: skill-install-smoke
+        files: >-
+          (?x)^(?:(?:justfile|sync-agents\.sh)|\.agents/(?:AGENTS\.md|
+          mcp-servers\.json|plugin-manifest\.json)|config/claude/(?:CLAUDE\.md|
+          settings\.json)|config/codex/(?:AGENTS\.md|settings\.toml)|
+          config/opencode/(?:AGENTS\.md|opencode\.json)|config/pi/(?:AGENTS\.md|
+          billion-context\.json|models\.json|settings\.json)|
+          config/pi/extensions/[^/]*|config/pi/themes/[^/]*|
+          scripts/(?:claude-herdr-hook\.jq|codex-toml\.py|groups\.sh|
+          host-tools\.sh|operation\.sh|smoke-skill-install\.sh|sync-local\.sh|
+          update-local\.sh))$
+        types: [] # Include the tracked symlink inputs.
         name: Required skill installation smoke test
         entry: bash scripts/smoke-skill-install.sh
         language: system
         pass_filenames: false
+        include_deleted: true
         priority: 0
       - id: skill-docs-smoke
+        files: >-
+          (?x)^(?:\.agents/AGENTS\.md|config/(?:claude/CLAUDE\.md|(?:codex|opencode|pi)/AGENTS\.md)|
+          config/(?:codex/settings\.toml|opencode/opencode\.json|pi/settings\.json)|
+          sync-agents\.sh|\.agents/(?:mcp-servers\.json|
+          plugin-manifest\.json)|scripts/(?:groups\.sh|host-tools\.sh|
+          operation\.sh|smoke-skill-docs\.sh))$
+        types: [] # Include the tracked symlink inputs.
         name: Skill support docs smoke test
         description: >-
           Verify linked upstream skill docs reach every runtime transactionally
         entry: bash scripts/smoke-skill-docs.sh
         language: system
         pass_filenames: false
+        include_deleted: true
         priority: 0
       - id: treehouse-smoke
+        files: '^(?:bootstrap\.d/05-tools\.sh|scripts/smoke-treehouse\.sh)$'
         name: Treehouse release installation smoke test
         entry: bash scripts/smoke-treehouse.sh
         language: system
         pass_filenames: false
+        include_deleted: true
         priority: 0
       - id: codex-native-smoke
+        files: >-
+          (?x)^(?:bootstrap\.d/05-tools\.sh|scripts/(?:agent-tools\.sh|
+          groups\.sh|host-tools\.sh|operation\.sh|smoke-codex-native\.sh))$
         name: Codex native installer smoke test
         entry: bash scripts/smoke-codex-native.sh
         language: system
         pass_filenames: false
+        include_deleted: true
         priority: 0
       - id: codex-settings-smoke
+        files: >-
+          (?x)^(?:\.agents/AGENTS\.md|config/(?:claude/CLAUDE\.md|(?:codex|opencode|pi)/AGENTS\.md)|
+          config/(?:opencode/opencode\.json|pi/settings\.json)|
+          sync-agents\.sh|scripts/(?:codex-toml\.py|groups\.sh|
+          operation\.sh|smoke-codex-settings\.py))$
+        types: [] # Include the tracked symlink inputs.
         name: Codex TOML settings smoke test
         entry: uv run --no-project --script scripts/smoke-codex-settings.py
         language: system
         pass_filenames: false
+        include_deleted: true
         priority: 0
       - id: claude-plugin-sync-smoke
+        files: >-
+          (?x)^(?:\.agents/AGENTS\.md|config/(?:claude/CLAUDE\.md|(?:codex|opencode|pi)/AGENTS\.md)|
+          config/(?:codex/settings\.toml|opencode/opencode\.json|pi/settings\.json)|
+          sync-agents\.sh|scripts/(?:groups\.sh|host-tools\.sh|
+          operation\.sh|smoke-claude-plugin-sync\.sh))$
+        types: [] # Include the tracked symlink inputs.
         name: Claude plugin sync smoke test
         description: Ensure Claude plugin update and export stay symmetric
         entry: ./scripts/smoke-claude-plugin-sync.sh
         language: system
         pass_filenames: false
+        include_deleted: true
         priority: 0
       - id: doctor-smoke
+        files: >-
+          (?x)^(?:(?:\.aliases|\.p10k\.zsh|\.pre-commit-config\.yaml|
+          \.gitignore|\.tmux\.conf|\.vimrc|\.zshrc|install\.sh|justfile|pythonrc\.py|
+          sync-agents\.sh)|\.agents/(?:AGENTS\.md|skill-lock\.json|tool-versions\.json)|
+          bootstrap\.d/[^/]*\.sh|config/managed-links\.tsv|
+          config/Code/(?:keybindings\.json|settings\.json)|
+          config/claude/(?:CLAUDE\.md|settings\.json|settings\.local\.json|
+          statusline-command\.sh)|config/claude/agents/.+|
+          config/claude/output-styles/.+|config/codex/(?:AGENTS\.md|
+          settings\.toml)|config/gh/config\.yml|config/ghostty/config\.ghostty|
+          config/git/.+|config/mise/config\.toml|config/nvim/.+|
+          config/opencode/(?:AGENTS\.md|opencode\.json)|
+          config/pi/(?:[^/]*\.json|AGENTS\.md)|config/pi/extensions/[^/]*|
+          config/pi/themes/[^/]*|config/ruff/.+|
+          config/summarize/config\.json|scripts/(?:agent-tools\.sh|claude-herdr-hook\.jq|
+          codex-toml\.py|doctor\.sh|groups\.sh|host-tools\.sh|managed-links\.sh|
+          operation\.sh|smoke-doctor\.sh|state-plan\.sh|sync-local\.sh|update-local\.sh))$
+        types: [] # Include the tracked symlink inputs.
         name: Live machine doctor smoke test
         description: Ensure live drift checks stay outside commit-time hooks
         entry: ./scripts/smoke-doctor.sh
         language: system
         pass_filenames: false
+        include_deleted: true
         priority: 0
       - id: operation-smoke
+        files: '^(?:scripts/(?:operation\.sh|smoke-operation\.sh))$'
         name: Bounded external operation smoke test
         description: >-
           Verify time limits, process-tree stops and failure diagnostics
         entry: bash scripts/smoke-operation.sh
         language: system
         pass_filenames: false
+        include_deleted: true
         priority: 0
       - id: local-update-smoke
+        files: >-
+          (?x)^(?:justfile|bootstrap\.d/07-node\.sh|config/mise/config\.toml|
+          scripts/(?:groups\.sh|host-tools\.sh|operation\.sh|smoke-update-local\.sh|
+          sync-local\.sh|update-local\.sh))$
         name: Local state update smoke test
         description: Verify planned partial updates and idempotent convergence
         entry: ./scripts/smoke-update-local.sh
         language: system
         pass_filenames: false
+        include_deleted: true
         priority: 0
       - id: install-groups-smoke
+        files: >-
+          (?x)^(?:(?:\.aliases|\.p10k\.zsh|\.tmux\.conf|\.vimrc|\.zshrc|
+          Makefile|install\.sh|justfile|pythonrc\.py|sync-agents\.sh)|
+          \.agents/(?:AGENTS\.md|tool-versions\.json)|bootstrap\.d/[^/]*\.sh|config/managed-links\.tsv|
+          config/Code/(?:keybindings\.json|settings\.json)|
+          config/claude/(?:CLAUDE\.md|settings\.local\.json|
+          statusline-command\.sh)|config/claude/agents/.+|
+          config/claude/output-styles/.+|config/codex/AGENTS\.md|
+          config/gh/config\.yml|config/ghostty/config\.ghostty|config/git/.+|
+          config/mise/config\.toml|config/nvim/.+|config/opencode/AGENTS\.md|
+          config/pi/AGENTS\.md|config/ruff/.+|config/summarize/config\.json|
+          scripts/(?:agent-tools\.sh|doctor\.sh|groups\.sh|host-tools\.sh|
+          managed-links\.sh|operation\.sh|smoke-groups\.sh|state-plan\.sh|
+          sync-local\.sh|update-local\.sh))$
+        types: [] # Include the tracked symlink inputs.
         name: Install groups smoke test
         description: >-
           Verify install, doctor and sync with all, core-only and unknown groups
         entry: bash scripts/smoke-groups.sh
         language: system
         pass_filenames: false
+        include_deleted: true
         priority: 0
       - id: transactional-export-smoke
+        files: >-
+          (?x)^(?:\.agents/AGENTS\.md|config/(?:claude/CLAUDE\.md|(?:codex|opencode|pi)/AGENTS\.md)|
+          (?:justfile|sync-agents\.sh)|\.agents/(?:mcp-servers\.json|
+          plugin-manifest\.json|skill-lock\.json|tool-versions\.json)|
+          bootstrap\.d/05-tools\.sh|config/claude/settings\.json|
+          config/codex/settings\.toml|config/opencode/opencode\.json|
+          config/pi/(?:billion-context\.json|models\.json|settings\.json)|
+          scripts/(?:agent-tools\.sh|claude-herdr-hook\.jq|codex-toml\.py|
+          groups\.sh|host-tools\.sh|operation\.sh|smoke-export\.sh))$
+        types: [] # Include the tracked symlink inputs.
         name: Transactional export smoke test
         description: Verify one-plan portable checkout export
         entry: ./scripts/smoke-export.sh
         language: system
         pass_filenames: false
+        include_deleted: true
         priority: 0
       - id: agent-sync-interface-smoke
+        files: >-
+          (?x)^(?:\.agents/AGENTS\.md|config/(?:claude/CLAUDE\.md|(?:codex|opencode|pi)/AGENTS\.md)|
+          config/(?:opencode/opencode\.json|pi/settings\.json)|
+          sync-agents\.sh|config/codex/settings\.toml|
+          scripts/(?:codex-toml\.py|groups\.sh|host-tools\.sh|operation\.sh|
+          smoke-agent-sync-interface\.sh))$
+        types: [] # Include the tracked symlink inputs.
         name: Agent sync interface smoke test
         description: Verify symmetric sync commands and normalized MCP behavior
         entry: ./scripts/smoke-agent-sync-interface.sh
         language: system
         pass_filenames: false
+        include_deleted: true
         priority: 0
       - id: pi-config-check
+        files: >-
+          (?x)^(?:\.agents/AGENTS\.md|config/(?:claude/CLAUDE\.md|(?:codex|opencode|pi)/AGENTS\.md)|
+          config/(?:codex/settings\.toml|opencode/opencode\.json)|
+          (?:\.gitignore|sync-agents\.sh)|\.agents/mcp-servers\.json|
+          config/pi/(?:[^/]*\.json|[^/]*\.mjs)|config/pi/extensions/[^/]*|
+          config/pi/themes/[^/]*|scripts/(?:groups\.sh|operation\.sh|
+          smoke-pi-[^/]*\.mjs))$
+        types: [] # Include the tracked symlink inputs.
         name: Pi types, lint and regression tests
         entry: >-
           bash -c 'npm --prefix config/pi run check &&
           npm --prefix config/pi test'
         language: system
         pass_filenames: false
+        include_deleted: true
         priority: 0
       - id: agent-tools-smoke
+        files: >-
+          (?x)^(?:sync-agents\.sh|\.agents/tool-versions\.json|
+          bootstrap\.d/(?:05-tools\.sh|07-node\.sh)|config/mise/config\.toml|
+          scripts/(?:agent-tools\.sh|claude-herdr-hook\.jq|groups\.sh|
+          host-tools\.sh|operation\.sh|smoke-agent-tools\.sh))$
         name: Agent tools smoke test
         description: Verify agent tool version policy
         entry: ./scripts/smoke-agent-tools.sh
         language: system
         pass_filenames: false
+        include_deleted: true
+        priority: 0
+      - id: hook-filters-smoke
+        files: >-
+          (?x)^(?:(?:\.pre-commit-config\.yaml|justfile)|
+          scripts/smoke-hook-filters\.py)$
+        name: Hook filter smoke test
+        entry: uv run --no-project --script scripts/smoke-hook-filters.py
+        language: system
+        pass_filenames: false
+        include_deleted: true
         priority: 0
