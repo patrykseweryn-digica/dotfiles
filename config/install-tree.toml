@@ -1,0 +1,628 @@
+# Install tree: everything this repository can install or configure on a
+# machine. Each table declares one node by its path; a parent comes before
+# its children, and the picker shows nodes in this order.
+#
+# Node keys:
+#   label       Short name shown to the owner. Required.
+#   required    true: every machine selects the node and its descendants.
+#   conditions  Machine facts the node needs: screen, sudo, darwin, linux.
+#               Descendants inherit them.
+#   requires    Paths of other nodes that the node needs.
+#   tools       Names in .agents/tool-versions.json.
+#   links       Sources in config/managed-links.tsv.
+#   casks       Casks in Brewfile.
+#   files       Repository files that install or configure the element,
+#               for elements without an inventory entry.
+#   derive      skills, plugins or mcp: the elements below come from
+#               .agents/skill-lock.json, .agents/plugin-manifest.json or
+#               .agents/mcp-servers.json. Skills sit under an author branch
+#               (the harness/<author>/ segment of the skill path, else the
+#               GitHub account of the source); plugins under a marketplace
+#               branch. Declare each author and marketplace branch here.
+#   empty       true: a branch without elements on purpose.
+#
+# Run `uv run --no-project --script scripts/install-tree.py check` to compare
+# the tree with the inventories; `just test` runs it.
+
+["shell"]
+label = "Shell and terminal"
+
+["shell/zsh"]
+label = "Zsh with Oh My Zsh and Powerlevel10k"
+required = true
+
+["shell/zsh/zsh"]
+label = "zsh"
+files = ["bootstrap.d/02-zsh.sh"]
+
+["shell/zsh/oh-my-zsh"]
+label = "Oh My Zsh"
+files = ["bootstrap.d/03-oh-my-zsh.sh"]
+
+["shell/zsh/p10k"]
+label = "Powerlevel10k config"
+links = [".p10k.zsh"]
+
+["shell/zsh/zshrc"]
+label = "zshrc"
+links = [".zshrc"]
+
+["shell/zsh/aliases"]
+label = "Shell aliases"
+links = [".aliases"]
+
+["shell/zsh/carapace"]
+label = "carapace command completions"
+tools = ["carapace"]
+
+["shell/tmux"]
+label = "tmux with plugins"
+required = true
+
+["shell/tmux/tmux"]
+label = "tmux and its config"
+tools = ["tmux"]
+links = [".tmux.conf"]
+
+["shell/tmux/plugins"]
+label = "tpm and tmux plugins"
+files = ["bootstrap.d/05-tools.sh"]
+
+["shell/terminal"]
+label = "Fonts and terminal config"
+required = true
+conditions = ["screen"]
+
+["shell/terminal/fonts"]
+label = "JetBrains Mono Nerd, JetBrains Mono and FiraCode fonts"
+files = ["bootstrap.d/06-fonts.sh"]
+
+["shell/terminal/gnome-terminal"]
+label = "GNOME Terminal colors"
+conditions = ["linux"]
+files = ["bootstrap.d/08-terminal.sh"]
+
+["shell/terminal/ghostty"]
+label = "Ghostty config"
+conditions = ["darwin"]
+links = ["config/ghostty/config.ghostty"]
+
+["git"]
+label = "Git and GitHub"
+required = true
+
+["git/config"]
+label = "Git config and ignore"
+links = ["config/git"]
+
+["git/gh-config"]
+label = "GitHub CLI config"
+links = ["config/gh/config.yml"]
+
+["git/gh"]
+label = "GitHub CLI"
+tools = ["gh"]
+
+["git/lazygit"]
+label = "lazygit"
+tools = ["lazygit"]
+
+["git/delta"]
+label = "delta"
+tools = ["delta"]
+
+["git/git-lfs"]
+label = "Git LFS"
+tools = ["git-lfs"]
+
+["git/gh-dash"]
+label = "gh-dash"
+tools = ["gh-dash"]
+
+["ssh"]
+label = "SSH"
+required = true
+
+["ssh/setup"]
+label = "SSH config, agent and personal key"
+files = ["ssh.sh", "config/ssh/config"]
+
+["cli"]
+label = "Command-line tools"
+
+["cli/files"]
+label = "File and search tools"
+required = true
+
+["cli/files/bat"]
+label = "bat"
+tools = ["bat"]
+
+["cli/files/eza"]
+label = "eza"
+tools = ["eza"]
+
+["cli/files/fd"]
+label = "fd"
+tools = ["fd"]
+
+["cli/files/ripgrep"]
+label = "ripgrep"
+tools = ["ripgrep"]
+
+["cli/files/fzf"]
+label = "fzf"
+tools = ["fzf"]
+
+["cli/files/zoxide"]
+label = "zoxide"
+tools = ["zoxide"]
+
+["cli/utils"]
+label = "Utilities"
+required = true
+
+["cli/utils/jq"]
+label = "jq"
+tools = ["jq"]
+files = ["bootstrap.d/04-jq.sh"]
+
+["cli/utils/tealdeer"]
+label = "tealdeer"
+tools = ["tealdeer"]
+
+["cli/utils/hyperfine"]
+label = "hyperfine"
+tools = ["hyperfine"]
+
+["cli/utils/watchexec"]
+label = "watchexec"
+tools = ["watchexec"]
+
+["cli/utils/just"]
+label = "just"
+tools = ["rust-just"]
+
+["cli/utils/yt-dlp"]
+label = "yt-dlp"
+tools = ["yt-dlp"]
+
+["cli/utils/gnupg"]
+label = "GnuPG"
+conditions = ["sudo"]
+tools = ["gnupg"]
+
+["cli/utils/xclip"]
+label = "xclip"
+conditions = ["linux", "sudo"]
+tools = ["xclip"]
+
+["editors"]
+label = "Editors"
+
+["editors/nvim"]
+label = "Neovim and Vim"
+required = true
+
+["editors/nvim/neovim"]
+label = "Neovim"
+tools = ["neovim"]
+
+["editors/nvim/config"]
+label = "Neovim config"
+links = ["config/nvim"]
+
+["editors/nvim/vimrc"]
+label = "Vim config"
+links = [".vimrc"]
+
+["editors/vscode"]
+label = "VS Code settings and extensions"
+conditions = ["screen"]
+
+["editors/vscode/settings"]
+label = "VS Code settings"
+links = ["config/Code/settings.json"]
+
+["editors/vscode/keybindings"]
+label = "VS Code keybindings"
+links = ["config/Code/keybindings.json"]
+
+["editors/vscode/extensions"]
+label = "VS Code extensions"
+requires = ["apps/dev/vscode"]
+files = ["config/Code/extensions.txt"]
+
+["dev"]
+label = "Development tools"
+
+["dev/runtimes"]
+label = "Language runtimes"
+required = true
+
+["dev/runtimes/node"]
+label = "Node LTS with mise"
+files = ["bootstrap.d/07-node.sh", "config/mise/config.toml"]
+
+["dev/runtimes/pnpm"]
+label = "pnpm"
+tools = ["pnpm"]
+
+["dev/runtimes/uv"]
+label = "uv"
+files = ["bootstrap.d/01-uv.sh"]
+
+["dev/runtimes/pipx"]
+label = "pipx"
+tools = ["pipx"]
+
+["dev/runtimes/pythonrc"]
+label = "Python REPL startup file"
+links = ["pythonrc.py"]
+
+["dev/lint"]
+label = "Linters and formatters"
+
+["dev/lint/shellcheck"]
+label = "ShellCheck"
+tools = ["shellcheck"]
+
+["dev/lint/shfmt"]
+label = "shfmt"
+tools = ["shfmt"]
+
+["dev/lint/hadolint"]
+label = "hadolint"
+tools = ["hadolint"]
+
+["dev/lint/typos"]
+label = "typos"
+tools = ["typos"]
+
+["dev/lint/vale"]
+label = "Vale"
+tools = ["vale"]
+
+["dev/lint/ruff"]
+label = "Ruff config"
+links = ["config/ruff"]
+
+["dev/lint/pylint"]
+label = "Pylint"
+tools = ["pylint"]
+
+["dev/lint/ast-grep"]
+label = "ast-grep"
+tools = ["ast-grep"]
+
+["dev/lint/fallow"]
+label = "fallow"
+tools = ["fallow"]
+
+["dev/lint/cmakelang"]
+label = "cmakelang"
+tools = ["cmakelang"]
+
+["dev/lsp"]
+label = "Language servers"
+
+["dev/lsp/typescript"]
+label = "TypeScript language server"
+tools = ["TypeScript language server"]
+
+["dev/hooks"]
+label = "Git hook tools"
+
+["dev/hooks/pre-commit"]
+label = "pre-commit"
+tools = ["pre-commit"]
+
+["dev/hooks/prek"]
+label = "prek"
+tools = ["prek"]
+
+["dev/hooks/repository"]
+label = "Repository prek Git hooks"
+requires = ["dev/hooks/prek"]
+files = [".pre-commit-config.yaml"]
+
+["agents"]
+label = "AI agents"
+
+["agents/harness"]
+label = "Agent harnesses"
+
+["agents/harness/claude-code"]
+label = "Claude Code"
+tools = ["Claude Code"]
+
+["agents/harness/codex"]
+label = "Codex"
+tools = ["Codex"]
+
+["agents/harness/pi"]
+label = "Pi"
+tools = ["Pi"]
+
+["agents/harness/opencode"]
+label = "OpenCode"
+tools = ["OpenCode"]
+
+["agents/harness/cursor-cli"]
+label = "Cursor CLI"
+tools = ["Cursor CLI"]
+
+["agents/harness/grok-build"]
+label = "Grok Build"
+tools = ["Grok Build"]
+
+["agents/tools"]
+label = "Agent tools"
+
+["agents/tools/axi"]
+label = "AXI tools"
+tools = [
+    "Lavish AXI",
+    "GitHub AXI",
+    "Chrome DevTools AXI",
+    "Tasks AXI",
+    "Quota AXI",
+]
+
+["agents/tools/summarize"]
+label = "Summarize"
+tools = ["Summarize"]
+
+["agents/tools/herdr"]
+label = "Herdr"
+tools = ["Herdr"]
+
+["agents/tools/treehouse"]
+label = "Treehouse"
+tools = ["Treehouse"]
+
+["agents/tools/no-mistakes"]
+label = "no-mistakes"
+tools = ["no-mistakes"]
+
+["agents/tools/acpx"]
+label = "acpx"
+tools = ["acpx"]
+
+["agents/tools/gnhf"]
+label = "gnhf"
+tools = ["gnhf"]
+
+["agents/tools/backpass"]
+label = "Backpass"
+tools = ["Backpass"]
+
+["agents/tools/skill-manager"]
+label = "Skill manager"
+tools = ["Skill manager"]
+
+["agents/config"]
+label = "Agent config"
+
+["agents/config/claude"]
+label = "Claude instructions, settings and agents"
+requires = ["agents/harness/claude-code"]
+links = [
+    "config/claude/CLAUDE.md",
+    "config/claude/statusline-command.sh",
+    "config/claude/settings.local.json",
+    "config/claude/output-styles",
+    "config/claude/agents",
+]
+files = ["config/claude/settings.json"]
+
+["agents/config/codex"]
+label = "Codex instructions and settings"
+requires = ["agents/harness/codex"]
+links = ["config/codex/AGENTS.md"]
+files = ["config/codex/settings.toml"]
+
+["agents/config/opencode"]
+label = "OpenCode instructions and settings"
+requires = ["agents/harness/opencode"]
+links = ["config/opencode/AGENTS.md"]
+files = ["config/opencode/opencode.json"]
+
+["agents/config/pi"]
+label = "Pi instructions"
+requires = ["agents/harness/pi"]
+links = ["config/pi/AGENTS.md"]
+
+["agents/config/pi-packages"]
+label = "Pi packages and settings"
+requires = ["agents/harness/pi"]
+files = ["config/pi/settings.json"]
+
+["agents/config/summarize"]
+label = "Summarize config"
+requires = ["agents/tools/summarize"]
+links = ["config/summarize/config.json"]
+
+["agents/firstmate"]
+label = "Firstmate setup"
+files = ["bootstrap.d/09-firstmate.sh", "config/firstmate/crew-dispatch.json"]
+
+["agents/skills"]
+label = "Skills by author"
+derive = "skills"
+
+["agents/skills/pstack"]
+label = "pstack"
+
+["agents/skills/mattpocock"]
+label = "Matt Pocock"
+
+["agents/skills/p-severin"]
+label = "Personal skills"
+
+["agents/skills/getagentseal"]
+label = "Founder playbook"
+
+["agents/skills/emilkowalski"]
+label = "Emil Kowalski"
+
+["agents/skills/steipete"]
+label = "Peter Steinberger"
+
+["agents/skills/humanlayer"]
+label = "HumanLayer"
+
+["agents/skills/pydantic"]
+label = "Pydantic"
+
+["agents/skills/fallow-rs"]
+label = "fallow"
+
+["agents/skills/upstash"]
+label = "Upstash Context7"
+
+["agents/skills/vercel-labs"]
+label = "Vercel Labs"
+
+["agents/skills/kunchenguid"]
+label = "Kun Chen"
+
+["agents/skills/mvanhorn"]
+label = "last30days"
+
+["agents/skills/mlflow"]
+label = "MLflow"
+
+["agents/skills/GoogleChrome"]
+label = "Google Chrome"
+
+["agents/plugins"]
+label = "Plugins by marketplace"
+derive = "plugins"
+
+# Some plugins here also have a Codex version, so the branch needs no harness.
+["agents/plugins/claude-plugins-official"]
+label = "Claude official plugins"
+
+["agents/plugins/anthropic-agent-skills"]
+label = "Anthropic agent skills"
+requires = ["agents/harness/claude-code"]
+
+["agents/plugins/openai-curated"]
+label = "OpenAI curated Codex plugins"
+requires = ["agents/harness/codex"]
+
+["agents/plugins/pydantic-skills"]
+label = "Pydantic skills"
+
+["agents/plugins/impeccable"]
+label = "Impeccable"
+
+["agents/plugins/last30days-skill"]
+label = "last30days"
+
+["agents/plugins/obsidian-skills"]
+label = "Obsidian skills"
+
+["agents/plugins/ui-ux-pro-max-skill"]
+label = "UI UX Pro Max"
+
+["agents/plugins/ponytail"]
+label = "Ponytail"
+
+["agents/mcp"]
+label = "MCP servers"
+derive = "mcp"
+
+["apps"]
+label = "Applications"
+conditions = ["screen"]
+
+["apps/dev"]
+label = "Development applications"
+
+["apps/dev/vscode"]
+label = "VS Code"
+casks = ["visual-studio-code"]
+
+["apps/dev/docker"]
+label = "Docker"
+casks = ["docker"]
+
+["apps/dev/ghostty"]
+label = "Ghostty"
+conditions = ["darwin"]
+casks = ["ghostty"]
+
+["apps/dev/cmux"]
+label = "cmux"
+conditions = ["darwin"]
+casks = ["cmux"]
+
+["apps/dev/codexbar"]
+label = "CodexBar"
+conditions = ["darwin"]
+casks = ["codexbar"]
+
+["apps/browsers"]
+label = "Browsers"
+
+["apps/browsers/google-chrome"]
+label = "Google Chrome"
+casks = ["google-chrome"]
+
+["apps/browsers/brave"]
+label = "Brave"
+casks = ["brave-browser"]
+
+["apps/communication"]
+label = "Communication"
+
+["apps/communication/slack"]
+label = "Slack"
+casks = ["slack"]
+
+["apps/communication/telegram"]
+label = "Telegram"
+casks = ["telegram"]
+
+["apps/productivity"]
+label = "Productivity"
+
+["apps/productivity/todoist"]
+label = "Todoist"
+casks = ["todoist"]
+
+["apps/productivity/obsidian"]
+label = "Obsidian"
+casks = ["obsidian"]
+
+["apps/productivity/rectangle"]
+label = "Rectangle"
+conditions = ["darwin"]
+casks = ["rectangle"]
+
+["apps/media"]
+label = "Media"
+
+["apps/media/spotify"]
+label = "Spotify"
+casks = ["spotify"]
+
+["apps/hardware"]
+label = "Hardware"
+
+["apps/hardware/qmk-toolbox"]
+label = "QMK Toolbox"
+casks = ["qmk-toolbox"]
+
+["work"]
+label = "Employer"
+
+["work/identity"]
+label = "Employer Git identity, SSH key and host"
+files = ["config/git/config-work"]
+
+["work/tools"]
+label = "Employer tools"
+empty = true

@@ -6,7 +6,8 @@ Run the affected recipes after each change; `just test` runs them all.
 - [Setup and synchronization](setup.md): isolated installation and config sync.
 - [Tool inventory and updates](tools.md): latest tools without repo rewrites.
 - [Machine check](machine.md): live drift, safe diagnostics and read-only checks.
-- [Install groups](groups.md): per-machine core, agents and desktop selection.
+- [Install groups](groups.md): per-machine group selection and the install
+  tree declaration.
 - [Commit hooks](hooks.md): staged-file selection and full-suite coverage.
 - Command menu: run `just` and `make` at 80 columns on a terminal, with
   `NO_COLOR=1`, piped, and `PATH=/usr/bin:/bin make help` without `just`.

@@ -449,3 +449,24 @@ repos:
         pass_filenames: false
         include_deleted: true
         priority: 0
+      - id: install-tree-smoke
+        # The tree's `files` entries must select this hook; see
+        # scripts/smoke-hook-filters.py.
+        files: >-
+          (?x)^(?:(?:\.pre-commit-config\.yaml|Brewfile|ssh\.sh)|
+          \.agents/(?:mcp-servers\.json|plugin-manifest\.json|
+          skill-lock\.json|tool-versions\.json)|bootstrap\.d/[^/]*\.sh|
+          config/(?:install-tree\.toml|managed-links\.tsv|mise/config\.toml|
+          ssh/config|Code/extensions\.txt|git/config-work|
+          claude/settings\.json|codex/settings\.toml|opencode/opencode\.json|
+          pi/settings\.json|firstmate/crew-dispatch\.json)|
+          scripts/(?:install-tree\.py|smoke-install-tree\.sh))$
+        name: Install tree smoke test
+        description: >-
+          Check that the install tree and the inventories name the same
+          elements, and that the tree converts to JSON
+        entry: bash scripts/smoke-install-tree.sh
+        language: system
+        pass_filenames: false
+        include_deleted: true
+        priority: 0

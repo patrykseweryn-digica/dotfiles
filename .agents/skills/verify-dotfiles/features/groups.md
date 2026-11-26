@@ -26,6 +26,13 @@ other elements as `SKIP ... skipped: group <name> is not selected`.
   and Node as `SKIP` with the group name. Sync and machine pass when only
   `SKIP` rows remain.
 - `sync` skips refresh phases of unselected groups; core tools still update.
+- `tree`: `config/install-tree.toml` declares the install tree. Its header
+  explains the node keys and the skill, plugin and MCP paths. Install, sync
+  and machine do not read the tree yet.
+  `scripts/install-tree.py json` prints the tree as JSON for jq.
+  `scripts/install-tree.py check` compares the tree with the inventories.
+  It fails when an inventory entry has no tree node.
+  It also fails when a tree node has no inventory entry.
 - `notice`: when managed links of an unselected group remain, the plan adds
   `SKIP groups: Group <name> is installed but not selected; ...` with
   `Run: just enable <name>`. Sync and machine still pass.
@@ -58,6 +65,14 @@ Preconditions: dependencies from SKILL.md; run from the checkout root.
 - **Tool groups.** Run `bash scripts/smoke-tool-plan.sh`. It rejects a tool
   without a group, skips a desktop-group core tool on a core-only machine,
   and requires `gh` in core.
+- **Install tree.** Run `bash scripts/smoke-install-tree.sh`. It converts
+  the real tree to JSON and checks the pstack skill paths. Then it runs
+  `check` on this checkout, which must pass.
+  Next, it runs `check` on fixture copies with one fault each.
+  Faults cover tools, links, applications, files, skills, plugins and MCP.
+  Each fault is an entry without a node or a node without an entry.
+  Other faults are a missing dependency, an unknown key or condition, and
+  a child before its parent. Each fixture must fail with its error.
 - **Proof.** Capture stdout/stderr and exit codes; each script must exit zero.
 
 ## Gotchas

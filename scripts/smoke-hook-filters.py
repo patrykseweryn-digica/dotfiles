@@ -10,6 +10,7 @@ import os
 import re
 import subprocess
 import sys
+import tomllib
 from collections import defaultdict
 from fnmatch import fnmatchcase
 from pathlib import Path
@@ -93,7 +94,11 @@ INPUTS = {
         scripts/claude-herdr-hook.jq sync-agents.sh .agents/tool-versions.json""",
     "hook-filters-smoke": "scripts/smoke-hook-filters.py .pre-commit-config.yaml justfile",
     "menu-smoke": "scripts/smoke-menu.sh scripts/menu.sh scripts/groups.sh justfile Makefile",
+    "install-tree-smoke": """scripts/smoke-install-tree.sh scripts/install-tree.py
+        config/install-tree.toml config/managed-links.tsv Brewfile .agents/tool-versions.json
+        .agents/skill-lock.json .agents/plugin-manifest.json .agents/mcp-servers.json""",
 }
+TREE_HOOK = "install-tree-smoke"
 
 
 def run(*args, cwd=None, env=None):
@@ -250,6 +255,12 @@ def inputs_by_path(stanzas, errors):
             )
         for path in paths:
             by_path[path].update(MANAGED_LINK_HOOKS)
+    # Files that tree elements name are inputs of the tree check.
+    tree = tomllib.loads(Path("config/install-tree.toml").read_text())
+    for path in {name for spec in tree.values() for name in spec.get("files", [])}:
+        if path not in tracked:
+            errors.append(f"config/install-tree.toml: {path} is not tracked")
+        by_path[path].add(TREE_HOOK)
 
     return by_path
 
