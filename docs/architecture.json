@@ -453,7 +453,7 @@
         ],
         "skills_by_source": {
           "GoogleChrome/modern-web-guidance": 1,
-          "cursor/plugins": 43,
+          "cursor/plugins": 46,
           "emilkowalski/skills": 4,
           "fallow-rs/fallow-skills": 1,
           "getagentseal/founder-playbook": 4,
@@ -471,7 +471,7 @@
           "upstash/context7": 1,
           "vercel-labs/skills": 1
         },
-        "skill_count": 117,
+        "skill_count": 120,
         "mcp_servers": [
           "chrome-devtools",
           "cloudflare",

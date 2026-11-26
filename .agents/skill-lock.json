@@ -551,6 +551,18 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/mattpocock/skills.git"
     },
+    "reflect": {
+      "skillPath": "harness/pstack/claude-code/skills/reflect/SKILL.md",
+      "source": "cursor/plugins",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/cursor/plugins.git"
+    },
+    "reframe": {
+      "skillPath": "harness/pstack/claude-code/skills/reframe/SKILL.md",
+      "source": "cursor/plugins",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/cursor/plugins.git"
+    },
     "research": {
       "skillPath": "skills/engineering/research/SKILL.md",
       "source": "mattpocock/skills",
@@ -599,6 +611,12 @@
       "source": "mattpocock/skills",
       "sourceType": "github",
       "sourceUrl": "https://github.com/mattpocock/skills.git"
+    },
+    "sharpen": {
+      "skillPath": "harness/pstack/claude-code/skills/sharpen/SKILL.md",
+      "source": "cursor/plugins",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/cursor/plugins.git"
     },
     "show-me": {
       "skillPath": "plugins/show-me/skills/show-me/SKILL.md",
