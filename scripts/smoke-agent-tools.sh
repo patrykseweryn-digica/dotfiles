@@ -684,6 +684,15 @@ export PATH="$HOME/.local/bin:$PATH"
 if "$AGENT_TOOLS" check >"$tmp_dir/channels-missing.log"; then
   fail "missing tool-sync tools passed their check"
 fi
+: >"$CHANNEL_LOG"
+LATEST_VERSION=0.51.3 DOTFILES_RUNNER='make' "$AGENT_TOOLS" install
+DOTFILES_RUNNER='make' "$AGENT_TOOLS" check >"$tmp_dir/make-check.log"
+LATEST_VERSION=0.51.3 DOTFILES_RUNNER='make' "$AGENT_TOOLS" update
+if grep -F rust-just "$CHANNEL_LOG" "$tmp_dir/make-check.log"; then
+  fail "Make installed or checked just through agent tools"
+fi
+: >"$CHANNEL_LOG"
+rm "$HOME/dash-installed"
 LATEST_VERSION=0.51.3 "$AGENT_TOOLS" install
 "$AGENT_TOOLS" check
 "$AGENT_TOOLS" report >"$tmp_dir/channels-report.log"

@@ -27,18 +27,20 @@ other elements as `SKIP ... skipped: group <name> is not selected`.
 
 - Run `just groups`, `just enable agents` or `just disable desktop`.
 - Run `just install`, `just sync` or `just machine`.
+- With Make, use `make groups`, `make enable group=agents`, or
+  `make disable group=desktop`.
 
 ## Driving it with Bash smoke scripts
 
 Preconditions: dependencies from SKILL.md; run from the checkout root.
 
 - **Public commands.** Run `bash scripts/smoke-groups.sh`. In disposable
-  HOME directories it drives `just install`, `just machine` and `just sync`
+  HOME directories it drives `make install`, `make machine` and `make sync`
   with no setting, core only, all groups, an unknown group and a list
   without core. No setting and core only must skip agent and desktop steps,
   links and phases, and pass. Doctor without a setting in a HOME with all
   groups installed must print one `groups` notice per group and pass.
-  It also drives `just groups`, `just enable` and `just disable` on a
+  It also drives `make groups`, `make enable` and `make disable` on a
   fixture env file: in-place writes, canonical order, duplicate lines,
   and invalid commands that leave the file unchanged.
   Invalid settings must leave HOME, the checkout and the call log unchanged.

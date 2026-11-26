@@ -11,7 +11,7 @@ listed for the affected features. Use existing checks, not a new runner.
 ## Launch
 
 Run from the dotfiles checkout. There is no server or persistent test process.
-Required commands: bash, git, just, jq, node, npm, uv, prek, zsh, rg.
+Required commands: bash, git, just, make, jq, node, npm, uv, prek, zsh, rg.
 Smoke tests narrow PATH to stubs, a scratch link to the host jq, and
 `/usr/bin:/bin`. The smoke tests require jq 1.7 or newer.
 Ubuntu 22.04 ships jq 1.6 in `/usr/bin`, so the version check fails there.
@@ -75,15 +75,15 @@ bash scripts/smoke-export.sh
 bash scripts/smoke-groups.sh
 ```
 
-These tests invoke `just install`, `just sync`, `just machine`, and
-`just export` with disposable HOME directories and checkouts. Never substitute
+These tests drive the public Just and GNU Make commands with disposable HOME
+directories and checkouts. Never substitute
 a live update or export for this proof.
 
 ## Evidence
 
 Capture commands, exit codes, platform (`uname -s` and `uname -m`) and
 `git diff --stat` in `$proof/result.txt`, plus the transcripts above.
-The install smoke scripts exercise public just recipes in disposable HOME;
+The install smoke scripts exercise public commands in disposable HOME;
 external installers are stubbed at the network/package-manager boundary.
 The tool smoke uses a simulated mise provider and generated CLI fixtures.
 It exercises the adapter and report, reads fixture versions, checks unchanged

@@ -24,8 +24,8 @@ run_plan() {
     while IFS=$'\t' read -r status category action message; do
         echo "[$status] ${category}: ${message}"
         case "$action" in
-        update) echo "Run: just sync" ;;
-        export) echo "Run: just export" ;;
+        update) echo "Run: ${DOTFILES_RUNNER:-just} sync" ;;
+        export) echo "Run: ${DOTFILES_RUNNER:-just} export" ;;
         esac
         case "$status" in
         FAIL) failed=true ;;

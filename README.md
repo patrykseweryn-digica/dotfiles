@@ -2,8 +2,7 @@
 
 Personal machine setup and agent config.
 
-Use `just` as the public interface. Treat raw scripts as implementation
-details unless you are debugging them.
+Use `just` or GNU Make as the public interface. Both run the same scripts.
 
 ## Daily commands
 
@@ -15,6 +14,18 @@ just export skills  # choose global skill changes to save in the repository
 just machine   # inspect local state offline and without writes
 ```
 
+On a machine without `just`, use GNU Make from the checkout:
+
+```bash
+make install
+make sync
+make machine
+make export
+make export-skills
+```
+
+Run `make` to list the commands. The Make commands do not install or require
+`just`. They work with the same no-sudo setup as `./install.sh`.
 ## Sync direction
 
 Repository state is authoritative for `sync`. Portable runtime additions
@@ -140,7 +151,7 @@ The ast-grep npm entry approves `@ast-grep/cli` build scripts through
 
 Developer tools `rust-just`, `yt-dlp`, `cmakelang`, and `pylint` use uv.
 Their executables belong in `~/.local/bin`; Pylint is not a default check.
-Rust-just is the sole just channel, including CI.
+Rust-just is the only source for `just`. Make skips it.
 Remove any old mise just selection before applying this inventory elsewhere.
 Do not add a pipx yt-dlp or TensorFlow installation.
 Fallow uses the existing mise npm channel and declares all three executables.
@@ -206,7 +217,8 @@ A clean machine needs Bash, `curl`, Git, CA certificates, `tar`, `unzip`, and
 Linux installation without sudo also needs a C compiler, `make`, XZ, and
 ncurses headers for Zsh.
 The installer bootstraps `jq`; `jq` is not a prerequisite.
-Run `./install.sh` when `just` is not installed yet.
+If `just` is unavailable, use `make install` and `make sync`.
+If neither runner is available, start with `./install.sh`.
 
 ```bash
 just install  # converge missing tools and local config
@@ -232,6 +244,9 @@ just groups           # show the selected groups
 just enable agents    # select agents, then run install
 just disable desktop  # stop installing and updating desktop
 ```
+
+The Make equivalents are `make groups`, `make enable group=agents`, and
+`make disable group=desktop`.
 
 The commands write `DOTFILES_GROUPS` in `.env`, for example
 `DOTFILES_GROUPS=core,agents`. `core` is required and cannot be disabled.
@@ -298,7 +313,7 @@ Evidence stays under ignored `.agent-runs/verify-dotfiles/`.
 Pull requests and a manual run check the repository on macOS and Linux.
 Pushes to master and the Monday 05:17 UTC schedule check Linux only.
 Native amd64 and arm64 jobs run `install`, two `sync` commands, and `machine`
-in a clean Ubuntu image as a user without sudo. Those jobs run on pull
+through Make in a clean Ubuntu image without sudo or `just`. Those jobs run on pull
 requests, the Monday schedule, and a manual run. A push to master does not
 run them. Accountless CI skips only remote Codex plugins because their
 installation requires OAuth. CI mounts a read-only GitHub token only during

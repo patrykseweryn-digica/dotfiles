@@ -28,9 +28,8 @@ COPY --chown=ubuntu:ubuntu . .
 
 RUN set -eux; \
     test "$(id -u)" -ne 0; \
-    ! command -v sudo; \
-    for command_name in jq just mise zsh; do \
-        ! command -v "$command_name"; \
+    for command_name in sudo jq just mise zsh; do \
+        test -z "$(command -v "$command_name" || true)"; \
     done; \
     git init -b ci; \
     git config user.name "Dotfiles CI"; \
@@ -47,11 +46,11 @@ RUN set -eux; \
 
 RUN --mount=type=secret,id=github_token,uid=1000,gid=1000,required=true \
     set -eu; \
-    ./install.sh; \
+    make install; \
     test -s /run/secrets/github_token; \
     GITHUB_TOKEN="$(cat /run/secrets/github_token)"; \
     export GITHUB_TOKEN; \
-    if ! just sync >"$HOME/first-sync.log" 2>&1; then \
+    if ! make sync >"$HOME/first-sync.log" 2>&1; then \
         grep -E '^\[(INFO|ERROR|FAILED|RESULT)\]' \
             "$HOME/first-sync.log" || true; \
         awk '/^\[REFRESH\] Node and agent tools$/ { show = 1 } \
@@ -61,11 +60,12 @@ RUN --mount=type=secret,id=github_token,uid=1000,gid=1000,required=true \
         tail -n 200 "$HOME/first-sync.log"; \
         exit 1; \
     fi; \
-    if ! just sync >"$HOME/second-sync.log" 2>&1; then \
+    if ! make sync >"$HOME/second-sync.log" 2>&1; then \
         tail -n 200 "$HOME/second-sync.log"; \
         exit 1; \
     fi; \
     grep -Fx '[RESULT] PASS' "$HOME/second-sync.log"; \
-    just machine; \
+    make machine; \
+    test -z "$(command -v just || true)"; \
     test ! -e "$HOME/.ssh"
 

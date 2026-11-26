@@ -22,6 +22,8 @@ Install or apply dotfiles while preserving runtime credentials and sessions.
   The checkout must be clean.
 - `just export` for one confirmed portable export into a clean checkout.
 - `just export skills` for a searchable list of global skill changes.
+- With GNU Make, use `make install`, `make sync`, `make export`, or
+  `make export-skills`.
 
 ## Driving it with Bash smoke scripts
 
@@ -62,7 +64,7 @@ Preconditions: dependencies from SKILL.md; run from the checkout root.
   skill upstream/rename gates, plugin providers, recognized and unknown tools,
   rollback, and absence of staging, commits, pushes, or live mutations.
   A live Herdr hook with an absolute path must export as one `$HOME` hook.
-  It also drives `just export skills` in a terminal with a stubbed selector.
+  It also drives `make export-skills` in a terminal with a stubbed selector.
   Require unmarked and unrestorable skills to stay out of the export plan.
   Check the real selector with several differences in an isolated HOME.
   Press Enter without marking; require no review. Filter to a subset, mark

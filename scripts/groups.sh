@@ -97,6 +97,14 @@ group_skip_row() {
         "$category" "$element" "$(group_skip_reason "$group")"
 }
 
+groups_enable_hint() {
+    if [ "${DOTFILES_RUNNER:-just}" = make ]; then
+        printf 'make enable group=%s\n' "$1"
+    else
+        printf 'just enable %s\n' "$1"
+    fi
+}
+
 # Print the selected groups and the other groups.
 groups_show() {
     local group others=""
@@ -106,7 +114,7 @@ groups_show() {
     done
     echo "[INFO] Install groups: ${DOTFILES_SELECTED_GROUPS// /, }"
     [ -z "$others" ] ||
-        echo "[INFO] Not selected: ${others}. Add one with: just enable <group>"
+        echo "[INFO] Not selected: ${others}. Add one with: $(groups_enable_hint '<group>')"
 }
 
 # Write DOTFILES_GROUPS=<groups> into the env file. The first setting line
@@ -143,7 +151,7 @@ groups_change() {
     local command="$1" group="$2" env_file known selected=""
     env_file="$(groups_env_file)"
     [ -f "$env_file" ] || {
-        echo "[ERROR] ${env_file} does not exist. Run: just install" >&2
+        echo "[ERROR] ${env_file} does not exist. Run: ${DOTFILES_RUNNER:-just} install" >&2
         return 1
     }
     case " $DOTFILES_GROUP_NAMES " in
@@ -194,7 +202,11 @@ groups_main() {
     show:) groups_show ;;
     enable:?* | disable:?*) groups_change "$1" "$2" ;;
     *)
-        echo "Usage: $0 show | enable <group> | disable <group>" >&2
+        if [ "${DOTFILES_RUNNER:-just}" = make ]; then
+            echo "Usage: make groups | make enable group=NAME | make disable group=NAME" >&2
+        else
+            echo "Usage: $0 show | enable <group> | disable <group>" >&2
+        fi
         return 1
         ;;
     esac

@@ -115,7 +115,7 @@ plan_groups() {
         grep -Fx "$group" <<<"$installed" >/dev/null || continue
         printf 'SKIP\tgroups\tnone\t%s %s\n' \
             "Group ${group} is installed but not selected;" \
-            "dotfiles do not update it. Run: just enable ${group}"
+            "dotfiles do not update it. Run: $(groups_enable_hint "$group")"
     done
 }
 

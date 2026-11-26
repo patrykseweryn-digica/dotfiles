@@ -1,5 +1,5 @@
 #!/bin/bash
-# Drive public just install, doctor, sync, groups, enable and disable with
+# Drive public Make commands with
 # these group settings: no setting (core only), core only, all groups,
 # an unknown group, and a list without core.
 set -eu
@@ -17,14 +17,13 @@ fail() {
     exit 1
 }
 
-JUST_BIN="$(command -v just)"
+MAKE_BIN="$(command -v make)"
 tmp_dir="$(mktemp -d)"
 trap 'rm -rf "$tmp_dir"' EXIT
 set_smoke_base_path "$tmp_dir"
 stub_dir="${tmp_dir}/stubs"
 calls="${tmp_dir}/calls.log"
 mkdir -p "$stub_dir" "${tmp_dir}/fixture"
-ln -s "$JUST_BIN" "${stub_dir}/just"
 : >"$calls"
 
 # Network clients must never run; each call is recorded as a failure.
@@ -55,7 +54,7 @@ Darwin) ghostty_target='Library/Application Support/com.mitchellh.ghostty/config
 esac
 
 # Install: the real main flow with external installers replaced by loggers.
-cp "${DOTFILES_DIR}/justfile" "${tmp_dir}/fixture/justfile"
+cp "${DOTFILES_DIR}/Makefile" "${tmp_dir}/fixture/Makefile"
 cat >"${tmp_dir}/fixture/install.sh" <<'STUB'
 #!/bin/bash
 set -eu
@@ -89,7 +88,7 @@ run_install() {
         GROUPS_TEST_REPO="$DOTFILES_DIR" \
         DOTFILES_ENV_FILE="${tmp_dir}/${case_name}.env" \
         DOTFILES_SKIP_SSH=true \
-        "$JUST_BIN" --justfile "${tmp_dir}/fixture/justfile" install \
+        "$MAKE_BIN" --no-print-directory -C "${tmp_dir}/fixture" install \
         >"${tmp_dir}/install.log" 2>&1
 }
 
@@ -234,7 +233,7 @@ run_doctor() {
         CORE_TOOLS="${stub_dir}/core-tools" \
         SYNC_AGENTS="${stub_dir}/sync-agents" \
         AGENT_TOOLS="${stub_dir}/agent-tools" \
-        "$JUST_BIN" --justfile "${DOTFILES_DIR}/justfile" machine \
+        "$MAKE_BIN" --no-print-directory -C "$DOTFILES_DIR" machine \
         >"${tmp_dir}/doctor.log" 2>&1
 }
 
@@ -283,7 +282,7 @@ run_doctor none all || {
     fail "doctor failed for installed groups that are not selected"
 }
 for group in agents desktop; do
-    grep -Fx "[SKIP] groups: Group ${group} is installed but not selected; dotfiles do not update it. Run: just enable ${group}" \
+    grep -Fx "[SKIP] groups: Group ${group} is installed but not selected; dotfiles do not update it. Run: make enable group=${group}" \
         "${tmp_dir}/doctor.log" >/dev/null ||
         fail "doctor did not name installed group $group"
 done
@@ -336,7 +335,7 @@ run_sync() {
         CORE_TOOLS="${stub_dir}/core-tools" \
         SYNC_AGENTS="${stub_dir}/sync-agents" \
         AGENT_TOOLS="${stub_dir}/agent-tools" \
-        "$JUST_BIN" --justfile "${repo_dir}/justfile" sync \
+        "$MAKE_BIN" --no-print-directory -C "$repo_dir" sync \
         >"${tmp_dir}/sync.log" 2>&1
 }
 
@@ -406,7 +405,7 @@ run_group_command() {
         GROUPS_TEST_REPO="$DOTFILES_DIR" \
         DOTFILES_ENV_FILE="$group_env" \
         DOTFILES_SKIP_SSH=true \
-        "$JUST_BIN" --justfile "${tmp_dir}/fixture/justfile" "$@" \
+        "$MAKE_BIN" --no-print-directory -C "${tmp_dir}/fixture" "$@" \
         >"${tmp_dir}/group.log" 2>&1
 }
 
@@ -416,60 +415,60 @@ group_lines() {
 }
 
 write_env "$group_env"
-run_group_command groups || fail "just groups failed without a setting"
+run_group_command groups || fail "make groups failed without a setting"
 expect_log group '[INFO] Install groups: core' \
-    "just groups did not show core as the default"
-expect_log group 'Not selected: agents, desktop' \
-    "just groups did not name the groups that are not selected"
+    "make groups did not show core as the default"
+expect_log group 'Not selected: agents, desktop. Add one with: make enable group=<group>' \
+    "make groups did not name the groups that are not selected"
 
 # A template line keeps its position; other lines stay unchanged.
 printf '%s\n' 'EMAIL=test@example.com' '# Install groups' 'DOTFILES_GROUPS=' \
     'WORK_EMAIL=work@example.com' 'EDITOR=vim' >"$group_env"
 : >"$calls"
-run_group_command enable agents || {
+run_group_command enable group=agents || {
     cat "${tmp_dir}/group.log" >&2
-    fail "just enable agents failed"
+    fail "make enable agents failed"
 }
 [ "$(sed -n 3p "$group_env")" = 'DOTFILES_GROUPS=core,agents' ] ||
-    fail "just enable agents did not replace the setting in place"
+    fail "make enable agents did not replace the setting in place"
 [ "$(sed -n '1,2p;4,5p' "$group_env")" = "$(printf '%s\n' \
     'EMAIL=test@example.com' '# Install groups' \
     'WORK_EMAIL=work@example.com' 'EDITOR=vim')" ] ||
-    fail "just enable changed other env lines"
+    fail "make enable changed other env lines"
 grep -Fx 'step agent-config' "$calls" >/dev/null ||
-    fail "just enable agents did not install the agents group"
+    fail "make enable agents did not install the agents group"
 grep -Fx 'step fonts' "$calls" >/dev/null &&
-    fail "just enable agents installed the desktop group"
+    fail "make enable agents installed the desktop group"
 echo "[INFO] enable: agents is written in place and installed"
 
 : >"$calls"
-run_group_command enable desktop || fail "just enable desktop failed"
+run_group_command enable group=desktop || fail "make enable desktop failed"
 [ "$(group_lines)" = 'DOTFILES_GROUPS=core,agents,desktop' ] ||
-    fail "just enable desktop did not keep the canonical group order"
+    fail "make enable desktop did not keep the canonical group order"
 grep -Fx 'step fonts' "$calls" >/dev/null ||
-    fail "just enable desktop did not install the desktop group"
+    fail "make enable desktop did not install the desktop group"
 
 : >"$calls"
-run_group_command enable agents || fail "enabling a selected group failed"
+run_group_command enable group=agents || fail "enabling a selected group failed"
 expect_log group '[INFO] Group agents is already selected' \
-    "just enable did not report a selected group"
+    "make enable did not report a selected group"
 [ "$(group_lines)" = 'DOTFILES_GROUPS=core,agents,desktop' ] ||
     fail "enabling a selected group changed the setting"
 echo "[INFO] enable: a second group keeps canonical order"
 
 : >"$calls"
-run_group_command disable agents || fail "just disable agents failed"
+run_group_command disable group=agents || fail "make disable agents failed"
 [ "$(group_lines)" = 'DOTFILES_GROUPS=core,desktop' ] ||
-    fail "just disable agents did not remove the group"
-[ ! -s "$calls" ] || fail "just disable ran an install"
+    fail "make disable agents did not remove the group"
+[ ! -s "$calls" ] || fail "make disable ran an install"
 expect_log group 'Installed elements of group agents stay on this machine' \
-    "just disable did not say that installed elements stay"
+    "make disable did not say that installed elements stay"
 
 # An exported duplicate setting collapses into the first line.
 printf '%s\n' 'EMAIL=test@example.com' 'WORK_EMAIL=work@example.com' \
     'export DOTFILES_GROUPS="core, desktop"' 'EDITOR=vim' \
     'DOTFILES_GROUPS=core,desktop' >"$group_env"
-run_group_command disable desktop || fail "disable with duplicate lines failed"
+run_group_command disable group=desktop || fail "disable with duplicate lines failed"
 [ "$(group_lines)" = 'DOTFILES_GROUPS=core' ] ||
     fail "disable did not collapse duplicate settings"
 [ "$(sed -n 3p "$group_env")" = 'DOTFILES_GROUPS=core' ] ||
@@ -478,29 +477,29 @@ echo "[INFO] disable: removes the group and keeps installed elements"
 
 # Invalid commands leave the env file and the machine unchanged.
 cp "$group_env" "${tmp_dir}/group-before.env"
-for args in 'disable core' 'enable gaming' 'disable gaming'; do
+for args in 'disable group=core' 'enable group=gaming' 'disable group=gaming'; do
     : >"$calls"
     # shellcheck disable=SC2086
-    if run_group_command $args; then fail "just $args passed"; fi
+    if run_group_command $args; then fail "make $args passed"; fi
     cmp -s "$group_env" "${tmp_dir}/group-before.env" ||
-        fail "just $args changed the env file"
-    [ ! -s "$calls" ] || fail "just $args ran an install"
+        fail "make $args changed the env file"
+    [ ! -s "$calls" ] || fail "make $args ran an install"
 done
-run_group_command disable core || true
+run_group_command disable group=core || true
 expect_log group '[ERROR] Group core is required' \
-    "just disable core did not explain the required group"
-run_group_command enable gaming || true
+    "make disable core did not explain the required group"
+run_group_command enable group=gaming || true
 expect_log group '[ERROR] Unknown install group "gaming"' \
-    "just enable did not explain the unknown group"
+    "make enable did not explain the unknown group"
 expect_log group 'Use: core, agents, desktop' \
-    "just enable did not name the valid groups"
+    "make enable did not name the valid groups"
 rm "$group_env"
-if run_group_command enable agents; then
-    fail "just enable passed without an env file"
+if run_group_command enable group=agents; then
+    fail "make enable passed without an env file"
 fi
-[ ! -e "$group_env" ] || fail "just enable created a partial env file"
-expect_log group 'Run: just install' \
-    "just enable without an env file did not name the next step"
+[ ! -e "$group_env" ] || fail "make enable created a partial env file"
+expect_log group 'Run: make install' \
+    "make enable without an env file did not name the next step"
 echo "[INFO] group commands: invalid commands change nothing"
 
 echo "[INFO] Install group smoke test passed (external installers simulated)"

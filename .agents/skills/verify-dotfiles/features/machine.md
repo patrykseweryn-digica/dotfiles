@@ -14,7 +14,7 @@ credentials. Every category reports `PASS`, `SKIP`, `UPDATE`, `EXPORT`, or
 
 ## How to get to it (user POV)
 
-- `just machine` for the current machine.
+- `just machine` or `make machine` for the current machine.
 
 ## Driving it with Bash smoke scripts
 

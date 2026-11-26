@@ -56,6 +56,7 @@ Preconditions: working host Node/npm; no live update needed for verification.
   completions: written, outdated, missing, kept on generator failure,
   limited to selected groups, and rejected when declared invalid.
   Core-only install and update must install pinned rust-just through uv.
+  Make skips rust-just in install, update, and machine checks.
   The generated config must keep pre-commit and add prek.
   A failed uv install must fail core provisioning.
 - **Retired core tool.** Run `just sync` in an isolated HOME with the previous

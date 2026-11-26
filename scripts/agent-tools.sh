@@ -114,11 +114,12 @@ tool_rows() {
     local platform
     platform="$(platform_key)" || return 1
     jq -r --arg groups "$DOTFILES_SELECTED_GROUPS" \
-        --arg platform "$platform" '
+        --arg platform "$platform" --arg runner "${DOTFILES_RUNNER:-just}" '
         (.platforms // ["darwin-arm64", "darwin-x86_64",
             "linux-arm64", "linux-x86_64"]) as $default_platforms |
         .tools[] |
         select((.scope // "agent") == "agent") |
+        select($runner != "make" or .package != "rust-just") |
         select(((.platforms // $default_platforms) | index($platform)) != null) |
         select('"$GROUP_SELECTED_JQ"') | [
         .name, .command, (.package // .command),
@@ -196,12 +197,13 @@ platform_key() {
 plan_rows() {
     local platform
     platform="$(platform_key)" || return 1
-    jq -r --arg platform "$platform" '
+    jq -r --arg platform "$platform" --arg runner "${DOTFILES_RUNNER:-just}" '
         (.platforms // ["darwin-arm64", "darwin-x86_64",
             "linux-arm64", "linux-x86_64"]) as $default_platforms |
         .tools[] |
         select(((.platforms // $default_platforms) | index($platform)) != null) |
         select((.scope // "agent") == "agent") |
+        select($runner != "make" or .package != "rust-just") |
         [.name, (.scope // "agent"), .group,
          (if has("commands") then (.commands | join(" ")) else .command end),
          (.installer // "none")] |
@@ -430,7 +432,7 @@ report_versions() {
     fi
 
     if [ "$strict" = true ] && [ "$failed" = true ]; then
-        echo "Run: just sync" >&2
+        echo "Run: ${DOTFILES_RUNNER:-just} sync" >&2
         return 1
     fi
 }

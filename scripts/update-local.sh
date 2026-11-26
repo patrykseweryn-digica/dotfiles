@@ -132,7 +132,7 @@ fi
 
 if ! "$STATE_PLAN" all >"$plan_file"; then
     echo "[ERROR] Could not build local update plan" >&2
-    echo "Run: just machine to see which check failed" >&2
+    echo "Run: ${DOTFILES_RUNNER:-just} machine to see which check failed" >&2
     echo "[RESULT] FAIL"
     exit 1
 fi
@@ -152,12 +152,12 @@ while IFS=$'\t' read -r status category action message; do
     echo "[BLOCKED] ${category}: ${message}"
 done <"$plan_file"
 if [ "$blocked_fail" = true ]; then
-    echo "Fix the reported local state, then run: just machine"
+    echo "Fix the reported local state, then run: ${DOTFILES_RUNNER:-just} machine"
     echo "[RESULT] FAIL"
     exit 1
 fi
 if [ "$blocked_export" = true ]; then
-    echo "Run: just export to keep the additions, or remove them; then run: just sync"
+    echo "Run: ${DOTFILES_RUNNER:-just} export to keep the additions, or remove them; then run: ${DOTFILES_RUNNER:-just} sync"
     echo "[RESULT] EXPORT"
     exit 1
 fi
@@ -218,7 +218,7 @@ if group_selected agents; then
         failed=$((failed + 1))
         failed_phases+=("Node activation")
         operation_record_failure Node activate "Node could not be activated" 1 \
-            "Run: just install"
+            "Run: ${DOTFILES_RUNNER:-just} install"
     fi
 
     if [ "$node_ready" = true ]; then

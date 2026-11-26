@@ -136,7 +136,7 @@ operation_clean_output() {
 # Print "CAUSE<TAB>NEXT" for an exit status and cleaned tool output.
 operation_cause() {
     local status="$1" output="$2" limit="$3" stopped="$4" log="$5"
-    local retry="then run: just sync"
+    local retry="then run: ${DOTFILES_RUNNER:-just} sync"
 
     if [ "$status" -eq 124 ] && [ -n "$stopped" ]; then
         printf 'timed out after %s s; stopped %s processes\t%s\n' \
@@ -162,7 +162,7 @@ operation_cause() {
         printf 'permission denied\t%s\n' \
             "Fix ownership of the path in the tool output, ${retry}"
     elif [ "$status" -eq 127 ]; then
-        printf 'command not found\t%s\n' "Run: just install"
+        printf 'command not found\t%s\n' "Run: ${DOTFILES_RUNNER:-just} install"
     else
         printf 'unknown cause\t%s\n' "Read the tool output in the log: ${log}"
     fi

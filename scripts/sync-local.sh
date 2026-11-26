@@ -44,7 +44,7 @@ fi
 
 if ! git -C "$DOTFILES_DIR" merge --ff-only '@{upstream}'; then
     echo "[ERROR] Could not fast-forward the dotfiles checkout" >&2
-    echo "Reconcile local commits with upstream, then run: just sync" >&2
+    echo "Reconcile local commits with upstream, then run: ${DOTFILES_RUNNER:-just} sync" >&2
     echo "[RESULT] FAIL"
     exit 1
 fi

@@ -495,11 +495,13 @@ main() {
     case "$action" in
     plan) show_plan "$platform" ;;
     install | update)
-        just_version=$(jq_run -er '.tools[] |
-            select(.package == "rust-just") | .channel' "$TOOL_INVENTORY") ||
-            return 1
-        operation_run just "install with uv" install -- \
-            uv tool install "rust-just==$just_version" || return 1
+        if [ "${DOTFILES_RUNNER:-just}" != make ]; then
+            just_version=$(jq_run -er '.tools[] |
+                select(.package == "rust-just") | .channel' "$TOOL_INVENTORY") ||
+                return 1
+            operation_run just "install with uv" install -- \
+                uv tool install "rust-just==$just_version" || return 1
+        fi
         run_mise_tools "$action" "$platform" || return 1
         # A failed completion must not stop system tools; report it after.
         completions=0

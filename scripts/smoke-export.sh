@@ -4,7 +4,7 @@ set -eu
 DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "${DOTFILES_DIR}/scripts/host-tools.sh"
 SYNC="${DOTFILES_DIR}/sync-agents.sh"
-JUST_BIN="$(command -v just)"
+MAKE_BIN="$(command -v make)"
 UV_BIN="$(command -v uv)"
 REAL_GIT="$(command -v git)"
 UV_CACHE_REAL="${UV_CACHE_DIR:-$("$UV_BIN" cache dir)}"
@@ -437,7 +437,7 @@ run_export() {
     local answer="$1" output="$2"
     shift 2
     printf '%s\n' "$answer" | env "$@" \
-        "$JUST_BIN" --justfile "${DOTFILES_DIR}/justfile" export \
+        "$MAKE_BIN" --no-print-directory -C "$DOTFILES_DIR" export \
         >"$output" 2>&1
 }
 
@@ -727,7 +727,7 @@ chmod +x "${stub_dir}/fzf"
 run_skill_export() {
     local answer="$1" output="$2"
     shift 2
-    env "$@" python3 - "$answer" "$JUST_BIN" --justfile "${DOTFILES_DIR}/justfile" export skills >"$output" 2>&1 <<'PY'
+    env "$@" python3 - "$answer" "$MAKE_BIN" --no-print-directory -C "$DOTFILES_DIR" export-skills >"$output" 2>&1 <<'PY'
 import errno
 import os
 import pty
@@ -794,7 +794,7 @@ assert_clean_skill_export() {
         fail "unapproved skill export changed checkout"
 }
 
-if "$JUST_BIN" --justfile "${DOTFILES_DIR}/justfile" export skills \
+if "$MAKE_BIN" --no-print-directory -C "$DOTFILES_DIR" export-skills \
         </dev/null >"${tmp_dir}/no-terminal.log" 2>&1; then
     fail "export unexpectedly succeeded without terminal approval"
 fi

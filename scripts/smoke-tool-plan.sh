@@ -415,6 +415,15 @@ DOTFILES_ENV_FILE="$tmp_dir/core.env" TOOL_INVENTORY="$grouped" \
     "$CORE_TOOLS" update >/dev/null
 grep -Fx 'uv tool install rust-just==1.59.0' "$mise_log" >/dev/null ||
     fail "core-only update omitted pinned just through uv"
+: >"$mise_log"
+for action in install update; do
+    DOTFILES_RUNNER=make UV_EXIT_CODE=29 DOTFILES_ENV_FILE="$tmp_dir/core.env" \
+        TOOL_INVENTORY="$grouped" CORE_TOOLS_OS=Linux CORE_TOOLS_ARCH=x86_64 \
+        CORE_TOOLS_HAS_SUDO=false "$CORE_TOOLS" "$action" >/dev/null
+done
+if grep -F rust-just "$mise_log"; then
+    fail "Make provisioned just through core tools"
+fi
 if UV_EXIT_CODE=29 "$CORE_TOOLS" install >"$tmp_dir/uv-failure" 2>&1; then
     fail "core install ignored a failed just install"
 fi
