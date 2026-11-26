@@ -440,3 +440,12 @@ repos:
         pass_filenames: false
         include_deleted: true
         priority: 0
+      - id: menu-smoke
+        files: '^(?:Makefile|justfile|scripts/smoke-menu\.sh)$'
+        name: Command menu smoke test
+        description: Keep make help aligned with the grouped just menu
+        entry: bash scripts/smoke-menu.sh
+        language: system
+        pass_filenames: false
+        include_deleted: true
+        priority: 0

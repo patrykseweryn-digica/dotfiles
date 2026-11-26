@@ -92,6 +92,7 @@ INPUTS = {
     "agent-tools-smoke": f"""{HOST} {AGENT_TOOLS} {NODE} scripts/smoke-agent-tools.sh
         scripts/claude-herdr-hook.jq sync-agents.sh .agents/tool-versions.json""",
     "hook-filters-smoke": "scripts/smoke-hook-filters.py .pre-commit-config.yaml justfile",
+    "menu-smoke": "scripts/smoke-menu.sh justfile Makefile",
 }
 
 

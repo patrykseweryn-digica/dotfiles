@@ -37,18 +37,16 @@ smoke_public_menu() {
     expected="$(mktemp)"
     # The Make menu needs no just; check the just menu where just exists.
     make --no-print-directory -C "$DOTFILES_DIR" help |
-        sed 's/^make //; s/ .*//' | sort >"$actual"
-    printf '%s\n' disable enable export export-skills groups install \
-        machine sync >"$expected"
+        sed -nE 's/^    ([a-z-]+).*/\1/p' | sort >"$actual"
+    printf '%s\n' architecture disable enable export groups install machine \
+        sync test >"$expected"
     cmp "$expected" "$actual" ||
-        fail "Make menu is not the daily and install group commands"
+        fail "Make menu is not the start, daily, group, export and dev commands"
     if [ "$SMOKE_RUNNER" = just ]; then
         "$SMOKE_RUNNER_BIN" --justfile "${DOTFILES_DIR}/justfile" --summary |
             tr ' ' '\n' | sort >"$actual"
-        printf '%s\n' disable enable export groups install machine sync \
-            >"$expected"
         cmp "$expected" "$actual" ||
-            fail "public menu is not the daily and install group commands"
+            fail "just menu is not the start, daily, group, export and dev commands"
     fi
     rm -f "$actual" "$expected"
 }

@@ -8,6 +8,8 @@ Run the affected recipes after each change; `just test` runs them all.
 - [Machine check](machine.md): live drift, safe diagnostics and read-only checks.
 - [Install groups](groups.md): per-machine core, agents and desktop selection.
 - [Commit hooks](hooks.md): staged-file selection and full-suite coverage.
+- Command menu: run `just` and `make` at 80 columns, then
+  `bash scripts/smoke-menu.sh` to check that both list the same commands.
 - Architecture map: run `just architecture`, then
   `prek run architecture-map --all-files` to check both generated files.
 

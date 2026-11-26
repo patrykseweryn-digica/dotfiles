@@ -24,8 +24,11 @@ make export
 make export-skills
 ```
 
-Run `make` to list the commands. The Make commands do not install or require
+Run `just` or `make` to list the commands in groups. On a new machine, start
+with `install`, then `machine`. The Make commands do not install or require
 `just`. They work with the same no-sudo setup as `./install.sh`.
+`scripts/smoke-menu.sh` fails when `make help` drifts from the `just` menu.
+
 ## Sync direction
 
 Repository state is authoritative for `sync`. Portable runtime additions
@@ -417,6 +420,7 @@ publication.
 ## What is what
 
 - `justfile`: command menu for humans.
+- `Makefile`: the same command menu for GNU Make, without `just`.
 - `install.sh`: full setup orchestrator.
 - `bootstrap.d/*`: install modules sourced by `install.sh`.
 - `sync-agents.sh`: sync Codex, Claude, Pi, OpenCode, MCP, plugins,
@@ -449,7 +453,7 @@ files. `just test` and CI reject stale output.
 - `EXPORT` result: `just export`.
 - Diagnostics: `just machine`.
 
-CI and repository development use the hidden `just test` maintenance recipe.
-`make test` runs the same prek hooks without `just`.
+Repository development and CI use the `dev` group: `just test` and
+`just architecture`. `make test` runs the same prek hooks without `just`.
 Category-specific operations remain internal script subcommands for
 implementation and tests.
