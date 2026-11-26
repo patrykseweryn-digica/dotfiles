@@ -208,7 +208,7 @@
       "inventory": {
         "tools_by_group": {
           "agents": 27,
-          "core": 27
+          "core": 28
         },
         "tools": [
           {
@@ -289,6 +289,10 @@
           },
           {
             "name": "bat",
+            "group": "core"
+          },
+          {
+            "name": "carapace",
             "group": "core"
           },
           {

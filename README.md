@@ -120,6 +120,10 @@ independent from system package versions. A core tool can declare
 file in its mise install directory (`file`). Install and sync write each one to
 `~/.zfunc/_<command>`; `.zshrc` puts `~/.zfunc` first in `fpath`. A failed
 generator keeps the old file. Doctor reports missing or outdated completions.
+Carapace completes every command with a carapace completer, for example
+`just`, `make`, `npm`, `uv`, and `git`. Its bash bridge completes commands
+without zsh completion. Other commands keep their zsh completion. fzf-tab
+shows completion groups under headers; `<` and `>` switch the group.
 Interactive zsh activates mise in `.zshrc`. Login shells that skip `.zshrc`,
 such as `zsh -lc` from agents, find mise tools through mise shims: install and
 sync keep a marked block at the end of `~/.zprofile`, after Homebrew, and

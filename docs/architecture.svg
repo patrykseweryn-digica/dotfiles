@@ -13,7 +13,7 @@ text{font:13px system-ui,sans-serif;fill:#202b26}.head{font-weight:700;letter-sp
 <text class="head" x="32" y="42">1 · DECLARATIONS</text>
 <text class="head" x="302" y="42">2 · MODULES</text>
 <text class="head" x="697" y="42">3 · PLATFORMS</text>
-<g id="source-tools"><title>Tool inventory: 54 entries · Node policy</title><rect class="box" x="32" y="65" width="178" height="67" rx="6"/><text class="main" x="46" y="93">Tool inventory</text><text class="detail" x="46" y="114">54 entries · Node policy</text></g>
+<g id="source-tools"><title>Tool inventory: 55 entries · Node policy</title><rect class="box" x="32" y="65" width="178" height="67" rx="6"/><text class="main" x="46" y="93">Tool inventory</text><text class="detail" x="46" y="114">55 entries · Node policy</text></g>
 <g id="tools"><title>Tools: mise · Node LTS via agents</title><rect class="accent" x="302" y="65" width="267" height="67" rx="6"/><text class="main" x="316" y="93">Tools</text><text class="detail" x="316" y="114">mise · Node LTS via agents</text></g>
 <path class="edge" d="M210 99H300" marker-end="url(#arrow)"><title>Tool inventory drives Tools</title></path>
 <g id="source-harnesses"><title>Agent inventories: 120 skills · MCP · plugins</title><rect class="box" x="32" y="166" width="178" height="67" rx="6"/><text class="main" x="46" y="194">Agent inventories</text><text class="detail" x="46" y="215">120 skills · MCP · plugins</text></g>

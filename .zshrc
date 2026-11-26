@@ -124,6 +124,11 @@ if ! whence -w compdef >/dev/null 2>&1; then
   compinit
 fi
 
+# fzf-tab shows each completion group under a header; < and > switch groups.
+zstyle ':completion:*' menu no
+zstyle ':completion:*:descriptions' format '[%d]'
+zstyle ':fzf-tab:*' switch-group '<' '>'
+
 # SSH host completion from ~/.ssh/config
 if [[ -r "$HOME/.ssh/config" ]]; then
   zstyle ':completion:*:(ssh|scp|sftp):*' hosts ${(f)"$(awk '/^Host / && !/\*/ {print $2}' "$HOME/.ssh/config")"}
@@ -137,6 +142,7 @@ fi
 # uv shell completions
 if command -v uv >/dev/null 2>&1; then
   eval "$(uv generate-shell-completion zsh)"
+  eval "$(uvx --generate-shell-completion zsh)"
 fi
 
 # mise
@@ -149,6 +155,30 @@ ${MISE_TRUSTED_CONFIG_PATHS:+:$MISE_TRUSTED_CONFIG_PATHS}"
 esac
 if [[ -x "$HOME/.local/bin/mise" ]]; then
   eval "$("$HOME/.local/bin/mise" activate zsh)"
+fi
+
+# carapace completes commands that have a carapace completer: it shows
+# options only after "-". Its bash bridge completes commands without a zsh
+# completion; zsh keeps its own completion for every other command.
+if (( $+commands[carapace] )); then
+  typeset -A dotfiles_zsh_comps=("${(@kv)_comps}")
+  # The line is "compdef _carapace_completer <command>...".
+  dotfiles_carapace_cmds=(
+    ${=${(M)${(f)"$(CARAPACE_BRIDGES= carapace _carapace zsh)"}:#compdef *}}
+  )
+  dotfiles_carapace_cmds=(${dotfiles_carapace_cmds[3,-1]})
+  dotfiles_carapace_flags=(${dotfiles_carapace_cmds/*/1})
+  typeset -A dotfiles_carapace_own=(
+    ${dotfiles_carapace_cmds:^dotfiles_carapace_flags}
+  )
+  export CARAPACE_BRIDGES=bash
+  source <(carapace _carapace zsh)
+  for dotfiles_cmd in ${(k)dotfiles_zsh_comps}; do
+    (( $+dotfiles_carapace_own[$dotfiles_cmd] )) ||
+      _comps[$dotfiles_cmd]=$dotfiles_zsh_comps[$dotfiles_cmd]
+  done
+  unset dotfiles_zsh_comps dotfiles_carapace_cmds dotfiles_carapace_flags \
+    dotfiles_carapace_own dotfiles_cmd
 fi
 
 # To customize prompt, run `p10k configure` or edit ~/.p10k.zsh.

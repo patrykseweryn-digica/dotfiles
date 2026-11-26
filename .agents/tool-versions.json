@@ -159,6 +159,16 @@
     },
     {
       "commands": [
+        "carapace"
+      ],
+      "group": "core",
+      "mise": "aqua:carapace-sh/carapace-bin",
+      "name": "carapace",
+      "scope": "core",
+      "versionPolicy": "latest"
+    },
+    {
+      "commands": [
         "tldr"
       ],
       "group": "core",
