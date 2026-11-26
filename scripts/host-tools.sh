@@ -11,6 +11,35 @@ if [ -x "$host_tools_mise" ] &&
 fi
 unset host_tools_mise host_tools_bins
 
+# Smoke tests drive the public interface through just. A machine without just
+# uses GNU Make, which runs the same scripts. Set SMOKE_RUNNER to choose one.
+if [ -z "${SMOKE_RUNNER:-}" ]; then
+    SMOKE_RUNNER="make"
+    ! command -v just >/dev/null 2>&1 || SMOKE_RUNNER="just"
+fi
+case "$SMOKE_RUNNER" in
+just | make) ;;
+*)
+    echo "[ERROR] SMOKE_RUNNER must be just or make; found '${SMOKE_RUNNER}'" >&2
+    exit 1
+    ;;
+esac
+SMOKE_RUNNER_BIN="$(command -v "$SMOKE_RUNNER")" || {
+    echo "[ERROR] smoke tests need just or make" >&2
+    exit 1
+}
+
+# Set PUBLIC_RECIPE to the command that runs a recipe of the checkout in DIR.
+# Append the recipe: "${PUBLIC_RECIPE[@]}" sync. It also works after env.
+# shellcheck disable=SC2034 # The sourcing smoke test reads PUBLIC_RECIPE.
+public_recipe_command() {
+    if [ "$SMOKE_RUNNER" = just ]; then
+        PUBLIC_RECIPE=("$SMOKE_RUNNER_BIN" --justfile "$1/justfile")
+    else
+        PUBLIC_RECIPE=("$SMOKE_RUNNER_BIN" --no-print-directory -C "$1")
+    fi
+}
+
 # Tests narrow PATH to stubs and SMOKE_BASE_PATH. Ubuntu 22.04 ships jq 1.6 in
 # /usr/bin, about ten times slower per call. Call this after creating the test
 # scratch directory: it links only the host jq there, before /usr/bin:/bin.

@@ -459,7 +459,8 @@ check_tools() {
 }
 
 main() {
-    local action="${1:-}" platform completions just_version
+    local action="${1:-}" platform completions just_version just_spec uv_update
+    local -a just_args
     case "$action" in
     plan | install | update | check) ;;
     *)
@@ -495,18 +496,31 @@ main() {
     case "$action" in
     plan) show_plan "$platform" ;;
     install | update)
+        # A failed uv update must not stop the tools; report it after.
+        uv_update=0
+        if [ "$action" = update ]; then
+            # shellcheck source=bootstrap.d/01-uv.sh
+            source "$DOTFILES_DIR/bootstrap.d/01-uv.sh"
+            update_uv || uv_update=1
+        fi
         if [ "${DOTFILES_RUNNER:-just}" != make ]; then
             just_version=$(jq_run -er '.tools[] |
                 select(.package == "rust-just") | .channel' "$TOOL_INVENTORY") ||
                 return 1
+            just_spec=rust-just
+            [ "$just_version" = latest ] || just_spec="rust-just==$just_version"
+            just_args=()
+            [ "$action" != update ] || just_args+=(--upgrade)
             operation_run just "install with uv" install -- \
-                uv tool install "rust-just==$just_version" || return 1
+                uv tool install ${just_args[@]+"${just_args[@]}"} \
+                "$just_spec" || return 1
         fi
         run_mise_tools "$action" "$platform" || return 1
         # A failed completion must not stop system tools; report it after.
         completions=0
         write_completions "$platform" || completions=1
         run_system_tools "$platform" || return 1
+        [ "$uv_update" -eq 0 ] || return "$uv_update"
         return "$completions"
         ;;
     check) check_tools "$platform" ;;

@@ -698,10 +698,10 @@ LATEST_VERSION=0.51.3 "$AGENT_TOOLS" install
 "$AGENT_TOOLS" report >"$tmp_dir/channels-report.log"
 grep -F 'gh-dash' "$tmp_dir/channels-report.log" >/dev/null ||
   fail "report omitted the GitHub extension"
-grep -Fx 'uv tool install rust-just==1.59.0' "$CHANNEL_LOG" >/dev/null ||
-  fail "just did not use the pinned uv channel"
-grep -Fx 'uv tool install yt-dlp==2026.10.26' "$CHANNEL_LOG" >/dev/null ||
-  fail "yt-dlp did not use the pinned uv channel"
+grep -Fx 'uv tool install rust-just' "$CHANNEL_LOG" >/dev/null ||
+  fail "just did not use the latest uv channel"
+grep -Fx 'uv tool install yt-dlp' "$CHANNEL_LOG" >/dev/null ||
+  fail "yt-dlp did not use the latest uv channel"
 grep -Fx 'uv tool install cmakelang==0.6.13' "$CHANNEL_LOG" >/dev/null ||
   fail "cmakelang did not use the pinned uv channel"
 grep -Fx 'uv tool install pylint' "$CHANNEL_LOG" >/dev/null ||
@@ -721,8 +721,10 @@ if grep -q '^gh ' "$CHANNEL_LOG"; then
   fail "current gh-dash was reinstalled"
 fi
 LATEST_VERSION=0.51.3 "$AGENT_TOOLS" update
-grep -Fx 'uv tool install --upgrade rust-just==1.59.0' "$CHANNEL_LOG" \
+grep -Fx 'uv tool install --upgrade cmakelang==0.6.13' "$CHANNEL_LOG" \
   >/dev/null || fail "update did not preserve the uv release pin"
+grep -Fx 'uv tool install --upgrade yt-dlp' "$CHANNEL_LOG" \
+  >/dev/null || fail "update did not upgrade a latest uv tool"
 cmp "$manifest" "$manifest.before" || fail "channel update rewrote inventory"
 if UV_FAIL=true "$AGENT_TOOLS" install >"$tmp_dir/uv-failure.log" 2>&1; then
   fail "uv install failure was ignored"

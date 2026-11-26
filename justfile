@@ -46,7 +46,7 @@ architecture:
 # Run deterministic repository checks.
 [private]
 test:
-    prek run --all-files
+    bash scripts/test.sh
 
 # Check this machine against repository intent.
 machine:

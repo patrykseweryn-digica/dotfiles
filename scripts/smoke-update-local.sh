@@ -3,8 +3,7 @@ set -eu
 
 DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "${DOTFILES_DIR}/scripts/host-tools.sh"
-JUST_BIN="$(command -v just)"
-JUSTFILE="${DOTFILES_DIR}/justfile"
+public_recipe_command "$DOTFILES_DIR"
 UPDATE_SCRIPT="${DOTFILES_DIR}/scripts/update-local.sh"
 
 # Hook-local Git state must not affect fixture repositories.
@@ -255,7 +254,7 @@ run_sync() {
         AGENT_TOOLS="${tmp_dir}/agent-tools.sh" \
         CORE_TOOLS="${tmp_dir}/core-tools.sh" \
         INSTALL_SCRIPT="${tmp_dir}/install.sh" \
-        "$JUST_BIN" --justfile "$JUSTFILE" sync \
+        "${PUBLIC_RECIPE[@]}" sync \
         >"${tmp_dir}/update.log" 2>&1
 }
 
@@ -299,7 +298,7 @@ expect_log '[BLOCKED] mcp: MCP has a local addition' \
     "EXPORT omitted the MCP addition"
 expect_log '[BLOCKED] skills: Skills have a local addition' \
     "EXPORT omitted the skill addition"
-expect_log 'Run: just export' "EXPORT omitted the next step"
+expect_log "Run: ${SMOKE_RUNNER} export" "EXPORT omitted the next step"
 grep -Fx '[RESULT] EXPORT' "${tmp_dir}/update.log" >/dev/null ||
     fail "sync omitted its export result"
 rm "${state_dir}/export" "${state_dir}/export-skills" \

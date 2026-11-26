@@ -11,16 +11,13 @@ listed for the affected features. Use existing checks, not a new runner.
 ## Launch
 
 Run from the dotfiles checkout. There is no server or persistent test process.
-Required commands: bash, git, just, make, jq, node, npm, uv, prek, zsh, rg.
+`scripts/test.sh` lists the required commands and reports missing ones.
+Without `just`, smoke tests drive the public recipes through `make`.
 Smoke tests narrow PATH to stubs, a scratch link to the host jq, and
 `/usr/bin:/bin`. The smoke tests require jq 1.7 or newer.
 Ubuntu 22.04 ships jq 1.6 in `/usr/bin`, so the version check fails there.
 If the check fails, install current jq with mise.
-Install development dependencies with:
-
-```bash
-npm --prefix config/pi ci --ignore-scripts
-```
+The `pi-config-check` hook installs Pi development dependencies itself.
 
 Create a retained evidence directory:
 

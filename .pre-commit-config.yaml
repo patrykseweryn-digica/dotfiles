@@ -412,9 +412,7 @@ repos:
           smoke-pi-[^/]*\.mjs))$
         types: [] # Include the tracked symlink inputs.
         name: Pi types, lint and regression tests
-        entry: >-
-          bash -c 'npm --prefix config/pi run check &&
-          npm --prefix config/pi test'
+        entry: bash scripts/check-pi-config.sh
         language: system
         pass_filenames: false
         include_deleted: true

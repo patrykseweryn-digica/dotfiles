@@ -55,7 +55,11 @@ Preconditions: working host Node/npm; no live update needed for verification.
   Homebrew without sudo, required tool groups, group skips, and zsh
   completions: written, outdated, missing, kept on generator failure,
   limited to selected groups, and rejected when declared invalid.
-  Core-only install and update must install pinned rust-just through uv.
+  Core-only install and update must install latest rust-just through uv;
+  update must add `--upgrade`.
+  Update must run `uv self update` first, only for a uv whose official
+  installer receipt names its directory. Other uv sources must warn and skip.
+  A failed uv self update must fail the phase after the mise tools ran.
   Make skips rust-just in install, update, and machine checks.
   The generated config must keep pre-commit and add prek.
   A failed uv install must fail core provisioning.

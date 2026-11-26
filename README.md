@@ -150,6 +150,9 @@ The ast-grep npm entry approves `@ast-grep/cli` build scripts through
 `allow_builds`, so mise's package manager can run its native postinstall.
 
 Developer tools `rust-just`, `yt-dlp`, `cmakelang`, and `pylint` use uv.
+pipx is a core mise tool (`pypi:pipx`), not a separate bootstrap step.
+Sync runs `uv self update` when the official installer receipt names the uv on
+`PATH`. For another uv source, sync warns and leaves the update to that source.
 Their executables belong in `~/.local/bin`; Pylint is not a default check.
 Rust-just is the only source for `just`. Make skips it.
 Remove any old mise just selection before applying this inventory elsewhere.
@@ -190,8 +193,8 @@ Mode remains off by default; its existing local preference is untouched. No
 runtime state or credentials are imported.
 Apply only Pi with `./sync-agents.sh pi-install`; check semantic JSON and
 installed package versions with `./sync-agents.sh pi-check`.
-Before repository checks, run `npm --prefix config/pi ci --ignore-scripts`
-to install Pi's development-only typechecking and lint tools.
+The `pi-config-check` hook installs Pi's development-only typechecking and
+lint tools from `config/pi/package-lock.json` when they are missing or stale.
 Development dependency locks and check-tool revisions remain separate from the
 CLI inventory.
 Global preferences in `.agents/AGENTS.md` are linked to
@@ -447,5 +450,6 @@ files. `just test` and CI reject stale output.
 - Diagnostics: `just machine`.
 
 CI and repository development use the hidden `just test` maintenance recipe.
+`make test` runs the same prek hooks without `just`.
 Category-specific operations remain internal script subcommands for
 implementation and tests.

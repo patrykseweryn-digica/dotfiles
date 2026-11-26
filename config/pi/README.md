@@ -161,11 +161,12 @@ the extension with its own runtime. The development Pi pin records the API
 used for type/schema validation, not the CLI installation policy.
 
 ```sh
-npm --prefix config/pi ci --ignore-scripts
-npm --prefix config/pi run check
-npm --prefix config/pi test
+bash scripts/check-pi-config.sh
 just test
 ```
+
+The check script installs the locked development dependencies when they are
+missing or older than `package-lock.json`.
 
 Pre-commit runs types, ESLint, Prettier and the deterministic Pi regression
 checks. They do not call models or registries. Live checks are separate and

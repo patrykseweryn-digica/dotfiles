@@ -64,7 +64,6 @@ setup_repo_git() { :; }
 install_uv() { step uv; }
 install_zsh() { step zsh; }
 install_oh_my_zsh() { step oh-my-zsh; }
-install_pipx() { step pipx; }
 install_tools() { step cli-tools; }
 install_fonts() { step fonts; }
 install_node() { step node; }
@@ -103,9 +102,9 @@ reject_log() {
     fi
 }
 
-all_steps='uv zsh oh-my-zsh pipx cli-tools fonts node developer-tools
+all_steps='uv zsh oh-my-zsh cli-tools fonts node developer-tools
 terminal-colors macos-apps tmux-plugins firstmate agent-apps agent-config'
-core_steps='uv zsh oh-my-zsh pipx cli-tools tmux-plugins'
+core_steps='uv zsh oh-my-zsh cli-tools tmux-plugins'
 
 for case_name in none core all unknown no-core; do
     mkdir -p "${tmp_dir}/${case_name}-home"

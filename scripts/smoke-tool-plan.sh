@@ -116,6 +116,8 @@ exit "${UV_EXIT_CODE:-0}"
 STUB
 chmod +x "$home_dir/.local/bin/uv"
 export PATH="$home_dir/.local/bin:${SMOKE_BASE_PATH}"
+# The caller's uv receipt must not change fixture results.
+export XDG_CONFIG_HOME="$home_dir/.config"
 tool_list=$(jq -r '.tools[] | select(.scope == "core") | (.mise // .name)' \
     "$INVENTORY" | paste -sd ' ' -)
 tool_count=$(jq '[.tools[] | select(.scope == "core")] | length' "$INVENTORY")
@@ -155,8 +157,8 @@ for target in Darwin:arm64 Linux:x86_64 Linux:arm64; do
         MISE_CORE_TOOLS_FILE="$config" "$CORE_TOOLS" install
     grep -F -- "--cd $HOME install $tool_list" "$mise_log" >/dev/null ||
         fail "install did not use the common mise path for $target"
-    grep -Fx 'uv tool install rust-just==1.59.0' "$mise_log" >/dev/null ||
-        fail "core install omitted pinned just through uv for $target"
+    grep -Fx 'uv tool install rust-just' "$mise_log" >/dev/null ||
+        fail "core install omitted latest just through uv for $target"
     [ "$(grep -c ' = "' "$config")" -eq "$tool_count" ] ||
         fail "generated mise config omitted tools for $target"
     grep -F '[tools]' "$config" >/dev/null ||
@@ -407,14 +409,67 @@ if grep -F demo-viewer "$mise_log" "$tmp_dir/grouped.toml"; then
 fi
 grep -Fx '"gh" = "latest"' "$tmp_dir/grouped.toml" \
     >/dev/null || fail "core-only install omitted gh"
-grep -Fx 'uv tool install rust-just==1.59.0' "$mise_log" >/dev/null ||
-    fail "core-only install omitted pinned just through uv"
+grep -Fx 'uv tool install rust-just' "$mise_log" >/dev/null ||
+    fail "core-only install omitted latest just through uv"
 : >"$mise_log"
 DOTFILES_ENV_FILE="$tmp_dir/core.env" TOOL_INVENTORY="$grouped" \
     CORE_TOOLS_OS=Linux CORE_TOOLS_ARCH=x86_64 CORE_TOOLS_HAS_SUDO=false \
     "$CORE_TOOLS" update >/dev/null
-grep -Fx 'uv tool install rust-just==1.59.0' "$mise_log" >/dev/null ||
-    fail "core-only update omitted pinned just through uv"
+grep -Fx 'uv tool install --upgrade rust-just' "$mise_log" >/dev/null ||
+    fail "core-only update did not upgrade just through uv"
+if grep -Fx 'uv self update' "$mise_log" >/dev/null; then
+    fail "update ran uv self update without an official installer receipt"
+fi
+
+# Only a uv from the official installer updates itself, and only on update.
+uv_receipt="$XDG_CONFIG_HOME/uv/uv-receipt.json"
+mkdir -p "$(dirname "$uv_receipt")"
+write_uv_receipt() {
+    jq -n --arg prefix "$1" --arg layout "$2" \
+        '{install_prefix: $prefix, install_layout: $layout}' >"$uv_receipt"
+}
+run_core_uv_update() {
+    DOTFILES_ENV_FILE="$tmp_dir/core.env" TOOL_INVENTORY="$grouped" \
+        CORE_TOOLS_OS=Linux CORE_TOOLS_ARCH=x86_64 CORE_TOOLS_HAS_SUDO=false \
+        "$CORE_TOOLS" "$@" >"$tmp_dir/uv-update.log" 2>&1
+}
+write_uv_receipt "$home_dir/.local/bin" flat
+: >"$mise_log"
+run_core_uv_update update || fail "update failed with an official uv"
+grep -Fx 'uv self update' "$mise_log" >/dev/null ||
+    fail "update did not run uv self update for an official uv"
+[ "$(head -n 1 "$mise_log")" = 'uv self update' ] ||
+    fail "uv self update did not run before uv installed just"
+: >"$mise_log"
+run_core_uv_update install || fail "install failed with an official uv"
+if grep -Fx 'uv self update' "$mise_log" >/dev/null; then
+    fail "install ran uv self update"
+fi
+write_uv_receipt "$home_dir/.local" hierarchical
+: >"$mise_log"
+run_core_uv_update update || fail "update failed with a hierarchical receipt"
+grep -Fx 'uv self update' "$mise_log" >/dev/null ||
+    fail "update ignored the bin directory of a hierarchical receipt"
+mkdir -p "$home_dir/.cargo/bin"
+write_uv_receipt "$home_dir/.cargo/bin" flat
+: >"$mise_log"
+run_core_uv_update update || fail "update failed with another uv receipt"
+if grep -Fx 'uv self update' "$mise_log" >/dev/null; then
+    fail "update ran uv self update for a uv outside the receipt"
+fi
+grep -F 'does not come from the official uv installer' \
+    "$tmp_dir/uv-update.log" >/dev/null ||
+    fail "skipped uv self update did not warn"
+write_uv_receipt "$home_dir/.local/bin" flat
+: >"$mise_log"
+if DOTFILES_RUNNER=make UV_EXIT_CODE=29 run_core_uv_update update; then
+    fail "update ignored a failed uv self update"
+fi
+grep -F 'uv: self update failed' "$tmp_dir/uv-update.log" >/dev/null ||
+    fail "failed uv self update did not name its element and operation"
+grep -F -- "--cd $HOME upgrade --global" "$mise_log" >/dev/null ||
+    fail "failed uv self update stopped the mise tools"
+rm "$uv_receipt"
 : >"$mise_log"
 for action in install update; do
     DOTFILES_RUNNER=make UV_EXIT_CODE=29 DOTFILES_ENV_FILE="$tmp_dir/core.env" \

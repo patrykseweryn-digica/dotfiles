@@ -83,6 +83,10 @@
     },
     {
       "from": "scripts/core-tools.sh",
+      "to": "bootstrap.d/01-uv.sh"
+    },
+    {
+      "from": "scripts/core-tools.sh",
       "to": "bootstrap.d/07-node.sh"
     },
     {
@@ -92,6 +96,10 @@
     {
       "from": "scripts/core-tools.sh",
       "to": "scripts/operation.sh"
+    },
+    {
+      "from": "bootstrap.d/01-uv.sh",
+      "to": "install.sh"
     },
     {
       "from": "scripts/doctor.sh",
@@ -197,7 +205,7 @@
       "inventory": {
         "tools_by_group": {
           "agents": 27,
-          "core": 26
+          "core": 27
         },
         "tools": [
           {
@@ -347,6 +355,10 @@
           {
             "name": "no-mistakes",
             "group": "agents"
+          },
+          {
+            "name": "pipx",
+            "group": "core"
           },
           {
             "name": "pnpm",

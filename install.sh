@@ -393,8 +393,8 @@ main() {
         return "$LAST_RUN_STEP_STATUS"
     fi
     run_group_step core optional "uv" install_uv
-    if [[ ":$PATH:" != *":${HOME}/.cargo/bin:"* ]]; then
-        export PATH="${HOME}/.cargo/bin:${PATH}"
+    if [[ ":$PATH:" != *":${HOME}/.local/bin:"* ]]; then
+        export PATH="${HOME}/.local/bin:${PATH}"
     fi
     run_group_step core required "zsh" install_zsh
     if [ "$LAST_RUN_STEP_STATUS" -ne 0 ]; then
@@ -402,7 +402,6 @@ main() {
         return "$LAST_RUN_STEP_STATUS"
     fi
     run_group_step core optional "Oh My Zsh" install_oh_my_zsh
-    run_group_step core optional "pipx" install_pipx
     run_group_step core optional "CLI tools" install_tools
     run_group_step desktop optional "fonts" install_fonts
     run_group_step agents required "mise and Node.js LTS" install_node

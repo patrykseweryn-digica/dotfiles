@@ -3,8 +3,8 @@ set -eu
 
 DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "${DOTFILES_DIR}/scripts/host-tools.sh"
+public_recipe_command "$DOTFILES_DIR"
 STATE_PLAN="${DOTFILES_DIR}/scripts/state-plan.sh"
-JUST_BIN="$(command -v just)"
 UV_BIN="$(command -v uv)"
 export UV_CACHE_DIR="${UV_CACHE_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/uv}"
 export UV_PYTHON_INSTALL_DIR="${UV_PYTHON_INSTALL_DIR:-$("$UV_BIN" python dir)}"
@@ -183,7 +183,7 @@ run_doctor() {
         NODE_TEST_VERSION="${NODE_TEST_VERSION:-}" \
         TOOL_DRIFT="${TOOL_DRIFT:-false}" \
         env -u CODEX_HOME DOTFILES_DIR="$DOTFILES_DIR" \
-        "$JUST_BIN" --justfile "${DOTFILES_DIR}/justfile" machine \
+        "${PUBLIC_RECIPE[@]}" machine \
         >"${tmp_dir}/doctor.log" 2>&1
 }
 
@@ -250,7 +250,7 @@ PLAN_SCENARIO=update
 run_doctor || fail "doctor rejected UPDATE"
 grep -F '[UPDATE] settings:codex:' "${tmp_dir}/doctor.log" >/dev/null ||
     fail "doctor omitted UPDATE"
-grep -F 'Run: just sync' "${tmp_dir}/doctor.log" >/dev/null ||
+grep -F "Run: ${SMOKE_RUNNER} sync" "${tmp_dir}/doctor.log" >/dev/null ||
     fail "doctor omitted update action"
 grep -Fxq '[INFO] Live machine differs from repository intent' "${tmp_dir}/doctor.log" ||
     fail "doctor did not report an unaligned machine for UPDATE"
@@ -259,7 +259,7 @@ PLAN_SCENARIO="export"
 run_doctor || fail "doctor rejected EXPORT"
 grep -F '[EXPORT] settings:codex:' "${tmp_dir}/doctor.log" >/dev/null ||
     fail "doctor omitted EXPORT"
-grep -F 'Run: just export' "${tmp_dir}/doctor.log" >/dev/null ||
+grep -F "Run: ${SMOKE_RUNNER} export" "${tmp_dir}/doctor.log" >/dev/null ||
     fail "doctor omitted export action"
 grep -Fxq '[INFO] Live machine differs from repository intent' "${tmp_dir}/doctor.log" ||
     fail "doctor did not report an unaligned machine for EXPORT"
@@ -563,7 +563,7 @@ fi
         SYNC_AGENTS="${DOTFILES_DIR}/sync-agents.sh" \
         AGENT_TOOLS="${stub_dir}/agent-tools" CORE_TOOLS="${stub_dir}/core-tools" \
         DOCTOR_NODE_BIN="${stub_dir}/node" \
-        "$JUST_BIN" --justfile "${DOTFILES_DIR}/justfile" sync \
+        "${PUBLIC_RECIPE[@]}" sync \
         >"${tmp_dir}/blocked-sync.log" 2>&1; then
         fail "sync accepted an unexported Codex plugin"
     fi
@@ -574,7 +574,7 @@ fi
     fi
     grep -Fq '[PLAN] [FAIL] links:' "${tmp_dir}/blocked-sync.log" ||
         fail "sync fixture did not plan the independent repair"
-    grep -Fq 'Run: just export' "${tmp_dir}/blocked-sync.log" ||
+    grep -Fq "Run: ${SMOKE_RUNNER} export" "${tmp_dir}/blocked-sync.log" ||
         fail "sync omitted the next step"
     if grep -Eq '^\[(APPLY|REFRESH)\]' "${tmp_dir}/blocked-sync.log"; then
         fail "sync attempted a change before export"

@@ -222,6 +222,16 @@
     },
     {
       "commands": [
+        "pipx"
+      ],
+      "group": "core",
+      "mise": "pypi:pipx",
+      "name": "pipx",
+      "scope": "core",
+      "versionPolicy": "latest"
+    },
+    {
+      "commands": [
         "prek"
       ],
       "group": "core",
@@ -504,7 +514,7 @@
       "package": "@ast-grep/cli"
     },
     {
-      "channel": "1.59.0",
+      "channel": "latest",
       "command": "just",
       "group": "core",
       "installer": "uv",
@@ -512,7 +522,7 @@
       "package": "rust-just"
     },
     {
-      "channel": "2026.10.26",
+      "channel": "latest",
       "command": "yt-dlp",
       "group": "agents",
       "installer": "uv",

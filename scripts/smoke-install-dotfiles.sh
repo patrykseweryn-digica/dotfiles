@@ -17,7 +17,6 @@ smoke_base_dir="$(mktemp -d)"
 trap 'rm -rf "$smoke_base_dir"' EXIT
 set_smoke_base_path "$smoke_base_dir"
 UV_BIN="$(command -v uv)"
-JUST_BIN="$(command -v just)"
 export UV_CACHE_DIR="${UV_CACHE_DIR:-$(uv cache dir)}"
 export UV_PYTHON_INSTALL_DIR="${UV_PYTHON_INSTALL_DIR:-$(uv python dir)}"
 # Runtime overrides must never escape the temporary HOME used by each case.
@@ -36,11 +35,21 @@ smoke_public_menu() {
     local actual expected
     actual="$(mktemp)"
     expected="$(mktemp)"
-    "$JUST_BIN" --justfile "${DOTFILES_DIR}/justfile" --summary |
-        tr ' ' '\n' | sort >"$actual"
-    printf '%s\n' disable enable export groups install machine sync >"$expected"
+    # The Make menu needs no just; check the just menu where just exists.
+    make --no-print-directory -C "$DOTFILES_DIR" help |
+        sed 's/^make //; s/ .*//' | sort >"$actual"
+    printf '%s\n' disable enable export export-skills groups install \
+        machine sync >"$expected"
     cmp "$expected" "$actual" ||
-        fail "public menu is not the daily and install group commands"
+        fail "Make menu is not the daily and install group commands"
+    if [ "$SMOKE_RUNNER" = just ]; then
+        "$SMOKE_RUNNER_BIN" --justfile "${DOTFILES_DIR}/justfile" --summary |
+            tr ' ' '\n' | sort >"$actual"
+        printf '%s\n' disable enable export groups install machine sync \
+            >"$expected"
+        cmp "$expected" "$actual" ||
+            fail "public menu is not the daily and install group commands"
+    fi
     rm -f "$actual" "$expected"
 }
 
@@ -650,7 +659,6 @@ STUB
             install_uv() { :; }
             install_zsh() { :; }
             install_oh_my_zsh() { :; }
-            install_pipx() { :; }
             ensure_jq() { touch "${task_dir}/jq-ready"; }
             install_tools() { [ -f "${task_dir}/jq-ready" ]; }
             install_fonts() { :; }

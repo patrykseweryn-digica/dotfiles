@@ -84,11 +84,14 @@ jobs:
           just_version=$(jq -r '.tools[] |
             select(.package == "rust-just") | .channel' \
             .agents/tool-versions.json)
-          uv tool install "rust-just==$just_version"
+          if [ "$just_version" = latest ]; then
+            uv tool install rust-just
+          else
+            uv tool install "rust-just==$just_version"
+          fi
           curl -fsSL https://herdr.dev/install.sh \
             -o "$RUNNER_TEMP/herdr-install.sh"
           sh "$RUNNER_TEMP/herdr-install.sh"
-          npm --prefix config/pi ci --ignore-scripts
       - name: Secure runner Zsh completion permissions
         run: |
           while IFS= read -r directory; do

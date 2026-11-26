@@ -1,7 +1,8 @@
 # GNU Make alternative to the public just recipes. Keep the scripts shared.
 .DEFAULT_GOAL := help
 .NOTPARALLEL:
-.PHONY: help install sync machine groups enable disable export export-skills
+.PHONY: help install sync machine groups enable disable export export-skills \
+	test
 
 export DOTFILES_RUNNER := make
 export group
@@ -36,3 +37,7 @@ export:
 
 export-skills:
 	@"$$SYNC_AGENTS" export skills
+
+# Hidden maintenance target, like the private just test recipe.
+test:
+	@bash scripts/test.sh
