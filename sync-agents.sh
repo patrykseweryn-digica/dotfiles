@@ -2367,7 +2367,8 @@ stage_locked_skills() {
     local skills_cli resolved_skills_cli
     local runtime_name skill_file
     local groups_root="${STAGED_SKILLS_ROOT}/groups" group_count=0
-    local group_dir group_skills lane pid lane_pids="" lane_status index duplicates
+    local group_dir group_skills lane pid lane_pids="" lane_status index claim
+    local duplicates
     local failed=false
     groups=$(jq -c '
         def install_source:
@@ -2433,15 +2434,19 @@ stage_locked_skills() {
         }
     done <<<"$groups"
 
-    # Four lanes claim groups with an atomic mkdir. A failed lane stops the
-    # others before their next group; all lanes finish before anything is read.
+    # Four lanes claim groups by creating a claim file with noclobber, which
+    # Bash opens with O_EXCL: exactly one lane wins. Do not claim with mkdir:
+    # uutils mkdir 0.10 (Ubuntu 26.04) succeeds when the directory exists.
+    # A failed lane stops the others before their next group; all lanes
+    # finish before anything is read.
     for lane in 1 2 3 4; do
         [ "$lane" -le "$group_count" ] || break
         (
             index=1
             while [ "$index" -le "$group_count" ]; do
                 [ ! -e "${groups_root}/failed" ] || exit 1
-                if mkdir "${groups_root}/${index}/claimed" 2>/dev/null; then
+                claim="${groups_root}/${index}/claimed"
+                if (set -C && : >"$claim") 2>/dev/null; then
                     stage_skill_group "${groups_root}/${index}" "$skills_cli" || {
                         : >"${groups_root}/failed"
                         exit 1

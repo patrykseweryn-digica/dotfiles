@@ -202,11 +202,20 @@ jq -n '{skills: ([range(1; 7)] | map({
         source: "example/plugins", sourceType: "github",
         sourceUrl: "https://github.com/example/plugins.git"}
 }) | from_entries)}' >"$task_dir/lanes-lock.json"
+# uutils mkdir 0.10 (Ubuntu 26.04) succeeds on an existing directory, so a
+# lane claim must not depend on mkdir failing.
+mkdir -p "$task_dir/loose-mkdir"
+cat > "$task_dir/loose-mkdir/mkdir" <<'STUB'
+#!/bin/bash
+exec /bin/mkdir -p "$@"
+STUB
+chmod +x "$task_dir/loose-mkdir/mkdir"
 env -u CODEX_HOME -u OPENCODE_CONFIG_DIR -u PI_CODING_AGENT_DIR \
     -u PI_SKILLS_DIR HOME="$preflight_home" \
     SKILL_LOCK_LIVE="$preflight_home/.agents/.skill-lock.json" \
     SKILL_LOCK_REPO="$task_dir/lanes-lock.json" \
-    PATH="$task_dir/bin:$PATH" SKILLS_CLI="$task_dir/bin/skills" \
+    PATH="$task_dir/loose-mkdir:$task_dir/bin:$PATH" \
+    SKILLS_CLI="$task_dir/bin/skills" \
     SKILL_TEST_LOG="$task_dir/lanes-calls" \
     "$repo/sync-agents.sh" skills-preflight >"$task_dir/lanes-output" 2>&1 ||
     fail_log "$task_dir/lanes-output" "skill lanes"
