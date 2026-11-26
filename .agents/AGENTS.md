@@ -5,6 +5,8 @@
 - Format messages, so they don't have too long lines - each line should have < 80 characters.
 - Use short, grammatical sentences. Use noun phrases only in labels.
 - Match my language (respond in the language I write in).
+- When work can continue, recommend one concrete next step after the status.
+  If nothing remains, say so. Do not end with a generic offer.
 - Never use the em dash (U+2014). Use plain dash "-" instead.
 - When I say that a term is unclear, explain it in plain language and record
   the agreed meaning immediately in the repository's authoritative vocabulary
