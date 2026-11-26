@@ -303,18 +303,6 @@ grep -F '[FAIL] node:' "${tmp_dir}/doctor.log" >/dev/null ||
     fail "doctor omitted Node failure"
 unset NODE_TEST_VERSION
 
-rm "${home_dir}/.claude/hooks/herdr-agent-state.sh"
-if run_doctor; then fail "doctor passed with a missing enabled hook"; fi
-grep -F '[FAIL] hooks:' "${tmp_dir}/doctor.log" >/dev/null ||
-    fail "doctor omitted hook failure"
-jq '.disableAllHooks = true' "$CLAUDE_SETTINGS_FILE" \
-    >"${tmp_dir}/disabled.json"
-mv "${tmp_dir}/disabled.json" "$CLAUDE_SETTINGS_FILE"
-run_doctor || fail "doctor rejected intentionally disabled hooks"
-grep -F '[SKIP] hooks: Herdr hook is intentionally inactive' \
-    "${tmp_dir}/doctor.log" >/dev/null || fail "doctor omitted inactive hook reason"
-printf '#!/bin/bash\n' >"${home_dir}/.claude/hooks/herdr-agent-state.sh"
-
 # Real planner: local adapters, isolated HOME, and stubbed external CLIs.
 printf '{}\n' >"$MCP_SERVERS"
 printf '%s\n' \
@@ -355,18 +343,61 @@ machine_offline() {
 }
 
 : >"$network_log"
+# Count file arguments in the real plan, without logging their contents.
+plugin_dir="${home_dir}/.claude/plugins"
+mkdir -p "$plugin_dir"
+printf '{"plugins":{}}\n' >"$plugin_dir/installed_plugins.json"
+printf '{}\n' >"$plugin_dir/known_marketplaces.json"
+for tool in jq cat cmp; do
+    {
+        printf '#!/bin/bash\n'
+        printf '%s\n' 'if [ -n "${DOCTOR_READ_LOG:-}" ]; then
+    for path in "$@"; do
+        case "$path" in
+        "$HOME"/*) printf "%s\n" "$path" >>"$DOCTOR_READ_LOG" ;;
+        esac
+    done
+fi'
+        printf 'exec %q "$@"\n' "$(command -v "$tool")"
+    } >"${stub_dir}/${tool}"
+    chmod +x "${stub_dir}/${tool}"
+done
 snapshot_state "${tmp_dir}/real-before"
-machine_offline || { cat "${tmp_dir}/doctor.log"; fail "offline machine check failed"; }
+read_log="${tmp_dir}/provider-reads"
+: >"$read_log"
+DOCTOR_READ_LOG="$read_log" machine_offline || {
+    cat "${tmp_dir}/doctor.log"
+    fail "offline machine check failed"
+}
+for config in "$CLAUDE_SETTINGS_FILE" "$CLAUDE_USER_CONFIG" \
+    "$plugin_dir/installed_plugins.json" "$plugin_dir/known_marketplaces.json" \
+    "$OPENCODE_CONFIG" "$PI_SETTINGS_FILE" "$PI_MCP_CONFIG" "$SKILL_LOCK_LIVE"; do
+    reads="$(grep -Fxc -- "$config" "$read_log" || true)"
+    [ "$reads" = 1 ] || fail "expected one read of ${config#"$home_dir"/}; got $reads"
+done
 grep -E '^\[PASS\] settings:codex:' "${tmp_dir}/doctor.log" ||
     fail "offline machine did not pass matching Codex settings"
 real_plan || fail "real state plan failed"
-for category in settings:codex settings:claude settings:opencode mcp skills plugins; do
+for category in settings:codex settings:claude settings:opencode hooks mcp skills plugins; do
     grep -E "^PASS[[:space:]]+${category}[[:space:]]" \
         "${tmp_dir}/real-plan" >/dev/null || fail "real plan omitted PASS: $category"
 done
 snapshot_state "${tmp_dir}/real-after"
 cmp "${tmp_dir}/real-before" "${tmp_dir}/real-after" ||
     fail "real state plan changed HOME or checkout"
+
+rm "${home_dir}/.claude/hooks/herdr-agent-state.sh"
+if machine_offline; then fail "doctor passed with a missing enabled hook"; fi
+grep -Fq '[FAIL] hooks:' "${tmp_dir}/doctor.log" || fail "doctor omitted hook failure"
+cp "$CLAUDE_SETTINGS_FILE" "${tmp_dir}/claude.hook-before"
+jq '.disableAllHooks = true' "$CLAUDE_SETTINGS_FILE" >"${tmp_dir}/disabled.json"
+mv "${tmp_dir}/disabled.json" "$CLAUDE_SETTINGS_FILE"
+machine_offline || fail "doctor rejected intentionally disabled hooks"
+grep -Fq '[SKIP] hooks: Herdr hook is intentionally inactive' \
+    "${tmp_dir}/doctor.log" || fail "doctor omitted inactive hook reason"
+mv "${tmp_dir}/claude.hook-before" "$CLAUDE_SETTINGS_FILE"
+printf '#!/bin/bash\n' >"${home_dir}/.claude/hooks/herdr-agent-state.sh"
+
 cp "$CODEX_CONFIG" "${tmp_dir}/codex.before"
 printf 'service_tier = "changed"\n' >"$CODEX_CONFIG"
 snapshot_state "${tmp_dir}/real-before"
@@ -449,6 +480,13 @@ real_plan
 grep -E '^FAIL[[:space:]]+settings:claude[[:space:]]' \
     "${tmp_dir}/real-plan" >/dev/null || fail "missing settings are not FAIL"
 mv "${tmp_dir}/claude-settings.saved" "$CLAUDE_SETTINGS_FILE"
+
+cp "$PI_MCP_CONFIG" "${tmp_dir}/pi-mcp.before"
+printf '[]\n' >"$PI_MCP_CONFIG"
+if machine_offline; then fail "machine accepted invalid Pi MCP state"; fi
+grep -Fxq '[FAIL] mcp: Pi MCP config is unreadable or invalid' \
+    "${tmp_dir}/doctor.log" || fail "machine did not identify invalid Pi MCP state"
+mv "${tmp_dir}/pi-mcp.before" "$PI_MCP_CONFIG"
 
 jq '.mcpServers.extra = {type: "http", url: "https://extra.test/mcp"}' \
     "$CLAUDE_USER_CONFIG" >"${tmp_dir}/claude-extra.json"

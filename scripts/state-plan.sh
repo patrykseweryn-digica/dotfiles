@@ -129,29 +129,6 @@ plan_shell() {
     fi
 }
 
-plan_herdr_hook() {
-    local settings="${CLAUDE_SETTINGS_FILE:-${HOME}/.claude/settings.json}"
-    local hook="${HOME}/.claude/hooks/herdr-agent-state.sh"
-
-    if ! group_selected agents; then
-        group_skip_row hooks "Herdr hook" agents
-    elif [ ! -f "$settings" ] ||
-        ! jq -e -s 'length == 1 and (.[0] | type == "object")' \
-            "$settings" >/dev/null 2>&1; then
-        printf 'FAIL\thooks\tupdate\tClaude hook settings are missing or invalid\n'
-    elif jq -e '.disableAllHooks == true' "$settings" >/dev/null ||
-        ! jq -e '[.hooks.SessionStart[]?.hooks[]? |
-            select(.type == "command") | .command |
-            select(contains("herdr-agent-state.sh"))] | length > 0' \
-            "$settings" >/dev/null; then
-        printf 'SKIP\thooks\tnone\tHerdr hook is intentionally inactive\n'
-    elif [ -f "$hook" ] && [ -r "$hook" ]; then
-        printf 'PASS\thooks\tnone\tHerdr hook is available\n'
-    else
-        printf 'FAIL\thooks\tupdate\tEnabled Herdr hook is missing or unreadable\n'
-    fi
-}
-
 plan_node() {
     local status=0
 
@@ -188,7 +165,6 @@ plan_all() {
     plan_links || return
     plan_groups || return
     plan_shell || return
-    plan_herdr_hook || return
     plan_node || return
     plan_platform
 }

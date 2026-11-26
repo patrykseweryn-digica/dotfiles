@@ -28,6 +28,9 @@ Preconditions: repository dependencies; retain before/after evidence.
   The real adapters name MCP, skill, and plugin additions without printing
   marketplace URLs. An invalid skill lock must fail the plan. A secret sentinel
   in a raw planner failure must not appear.
+- **Single reads.** The same smoke script counts file arguments to `jq`, `cmp`
+  and `cat` during one real plan. Require one read per watched Claude, OpenCode,
+  Pi, and skill inventory file. This counts command inputs, not system calls.
 - **Offline Codex state.** The same smoke script runs real `just machine`
   and the shared sync plan with fixture settings, offline uv, and an empty uv
   cache. Require one Python lookup per plan and no Codex CLI call. Require

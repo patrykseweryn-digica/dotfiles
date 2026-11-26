@@ -111,14 +111,19 @@ run_in_dir() {
     "$@"
 }
 
-validate_json_config() {
-    local config="$1" repair="$2"
-    if ! jq -e -s 'length == 1 and (.[0] | type == "object")' \
-        "$config" >/dev/null 2>&1; then
+read_json_config() {
+    local config="$1" repair="${2:-}"
+    if { [ "$config" != - ] && [ ! -f "$config" ]; } ||
+        ! jq -ces 'if length == 1 and (.[0] | type == "object") then .[0]
+            else error("expected one JSON object") end' "$config" 2>/dev/null; then
         echo "[ERROR] Invalid JSON config; expected exactly one object: $config" >&2
-        echo "Run: ./sync-agents.sh $repair" >&2
+        [ -z "$repair" ] || echo "Run: ./sync-agents.sh $repair" >&2
         return 1
     fi
+}
+
+validate_json_config() {
+    read_json_config "$@" >/dev/null
 }
 
 skill_runtime_rows() {
@@ -227,11 +232,12 @@ build_live_skill_inventory() {
         return 1
     }
 
-    normalize_live_skill_lock "$SKILL_LOCK_LIVE" "$lock_target" || {
+    local live skill_path repo_lock="$SKILL_LOCK_REPO"
+    if ! live="$(read_json_config "$SKILL_LOCK_LIVE")" ||
+        ! normalize_live_skill_lock - "$lock_target" <<<"$live"; then
         echo "[ERROR] Invalid live skill lock: $SKILL_LOCK_LIVE" >&2
         return 1
-    }
-    local skill_path repo_lock="$SKILL_LOCK_REPO"
+    fi
     [ -f "$repo_lock" ] || repo_lock=/dev/null
     for skill_path in "$AGENT_SKILLS_DIR"/*; do
         if { [ -d "$skill_path" ] && [ -f "${skill_path}/SKILL.md" ]; } ||
@@ -239,7 +245,7 @@ build_live_skill_inventory() {
             printf '%s\0' "${skill_path##*/}"
         fi
     done | jq -Rrs --slurpfile normalized "$lock_target" \
-        --slurpfile live "$SKILL_LOCK_LIVE" --slurpfile repo "$repo_lock" '
+        --slurpfile live <(printf '%s\n' "$live") --slurpfile repo "$repo_lock" '
         split("\u0000")[] | select(length > 0) |
         select($normalized[0].skills[.] == null and
             $live[0].skills[.] == null and $repo[0].skills[.] == null)
@@ -349,7 +355,8 @@ collect_codex_mcp() {
 }
 
 collect_claude_mcp() {
-    [ -f "$CLAUDE_USER_CONFIG" ] || return 0
+    local source_file="${1:-$CLAUDE_USER_CONFIG}"
+    [ "$source_file" = - ] || [ -f "$source_file" ] || return 0
 
     jq -c '
         (.mcpServers // {})
@@ -374,11 +381,12 @@ collect_claude_mcp() {
             }
           else empty
           end
-    ' "$CLAUDE_USER_CONFIG"
+    ' "$source_file"
 }
 
 collect_opencode_mcp() {
-    [ -f "$OPENCODE_CONFIG" ] || return 0
+    local source_file="${1:-$OPENCODE_CONFIG}"
+    [ "$source_file" = - ] || [ -f "$source_file" ] || return 0
 
     jq -c '
         (.mcp // {})
@@ -404,11 +412,12 @@ collect_opencode_mcp() {
             }
           else empty
           end
-    ' "$OPENCODE_CONFIG"
+    ' "$source_file"
 }
 
 collect_pi_mcp() {
-    [ -f "$PI_MCP_CONFIG" ] || return 0
+    local source_file="${1:-$PI_MCP_CONFIG}"
+    [ "$source_file" = - ] || [ -f "$source_file" ] || return 0
 
     jq -c '
         (.mcpServers // {})
@@ -434,7 +443,7 @@ collect_pi_mcp() {
             }
           else empty
           end
-    ' "$PI_MCP_CONFIG"
+    ' "$source_file"
 }
 
 available_mcp_runtimes() {
@@ -1713,7 +1722,7 @@ render_opencode_config() {
     local source_file="$1"
     local target_file="$2"
 
-    [ -f "$source_file" ] || source_file="$OPENCODE_TEMPLATE"
+    [ "$source_file" = - ] || [ -f "$source_file" ] || source_file="$OPENCODE_TEMPLATE"
 
     jq -S --slurpfile mcp "$MCP_SERVERS" '
         def envmap($server):
@@ -1782,19 +1791,22 @@ cmd_opencode_install() {
 }
 
 cmd_opencode_check() {
-    local tmp
+    local settings
+    settings="$(read_json_config "$OPENCODE_CONFIG" opencode-install)" || return 1
+    check_opencode_settings "$settings"
+}
 
-    if [ ! -f "$OPENCODE_CONFIG" ]; then
-        echo "[ERROR] OpenCode config missing: $OPENCODE_CONFIG" >&2
-        echo "Run: ./sync-agents.sh opencode-install" >&2
+check_opencode_settings() {
+    local settings="$1" tmp
+    [ -n "$settings" ] || return 1
+
+    tmp="$(mktemp)" || return 1
+    if ! render_opencode_config - "$tmp" <<<"$settings"; then
+        rm -f "$tmp"
         return 1
     fi
-    validate_json_config "$OPENCODE_CONFIG" opencode-install || return 1
-
-    tmp="$(mktemp)"
-    render_opencode_config "$OPENCODE_CONFIG" "$tmp"
-
-    if [ -f "$OPENCODE_CONFIG" ] && cmp -s "$tmp" "$OPENCODE_CONFIG"; then
+    if jq -e --slurpfile expected "$tmp" '. == $expected[0]' \
+        <<<"$settings" >/dev/null; then
         rm -f "$tmp"
         log_info "OpenCode config in sync"
         return 0
@@ -1802,9 +1814,7 @@ cmd_opencode_check() {
 
     echo "[ERROR] OpenCode config drift detected: $OPENCODE_CONFIG" >&2
     echo "Run: ./sync-agents.sh opencode-install" >&2
-    if [ -f "$OPENCODE_CONFIG" ]; then
-        diff -u "$OPENCODE_CONFIG" "$tmp" >&2 || true
-    fi
+    diff -u <(jq -S . <<<"$settings") "$tmp" >&2 || true
     rm -f "$tmp"
     return 2
 }
@@ -1977,21 +1987,21 @@ render_claude_settings() {
 }
 
 cmd_claude_settings_check() {
-    if [ ! -f "$CLAUDE_SETTINGS_FILE" ]; then
-        echo "[ERROR] Claude settings missing: $CLAUDE_SETTINGS_FILE" >&2
-        echo "Run: ./sync-agents.sh claude-install" >&2
-        return 1
-    fi
-    validate_json_config "$CLAUDE_SETTINGS_FILE" claude-install || return 1
+    local settings
+    settings="$(read_json_config "$CLAUDE_SETTINGS_FILE" claude-install)" || return 1
+    check_claude_settings "$settings"
+}
 
-    local expected
+check_claude_settings() {
+    local settings="$1" expected
+    [ -n "$settings" ] || return 1
     expected="$(mktemp)"
     render_claude_settings "$expected" || {
         rm -f "$expected"
         return 1
     }
     if jq -e --slurpfile expected "$expected" \
-        '. == $expected[0]' "$CLAUDE_SETTINGS_FILE" >/dev/null; then
+        '. == $expected[0]' <<<"$settings" >/dev/null; then
         rm -f "$expected"
         log_info "Claude settings match template"
         return 0
@@ -1999,7 +2009,7 @@ cmd_claude_settings_check() {
 
     echo "[ERROR] Claude settings drift detected: $CLAUDE_SETTINGS_FILE" >&2
     echo "Run: ./sync-agents.sh claude-install" >&2
-    diff -u "$expected" "$CLAUDE_SETTINGS_FILE" >&2 || true
+    diff -u "$expected" <(jq -S . <<<"$settings") >&2 || true
     rm -f "$expected"
     return 2
 }
@@ -2864,18 +2874,30 @@ cmd_lock_skills_install() {
     [ "$failed" = false ]
 }
 
+read_claude_plugin_state() {
+    local file
+    for file in "${HOME}/.claude/plugins/installed_plugins.json" \
+        "${HOME}/.claude/plugins/known_marketplaces.json"; do
+        if [ -e "$file" ] || [ -L "$file" ]; then
+            read_json_config "$file" || return 1
+        else
+            printf '{}\n'
+        fi
+    done
+}
+
 check_claude_plugin_providers() {
-    local installed_json="${HOME}/.claude/plugins/installed_plugins.json"
-    local known_mp="${HOME}/.claude/plugins/known_marketplaces.json"
-    if [ -f "$installed_json" ]; then
-        jq '[(.plugins // {} | keys[]) | {name: split("@")[-1]}]' \
-            "$installed_json" | check_marketplace_provider claude true || return 1
+    local state
+    if [ "$#" -gt 0 ]; then
+        state="$1"
+    else
+        state="$(read_claude_plugin_state)" || return 1
     fi
-    if [ -f "$known_mp" ]; then
-        jq '[to_entries[] | {name: .key,
-            source: (.value.source.repo // .value.source.url // "")}]' \
-            "$known_mp" | check_marketplace_provider claude true || return 1
-    fi
+    jq -s '[
+        (.[0].plugins // {} | keys[] | {name: split("@")[-1]}),
+        (.[1] | to_entries[] | {name: .key,
+            source: (.value.source.repo // .value.source.url // "")})
+    ]' <<<"$state" | check_marketplace_provider claude true
 }
 
 repair_claude_plugin_providers() {
@@ -2914,7 +2936,9 @@ cmd_claude_plugins_export() {
     [ "${1:-}" = "--check" ] && check_only=true
 
     validate_plugin_manifest "$CLAUDE_MANIFEST" || return 1
-    check_claude_plugin_providers || return 1
+    local state
+    state="$(read_claude_plugin_state)" || return 1
+    check_claude_plugin_providers "$state" || return 1
 
     local installed_json="${HOME}/.claude/plugins/installed_plugins.json"
     local known_mp="${HOME}/.claude/plugins/known_marketplaces.json"
@@ -2939,15 +2963,10 @@ cmd_claude_plugins_export() {
         return 0
     fi
 
-    [ -f "$installed_json" ] || installed_json=/dev/null
-
-    [ -f "$known_mp" ] || known_mp=/dev/null
-
     local tmp
-    tmp=$(mktemp)
-    jq -S --slurpfile inst "$installed_json" \
-        --slurpfile km <(cat "$known_mp" 2>/dev/null || echo '{}') '
-        (($inst[0].plugins // {}) | keys) as $installed |
+    tmp=$(mktemp) || return 1
+    jq -S --slurpfile state <(printf '%s\n' "$state") '
+        (($state[0].plugins // {}) | keys) as $installed |
         (.plugins | to_entries |
             map(select(.value.claude != null) | {
                 key: .value.claude,
@@ -2959,7 +2978,7 @@ cmd_claude_plugins_export() {
             (if .[$preferred] == null then $preferred else $plugin end) as $name |
             .[$name] = $plugin
         )) as $claude |
-        (($km[0] // {}) | to_entries |
+        ($state[1] | to_entries |
             map(select(.value.source != null) | {
                 key: .key,
                 value: .value.source
@@ -3915,8 +3934,8 @@ render_pi_settings() {
             end
         )
     ' < <(
-        if [ -f "$source_file" ]; then
-            cat "$source_file"
+        if [ "$source_file" = - ] || [ -f "$source_file" ]; then
+            cat -- "$source_file"
         else
             echo '{}'
         fi
@@ -4018,6 +4037,15 @@ pi_models() {
     source="$(dirname "$PI_SETTINGS_TEMPLATE")/models.json"
     [ -f "$source" ] || return 0
     target="${PI_AGENT_DIR}/models.json"
+    if [ "$action" = check ]; then
+        jq -es --slurpfile wanted "$source" '
+            length == 1 and (.[0] | type == "object" and (. * $wanted[0]) == .)
+        ' "$target" >/dev/null 2>&1 || {
+            echo "[ERROR] Pi model override drift: $target" >&2
+            return 1
+        }
+        return 0
+    fi
     tmp="$(mktemp)"
     if ! jq -S --slurpfile wanted "$source" '. * $wanted[0]' \
         < <(if [ -f "$target" ]; then cat "$target"; else echo '{}'; fi) >"$tmp"; then
@@ -4027,12 +4055,8 @@ pi_models() {
     if [ -f "$target" ] && jq -e --slurpfile wanted "$tmp" \
         '. == $wanted[0]' "$target" >/dev/null; then
         rm -f "$tmp" || return 1
-    elif [ "$action" = install ]; then
-        mv "$tmp" "$target" || return 1
     else
-        rm -f "$tmp"
-        echo "[ERROR] Pi model override drift: $target" >&2
-        return 1
+        mv "$tmp" "$target" || return 1
     fi
 }
 
@@ -4109,21 +4133,20 @@ cmd_pi_check() {
         echo "Run: ./sync-agents.sh pi-install" >&2
         return 1
     }
-    validate_json_config "$PI_SETTINGS_FILE" pi-install || return 1
-
-    local tmp package failed=false
+    local settings tmp package failed=false
+    settings="$(read_json_config "$PI_SETTINGS_FILE" pi-install)" || return 1
     pi_resources check || failed=true
     pi_models check || failed=true
     pi_billion_context check || failed=true
     tmp="$(mktemp)"
-    render_pi_settings "$PI_SETTINGS_FILE" "$tmp" || {
+    render_pi_settings - "$tmp" <<<"$settings" || {
         rm -f "$tmp"
         return 1
     }
     if ! jq -e --slurpfile wanted "$tmp" '. == $wanted[0]' \
-        "$PI_SETTINGS_FILE" >/dev/null; then
+        <<<"$settings" >/dev/null; then
         echo "[ERROR] Pi settings drift detected: $PI_SETTINGS_FILE" >&2
-        diff -u "$tmp" "$PI_SETTINGS_FILE" >&2 || true
+        diff -u "$tmp" <(jq -S . <<<"$settings") >&2 || true
         failed=true
     fi
     rm -f "$tmp"
@@ -4188,32 +4211,60 @@ emit_category_plan() {
     esac
 }
 
+plan_herdr_hook() {
+    local settings="$1" hook="${HOME}/.claude/hooks/herdr-agent-state.sh"
+
+    if [ -z "$settings" ]; then
+        emit_state_plan FAIL hooks update 'Claude hook settings are missing or invalid'
+    elif ! jq -e '.disableAllHooks != true and any(.hooks.SessionStart[]?.hooks[]?;
+        .type == "command" and ((.command // "") | contains("herdr-agent-state.sh")))' \
+        <<<"$settings" >/dev/null; then
+        emit_state_plan SKIP hooks none 'Herdr hook is intentionally inactive'
+    elif [ -f "$hook" ] && [ -r "$hook" ]; then
+        emit_state_plan PASS hooks none 'Herdr hook is available'
+    else
+        emit_state_plan FAIL hooks update 'Enabled Herdr hook is missing or unreadable'
+    fi
+}
+
 cmd_mcp_plan() {
-    local rows filtered wanted conflicts actual runtime config names
+    local opencode_json="$1" claude_json pi_json
+    local rows filtered wanted conflicts actual runtime names
     local status=PASS
-    rows="$(mktemp)"
-    wanted="$(mktemp)"
+    if ! claude_json="$(read_json_config "$CLAUDE_USER_CONFIG")" &&
+        { [ -e "$CLAUDE_USER_CONFIG" ] || [ -L "$CLAUDE_USER_CONFIG" ]; }; then
+        emit_state_plan FAIL mcp none 'Claude MCP config is unreadable or invalid'
+        return 0
+    fi
+    if ! pi_json="$(read_json_config "$PI_MCP_CONFIG")" &&
+        { [ -e "$PI_MCP_CONFIG" ] || [ -L "$PI_MCP_CONFIG" ]; }; then
+        emit_state_plan FAIL mcp none 'Pi MCP config is unreadable or invalid'
+        return 0
+    fi
+    if [ -z "$opencode_json" ] &&
+        { [ -e "$OPENCODE_CONFIG" ] || [ -L "$OPENCODE_CONFIG" ]; }; then
+        emit_state_plan FAIL mcp none 'OpenCode MCP config is unreadable or invalid'
+        return 0
+    fi
+    if [ ! -f "$CODEX_CONFIG" ] || [ -z "$claude_json" ] ||
+        [ -z "$opencode_json" ] || [ -z "$pi_json" ]; then
+        emit_category_plan FAIL mcp MCP
+        return 0
+    fi
+    rows="$(mktemp)" || return 1
+    wanted="$(mktemp)" || { rm -f "$rows"; return 1; }
 
     if ! normalize_mcp_inventory "$MCP_SERVERS" >"$wanted"; then
         rm -f "$rows" "$wanted"
         emit_category_plan FAIL mcp MCP
         return 0
     fi
-    while IFS='|' read -r runtime config; do
-        if [ ! -f "$config" ] || {
-            [ "$runtime" != codex ] &&
-                ! jq -e -s 'length == 1 and (.[0] | type == "object")' \
-                    "$config" >/dev/null 2>&1
-        }; then
-            status=FAIL
-        fi
-    done <<EOF
-codex|$CODEX_CONFIG
-claude|$CLAUDE_USER_CONFIG
-opencode|$OPENCODE_CONFIG
-pi|$PI_MCP_CONFIG
-EOF
-    if [ "$status" = FAIL ] || ! collect_mcp_rows >"$rows"; then
+    if ! {
+        collect_codex_mcp &&
+            collect_claude_mcp - <<<"$claude_json" &&
+            collect_opencode_mcp - <<<"$opencode_json" &&
+            collect_pi_mcp - <<<"$pi_json"
+    } >"$rows"; then
         rm -f "$rows" "$wanted"
         emit_category_plan FAIL mcp MCP
         return 0
@@ -4426,6 +4477,7 @@ cmd_plugins_plan() {
 
 cmd_state_plan() {
     local category label python codex_status=1 codex_plan='{}' codex_error=''
+    local claude_settings opencode_settings
 
     # Every category here belongs to the agents group.
     groups_load || return 1
@@ -4437,6 +4489,7 @@ settings:codex|Codex settings
 settings:claude|Claude settings
 settings:opencode|OpenCode settings
 settings:pi|Pi settings
+hooks|Herdr hook
 mcp|MCP
 skills|Skills
 plugins|Plugins
@@ -4462,10 +4515,14 @@ ROWS
     else
         emit_plan_check "$codex_status" settings:codex "Codex settings"
     fi
-    plan_check settings:claude "Claude settings" cmd_claude_settings_check
-    plan_check settings:opencode "OpenCode settings" cmd_opencode_check
+    # Reuse these values within this plan only.
+    claude_settings="$(read_json_config "$CLAUDE_SETTINGS_FILE")" || claude_settings=''
+    opencode_settings="$(read_json_config "$OPENCODE_CONFIG")" || opencode_settings=''
+    plan_check settings:claude "Claude settings" check_claude_settings "$claude_settings"
+    plan_check settings:opencode "OpenCode settings" check_opencode_settings "$opencode_settings"
     plan_check settings:pi "Pi settings" cmd_pi_check
-    cmd_mcp_plan || return 1
+    plan_herdr_hook "$claude_settings" || return 1
+    cmd_mcp_plan "$opencode_settings" || return 1
     cmd_skills_plan || return 1
     cmd_plugins_plan
 }

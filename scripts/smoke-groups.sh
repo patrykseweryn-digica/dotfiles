@@ -202,7 +202,7 @@ for adapter in sync-agents agent-tools; do
     case "$adapter" in
     sync-agents)
         real="${DOTFILES_DIR}/sync-agents.sh"
-        rows='PASS\tsettings:codex\tnone\tCodex settings match\n'
+        rows='PASS\tsettings:codex\tnone\tCodex settings match\nPASS\thooks\tnone\tHerdr hook is available\n'
         ;;
     agent-tools)
         real="${DOTFILES_DIR}/scripts/agent-tools.sh"
