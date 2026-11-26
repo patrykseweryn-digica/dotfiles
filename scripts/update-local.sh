@@ -140,15 +140,23 @@ fi
 echo "[INFO] Local update plan"
 show_plan PLAN "$plan_file"
 
-# A local addition needs a decision before anything changes the environment.
-blocked=0
+# Stop before changes if the plan cannot authorize them.
+blocked_export=false
+blocked_fail=false
 while IFS=$'\t' read -r status category action message; do
-    if [ "$status" = EXPORT ]; then
-        echo "[BLOCKED] ${category}: ${message}"
-        blocked=$((blocked + 1))
-    fi
+    case "$status:$action" in
+    EXPORT:export) blocked_export=true ;;
+    FAIL:none) blocked_fail=true ;;
+    *) continue ;;
+    esac
+    echo "[BLOCKED] ${category}: ${message}"
 done <"$plan_file"
-if [ "$blocked" -gt 0 ]; then
+if [ "$blocked_fail" = true ]; then
+    echo "Fix the reported local state, then run: just machine"
+    echo "[RESULT] FAIL"
+    exit 1
+fi
+if [ "$blocked_export" = true ]; then
     echo "Run: just export to keep the additions, or remove them; then run: just sync"
     echo "[RESULT] EXPORT"
     exit 1

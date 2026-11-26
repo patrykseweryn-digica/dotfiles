@@ -9,6 +9,7 @@ import difflib
 import json
 import math
 import os
+import re
 import sys
 import tempfile
 from importlib import import_module
@@ -129,12 +130,14 @@ def atomic_write(path, text, loads):
             os.unlink(temporary)
 
 
-def check_settings(source, live, expected):
+def check_settings(source, live, expected, *, quiet=False):
     for key in MODEL_KEYS:
         live.pop(key, None)
         expected.pop(key, None)
     if equal(live, expected):
         return 0
+    if quiet:
+        return 2
     print(f"[ERROR] Codex config drift detected: {source}", file=sys.stderr)
     print("Keep live: ./sync-agents.sh pull-codex-settings", file=sys.stderr)
     print("Keep repository: ./sync-agents.sh codex-install", file=sys.stderr)
@@ -149,9 +152,120 @@ def check_settings(source, live, expected):
     return 2
 
 
+def mcp_state(config):
+    servers = []
+    for name, server in config.get("mcp_servers", {}).items():
+        if server.get("enabled", True) is False:
+            continue
+        if isinstance(server.get("url"), str):
+            transport = {"type": "http", "url": server["url"]}
+        elif isinstance(server.get("command"), str):
+            args = server.get("args", [])
+            if not isinstance(args, list) or not all(isinstance(x, str) for x in args):
+                raise ValueError("Invalid Codex MCP arguments")
+            transport = {"type": "stdio", "command": server["command"], "args": args}
+        else:
+            raise ValueError("Invalid Codex MCP transport")
+        servers.append({"name": name, "transport": transport})
+    return servers
+
+
+def marketplace_entries(root, name):
+    for directory, filename in (
+        (".agents/plugins", "marketplace.json"),
+        (".agents/plugins", "api_marketplace.json"),
+        (".claude-plugin", "marketplace.json"),
+        (".cursor-plugin", "marketplace.json"),
+    ):
+        try:
+            entries = json.loads((root / directory / filename).read_text())
+            if entries["name"] != name or not isinstance(entries["plugins"], list):
+                raise ValueError("Invalid manifest")
+            return entries["plugins"]
+        except FileNotFoundError:
+            continue
+    raise ValueError("Missing manifest")
+
+
+def has_plugin_cache(root):
+    try:
+        return any(not p.is_symlink() and p.is_dir() for p in root.iterdir())
+    except FileNotFoundError:
+        return False
+
+
+def git_plugin_state(config, home):
+    # Codex stores Git marketplace snapshots here (installed_marketplaces.rs).
+    cache = home / "plugins/cache"
+    marketplaces, installed = [], []
+    plugins = config.get("plugins", {})
+    for name, market in config.get("marketplaces", {}).items():
+        if not re.fullmatch(r"[A-Za-z0-9_-]+", name):
+            raise ValueError("Invalid Codex marketplace name")
+        kind, source = market["source_type"], market["source"]
+        if kind not in ("git", "local") or not isinstance(source, str) or not source:
+            raise ValueError(f"Invalid Codex marketplace: {name}")
+        location = {"sourceType": kind, "source": source}
+        # Local marketplaces still need provider validation, but do not export.
+        marketplaces.append({"name": name, "marketplaceSource": location})
+        if kind == "local":
+            continue
+        root = home / ".tmp/marketplaces" / name
+        try:
+            for entry in marketplace_entries(root, name):
+                plugin = entry["name"]
+                if not re.fullmatch(r"[A-Za-z0-9_.-]+", plugin) or plugin in (
+                    ".",
+                    "..",
+                ):
+                    raise ValueError("Invalid plugin name")
+                plugin_id = f"{plugin}@{name}"
+                if plugin_id not in plugins or not has_plugin_cache(
+                    cache / name / plugin
+                ):
+                    continue
+                enabled = plugins[plugin_id].get("enabled", True)
+                if not isinstance(enabled, bool):
+                    raise ValueError("Invalid plugin enabled flag")
+                installed.append(
+                    {
+                        "pluginId": plugin_id,
+                        "installed": True,
+                        "enabled": enabled,
+                        "marketplaceName": name,
+                        "marketplaceSource": location,
+                    }
+                )
+        except (OSError, ValueError, KeyError, TypeError, AttributeError) as exc:
+            raise ValueError(
+                f"Unreadable or invalid Codex marketplace snapshot: {name}"
+            ) from exc
+    return {"installed": installed, "marketplaces": marketplaces}
+
+
+def plan_state(source, config, expected, home):
+    result: dict[str, object] = {
+        "settings": check_settings(source, config, expected, quiet=True),
+    }
+    try:
+        result["mcp"] = mcp_state(config)
+    except (ValueError, AttributeError):
+        result["mcp"] = None
+    try:
+        result.update(git_plugin_state(config, home))
+    except (ValueError, OSError, KeyError, TypeError, AttributeError) as exc:
+        message = str(exc)
+        result["pluginError"] = (
+            message
+            if message.startswith("Unreadable or invalid Codex marketplace snapshot: ")
+            else "Invalid Codex marketplace configuration"
+        )
+    return result
+
+
 def main():
     action, source, template, mcp, *output = sys.argv[1:]
-    if action == "check":
+    if action in ("check", "plan"):
         try:
             loads = import_module("tomllib").loads
         except ImportError:
@@ -178,7 +292,10 @@ def main():
         atomic_write(Path(output[0]), text, loads)
         return 0
 
-    inventory = json.loads(Path(mcp).read_text())
+    try:
+        inventory = json.loads(Path(mcp).read_text())
+    except (OSError, ValueError) as exc:
+        raise ValueError(f"Cannot read MCP inventory {mcp}: {exc}") from exc
     local, managed_servers = plan_settings(live_text, live, managed, inventory, loads)
     expected = copy.deepcopy(local)
     if managed_servers:
@@ -190,6 +307,9 @@ def main():
         return 0
     if action == "check":
         return check_settings(source, live, expected)
+    if action == "plan":
+        print(json.dumps(plan_state(source, live, expected, Path(output[0]))))
+        return 0
     raise ValueError(f"Unknown Codex TOML action: {action}")
 
 

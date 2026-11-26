@@ -22,27 +22,31 @@ Preconditions: repository dependencies; retain before/after evidence.
 
 - **Test statuses and failures.** Run `bash scripts/smoke-doctor.sh`. Its
   isolated public `just machine` drives the shared plan through matching,
-  skip, update, export and failure states. The test checks every `SKIP` reason,
-  broken links, missing tools, invalid Node, and disabled hooks. The real local
-  adapters verify settings, MCP, skills, and plugins with fixture Codex state.
-  External plugin CLI offline/read-only behavior is not proved by these fixtures.
-  A secret sentinel in a raw planner failure must not appear.
-- **Offline Codex settings.** The same smoke script runs real `just machine`
-  and the shared sync plan with fixture settings, offline uv, and a new empty
-  uv cache. Require `PASS` for matching TOML and `UPDATE` for managed drift;
-  without a local Python 3.11 or newer, require a specific `FAIL` diagnostic.
-  HOME, checkout and the empty cache must stay unchanged. To enforce no network
-  at the OS boundary on Linux with user namespaces, first warm the mutation
-  fixture with the normal smoke command, then run
-  `UV_OFFLINE=1 unshare -Urn bash scripts/smoke-doctor.sh`.
+  skip, update, export and failure states. Require the summary to report
+  differences for `UPDATE` and `EXPORT`, without a nonzero exit. The test checks
+  `SKIP` reasons, broken links, missing tools, invalid Node, and disabled hooks.
+  The real adapters name MCP, skill, and plugin additions without printing
+  marketplace URLs. An invalid skill lock must fail the plan. A secret sentinel
+  in a raw planner failure must not appear.
+- **Offline Codex state.** The same smoke script runs real `just machine`
+  and the shared sync plan with fixture settings, offline uv, and an empty uv
+  cache. Require one Python lookup per plan and no Codex CLI call. Require
+  `PASS` for matching TOML and `UPDATE` for managed drift. Require `EXPORT`
+  for an enabled Git plugin and `FAIL` for a missing marketplace snapshot or
+  Python 3.11 interpreter. HOME, checkout and cache must stay unchanged.
+  The test covers the user config, not Codex project or organization policies.
+  To deny network access at the OS boundary, warm the mutation fixture with
+  the normal smoke command first. Then run one of these commands:
+  - Linux: `UV_OFFLINE=1 unshare -Urn bash scripts/smoke-doctor.sh`
+  - macOS: `sandbox-exec -p '(version 1) (allow default) (deny network*)' bash scripts/smoke-doctor.sh`
 - **Live baseline and result.** Run `just machine` before and after the
   change, with output paths from SKILL.md. Compare failed categories. For
   changed check code, run `cksum` on affected live files before and after;
   the checksums must match. Investigate every new failure.
 - **Proof.** Retain both logs and exit codes. A nonzero live machine means
   unresolved drift; do not report the machine as fully verified.
-  Zero alone is also insufficient: UPDATE and EXPORT intentionally return zero.
-  Inspect category statuses rather than trusting the closing sentence.
+  `UPDATE` and `EXPORT` return zero but still report differences.
+  Inspect the category statuses for the next step.
 
 ## Gotchas
 
@@ -50,5 +54,3 @@ Preconditions: repository dependencies; retain before/after evidence.
   Review it before any apply command; do not erase it to make machine green.
 - Doctor filters raw diffs; do not add an unredacted verbose log path.
 - Native latest and upstream Node freshness are not checked by machine.
-- The current closing sentence can claim agreement despite UPDATE or EXPORT
-  (#61). Preserve the intended offline/read-only contract when reporting this bug.

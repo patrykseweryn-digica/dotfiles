@@ -82,7 +82,9 @@ elif [ -f "$state/skills" ]; then
 else
     row UPDATE skills update "Skills drift"
 fi
-if [ -f "$state/export-plugins" ]; then
+if [ -f "$state/unreadable-plugins" ]; then
+    row FAIL plugins none "Unreadable or invalid Codex marketplace snapshot: demo"
+elif [ -f "$state/export-plugins" ]; then
     row EXPORT plugins export "Plugins have a local addition"
 elif [ -f "$state/plugins" ]; then
     row PASS plugins none "Plugins match"
@@ -302,6 +304,15 @@ grep -Fx '[RESULT] EXPORT' "${tmp_dir}/update.log" >/dev/null ||
     fail "sync omitted its export result"
 rm "${state_dir}/export" "${state_dir}/export-skills" \
     "${state_dir}/export-plugins"
+
+touch "${state_dir}/unreadable-plugins"
+if run_sync; then fail "sync accepted unreliable plugin state"; fi
+[ ! -s "$action_log" ] || fail "unreadable plugin state started changes"
+[ ! -s "$mutation_log" ] || fail "unreadable plugin state changed the environment"
+expect_log '[BLOCKED] plugins: Unreadable or invalid Codex marketplace snapshot: demo' \
+    "sync did not name the unreadable plugin state"
+expect_log '[RESULT] FAIL' "sync omitted its failure result"
+rm "${state_dir}/unreadable-plugins"
 
 # A stalled operation and a failed phase do not stop independent phases.
 : >"$action_log"

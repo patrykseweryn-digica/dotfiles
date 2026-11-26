@@ -591,18 +591,20 @@ STUB
             exit 1
         fi
         expect_upgrade '[RESULT] EXPORT'
+        expect_upgrade "[BLOCKED] skills: Skills local additions or changes: $1"
+        expect_upgrade 'Run: just export'
         test -f "$home/.agents/skills/control-cli/SKILL.md"
         merge_log "$SKILL_TEST_LOG"
         test ! -s "$SKILL_TEST_LOG"
     }
     reset_log "$SKILL_TEST_LOG"
-    expect_export
+    expect_export control-cli  # No trustworthy baseline yet, even after the pull.
     cp "$task_dir/old-refs" "$refs"
 
     local_skill="$home/.claude/skills/local-skill"
     mkdir "$local_skill"
     printf '%s\n' '# local skill' >"$local_skill/SKILL.md"
-    expect_export
+    expect_export local-skill
     test -f "$local_skill/SKILL.md"
     rm -r "$local_skill"
 
@@ -611,7 +613,7 @@ STUB
     jq '.skills["control-cli"].sourceUrl = "https://github.com/example/replacement"' \
         "$live" >"$task_dir/live-modified"
     cp "$task_dir/live-modified" "$live"
-    expect_export
+    expect_export control-cli
     cmp "$task_dir/live-modified" "$live"
     cp "$task_dir/live-before" "$live"
 

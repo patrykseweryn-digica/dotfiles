@@ -36,14 +36,20 @@ Preconditions: dependencies from SKILL.md; run from the checkout root.
   the old pre-commit Git hook must disappear, and a custom hook must stay
   as prek's legacy hook. It needs prek on PATH.
 - **Plan and update.** Run `bash scripts/smoke-update-local.sh`. It drives
-  public `just sync` in an isolated HOME and checkout. A stalled fetch and a
-  local addition stop sync before changes. A stalled operation stops with its
+  public `just sync` in an isolated HOME and checkout. A stalled fetch, a
+  local addition, and an unreadable plugin plan stop sync before changes.
+  Require the plugin failure to name the unreadable marketplace.
+  A stalled operation stops with its
   child process; independent phases continue and dependent phases report
   `NOT RUN` with a reason. The test then
   checks repeat orchestration and unchanged HOME with updater stubs.
   This does not prove real download reuse or installer idempotence.
   The caller starts with an older Node; the final check must see the Node
   and npm CLIs that the refresh installed.
+- **Block on a local Codex plugin.** Run `bash scripts/smoke-doctor.sh`.
+  The public `just sync` fetches from a local Git checkout and uses the real
+  planner. Require `EXPORT`, the plugin name, and no changes to fixture HOME,
+  even if the plan contains an independent repair. Sync logs go outside HOME.
 - **Bounded operations.** Run `bash scripts/smoke-operation.sh`. It stalls a
   command with a child process under a 1 s limit, without GNU `timeout`, and
   on Linux also without `ps`. Both processes must stop. The report must name
@@ -69,9 +75,10 @@ Preconditions: dependencies from SKILL.md; run from the checkout root.
   unchanged repeated push. Deleting a skill from the shared directory must
   remove its entry from Pi without leaving a broken link. The script also
   runs public `just sync` with a real Git fast-forward and installed skills.
-  Require repository removals to apply, unknown and locally replaced skills
-  to stop sync, and a failed swap to preserve the last applied inventory for
-  retry. The test stubs skill downloads and unrelated categories.
+  Require repository removals to apply. Unknown and locally replaced skills
+  must stop sync before downloads, name the skill, and suggest `just export`.
+  A failed swap must preserve the last applied inventory for retry.
+  The test stubs skill downloads and unrelated categories.
 - **Skill support docs.** Run `bash scripts/smoke-skill-docs.sh`. A skill
   linking `../../docs/<path>` must get that file in `~/.agents/docs`, with
   each runtime `docs` directory linked to it. Doctor reports a missing doc

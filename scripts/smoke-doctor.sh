@@ -25,6 +25,8 @@ home_dir="${tmp_dir}/home with spaces"
 stub_dir="${tmp_dir}/stubs"
 check_log="${tmp_dir}/checks.log"
 network_log="${tmp_dir}/network.log"
+export DOCTOR_UV_LOG="${tmp_dir}/uv.log"
+export DOCTOR_UV_BIN="$UV_BIN"
 
 export CODEX_CONFIG="${home_dir}/.codex/config.toml"
 export CODEX_SETTINGS_TEMPLATE="${tmp_dir}/codex-settings.toml"
@@ -48,7 +50,7 @@ export CODEX_PLUGIN_MANIFEST="$PLUGIN_MANIFEST"
 export SKILL_LOCK_REPO="${tmp_dir}/skills.json"
 export SKILL_LOCK_LIVE="${home_dir}/.agents/.skill-lock.json"
 export SKILLS_CLI="${stub_dir}/skills"
-export CODEX_MCP_STATE_FILE="${tmp_dir}/codex-mcp.json"
+unset CODEX_PLUGIN_LIST_FILE CODEX_MARKETPLACE_LIST_FILE
 
 mkdir -p \
     "${home_dir}/.agents/skills" \
@@ -58,7 +60,12 @@ mkdir -p \
     "$PI_CODING_AGENT_DIR" \
     "$stub_dir"
 ln -s "${home_dir}/.agents/skills" "$PI_SKILLS_DIR"
-ln -s "$UV_BIN" "${stub_dir}/uv"
+cat >"${stub_dir}/uv" <<'STUB'
+#!/bin/bash
+printf '%s %s\n' "${1:-}" "${2:-}" >>"$DOCTOR_UV_LOG"
+exec "$DOCTOR_UV_BIN" "$@"
+STUB
+chmod +x "${stub_dir}/uv"
 cp "${DOTFILES_DIR}/config/claude/settings.json" "$CLAUDE_TEMPLATE_FILE"
 cp "${DOTFILES_DIR}/config/codex/settings.toml" "$CODEX_SETTINGS_TEMPLATE"
 cp "${DOTFILES_DIR}/.agents/skill-lock.json" "$SKILL_LOCK_LIVE"
@@ -209,6 +216,8 @@ fi
 : >"$network_log"
 snapshot_state "${tmp_dir}/before"
 run_doctor || fail "doctor rejected a healthy plan"
+grep -Fxq '[INFO] Live machine matches repository intent' "${tmp_dir}/doctor.log" ||
+    fail "doctor did not confirm a healthy machine"
 snapshot_state "${tmp_dir}/after"
 cmp "${tmp_dir}/before" "${tmp_dir}/after" ||
     fail "doctor changed HOME or checkout"
@@ -243,6 +252,8 @@ grep -F '[UPDATE] settings:codex:' "${tmp_dir}/doctor.log" >/dev/null ||
     fail "doctor omitted UPDATE"
 grep -F 'Run: just sync' "${tmp_dir}/doctor.log" >/dev/null ||
     fail "doctor omitted update action"
+grep -Fxq '[INFO] Live machine differs from repository intent' "${tmp_dir}/doctor.log" ||
+    fail "doctor did not report an unaligned machine for UPDATE"
 
 PLAN_SCENARIO="export"
 run_doctor || fail "doctor rejected EXPORT"
@@ -250,6 +261,9 @@ grep -F '[EXPORT] settings:codex:' "${tmp_dir}/doctor.log" >/dev/null ||
     fail "doctor omitted EXPORT"
 grep -F 'Run: just export' "${tmp_dir}/doctor.log" >/dev/null ||
     fail "doctor omitted export action"
+grep -Fxq '[INFO] Live machine differs from repository intent' "${tmp_dir}/doctor.log" ||
+    fail "doctor did not report an unaligned machine for EXPORT"
+unset PLAN_SCENARIO
 
 PLAN_MODE=skip
 run_doctor || fail "doctor rejected SKIP-only tool rows"
@@ -308,17 +322,7 @@ printf '%s\n' \
     >"$PLUGIN_MANIFEST"
 printf '{"skills":{},"dismissed":{}}\n' >"$SKILL_LOCK_REPO"
 cp "$SKILL_LOCK_REPO" "$SKILL_LOCK_LIVE"
-export CODEX_PLUGIN_LIST_FILE="${tmp_dir}/codex-plugins.json"
-export CODEX_MARKETPLACE_LIST_FILE="${tmp_dir}/codex-marketplaces.json"
-printf '{"installed":[]}\n' >"$CODEX_PLUGIN_LIST_FILE"
-printf '{"marketplaces":[]}\n' >"$CODEX_MARKETPLACE_LIST_FILE"
-cat >"${stub_dir}/codex" <<'STUB'
-#!/bin/bash
-[ "$*" = 'mcp list --json' ] || exit 1
-cat "$CODEX_MCP_STATE_FILE"
-STUB
-chmod +x "${stub_dir}/codex"
-printf '[]\n' >"$CODEX_MCP_STATE_FILE"
+cp "${stub_dir}/curl" "${stub_dir}/codex"
 
 sync_real() {
     HOME="$home_dir" PATH="${stub_dir}:${SMOKE_BASE_PATH}" \
@@ -389,10 +393,11 @@ mv "${tmp_dir}/codex.before" "$CODEX_CONFIG"
 cat >"$MCP_SERVERS" <<'JSON'
 {"shared":{"type":"http","url":"https://repo.test/mcp"}}
 JSON
-cat >"$CODEX_MCP_STATE_FILE" <<'JSON'
-[{"enabled":true,"name":"shared","transport":{
-  "type":"http","url":"https://codex-old.test/mcp"}}]
-JSON
+cp "$CODEX_CONFIG" "${tmp_dir}/codex.before-mcp"
+cat >>"$CODEX_CONFIG" <<'TOML'
+[mcp_servers.shared]
+url = "https://codex-old.test/mcp"
+TOML
 cp "$CLAUDE_USER_CONFIG" "${tmp_dir}/claude-user.before-mcp-drift"
 jq '.mcpServers.shared = {
       type: "http", url: "https://claude-old.test/mcp"
@@ -403,26 +408,33 @@ grep -E '^UPDATE[[:space:]]+mcp[[:space:]]' \
     "${tmp_dir}/real-plan" >/dev/null ||
     fail "managed MCP drift is not UPDATE"
 printf '{}\n' >"$MCP_SERVERS"
-printf '[]\n' >"$CODEX_MCP_STATE_FILE"
+cp "${tmp_dir}/codex.before-mcp" "$CODEX_CONFIG"
 mv "${tmp_dir}/claude-user.before-mcp-drift" "$CLAUDE_USER_CONFIG"
 
-cat >"$CODEX_MCP_STATE_FILE" <<'JSON'
-[{"enabled":true,"name":"codex-local","transport":{
-  "type":"stdio","command":"/Users/local/bin/server","args":[]}}]
-JSON
+cat >>"$CODEX_CONFIG" <<'TOML'
+[mcp_servers.codex-local]
+command = "/Users/local/bin/server"
+[mcp_servers.disabled]
+command = "disabled-server"
+enabled = false
+TOML
 real_plan
 grep -E '^PASS[[:space:]]+mcp[[:space:]]' \
     "${tmp_dir}/real-plan" >/dev/null ||
     fail "Codex-only local MCP state was not ignored"
-cat >"$CODEX_MCP_STATE_FILE" <<'JSON'
-[{"enabled":true,"name":"codex-portable","transport":{
-  "type":"stdio","command":"portable-server","args":["--stdio"]}}]
-JSON
+cat >>"$CODEX_CONFIG" <<'TOML'
+[mcp_servers.codex-portable]
+command = "portable-server"
+args = ["--stdio"]
+TOML
 real_plan
 grep -E '^EXPORT[[:space:]]+mcp[[:space:]]' \
     "${tmp_dir}/real-plan" >/dev/null ||
     fail "portable Codex-only MCP state is not exportable"
-printf '[]\n' >"$CODEX_MCP_STATE_FILE"
+machine_offline || fail "machine rejected a portable MCP addition"
+grep -Eq '^\[EXPORT\] mcp: .*codex-portable' "${tmp_dir}/doctor.log" ||
+    fail "machine did not name the portable MCP addition"
+cp "${tmp_dir}/codex.before-mcp" "$CODEX_CONFIG"
 
 cp "$CLAUDE_SETTINGS_FILE" "${tmp_dir}/claude-settings.before"
 jq '.model = "changed"' "$CLAUDE_SETTINGS_FILE" >"${tmp_dir}/changed.json"
@@ -451,20 +463,101 @@ printf '%s\n' '# local' >"${home_dir}/.agents/skills/local-skill/SKILL.md"
 real_plan
 grep -E '^EXPORT[[:space:]]+skills[[:space:]]' \
     "${tmp_dir}/real-plan" >/dev/null || fail "local skill addition is not EXPORT"
+grep -E '^EXPORT[[:space:]]+skills[[:space:]].*local-skill' \
+    "${tmp_dir}/real-plan" >/dev/null || fail "plan did not name the local skill"
 rm -rf "${home_dir}/.agents/skills/local-skill"
 
-cat >"$CODEX_PLUGIN_LIST_FILE" <<'JSON'
-{"installed":[{"installed":true,"enabled":true,"pluginId":"demo@third",
-"marketplaceName":"third","marketplaceSource":{"sourceType":"git",
-"source":"https://github.com/example/plugins"}}]}
-JSON
-cat >"$CODEX_MARKETPLACE_LIST_FILE" <<'JSON'
-{"marketplaces":[{"name":"third","marketplaceSource":{"sourceType":"git",
-"source":"https://github.com/example/plugins"}}]}
-JSON
+market="${home_dir}/.codex/.tmp/marketplaces/third/.agents/plugins"
+cache="${home_dir}/.codex/plugins/cache/third"
+mkdir -p "$market" "$cache/demo/1.0.0" "$cache/disabled/1.0.0"
+printf '%s\n' '{"name":"third","plugins":[{"name":"demo"},{"name":"disabled"}]}' >"$market/marketplace.json"
+cat >>"$CODEX_CONFIG" <<'TOML'
+[marketplaces.third]
+source_type = "git"
+source = "https://github.com/example/plugins"
+[plugins."demo@third"]
+enabled = true
+[plugins."disabled@third"]
+enabled = false
+TOML
+snapshot_state "${tmp_dir}/plugins-before"
+: >"$DOCTOR_UV_LOG"
+machine_offline || fail "machine rejected an offline plugin addition"
+[ "$(cat "$DOCTOR_UV_LOG")" = 'python find' ] ||
+    fail "machine did not build settings, MCP and plugin state in one Codex read"
+snapshot_state "${tmp_dir}/plugins-after"
+cmp "${tmp_dir}/plugins-before" "${tmp_dir}/plugins-after" ||
+    fail "plugin plan changed HOME or checkout"
 real_plan
 grep -E '^EXPORT[[:space:]]+plugins[[:space:]]' \
     "${tmp_dir}/real-plan" >/dev/null || fail "portable plugin addition is not EXPORT"
+grep -E '^EXPORT[[:space:]]+plugins[[:space:]].*demo@third' \
+    "${tmp_dir}/real-plan" >/dev/null || fail "plan did not name the local plugin"
+if grep -Eq 'https://github.com/example/plugins|disabled@third' "${tmp_dir}/real-plan"; then
+    fail "plan exposed a marketplace URL or listed a disabled plugin"
+fi
+[ ! -s "$network_log" ] || fail "machine called a network-capable CLI"
+
+# Use a real fetch and planner without allowing sync to touch the source checkout.
+(
+    # shellcheck disable=SC2046
+    unset $(git -C "$DOTFILES_DIR" rev-parse --local-env-vars)
+    upstream="${tmp_dir}/sync-upstream"
+    checkout="${tmp_dir}/sync-checkout"
+    git init -q --initial-branch=master "$upstream"
+    git -C "$upstream" -c user.name=Smoke -c user.email=smoke@example.test \
+        commit -q --allow-empty -m 'Initialize fixture'
+    git clone -q "$upstream" "$checkout"
+
+    # The Git fixture only supplies the checkout; the real planner uses this tree.
+    plan="${tmp_dir}/sync-plan"
+    printf '#!/bin/bash\nDOTFILES_DIR=%q exec %q "$@"\n' "$DOTFILES_DIR" "$STATE_PLAN" >"$plan"
+    chmod +x "$plan"
+
+    rm "${home_dir}/.zshrc"  # Independent repair would write to HOME.
+    snapshot_state "${tmp_dir}/sync-before"
+    if env -u CODEX_HOME HOME="$home_dir" XDG_STATE_HOME="${tmp_dir}/sync-state" \
+        PATH="${stub_dir}:${SMOKE_BASE_PATH}" NETWORK_LOG="$network_log" \
+        UV_CACHE_DIR="$check_cache" UV_OFFLINE=1 UV_PYTHON_DOWNLOADS=never \
+        DOTFILES_DIR="$checkout" STATE_PLAN="$plan" \
+        UPDATE_SCRIPT="${DOTFILES_DIR}/scripts/update-local.sh" \
+        INSTALL_SCRIPT="${DOTFILES_DIR}/install.sh" \
+        SYNC_AGENTS="${DOTFILES_DIR}/sync-agents.sh" \
+        AGENT_TOOLS="${stub_dir}/agent-tools" CORE_TOOLS="${stub_dir}/core-tools" \
+        DOCTOR_NODE_BIN="${stub_dir}/node" \
+        "$JUST_BIN" --justfile "${DOTFILES_DIR}/justfile" sync \
+        >"${tmp_dir}/blocked-sync.log" 2>&1; then
+        fail "sync accepted an unexported Codex plugin"
+    fi
+    if ! grep -Eq '^\[BLOCKED\] plugins: .*demo@third' "${tmp_dir}/blocked-sync.log" ||
+        ! grep -Fxq '[RESULT] EXPORT' "${tmp_dir}/blocked-sync.log"; then
+        cat "${tmp_dir}/blocked-sync.log" >&2
+        fail "sync did not block on the named Codex plugin"
+    fi
+    grep -Fq '[PLAN] [FAIL] links:' "${tmp_dir}/blocked-sync.log" ||
+        fail "sync fixture did not plan the independent repair"
+    grep -Fq 'Run: just export' "${tmp_dir}/blocked-sync.log" ||
+        fail "sync omitted the next step"
+    if grep -Eq '^\[(APPLY|REFRESH)\]' "${tmp_dir}/blocked-sync.log"; then
+        fail "sync attempted a change before export"
+    fi
+    snapshot_state "${tmp_dir}/sync-after"
+    cmp "${tmp_dir}/sync-before" "${tmp_dir}/sync-after" ||
+        fail "blocked sync changed HOME or the source checkout"
+    [ ! -s "$network_log" ] || fail "blocked sync called a network-capable CLI"
+)
+repair_managed_links
+rm "$market/marketplace.json"
+if machine_offline; then fail "machine accepted a missing marketplace snapshot"; fi
+grep -Eq '^\[FAIL\] plugins: .*marketplace.*third' "${tmp_dir}/doctor.log" ||
+    fail "machine did not name the missing marketplace snapshot"
+
+cp "$SKILL_LOCK_REPO" "${tmp_dir}/skills.before"
+printf 'not JSON\n' >"$SKILL_LOCK_REPO"
+if machine_offline; then fail "machine accepted an incomplete plan"; fi
+grep -Fq '[FAIL] state plan' "${tmp_dir}/doctor.log" ||
+    fail "machine omitted the planner failure"
+mv "${tmp_dir}/skills.before" "$SKILL_LOCK_REPO"
 
 if grep -Eq \
     'agent-plugin-check|claude-settings-check|mcp-config-check' \
