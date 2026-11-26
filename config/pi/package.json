@@ -4,10 +4,11 @@
   "scripts": {
     "check": "tsc --noEmit && npm run lint",
     "lint": "cd ../.. && config/pi/node_modules/.bin/eslint --config config/pi/eslint.config.mjs config/pi/extensions config/pi/eslint.config.mjs scripts/smoke-pi-*.mjs && config/pi/node_modules/.bin/prettier --check 'config/pi/*.{json,mjs}' '!config/pi/settings.json' 'config/pi/extensions/*.ts' 'config/pi/themes/*.json' 'scripts/smoke-pi-*.mjs'",
-    "test": "node ../../scripts/smoke-pi-title.mjs && node ../../scripts/smoke-pi-config.mjs"
+    "test": "node ../../scripts/smoke-pi-title.mjs && node ../../scripts/smoke-pi-config.mjs && node ../../scripts/smoke-pi-pr-ci-watch.mjs"
   },
   "devDependencies": {
     "@earendil-works/pi-coding-agent": "0.99.1",
+    "@earendil-works/pi-tui": "0.99.1",
     "@eslint/js": "10.0.1",
     "@types/node": "24.10.0",
     "eslint": "10.10.0",

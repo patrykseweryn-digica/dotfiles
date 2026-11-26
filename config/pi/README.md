@@ -72,6 +72,16 @@ Pi writes its default title after asynchronous startup, reload and rename.
 Only active work animates. Shutdown/session replacement clears the timer.
 RPC, JSON and print do not start it or emit title updates.
 
+## Pull request checks
+
+When the agent opens a GitHub pull request with `gh pr create`, Pi watches
+its checks in the background. Pi adds the result and pull request link to
+the conversation. If checks fail or are cancelled, Pi names them. The result
+does not start another model turn.
+
+Keep the session open until the checks finish. Reloading, switching or
+closing the session stops the watch. The watch times out after 90 minutes.
+
 ## Server compaction
 
 Sync updates the package from current upstream. Its declared Pi range was
