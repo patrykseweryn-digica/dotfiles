@@ -25,8 +25,7 @@
       "scripts/groups.sh"
     ],
     "enable": [
-      "scripts/groups.sh",
-      "install.sh"
+      "scripts/groups.sh"
     ],
     "disable": [
       "scripts/groups.sh"
@@ -104,6 +103,10 @@
     {
       "from": "scripts/doctor.sh",
       "to": "scripts/state-plan.sh"
+    },
+    {
+      "from": "scripts/groups.sh",
+      "to": "install.sh"
     },
     {
       "from": "scripts/managed-links.sh",

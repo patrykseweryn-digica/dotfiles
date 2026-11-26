@@ -24,10 +24,12 @@ make export
 make export-skills
 ```
 
-Run `just` or `make` to list the commands in groups. On a new machine, start
-with `install`, then `machine`. The Make commands do not install or require
-`just`. They work with the same no-sudo setup as `./install.sh`.
-`scripts/smoke-menu.sh` fails when `make help` drifts from the `just` menu.
+Run `just` or `make` to see the menu. It shows the install groups of this
+machine, the first step on a new machine (`install`, then `machine`), and the
+commands in groups. The Make commands do not install or require `just`. They
+work with the same no-sudo setup as `./install.sh`. `scripts/menu.sh` prints
+the status for both runners. `scripts/smoke-menu.sh` fails when the
+`make help` command list drifts from the `just` menu.
 
 ## Sync direction
 
@@ -249,10 +251,27 @@ with these commands:
 just groups           # show the selected groups
 just enable agents    # select agents, then run install
 just disable desktop  # stop installing and updating desktop
+just enable           # choose a group from a numbered list
 ```
 
 The Make equivalents are `make groups`, `make enable group=agents`, and
-`make disable group=desktop`.
+`make disable group=desktop`. Without a group, `enable` and `disable` ask for
+one on a terminal and print the usage otherwise. An empty answer cancels:
+nothing changes and `enable` does not run install.
+
+`just groups` prints one row per group: a mark (✓ selected, ○ not selected),
+the group, what it installs, and the command that changes it:
+
+```text
+Install groups - 2 of 3 selected
+    ✓ core     Shell, Git, SSH and CLI tools        required
+    ✓ agents   AI agents, skills, MCP and Node.js   just disable agents
+    ○ desktop  Fonts, terminal colors and GUI apps  just enable desktop
+```
+
+The descriptions live in `group_description` in `scripts/groups.sh`. Colors
+appear only on a terminal; set `NO_COLOR` or `JUST_COLOR=never` to turn them
+off.
 
 The commands write `DOTFILES_GROUPS` in `.env`, for example
 `DOTFILES_GROUPS=core,agents`. `core` is required and cannot be disabled.

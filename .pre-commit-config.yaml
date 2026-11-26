@@ -441,9 +441,9 @@ repos:
         include_deleted: true
         priority: 0
       - id: menu-smoke
-        files: '^(?:Makefile|justfile|scripts/smoke-menu\.sh)$'
+        files: '^(?:Makefile|justfile|scripts/(?:groups|menu|smoke-menu)\.sh)$'
         name: Command menu smoke test
-        description: Keep make help aligned with the grouped just menu
+        description: Keep make help aligned with the just menu and group status
         entry: bash scripts/smoke-menu.sh
         language: system
         pass_filenames: false

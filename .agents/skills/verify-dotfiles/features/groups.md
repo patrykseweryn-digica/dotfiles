@@ -8,9 +8,16 @@ other elements as `SKIP ... skipped: group <name> is not selected`.
 
 - `setting` reads `DOTFILES_GROUPS` only from the local env file
   (`DOTFILES_ENV_FILE`, default `.env`). No setting selects core only.
-- `commands`: `just groups` shows the selection. `just enable <group>`
-  writes the group into the env file and runs install. `just disable <group>`
-  removes the group and keeps its installed elements. Core cannot be disabled.
+- `commands`: `just groups` shows a table: mark, group, description and the
+  command that changes it. `just enable <group>` writes the group into the
+  env file and runs install. `just disable <group>` removes the group and
+  keeps its installed elements. Core cannot be disabled.
+- `choice`: without a group, `enable` offers unselected groups and `disable`
+  offers selected groups except core, as a numbered list on a terminal.
+  An empty answer, or nothing to choose, prints one `[INFO]` line, changes
+  nothing and exits 0; `enable` then skips install. A wrong number, or no
+  terminal, fails and changes nothing. `scripts/groups.sh enable` runs
+  install itself after a change.
 - `validation` rejects an unknown group or a list without `core` before
   any change: before install steps, the sync fetch, and machine planning.
 - `install` skips install steps of unselected groups and names the group in
@@ -41,8 +48,11 @@ Preconditions: dependencies from SKILL.md; run from the checkout root.
   links and phases, and pass. Doctor without a setting in a HOME with all
   groups installed must print one `groups` notice per group and pass.
   It also drives `make groups`, `make enable` and `make disable` on a
-  fixture env file: in-place writes, canonical order, duplicate lines,
-  and invalid commands that leave the file unchanged.
+  fixture env file: the groups table, in-place writes, canonical order,
+  duplicate lines, and invalid commands that leave the file unchanged.
+  A Python pseudo-terminal answers the group choice of `make enable` and
+  `make disable`: a cancel and nothing to choose must pass without a make
+  error; a wrong number and no terminal must fail.
   Invalid settings must leave HOME, the checkout and the call log unchanged.
   The real planners run; external installers and core tools are simulated.
 - **Tool groups.** Run `bash scripts/smoke-tool-plan.sh`. It rejects a tool

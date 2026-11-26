@@ -18,6 +18,7 @@ fail() {
 }
 
 MAKE_BIN="$(command -v make)"
+PYTHON_BIN="$(command -v python3)"
 tmp_dir="$(mktemp -d)"
 trap 'rm -rf "$tmp_dir"' EXIT
 set_smoke_base_path "$tmp_dir"
@@ -397,6 +398,9 @@ for script in groups.sh managed-links.sh; do
 done
 group_env="${tmp_dir}/group-command.env"
 
+# Group commands read stdin only to ask for a group. They get no terminal,
+# unless run_group_tty types an answer into one.
+group_launcher=(env)
 run_group_command() {
     HOME="${tmp_dir}/core-home" \
         PATH="${stub_dir}:${SMOKE_BASE_PATH}" \
@@ -404,8 +408,28 @@ run_group_command() {
         GROUPS_TEST_REPO="$DOTFILES_DIR" \
         DOTFILES_ENV_FILE="$group_env" \
         DOTFILES_SKIP_SSH=true \
+        "${group_launcher[@]}" \
         "$MAKE_BIN" --no-print-directory -C "${tmp_dir}/fixture" "$@" \
-        >"${tmp_dir}/group.log" 2>&1
+        </dev/null >"${tmp_dir}/group.log" 2>&1
+}
+
+# Run a group command with a terminal on stdin that already holds the input.
+cat >"${tmp_dir}/tty.py" <<'PY'
+import os
+import subprocess
+import sys
+
+controller, terminal = os.openpty()
+os.write(controller, sys.argv[1].encode())
+sys.exit(subprocess.call(sys.argv[2:], stdin=terminal))
+PY
+run_group_tty() {
+    local input="$1" status=0
+    shift
+    group_launcher=("$PYTHON_BIN" "${tmp_dir}/tty.py" "$input")
+    run_group_command "$@" || status=$?
+    group_launcher=(env)
+    return "$status"
 }
 
 # Print the group setting lines of the command fixture.
@@ -415,10 +439,22 @@ group_lines() {
 
 write_env "$group_env"
 run_group_command groups || fail "make groups failed without a setting"
-expect_log group '[INFO] Install groups: core' \
-    "make groups did not show core as the default"
-expect_log group 'Not selected: agents, desktop. Add one with: make enable group=<group>' \
-    "make groups did not name the groups that are not selected"
+expect_log group 'Install groups - 1 of 3 selected' \
+    "make groups did not count core as the default"
+for row in '✓ core .* required' '○ agents .* make enable group=agents' \
+    '○ desktop .* make enable group=desktop'; do
+    grep -Ex "    ${row}" "${tmp_dir}/group.log" >/dev/null ||
+        fail "make groups has no row: ${row}"
+done
+(
+    # shellcheck source=scripts/groups.sh
+    source "${DOTFILES_DIR}/scripts/groups.sh"
+    for group in $DOTFILES_GROUP_NAMES; do
+        [ -n "$(group_description "$group")" ] ||
+            fail "install group has no description: $group"
+    done
+)
+echo "[INFO] groups: the table names every group and its command"
 
 # A template line keeps its position; other lines stay unchanged.
 printf '%s\n' 'EMAIL=test@example.com' '# Install groups' 'DOTFILES_GROUPS=' \
@@ -473,6 +509,62 @@ run_group_command disable group=desktop || fail "disable with duplicate lines fa
 [ "$(sed -n 3p "$group_env")" = 'DOTFILES_GROUPS=core' ] ||
     fail "disable did not keep the first setting position"
 echo "[INFO] disable: removes the group and keeps installed elements"
+
+# Without a group, enable and disable ask on a terminal. Without one, or with
+# a wrong answer, they fail. A cancel, or nothing to choose, changes nothing
+# and passes without a make error.
+write_env "$group_env" 'DOTFILES_GROUPS=core'
+expect_setting() {
+    [ "$(group_lines)" = "$1" ] && [ ! -s "$calls" ] ||
+        fail "$2 changed the machine"
+}
+expect_quiet_pass() {
+    reject_log group 'make: ***' "$1 printed a make error"
+    reject_log group '[ERROR]' "$1 printed an error"
+}
+: >"$calls"
+if run_group_command enable; then fail "make enable without a group passed"; fi
+expect_log group 'Usage: make enable group=NAME, where NAME is one of: agents, desktop' \
+    "make enable without a group and terminal did not print the usage"
+expect_setting 'DOTFILES_GROUPS=core' "make enable without a terminal"
+run_group_tty $'\n' enable || fail "a cancelled choice failed"
+expect_log group '[INFO] No group chosen; nothing changed' \
+    "a cancelled choice did not say that nothing changed"
+expect_quiet_pass "a cancelled choice"
+expect_setting 'DOTFILES_GROUPS=core' "a cancelled choice"
+if run_group_tty $'3\n' enable; then fail "make enable accepted 3 of 2 groups"; fi
+expect_log group '[ERROR] "3" is not a group number: 1-2' \
+    "make enable did not reject a number outside the list"
+expect_setting 'DOTFILES_GROUPS=core' "a wrong answer"
+run_group_tty $'2\n' enable || {
+    cat "${tmp_dir}/group.log" >&2
+    fail "make enable did not accept a chosen group"
+}
+expect_log group '    2) desktop  Fonts, terminal colors and GUI apps' \
+    "make enable did not offer the unselected groups"
+[ "$(group_lines)" = 'DOTFILES_GROUPS=core,desktop' ] ||
+    fail "make enable did not select the chosen group"
+grep -Fx 'step fonts' "$calls" >/dev/null ||
+    fail "make enable did not install the chosen group"
+: >"$calls"
+run_group_tty $'1\n' disable || fail "make disable did not accept a chosen group"
+expect_log group 'Group number [1, Enter cancels]:' \
+    "make disable offered core or an unselected group"
+expect_setting 'DOTFILES_GROUPS=core' "make disable"
+write_env "$group_env" 'DOTFILES_GROUPS=core,agents,desktop'
+run_group_command enable || fail "make enable failed with all groups selected"
+expect_log group '[INFO] All install groups are already selected' \
+    "make enable did not say that all groups are selected"
+expect_quiet_pass "make enable with all groups selected"
+expect_setting 'DOTFILES_GROUPS=core,agents,desktop' "make enable with all groups"
+write_env "$group_env" 'DOTFILES_GROUPS=core'
+run_group_command disable || fail "make disable failed with only core"
+expect_log group '[INFO] Only core is selected, and core is required' \
+    "make disable did not explain that only core is selected"
+expect_quiet_pass "make disable with only core"
+expect_setting 'DOTFILES_GROUPS=core' "make disable with only core"
+echo "[INFO] group commands: a missing group is chosen on a terminal"
+
 
 # Invalid commands leave the env file and the machine unchanged.
 cp "$group_env" "${tmp_dir}/group-before.env"

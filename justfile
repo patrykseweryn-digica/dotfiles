@@ -4,12 +4,13 @@ set quiet
 
 sync_agents := env_var_or_default("SYNC_AGENTS", "./sync-agents.sh")
 
-# Show the public command menu. Keep Makefile help in the same order.
-# just 1.59 ignores NO_COLOR, and the child cannot see --color; use JUST_COLOR.
+# Show the install group status and the public commands. Keep Makefile help
+# in the same order. scripts/menu.sh adds the colors: it follows NO_COLOR and
+# JUST_COLOR, but cannot see the --color option of this just process.
 [private]
 default:
     "{{ just_executable() }}" --justfile "{{ justfile() }}" --list --unsorted \
-        ${NO_COLOR:+--color never}
+        --list-heading '' --color never | bash scripts/menu.sh
 
 # Install tools, links, agent config, SSH and hooks.
 [group('start')]
@@ -38,13 +39,12 @@ groups:
 
 # Select an install group, then install its elements.
 [group('install groups')]
-enable group:
+enable group="":
     bash scripts/groups.sh enable "{{ group }}"
-    ./install.sh
 
 # Stop updating an install group; keep its elements.
 [group('install groups')]
-disable group:
+disable group="":
     bash scripts/groups.sh disable "{{ group }}"
 
 # Save local additions; `export skills` picks skills.
